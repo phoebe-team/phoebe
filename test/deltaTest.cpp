@@ -34,13 +34,13 @@ TEST(deltaFunctions, testAllDeltas) {
 
   // calculate energies and velocities at three different points
   // defined by conservation of momentum
-//  int iq1 = 5;
-//  int iq2 = 5;
+  int iq1 = 5;
+  int iq2 = 7;
 
-int numPoints = points.getNumPoints();
+//int numPoints = points.getNumPoints();
 
-for( int iq1 = 0; iq1 < numPoints; iq1++) {
-for( int iq2 = 0; iq2 < numPoints; iq2++) {
+//for( int iq1 = 0; iq1 < numPoints; iq1++) {
+//for( int iq2 = 0; iq2 < numPoints; iq2++) {
 
   WavevectorIndex iq1Idx(iq1);
   WavevectorIndex iq2Idx(iq2);
@@ -52,15 +52,15 @@ for( int iq2 = 0; iq2 < numPoints; iq2++) {
   int iq3 = phononBandStructure.getPoints().getIndex(q3);
   WavevectorIndex iq3Idx(iq3);
 
-  for(int ib1 = 0; ib1 < numBands; ib1++)  {
-    for(int ib2 = 0; ib2 < numBands; ib2++)  {
-      for(int ib3 = 0; ib3 < numBands; ib3++)  {
+//  for(int ib1 = 0; ib1 < numBands; ib1++)  {
+//    for(int ib2 = 0; ib2 < numBands; ib2++)  {
+//      for(int ib3 = 0; ib3 < numBands; ib3++)  {
 
 // TODO move this into unmodded phoebe and see if adaptive still gives zero...
 
-//  int ib1 = 5;
-//  int ib2 = 5;
-//  int ib3 = 5;
+  int ib1 = 5;
+  int ib2 = 5;
+  int ib3 = 5;
 
   BandIndex ib1Idx(ib1);
   BandIndex ib2Idx(ib2);
@@ -75,7 +75,6 @@ for( int iq2 = 0; iq2 < numPoints; iq2++) {
   Eigen::Vector3d v1 = phononBandStructure.getGroupVelocity(is1);
   Eigen::Vector3d v2 = phononBandStructure.getGroupVelocity(is2);
   Eigen::Vector3d v3 = phononBandStructure.getGroupVelocity(is3);
-  //std::cout << v1.transpose() << " " << v2.transpose() << " " << v3.transpose() << std::endl;
 
   double enDiff = en1 + en2 - en3;
   //std::cout << "endiff bands " << enDiff << " " << ib1 << " " << ib2 << " " << ib3 << std::endl;
@@ -89,27 +88,25 @@ for( int iq2 = 0; iq2 < numPoints; iq2++) {
 
   AdaptiveGaussianDeltaFunction smearing2(phononBandStructure);
   Eigen::Vector3d vdiff = v2 - v3;
-//  std::cout << "vdiff " <<  vdiff.transpose() << std::endl;
   double delta = smearing2.getSmearing(enDiff, vdiff);
-  if(delta > 0) {
-  std::cout << "adaptive gaussian " << delta;
-  //std::cout << "qs is en " << iq1 << " " << iq2 << " " << iq3 << " " << is1.get() << " " << is2.get() << " " << is3.get() << " " << en1 << " " << en2 << " " << en3 << std::endl;
+//  if(delta > 0) {
+//  std::cout << "adaptive gaussian " << delta;
+//  std::cout << "qs is en " << iq1 << " " << iq2 << " " << iq3 << " " << is1.get() << " " << is2.get() << " " << is3.get() << " " << en1 << " " << en2 << " " << en3 << std::endl;
 
   SymAdaptiveGaussianDeltaFunction smearing3(phononBandStructure);
   delta = smearing3.getSmearing(enDiff, v1, v2, v3);
-  std::cout << " sym " << delta << std::endl;
+  //std::cout << " sym " << delta << std::endl;
   //ASSERT_EQ(delta, );
-}
   //TetrahedronDeltaFunction smearing4(phononBandStructure);
   //delta = smearing4.getSmearing(en3 - en1, is2);
   //ASSERT_EQ(delta, );
   //std::cout << "tetrahedron " << delta << std::endl;
-      }
+//      }
 //break;
-    }
-  }
-  } // wavevector
-  }
+//    }
+//  }
+//} // wavevector
+//}
 
 }
 

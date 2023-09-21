@@ -1,7 +1,7 @@
 #ifndef PHEL_SCATTERING_H
 #define PHEL_SCATTERING_H
 
-#include "phel_scattering_matrix.h"
+#include "base_ph_scattering_matrix.h"
 
  // friend functions for adding scattering rates,
  // these live in ph_scattering.cpp

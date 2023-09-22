@@ -850,24 +850,18 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
   // write D to file before diagonalizing, as the scattering matrix
   // will be destroyed by scalapack
-  std::vector<std::vector<double>> Du; //(3, std::vector<double>(3,0));
-  std::vector<std::vector<double>> Wji0;//(3, std::vector<double>(3,0));
-  std::vector<std::vector<double>> Wjie;//(3, std::vector<double>(3,0));
-  for (auto j : {0, 1, 2}) {
-    std::vector<double> temp(3);
-    Du.push_back(temp);
-    Wji0.push_back(temp);
-    Wjie.push_back(temp);
-  }
+  Eigen::MatrixXd Du(3,3); Du.setZero();
+  Eigen::MatrixXd Wjie(3,3); Wjie.setZero();
+  Eigen::MatrixXd Wji0(3,3); Wji0.setZero();
 
   // sum over the alpha and v states that this process owns
   for (auto tup : coupledScatteringMatrix.getAllLocalStates()) {
 
     auto is1 = std::get<0>(tup);
     auto is2 = std::get<1>(tup);
-    for (auto j : {0, 1, 2}) {
-      for (auto i : {0, 1, 2}) {
-        Du[i][j] = phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2) * energyRyToEv;
+    for (auto i : {0, 1, 2}) {
+      for (auto j : {0, 1, 2}) {
+        Du(i,j) += phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2) * energyRyToEv;
       }
     }
   }
@@ -880,8 +874,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     for (auto j : {0, 1, 2}) {
       for (auto i : {0, 1, 2}) {
         // calculate qunatities for the real-space solve
-        Wji0[j][i] += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
-        Wjie[j][i] += phi(i,is) * v(j) * theta_e(is) * velocityRyToSi;
+        Wji0(j,i) += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
+        Wjie(j,i) += phi(i,is) * v(j) * theta_e(is) * velocityRyToSi;
       }
     }
   }
@@ -894,8 +888,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     for (auto j : {0, 1, 2}) {
       for (auto i : {0, 1, 2}) {
         // calculate qunatities for the real-space solve
-        Wji0[j][i] += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
-        Wjie[j][i] += phi(i,is) * v(j) * theta_e(is) * velocityRyToSi;
+        Wji0(j,i) += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
+        Wjie(j,i) += phi(i,is) * v(j) * theta_e(is) * velocityRyToSi;
       }
     }
   }
@@ -904,14 +898,34 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   auto calcStat = statisticsSweep.getCalcStatistics(0); // only one calc for relaxons
   double kBT = calcStat.temperature;
 
+  // NOTE we cannot use nested vectors from the start, as
+  // vector<vector> is not necessarily contiguous and MPI
+  // cannot all reduce on it
+  std::vector<std::vector<double>> vecDu;
+  std::vector<std::vector<double>> vecWji0;
+  std::vector<std::vector<double>> vecWjie;
+  for (auto i : {0, 1, 2}) {
+    std::vector<double> temp1;
+    std::vector<double> temp2;
+    std::vector<double> temp3;
+    for (auto j : {0, 1, 2}) {
+      temp1.push_back(Du(i,j));
+      temp2.push_back(Wji0(i,j));
+      temp3.push_back(Wjie(i,j));
+    }
+    vecDu.push_back(temp1);
+    vecWji0.push_back(temp2);
+    vecWjie.push_back(temp3);
+  }
+
   if(mpi->mpiHead()) {
     // output to json
     std::string outFileName = "coupled_relaxons_real_space.json";
     nlohmann::json output;
     output["temperature"] = kBT * temperatureAuToSi;
-    output["Wji0"] = Wji0;
-    output["Wjie"] = Wjie;
-    output["Du"] = Du;
+    output["Wji0"] = vecWji0;
+    output["Wjie"] = vecWjie;
+    output["Du"] = vecDu;
     output["temperatureUnit"] = "K";
     output["wUnit"] = "m/s";
     output["DuUnit"] = "eV";
@@ -919,4 +933,4 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     o << std::setw(3) << output << std::endl;
     o.close();
   }
-} 
+}

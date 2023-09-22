@@ -117,6 +117,7 @@ void CoupledTransportApp::run(Context &context) {
 
   if(mpi->mpiHead()) {
     std::cout << "Checking for Cartesian wraparound issues." << std::endl;
+    int pointsCount = 0;
     for (int is : elBandStructure.irrPointsIterator()) {
       auto isIdx = WavevectorIndex(is);
       auto q = elBandStructure.getWavevector(isIdx);
@@ -128,11 +129,13 @@ void CoupledTransportApp::run(Context &context) {
       Eigen::Vector3d qminusLookup = elBandStructure.getPoints().getPointCoordinates(qmidx,Points::cartesianCoordinates);
       qminusLookup = elBandStructure.getPoints().bzToWs(qminusLookup,Points::cartesianCoordinates);
       if(abs((q+qminusLookup).norm()) > 1e-8) {
-        std::cout << "Points in Cartesian: " << q.transpose() << " | " << qminusLookup.transpose() << " | " << (q+qminusLookup).norm() << std::endl;
-        q = elBandStructure.getPoints().cartesianToCrystal(q);
+        pointsCount++;
+        //std::cout << "Points in Cartesian: " << q.transpose() << " | " << qminusLookup.transpose() << " | " << (q+qminusLookup).norm() << std::endl;
+        //q = elBandStructure.getPoints().cartesianToCrystal(q);
         //if(abs((q+qminusLookup).norm()) > 1e-8) std::cout << "points crystal " << q.transpose() << " | " << qminus.transpose() << " | " << (q+qminus).norm() << std::endl;
       }
     }
+    if(pointsCount != 0) std::cout << "Found " << pointsCount << " points that do not wraparound properly.\n" << std::endl;
   }
 
   // Construct the full C matrix

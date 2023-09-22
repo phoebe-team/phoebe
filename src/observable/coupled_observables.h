@@ -107,7 +107,7 @@ protected:
   // A = 1/(V*Nq) * (1/kT) sum_qs (hbar*q)^2 * N(1+N)
   Eigen::Vector3d A;
   // M = G + A
-  Eigen::Vector3d M = G + A;
+  Eigen::Vector3d M; // = G + A;
 
   double Ctot; //the total electron and phonon specific heats, Cph + Cel
   double Cph, Cel; // phonon and electron specific heats

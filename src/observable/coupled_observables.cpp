@@ -631,8 +631,8 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 void CoupledCoefficients::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
                                         int& numRelaxons, Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e) {
 
-  Eigen::Vector3d prod0(numRelaxons);
-  Eigen::Vector3d prod_e(numRelaxons);
+  Eigen::VectorXd prod0(numRelaxons);
+  Eigen::VectorXd prod_e(numRelaxons);
   prod0.setZero(); prod_e.setZero();
   //Eigen::Vector3d vecprodphi1(numRelaxons);
   //Eigen::Vector3d vecprodphi2(numRelaxons);
@@ -824,7 +824,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   U *= spinFactor / (volume * Nk * kBT);
   G *= spinFactor / (volume * Nk * kBT);
   A *= 1. / (volume * Nq * kBT);
-  Eigen::Vector3d M = G + A;
+  M = G + A;
 
   // apply the normalization to theta_e
   theta_e *= 1./sqrt(kBT * U * Nkq * volume);
@@ -850,7 +850,15 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
   // write D to file before diagonalizing, as the scattering matrix
   // will be destroyed by scalapack
-  std::vector<std::vector<double>> Du(3, std::vector<double>(3,0));
+  std::vector<std::vector<double>> Du; //(3, std::vector<double>(3,0));
+  std::vector<std::vector<double>> Wji0;//(3, std::vector<double>(3,0));
+  std::vector<std::vector<double>> Wjie;//(3, std::vector<double>(3,0));
+  for (auto j : {0, 1, 2}) {
+    std::vector<double> temp(3);
+    Du.push_back(temp);
+    Wji0.push_back(temp);
+    Wjie.push_back(temp);
+  }
 
   // sum over the alpha and v states that this process owns
   for (auto tup : coupledScatteringMatrix.getAllLocalStates()) {
@@ -866,14 +874,6 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   mpi->allReduceSum(&Du);
 
   // Calculate and write to file Wji0, Wjie, Wj0i, Wjei --------------------------------
-  std::vector<std::vector<double>> Wji0;//(3, std::vector<double>(3,0));
-  std::vector<std::vector<double>> Wjie;//(3, std::vector<double>(3,0));
-  for (auto j : {0, 1, 2}) {
-    std::vector<double> temp = {0.,0.,0.};
-    Wji0.push_back(temp);
-    Wjie.push_back(temp);
-  }
-
   for (int is : elBandStructure->parallelStateIterator()) {
     auto isIdx = StateIndex(is);
     auto v = elBandStructure->getGroupVelocity(isIdx);
@@ -904,17 +904,19 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   auto calcStat = statisticsSweep.getCalcStatistics(0); // only one calc for relaxons
   double kBT = calcStat.temperature;
 
-  // output to json
-/*  std::string outFileName = "coupled_relaxons_real_space.json";
-  nlohmann::json output;
-  output["temperature"] = kBT * temperatureAuToSi;
- // output["Wji0"] = Wji0;
-//  output["Wjie"] = Wjie;
-//  output["Du"] = Du;
-  output["temperatureUnit"] = "K";
-  output["wUnit"] = "m/s";
-  output["DuUnit"] = "eV";
-  std::ofstream o(outFileName);
-  o << std::setw(3) << output << std::endl;
-  o.close();*/
-}
+  if(mpi->mpiHead()) {
+    // output to json
+    std::string outFileName = "coupled_relaxons_real_space.json";
+    nlohmann::json output;
+    output["temperature"] = kBT * temperatureAuToSi;
+    output["Wji0"] = Wji0;
+    output["Wjie"] = Wjie;
+    output["Du"] = Du;
+    output["temperatureUnit"] = "K";
+    output["wUnit"] = "m/s";
+    output["DuUnit"] = "eV";
+    std::ofstream o(outFileName);
+    o << std::setw(3) << output << std::endl;
+    o.close();
+  }
+} 

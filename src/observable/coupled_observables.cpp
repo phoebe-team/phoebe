@@ -848,11 +848,17 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   BaseBandStructure* phBandStructure = coupledScatteringMatrix.getPhBandStructure();
   BaseBandStructure* elBandStructure = coupledScatteringMatrix.getElBandStructure();
 
+  int numElStates = int(elBandStructure->irrStateIterator().size());
+  auto calcStat = statisticsSweep.getCalcStatistics(0); // only one calc for relaxons
+  double kBT = calcStat.temperature;
+
   // write D to file before diagonalizing, as the scattering matrix
   // will be destroyed by scalapack
   Eigen::MatrixXd Du(3,3); Du.setZero();
   Eigen::MatrixXd Wjie(3,3); Wjie.setZero();
   Eigen::MatrixXd Wji0(3,3); Wji0.setZero();
+  Eigen::MatrixXd elWji0(3,3); elWji0.setZero();
+  Eigen::MatrixXd phWji0(3,3); phWji0.setZero();
 
   // sum over the alpha and v states that this process owns
   for (auto tup : coupledScatteringMatrix.getAllLocalStates()) {
@@ -873,8 +879,9 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     auto v = elBandStructure->getGroupVelocity(isIdx);
     for (auto j : {0, 1, 2}) {
       for (auto i : {0, 1, 2}) {
-        // calculate qunatities for the real-space solve
+        // calculate quantities for the real-space solve
         Wji0(j,i) += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
+        elWji0(j,i) += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
         Wjie(j,i) += phi(i,is) * v(j) * theta_e(is) * velocityRyToSi;
       }
     }
@@ -887,35 +894,39 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     auto v = phBandStructure->getGroupVelocity(isIdx);
     for (auto j : {0, 1, 2}) {
       for (auto i : {0, 1, 2}) {
+        // note: phi and theta here are elStates long, so we need to shift the state
+        // index to account for the fact that we summed over the electronic part above
         // calculate qunatities for the real-space solve
-        Wji0(j,i) += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
-        Wjie(j,i) += phi(i,is) * v(j) * theta_e(is) * velocityRyToSi;
+        Wji0(j,i) += phi(i,is+numElStates) * v(j) * theta0(is+numElStates) * velocityRyToSi;
+        phWji0(j,i) += phi(i,is+numElStates) * v(j) * theta0(is+numElStates) * velocityRyToSi;
+        Wjie(j,i) += phi(i,is+numElStates) * v(j) * theta_e(is+numElStates) * velocityRyToSi;
       }
     }
   }
   mpi->allReduceSum(&Wji0); mpi->allReduceSum(&Wjie);
-
-  auto calcStat = statisticsSweep.getCalcStatistics(0); // only one calc for relaxons
-  double kBT = calcStat.temperature;
 
   // NOTE we cannot use nested vectors from the start, as
   // vector<vector> is not necessarily contiguous and MPI
   // cannot all reduce on it
   std::vector<std::vector<double>> vecDu;
   std::vector<std::vector<double>> vecWji0;
+  std::vector<std::vector<double>> vecWji0_el;
+  std::vector<std::vector<double>> vecWji0_ph;
   std::vector<std::vector<double>> vecWjie;
   for (auto i : {0, 1, 2}) {
-    std::vector<double> temp1;
-    std::vector<double> temp2;
-    std::vector<double> temp3;
+    std::vector<double> temp1,temp2,temp3,temp4,temp5;
     for (auto j : {0, 1, 2}) {
       temp1.push_back(Du(i,j));
       temp2.push_back(Wji0(i,j));
-      temp3.push_back(Wjie(i,j));
+      temp3.push_back(elWji0(i,j));
+      temp4.push_back(phWji0(i,j));
+      temp5.push_back(Wjie(i,j));
     }
     vecDu.push_back(temp1);
     vecWji0.push_back(temp2);
-    vecWjie.push_back(temp3);
+    vecWji0_el.push_back(temp3);
+    vecWji0_ph.push_back(temp4);
+    vecWjie.push_back(temp5);
   }
 
   if(mpi->mpiHead()) {
@@ -924,6 +935,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     nlohmann::json output;
     output["temperature"] = kBT * temperatureAuToSi;
     output["Wji0"] = vecWji0;
+    output["phononWji0"] = vecWji0_ph;
+    output["electronWji0"] = vecWji0_el;
     output["Wjie"] = vecWjie;
     output["Du"] = vecDu;
     output["temperatureUnit"] = "K";

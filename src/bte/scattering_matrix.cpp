@@ -877,11 +877,12 @@ ScatteringMatrix::diagonalize(int numEigenvalues) {
   {
     memoryUsage();
     double xx;
-    double x = 2 * pow(theMatrix.rows(), 2) / pow(1024., 3) * sizeof(xx);
-    // 2 because one is for eigenvectors, another is the copy of the matrix
+    double x = pow(theMatrix.rows(), 2) / pow(1024., 3) * sizeof(xx);
+    // we should see if we can also note how much memory will
+    // be allocated for the work arrays in this calculation
     std::cout << std::setprecision(4);
     if (mpi->mpiHead()) {
-      std::cout << "About to allocate " << x
+      std::cout << "Allocating " << x
                 << " (GB) for the scattering matrix diagonalization.\n"
                 << std::endl;
     }

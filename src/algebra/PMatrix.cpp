@@ -178,7 +178,6 @@ ParallelMatrix<double>::diagonalize() {
                 "\n\tThis can happen when there's a bit of numerical noise on the scattering matrix,"
                 "\n\tand finding them may indicate the calculation is unconverged."
                 "\n\tWhile we simply do not include these when computing transport, "
-                "\n\tand likely if they are small the calculation will be unaffected, "
                 "\n\tyou may want to consider using with more wavevectors or an improved DFT calculation."
                 "\n\tAdditionally, setting symmetrizeMatrix = true in your input file will help.");
       std::cout << "These eigenvalues are (in atomic units):" << std::endl;
@@ -356,7 +355,6 @@ std::tuple<std::vector<double>, ParallelMatrix<double>>
                   "\n\tThis can happen when there's a bit of numerical noise on the scattering matrix,"
                   "\n\tand finding them may indicate the calculation is unconverged."
                   "\n\tWhile we simply do not include these when computing transport, "
-                  "\n\tand likely if they are small the calculation will be unaffected, "
                   "\n\tyou may want to consider using with more wavevectors or an improved DFT calculation."
                   "\n\tAdditionally, setting symmetrizeMatrix = true in your input file will help.");
         std::cout << "These eigenvalues are (in atomic units):" << std::endl;

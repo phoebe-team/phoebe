@@ -233,7 +233,7 @@ public:
 
 protected:
   // Most of this object is inherited from parent adaptive gaussian
-  int id = DeltaFunction::symAdaptiveGaussian;
+  // We set id in the constructor, as we cannot here override an inherited class member
 };
 
 #endif

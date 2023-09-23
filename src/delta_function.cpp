@@ -6,12 +6,11 @@
 
 DeltaFunction::~DeltaFunction() {}
 
+// functions to define the type
 int DeltaFunction::getType() { return id; }
-
 int GaussianDeltaFunction::getType() { return id; }
-
 int AdaptiveGaussianDeltaFunction::getType() { return id; }
-
+//int SymAdaptiveGaussianDeltaFunction::getType() { return id; }
 int TetrahedronDeltaFunction::getType() { return id; }
 
 // app factory
@@ -120,7 +119,13 @@ double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
 
 SymAdaptiveGaussianDeltaFunction::SymAdaptiveGaussianDeltaFunction(
     BaseBandStructure &bandStructure, double broadeningCutoff_)
-    : AdaptiveGaussianDeltaFunction(bandStructure, broadeningCutoff_) { }
+    : AdaptiveGaussianDeltaFunction(bandStructure, broadeningCutoff_) {
+
+  // cannot override this in the header, as it's an inherited class variable
+  // therefore, we have to do it here
+  id = DeltaFunction::symAdaptiveGaussian;
+
+}
 
 //  auto tup = bandStructure.getPoints().getMesh();
 //  auto mesh = std::get<0>(tup);
@@ -160,13 +165,6 @@ double SymAdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
   // note: the factor ERF_2 corrects for the cutoff at 2*sigma
   return exp(-x * x) / sqrtPi / sigma / erf2;
 }
-
-/*double SymAdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
-                                                  StateIndex &is) {
-  (void)energy; (void)is;
-  Error("SymAdaptiveGaussianDeltaFunction::getSmearing2 not implemented");
-  return 1.;
-}*/
 
 // Tetrahedron method smearing -----------------------------------------
 

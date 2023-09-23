@@ -181,7 +181,8 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
       // Therefore, we generate band energies on the fly
       bool withEigenvectors = true; // we need these for the transfom in calcCoupling
       bool withVelocities = true;   // need these for adaptive smearing
-      if (smearing->getType() == DeltaFunction::adaptiveGaussian) {
+      if (smearing->getType() == DeltaFunction::adaptiveGaussian
+                                || smearing->getType() == DeltaFunction::symAdaptiveGaussian) {
         withVelocities = true;
       }
       auto infoElKp = electronH0->populate(allKpPlusC, withVelocities, withEigenvectors);
@@ -228,9 +229,9 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
         //Eigen::Vector3d kpC = allQC[iQBatch] + kC;
         //auto QC = allQC[iQBatch]; // TODO comment out it's just for printing
 
-//          if(mpi->mpiHead()) {
-//            std::cout << "ik ikP iQ " << ik << " " << "ikp" << " " << iQ << " k1 " << kC.transpose() << " k2 " << kpC.transpose() << " q " << QC.transpose() << std::endl;
-//          }
+//      if(mpi->mpiHead()) {
+//      std::cout << "ik ikP iQ " << ik << " " << "ikp" << " " << iQ << " k1 " << kC.transpose() << " k2 " << kpC.transpose() << " q " << QC.transpose() << std::endl;
+//      }
 
         Eigen::Tensor<double, 3>& coupling = couplingElPhWan->getCouplingSquared(iQBatch);
 
@@ -310,14 +311,25 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
               } else if (smearing->getType() == DeltaFunction::adaptiveGaussian) {
 
                 // in this case, the delta functions are all |vk - vk'|
-                Eigen::Vector3d smearPlus = vKs.row(ibK);
-                Eigen::Vector3d smearMinus = vKs.row(ibK);
+                Eigen::Vector3d vdiffPlus = vKs.row(ibK);
+                Eigen::Vector3d vdiffMinus = vKs.row(ibK);
                 for (int i : {0,1,2}) {
-                  smearPlus(i) -= vKpPlus(ibKp, ibKp, i).real();
-                  smearMinus(i) -= vKpMinus(ibKp, ibKp, i).real();
+                  vdiffPlus(i) -= vKpPlus(ibKp, ibKp, i).real();
+                  vdiffMinus(i) -= vKpMinus(ibKp, ibKp, i).real();
                 }
-                deltaPlus = smearing->getSmearing(enKpPlus - enK - enQ, smearPlus);
-                deltaMinus = smearing->getSmearing(enKpMinus - enK + enQ, smearMinus);
+                deltaPlus = smearing->getSmearing(enKpPlus - enK - enQ, vdiffPlus);
+                deltaMinus = smearing->getSmearing(enKpMinus - enK + enQ, vdiffMinus);
+              } else if (smearing->getType() == DeltaFunction::symAdaptiveGaussian) {
+
+                Eigen::Vector3d vQ = allVQs[iQBatch].row(ibQ);
+                Eigen::Vector3d vK = vKs.row(ibK);
+                Eigen::Vector3d vKpP, vKpM;
+                for (int i : {0,1,2}) {
+                  vKpP(i) = vKpPlus(ibKp, ibKp, i).real();
+                  vKpM(i) = vKpMinus(ibKp, ibKp, i).real();
+                }
+                deltaPlus = smearing->getSmearing(enKpPlus - enK - enQ, vQ, vK, vKpP);
+                deltaMinus = smearing->getSmearing(enKpMinus - enK + enQ, vQ, vK, vKpM);
               } else { // tetrahedron
                 // we actually block this for transport in the parent scattering matrix obj
                 // Therefore, I merely here again throw an error if this is used

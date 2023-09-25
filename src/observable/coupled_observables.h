@@ -43,7 +43,8 @@ public:
                       ParallelMatrix<double>& eigenvectors);
 
   void relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                int& numRelaxons, Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e);
+                        int& numRelaxons, int& numPhStates,
+                        Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e);
 
   /** Calculate Du(i,j) and output it to JSON for real space solvers
   * @param coupledScatteringMatrix: the scattering matrix, before diagonalization

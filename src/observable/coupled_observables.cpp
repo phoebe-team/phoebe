@@ -95,7 +95,7 @@ void CoupledCoefficients::calcFromRelaxons(
   //double volume = crystal.getVolumeUnitCell(dimensionality);
 
   int numElStates = int(elBandStructure->irrStateIterator().size());
-  //int numPhStates = int(phBandStructure->irrStateIterator().size());
+  int numPhStates = int(phBandStructure->irrStateIterator().size());
   //int numStates = numElStates + numPhStates;
   int numRelaxons = eigenvalues.size();
 
@@ -275,7 +275,7 @@ void CoupledCoefficients::calcFromRelaxons(
 
   // print info about the special eigenvectors
   // and save the indices that need to be skipped
-  relaxonEigenvectorsCheck(eigenvectors, numRelaxons, theta0, theta_e);
+  relaxonEigenvectorsCheck(eigenvectors, numRelaxons, numPhStates, theta0, theta_e);
 
   // sum over the alpha and v states that this process owns
   for (auto tup : eigenvectors.getAllLocalStates()) {
@@ -629,7 +629,7 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 }
 
 void CoupledCoefficients::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                                        int& numRelaxons, Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e) {
+                        int& numRelaxons, int& numPhStates, Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e) {
 
   Eigen::VectorXd prod0(numRelaxons);
   Eigen::VectorXd prod_e(numRelaxons);
@@ -670,8 +670,10 @@ void CoupledCoefficients::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigen
     std::cout << "First ten products with theta_0:";
     for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prod0(gamma); }
     std::cout << "\n\nMaximum scalar product theta_e.theta_alpha = " << maxThetae << " at index " << idxAlpha_e << "." << std::endl;
-    std::cout << "First ten products with theta_e:";
-    for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prod_e(gamma); }
+    if(numRelaxons - numPhStates >= 10) { // avoid a segfault in an edge case of few el states
+      std::cout << "First ten products with theta_e starting with the numPhStates + 1 indexed eigenvector:";
+      for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prod_e(gamma+numPhStates); }
+    }
     std::cout << std::endl;
   }
 

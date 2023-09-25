@@ -92,168 +92,22 @@ void CoupledCoefficients::calcFromRelaxons(
     Error("Developer error: coupled relaxons only possible with one T value.");
   }
 
-  //double volume = crystal.getVolumeUnitCell(dimensionality);
-
   int numElStates = int(elBandStructure->irrStateIterator().size());
   int numPhStates = int(phBandStructure->irrStateIterator().size());
-  //int numStates = numElStates + numPhStates;
   int numRelaxons = eigenvalues.size();
-
-  //double Nk = double(context.getKMesh().prod());
-  //double Nq = double(context.getQMesh().prod());
-  //double Nkq = (Nk + Nq)/2.;
-
-  //Particle phonon = phBandStructure->getParticle();
-  //Particle electron = elBandStructure->getParticle();
 
   int iCalc = 0;
   auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
   double T = calcStat.temperature / kBoltzmannRy;
-  //double kBT = calcStat.temperature; // note, what's in calcStat is kBT
-  //double chemPot = calcStat.chemicalPotential;
 
-  // TODO remove this after debugging and replace with
-  // default specific heat function in phoebe
-  // Calculate the specific heat to double check the phoebe calculated values
+  // electron and phonon participation ratios, summed over later
+  Eigen::VectorXd phPR(numRelaxons);  phPR.setZero();
+  Eigen::VectorXd elPR(numRelaxons);  elPR.setZero();
 
-/*  double Cph = 0;
-  double Cel = 0;
+  // print info about the special eigenvectors ------------------------------
+  // and save the indices that need to be skipped
+  relaxonEigenvectorsCheck(eigenvectors, numRelaxons, numPhStates, theta0, theta_e);
 
-  for(int is = 0; is < numStates; is++) {
-
-    // n(n+1) for bosons, n(1-n) for fermions
-    if(is<numElStates) {
-
-      StateIndex elIdx(is);
-      double energy = elBandStructure->getEnergy(elIdx);
-      Cel += electron.getPopPopPm1(energy, kBT, chemPot)
-                * (energy - chemPot) * (energy - chemPot);
-
-    } else { // second part of the vector is phonon quantities
-
-      int iPhState = is-numElStates;
-      StateIndex phIdx(iPhState);
-
-      double energy = phBandStructure->getEnergy(phIdx);
-      // Discard ph states with negative energies
-      if (energy < 0.001 / ryToCmm1) { continue; }
-      Cph += phonon.getPopPopPm1(energy, kBT, 0) * energy * energy;
-
-    }
-  }
-  Cph *= 1./(volume * Nq * kBT * T);
-  Cel *= spinFactor/(volume * Nk * kBT * T);
-  double Ctot = Cel + Cph;
-*/
-/*
-  // normalization coeff U (summed up below)
-  // U = D/(V*Nk) * (1/kT) sum_km F(1-F)
-  double U = 0;
-  // normalization coeff G ("electron specific momentum")
-  // G = D/(V*Nk) * (1/kT) sum_km (hbar*k)^2 * F(1-F)
-  Eigen::Vector3d G = Eigen::Vector3d::Zero();
-  // normalization coeff A ("phonon specific momentum")
-  // A = 1/(V*Nq) * (1/kT) sum_qs (hbar*q)^2 * N(1+N)
-  Eigen::Vector3d A = Eigen::Vector3d::Zero();
-
-  // specific heat values -- TODO revert to using these default ones later
-  //double Cph = phSpecificHeat.get(0); // only one calcuation in this case
-  //double Cel = elSpecificHeat.get(0);
-
-  // Precalculate theta_e, theta0, U ----------------------------------
-
-  // theta^0 - energy conservation eigenvector
-  //   electronic states = ds * g-1 * (hE - mu) * 1/(kbT^2 * V * Nkq * Ctot)
-  //   phonon states = ds * g-1 * h*omega * 1/(kbT^2 * V * Nkq * Ctot)
-  Eigen::VectorXd theta0 = Eigen::VectorXd::Zero(numStates);
-
-  // theta^e -- the charge conservation eigenvector
-  //   electronic states = ds * g-1 * 1/(kbT * U)
-  //   phonon state = 0
-  Eigen::VectorXd theta_e = Eigen::VectorXd::Zero(numStates);
-
-  // phi -- the three momentum conservation eigenvectors
-  //     phi = sqrt(1/(kbT*volume*Nkq*M)) * g-1 * ds * hbar * wavevector;
-  Eigen::MatrixXd phi = Eigen::MatrixXd::Zero(3, numStates);
-
-  // spin degen vector
-  Eigen::VectorXd ds = Eigen::VectorXd::Zero(numStates);
-
-  for(int is = 0; is < numStates; is++) {
-
-    // n(n+1) for bosons, n(1-n) for fermions
-    double sqrtPopTerm;
-
-    if(is < numElStates) {
-
-      StateIndex elIdx(is);
-      double energy = elBandStructure->getEnergy(elIdx);
-      // this is in cartesian coords
-      Eigen::Vector3d k = elBandStructure->getWavevector(elIdx);
-      k = elBandStructure->getPoints().bzToWs(k,Points::cartesianCoordinates);
-
-      // note, this function expects kBT
-      sqrtPopTerm = sqrt(electron.getPopPopPm1(energy, kBT, chemPot));
-
-      //ds(is) = sqrt(spinFactor);
-      ds(is) = sqrt( spinFactor * Nkq / Nk );
-
-      U += sqrtPopTerm * sqrtPopTerm;
-      for(int i : {0,1,2} ) {
-        G(i) += k(i) * k(i) * sqrtPopTerm * sqrtPopTerm;
-        phi(i, is) = sqrtPopTerm * ds(is) * k(i);
-      }
-
-      theta0(is) = sqrtPopTerm * (energy - chemPot) * ds(is);
-      theta_e(is) = sqrtPopTerm * ds(is);
-
-    } else { // second part of the vector is phonon quantities
-
-      int iPhState = is-numElStates;
-      StateIndex phIdx(iPhState);
-
-      // NOTE this function expects kBT (which comes directly from statSweep)
-      double energy = phBandStructure->getEnergy(phIdx);
-      // TODO phononCutoff should be standardized across the code
-      // Discard ph states with negative energies
-      if (energy < 0.001 / ryToCmm1) { continue; }
-      // this is in cartesian coords
-      Eigen::Vector3d q = phBandStructure->getWavevector(phIdx);
-      q = phBandStructure->getPoints().bzToWs(q,Points::cartesianCoordinates);
-      sqrtPopTerm = sqrt(phonon.getPopPopPm1(energy, kBT, 0));
-
-      //ds(is) = 1.; //sqrt( Nkq / Nq );
-      ds(is) = sqrt( Nkq / Nq );
-
-      for(int i : {0,1,2} ) {
-        A(i) += q(i) * q(i) * sqrtPopTerm * sqrtPopTerm;
-        phi(i, is) = sqrtPopTerm * ds(is) * q(i);
-      }
-      theta0(is) = sqrtPopTerm * energy * ds(is);
-    }
-  }
-  // add the normalization prefactor to U
-  U *= spinFactor / (volume * Nk * kBT);
-  G *= spinFactor / (volume * Nk * kBT);
-  A *= 1. / (volume * Nq * kBT);
-  Eigen::Vector3d M = G + A;
-
-  // apply the normalization to theta_e
-  theta_e *= 1./sqrt(kBT * U * Nkq * volume);
-  // apply normalization to theta0
-  theta0 *= 1./sqrt(kBT * T * volume * Nkq * Ctot);
-  // apply normalization to phi
-  for(int is = 0; is < numStates; is++) {
-    for(int i : {0,1,2}) phi(i,is) *= 1./sqrt(kBT * volume * Nkq * M(i));
-  }
-
-  // throw errors if normalization fails
-  if( abs(theta_e.dot(theta_e) - 1.) > 1e-4 || abs(theta0.dot(theta0) - 1.) > 1e-4) {
-    Warning("Developer error: Your energy or charge conservation eigenvectors do not"
-                " normalize to 1.\nThis indicates something has gone very wrong "
-                "with your relaxons solve (or your mesh is super small), please report this.");
-  }
-*/
   // calculate the V components -----------------------------------------------------------
   // Here we have "ph" and "el" components, which are summed only
   // over either ph or el states and are then used to calculate
@@ -273,15 +127,16 @@ void CoupledCoefficients::calcFromRelaxons(
   Eigen::Tensor<double, 3> Vphi(numRelaxons, 3, 3);
   elVphi.setZero(); phVphi.setZero(); Vphi.setZero();
 
-  // print info about the special eigenvectors
-  // and save the indices that need to be skipped
-  relaxonEigenvectorsCheck(eigenvectors, numRelaxons, numPhStates, theta0, theta_e);
-
   // sum over the alpha and v states that this process owns
   for (auto tup : eigenvectors.getAllLocalStates()) {
 
     auto is = std::get<0>(tup);
     auto gamma = std::get<1>(tup);
+
+    // sum up the participation ratios
+    // Here, we expect all the el state indices will come first
+    if(is < numElStates) { elPR(gamma) += eigenvectors(is,gamma) * eigenvectors(is,gamma); }
+    else { phPR(gamma) += eigenvectors(is,gamma) * eigenvectors(is,gamma); }
 
     if(gamma >= numRelaxons) continue; // this relaxon wasn't calculated
     // negative eigenvalues are spurious, zero ones are not summed here
@@ -290,7 +145,7 @@ void CoupledCoefficients::calcFromRelaxons(
     StateIndex isIdx(0);
     Eigen::Vector3d v;
 
-    if(is<numElStates) { // electronic state
+    if(is < numElStates) { // electronic state
 
       BteIndex iBteIdx(is);
       isIdx = elBandStructure->bteToState(iBteIdx);
@@ -343,53 +198,20 @@ void CoupledCoefficients::calcFromRelaxons(
   mpi->allReduceSum(&V0); mpi->allReduceSum(&Ve);
   // viscosity ingredients
   mpi->allReduceSum(&Vphi); mpi->allReduceSum(&phVphi); mpi->allReduceSum(&elVphi);
-/*
-  // Calculate and write to file Wji0, Wjie, Wj0i, Wjei --------------------------------
-  std::vector<std::vector<double>> Wji0, Wjie;
-  for (int is : elBandStructure.parallelStateIterator()) {
-    auto isIdx = StateIndex(is);
-    auto v = bandStructure.getGroupVelocity(isIdx);
-    for (auto j : {0, 1, 2}) {
-      for (auto i : {0, 1, 2}) {
-        // calculate qunatities for the real-space solve
-        Wji0[j][i] += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
-        Wjie[j][i] += phi(i,is) * v(j) * theta_e(is) * velocityRyToSi;
-      }
-    }
-  }
-  for (int is : phBandStructure.parallelStateIterator()) {
-    auto isIdx = StateIndex(is);
-    double en = bandStructure.getEnergy(isIdx);
-    // discard acoustic phonon modes
-    if (energy < 0.001 / ryToCmm1) { continue; }
-    auto v = bandStructure.getGroupVelocity(isIdx);
-    for (auto j : {0, 1, 2}) {
-      for (auto i : {0, 1, 2}) {
-        // calculate qunatities for the real-space solve
-        Wji0[j][i] += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
-        Wjie[j][i] += phi(i,is) * v(j) * theta_e(is) * velocityRyToSi;
-      }
-    }
-  }
-  mpi->allReduceSum(&Wji0); mpi->allReduceSum(&Wjie);
+  // participation ratios
+  mpi->allReduceSum(&phPR); mpi->allReduceSum(&elPR);
 
-  // output to json
-  std::ifstream f("coupled_relaxons_real_space.json"); // append to existing file with D
-  nlohmann::json output = nlohmann::json::parse(f);
-  output["temperature"] = T * temperatureAuToSi;
-  output["Wji0"] = Wji0;
-  output["Wjie"] = Wjie;
-  output["temperatureUnit"] = "K";
-  output["wUnit"] = "m/s";
-  std::ofstream o(outFileName);
-  o << std::setw(3) << output << std::endl;
-  o.close();
-*/
   // Calculate the transport coefficients -------------------------------------------------
 
   // local copies for linear algebra ops with eigen
   Eigen::Matrix3d sigmaLocal, totalSigmaLocal, selfSigmaS, dragSigmaS, totalSigmaS;
   sigmaLocal.setZero(); totalSigmaLocal.setZero(), selfSigmaS.setZero(); dragSigmaS.setZero(); totalSigmaS.setZero();
+
+  // containers to calculate the specific contributions to the transport tensors
+  Eigen::Tensor<double, 3> kappaContrib(numRelaxons, 3, 3);    kappaContrib.setZero();
+  Eigen::Tensor<double, 3> sigmaContrib(numRelaxons, 3, 3);    sigmaContrib.setZero();
+  Eigen::Tensor<double, 3> seebeckContrib(numRelaxons, 3, 3);  seebeckContrib.setZero();
+  Eigen::VectorXd iiiiContrib(numRelaxons);   iiiiContrib.setZero();
 
   for(int gamma = 0; gamma < numRelaxons; gamma++) {
 
@@ -402,6 +224,7 @@ void CoupledCoefficients::calcFromRelaxons(
         // sigma
         sigmaLocal(i,j) += U * elVe(gamma,i) * elVe(gamma,j) * 1./eigenvalues(gamma);
         totalSigmaLocal(i,j) += U * Ve(gamma,i) * Ve(gamma,j) * 1./eigenvalues(gamma);
+        sigmaContrib(gamma,i,j) += U * Ve(gamma,i) * Ve(gamma,j) * 1./eigenvalues(gamma);
         // sigmaS
         selfSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * elV0(gamma,j) * 1./eigenvalues(gamma);
         dragSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * phV0(gamma,j) * 1./eigenvalues(gamma);
@@ -414,9 +237,13 @@ void CoupledCoefficients::calcFromRelaxons(
         kappaPh(0,i,j) += Ctot / kBoltzmannRy * 1./eigenvalues(gamma) * (phV0(gamma,i) * phV0(gamma,j));
         kappaDrag(0,i,j) += Ctot / kBoltzmannRy * 1./eigenvalues(gamma) * (elV0(gamma,i) * phV0(gamma,j) + phV0(gamma,i) * elV0(gamma,j));
         kappaTotal(0,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * 1./eigenvalues(gamma);
+        kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * 1./eigenvalues(gamma);
 
         // viscosities
-        if(gamma != alpha0 || gamma != alpha_e) {
+        if(gamma != alpha0 || gamma != alpha_e) { // important -- including theta_0 or theta_e will lead to a wrong answer!
+
+          iiiiContrib(gamma) += sqrt(M(i) * M(k)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * 1./eigenvalues(gamma);
+
           for(auto k : {0, 1, 2}) {
             for(auto l : {0, 1, 2}) {
               phViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * phVphi(gamma,i,j) * phVphi(gamma,l,k) * 1./eigenvalues(gamma);

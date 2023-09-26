@@ -210,7 +210,7 @@ void CoupledCoefficients::calcFromRelaxons(
   // containers to calculate the specific contributions to the transport tensors
   Eigen::Tensor<double, 3> kappaContrib(numRelaxons, 3, 3);    kappaContrib.setZero();
   Eigen::Tensor<double, 3> sigmaContrib(numRelaxons, 3, 3);    sigmaContrib.setZero();
-  Eigen::Tensor<double, 3> seebeckContrib(numRelaxons, 3, 3);  seebeckContrib.setZero();
+  Eigen::Tensor<double, 3> sigmaSContrib(numRelaxons, 3, 3);  sigmaSContrib.setZero();
   Eigen::VectorXd iiiiContrib(numRelaxons);   iiiiContrib.setZero();
 
   for(int gamma = 0; gamma < numRelaxons; gamma++) {
@@ -229,6 +229,7 @@ void CoupledCoefficients::calcFromRelaxons(
         selfSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * elV0(gamma,j) * 1./eigenvalues(gamma);
         dragSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * phV0(gamma,j) * 1./eigenvalues(gamma);
         totalSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j) * 1./eigenvalues(gamma);
+        sigmaSContrib(gamma,i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j) * 1./eigenvalues(gamma);
         // alpha
         alphaEl(0,i,j) += sqrt(Ctot * U * T) * elV0(gamma,i) * elVe(gamma,j) * 1./eigenvalues(gamma);
         alphaPh(0,i,j) += sqrt(Ctot * U * T) * phV0(gamma,i) * elVe(gamma,j) * 1./eigenvalues(gamma);
@@ -242,7 +243,7 @@ void CoupledCoefficients::calcFromRelaxons(
         // viscosities
         if(gamma != alpha0 || gamma != alpha_e) { // important -- including theta_0 or theta_e will lead to a wrong answer!
 
-          iiiiContrib(gamma) += sqrt(M(i) * M(k)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * 1./eigenvalues(gamma);
+          iiiiContrib(gamma) += sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * 1./eigenvalues(gamma);
 
           for(auto k : {0, 1, 2}) {
             for(auto l : {0, 1, 2}) {

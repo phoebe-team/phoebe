@@ -6,6 +6,7 @@
 #include "points.h"
 #include "utilities.h"
 #include "Matrix.h"
+#include <iomanip>
 #include <set>
 
 std::vector<size_t> BaseBandStructure::parallelStateIterator() {
@@ -36,18 +37,45 @@ FullBandStructure::FullBandStructure(int numBands_, Particle &particle_,
         "or decrease number of processes.");
   }
 
+  if (mpi->mpiHead()) { // print info on memory
+    // count up the total memory use
+    double x = numBands * numPoints; // number of energies, which will always be stored
+    x *= 8; // size of double
+    if(hasVelocities) {
+      double xtemp = numBands * numBands * 3;
+      xtemp *= numPoints;
+      x += xtemp * 16; // complex double
+    }
+    if(hasEigenvectors) {
+      if(particle.isPhonon()) {
+        double xtemp = 3 * numAtoms * numBands;
+        xtemp *= numPoints;
+        x += xtemp * 16; // size of complex double
+      } else {
+        double xtemp = numAtoms * numBands;
+        xtemp *= numPoints;
+        x += xtemp * 16; // size of complex double
+      }
+    }
+    x *= 1. / pow(1024,3);
+    std::cout << std::setprecision(4);
+    if(isDistributed) x *= 1./(1.*mpi->getSize());
+    std::cout << "Allocating " << x << " GB (per MPI process) for the band structure." << std::endl;
+  }
+
   try {
     energies = Matrix<double>(numBands, numPoints, 1, numBlockCols, isDistributed);
-  } catch(std::bad_alloc &) {
+  } catch(std::bad_alloc& e) {
     Error("Failed to allocate band structure energies.\n"
         "You are likely out of memory.");
   }
   numLocalPoints = energies.localCols();
+
   if (hasVelocities) {
     try {
       velocities = Matrix<std::complex<double>>(
         numBands * numBands * 3, numPoints, 1, numBlockCols, isDistributed);
-    } catch(std::bad_alloc &) {
+    } catch(std::bad_alloc& e) {
       Error("Failed to allocate band structure velocities.\n"
         "You are likely out of memory.");
     }
@@ -61,7 +89,7 @@ FullBandStructure::FullBandStructure(int numBands_, Particle &particle_,
         eigenvectors = Matrix<std::complex<double>>(
             numBands * numBands, numPoints, 1, numBlockCols, isDistributed);
       }
-    } catch(std::bad_alloc &) {
+    } catch(std::bad_alloc& e) {
       Error("Failed to allocate band structure eigenvectors.\n"
         "You are likely out of memory.");
     }

@@ -25,13 +25,6 @@ public:
    */
   ActiveBandStructure(Particle &particle_, Points &points_);
 
-  /** Copy constructor
-   */
-  ActiveBandStructure(const ActiveBandStructure &that);
-
-  /** Assignment operator
-   */
-  ActiveBandStructure &operator=(const ActiveBandStructure &that);
 
   /** Default constructor.
    * Populate the band structure for the subset of wavevectors specified by
@@ -402,6 +395,7 @@ public:
   std::vector<std::complex<double>> eigenvectors;
 
   bool hasEigenvectors = false;
+  bool hasVelocities = false;
   int numStates = 0;
   int numIrrStates;
   int numIrrPoints;

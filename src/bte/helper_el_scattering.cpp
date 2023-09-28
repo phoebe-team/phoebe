@@ -44,14 +44,7 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     auto mesh2 = std::get<0>(t2);
     auto offset2 = std::get<1>(t2);
 
-    fullPoints3 = std::make_unique<Points>(
-        innerBandStructure.getPoints().getCrystal(), mesh2, offset2);
-    if (mpi->mpiHead()) { // print info on memory
-      double x = h0.getNumBands() * fullPoints3->getNumPoints();
-      x *= sizeof(x) / pow(1024,3);
-      std::cout << std::setprecision(4);
-      std::cout << "Allocating " << x << " GB (per MPI process)." << std::endl;
-    }
+    fullPoints3 = std::make_unique<Points>(innerBandStructure.getPoints().getCrystal(), mesh2, offset2);
     bool withVelocities = true;
     bool withEigenvectors = true;
     FullBandStructure bs = h0.populate(*fullPoints3, withVelocities,
@@ -151,13 +144,6 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     Points ap3 = *fullPoints3;
     ap3.setActiveLayer(filter);
     activePoints3 = std::make_unique<Points>(ap3);
-
-    if (mpi->mpiHead()) {
-      double x = h0.getNumBands() * activePoints3->getNumPoints();
-      x *= sizeof(x) / pow(1024,3);
-      std::cout << std::setprecision(4);
-      std::cout << "Allocating " << x << " GB (per MPI process)." << std::endl;
-    }
 
     // build band structure
     bool withEigenvectors = true;

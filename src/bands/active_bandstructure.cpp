@@ -4,48 +4,10 @@
 #include "mpiHelper.h"
 #include "window.h"
 #include "common_kokkos.h"
+#include <iomanip>
 
 ActiveBandStructure::ActiveBandStructure(Particle &particle_, Points &points_)
     : particle(particle_), points(points_) {}
-
-// copy constructor
-ActiveBandStructure::ActiveBandStructure(const ActiveBandStructure &that)
-    : particle(that.particle), points(that.points), energies(that.energies),
-      velocities(that.velocities), eigenvectors(that.eigenvectors),
-      hasEigenvectors(that.hasEigenvectors), numStates(that.numStates),
-      numIrrStates(that.numIrrStates), numIrrPoints(that.numIrrPoints),
-      numPoints(that.numPoints), numBands(that.numBands),
-      numFullBands(that.numFullBands), windowMethod(that.windowMethod),
-      auxBloch2Comb(that.auxBloch2Comb),
-      cumulativeKbOffset(that.cumulativeKbOffset),
-      bteAuxBloch2Comb(that.bteAuxBloch2Comb),
-      bteCumulativeKbOffset(that.bteCumulativeKbOffset),
-      cumulativeKbbOffset(that.cumulativeKbbOffset) {}
-
-ActiveBandStructure &ActiveBandStructure::operator=(
-    const ActiveBandStructure &that) { // assignment operator
-  if (this != &that) {
-    particle = that.particle;
-    points = that.points;
-    energies = that.energies;
-    velocities = that.velocities;
-    eigenvectors = that.eigenvectors;
-    hasEigenvectors = that.hasEigenvectors;
-    numStates = that.numStates;
-    numIrrStates = that.numIrrStates;
-    numIrrPoints = that.numIrrPoints;
-    numPoints = that.numPoints;
-    numBands = that.numBands;
-    numFullBands = that.numFullBands;
-    windowMethod = that.windowMethod;
-    auxBloch2Comb = that.auxBloch2Comb;
-    cumulativeKbOffset = that.cumulativeKbOffset;
-    bteAuxBloch2Comb = that.bteAuxBloch2Comb;
-    bteCumulativeKbOffset = that.bteCumulativeKbOffset;
-    cumulativeKbbOffset = that.cumulativeKbbOffset;
-  }
-  return *this;
-}
 
 ActiveBandStructure::ActiveBandStructure(const Points &points_,
                                          HarmonicHamiltonian *h0,
@@ -63,10 +25,46 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
   }
   numStates = numFullBands * numPoints;
   hasEigenvectors = withEigenvectors;
+  hasVelocities = withEigenvectors;
 
-  energies.resize(numPoints * numFullBands, 0.);
-  if(withVelocities) velocities.resize(numPoints * numFullBands * numFullBands * 3, complexZero);
-  if(withEigenvectors) eigenvectors.resize(numPoints * numFullBands * numFullBands, complexZero);
+  if (mpi->mpiHead()) { // print info on memory
+    // count up the total memory use
+    double x = numPoints * numFullBands; // number of energies, which will always be stored
+    x *= 8; // size of double
+    if(hasVelocities) {
+      double xtemp = numFullBands * numFullBands * 3;
+      xtemp *= numPoints;
+      x += xtemp * 16; // complex double
+    }
+    if(hasEigenvectors) {
+      double xtemp = numFullBands * numFullBands;
+      xtemp *= numPoints;
+      x += xtemp * 16; // size of complex double
+    }
+    x *= 1. / pow(1024,3);
+    std::cout << std::setprecision(4);
+    std::cout << "Allocating " << x << " GB (per MPI process) for band structure." << std::endl;
+  }
+  mpi->barrier(); // wait to print this info before allocating
+
+  try {
+    energies.resize(numPoints * numFullBands, 0.);
+  } catch(std::bad_alloc& e) {
+    Error("Failed to allocate band structure energies.\n"
+        "You are likely out of memory.");
+  }
+  try {
+    if(withEigenvectors) eigenvectors.resize(numPoints * numFullBands * numFullBands, complexZero);
+  } catch(std::bad_alloc& e) {
+    Error("Failed to allocate band structure eigenvectors.\n"
+        "You are likely out of memory.");
+  }
+  try {
+    if(withVelocities) velocities.resize(numPoints * numFullBands * numFullBands * 3, complexZero);
+  } catch(std::bad_alloc& e) {
+    Error("Failed to allocate band structure velocities.\n"
+        "You are likely out of memory.");
+  }
 
   windowMethod = Window::nothing;
   buildIndices();
@@ -660,13 +658,39 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
   // construct the mapping from combined indices to Bloch indices
   buildIndices();
 
-  energies.resize(numEnStates, 0.);
+  if (mpi->mpiHead()) { // print info on memory
+    double x = numEnStates * 8.;
+    if(hasVelocities)    x += numVelStates * 16.; // complex double
+    if(hasEigenvectors)  x += numEigStates * 16.; // size of complex double
+    x *= 1. / pow(1024,3); // convert to gb
+    std::cout << std::setprecision(4);
+    std::cout << "Allocating " << x << " GB (per MPI process) for reduced band structure." << std::endl;
+  }
+  mpi->barrier(); // wait to print this info before allocating
+
+  try {
+    energies.resize(numEnStates, 0.);
+  } catch(std::bad_alloc& e) {
+    Error("Failed to allocate band structure energies.\n"
+        "You are likely out of memory.");
+  }
   if (withVelocities) {
-    velocities.resize(numVelStates, complexZero);
+    hasVelocities = true;
+    try {
+      velocities.resize(numVelStates, complexZero);
+    } catch(std::bad_alloc& e) {
+      Error("Failed to allocate band structure velocities.\n"
+        "You are likely out of memory.");
+    }
   }
   if (withEigenvectors) {
     hasEigenvectors = true;
-    eigenvectors.resize(numEigStates, complexZero);
+    try {
+      eigenvectors.resize(numEigStates, complexZero);
+    } catch(std::bad_alloc& e) {
+      Error("Failed to allocate band structure eigenvectors.\n"
+        "You are likely out of memory.");
+    }
   }
 
   windowMethod = window.getMethodUsed();

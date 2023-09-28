@@ -132,6 +132,25 @@ Note that compiling the documentation doesn't require compiling the code.
 Installation instructions for specific systems
 --------------------------------------------------------------------
 
+SLURM-based compute clusters
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Many compute clusters currently use SLURM and the related module system to manage the dependencies
+you need to build Phoebe. If your cluster uses SLURM, you should try to build Phoebe by running "module spider HDF5" (or perhaps "hdf5"). Then, use "module spider" to look up specific versions of HDF5, until you identify one which requires an MPI verison to be loaded (like OpenMPI, Intel mpi/impi, or MPICH). Load all the modules related to that HDF5 version, plus "module load CMake". In total, you will want something similar to::
+
+  module load gcc openmpi HDF5 cmake
+  # or
+  module load intel impi HDF5 cmake
+
+If your cluster also has a module with a name like "intel-mkl" or "imkl", we suggest loading that as well, because CMake will use it for the ScaLAPACK dependency.
+
+While the capitalization/names of these modules may vary, once you have a module set with parallel HDF5 (one which requires an MPI version) you will almost certainly be able to build the code using the "Basic Build" instructions above.
+
+NERSC (Perlmutter)
+^^^^^^^^^^^^^^^^^^
+
+In `/phoebe/scripts/sampleBuildScripts/perlmutter.sh` in the Phoebe github repository, we have instructions which should work for building Phoebe on Perlmutter (for GPUs or cpus) as tested in Sept. 2023.
+
 Ubuntu
 ^^^^^^
 

@@ -235,8 +235,11 @@ void ElectronWannierTransportApp::checkRequirements(Context &context) {
     }
   }
 
-  if (context.getDopings().size() == 0 &&
-      context.getChemicalPotentials().size() == 0) {
+  double minChemicalPotential = context.getMinChemicalPotential();
+  double maxChemicalPotential = context.getMaxChemicalPotential();
+  double deltaChemicalPotential = context.getDeltaChemicalPotential();
+  if (context.getDopings().size() == 0 && context.getChemicalPotentials().size() == 0 &&
+     (std::isnan(minChemicalPotential) || std::isnan(maxChemicalPotential) || std::isnan(deltaChemicalPotential)))  {
     Error("Either chemical potentials or dopings must be set");
   }
 }

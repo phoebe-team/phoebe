@@ -151,7 +151,9 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     bool withEigenvectors = true;
     bool withVelocities = true;
     // note: bandStructure3 stores a copy of ap3: can't pass unique_ptr
-    std::cout << "Allocating the band structure of intermediate phonon states." << std::endl;
+    if(mpi->mpiHead()) {
+      std::cout << "Allocating the band structure of intermediate phonon states." << std::endl;
+    }
     bandStructure3 = std::make_unique<ActiveBandStructure>(
         ap3, &h0, withEigenvectors, withVelocities);
   }

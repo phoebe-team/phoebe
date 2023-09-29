@@ -145,9 +145,11 @@ Eigen::MatrixXcd InteractionElPhWan::precomputeQDependentPolar(
   int nbQMax = 3 * phBandStructure.getPoints().getCrystal().getNumAtoms();
   Eigen::MatrixXcd polarData(numQPoints, nbQMax);
   polarData.setZero();
-  #pragma omp parallel for
   // Fine to divide over qpoints as all processes have pairs k1, allQpoints
-  for (int iq : mpi->divideWorkIter(numQPoints)){
+  std::vector<size_t> qIterator = mpi->divideWorkIter(numQPoints);
+#pragma omp parallel for
+  for(int iiq = 0; iiq < int(qIterator.size()); iiq++) { 
+    int iq = qIterator[iiq];
     WavevectorIndex iqIdx(iq);
     auto qC = phBandStructure.getWavevector(iqIdx);
     auto evQ = phBandStructure.getEigenvectors(iqIdx);

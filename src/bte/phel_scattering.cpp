@@ -172,8 +172,13 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // to call the helper function instead?
   Eigen::Tensor<double,3> fermiTerm(numCalculations, numKPoints, nb1Max);
   fermiTerm.setZero();
+
+  std::vector<size_t> kIterator = mpi->divideWorkIter(numKPoints);
   #pragma omp parallel for
-  for (int ik : mpi->divideWorkIter(numKPoints)) {
+  for (int iik = 0; iik < kIterator.size(); iik++) {
+
+    int ik = kIterator[iik]; // avoid omp parallel on iterator loops 
+	  
     WavevectorIndex ikIdx(ik);
     Eigen::VectorXd energies = elBandStructure.getEnergies(ikIdx);
     int nb1 = energies.size();
@@ -197,8 +202,13 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   int nb3Max = 3 * phBandStructure.getPoints().getCrystal().getNumAtoms();
   Eigen::MatrixXcd polarData(numQPoints, nb3Max);
   polarData.setZero();
+
+  std::vector<size_t> qIterator = mpi->divideWorkIter(numQPoints); 
+
   #pragma omp parallel for
-  for (int iq : mpi->divideWorkIter(numQPoints)){
+  for (int iiq = 0; iiq < int(qIterator.size()); iiq++) { 
+
+    int iq = qIterator[iiq]; // avoid issues with omp on iterator loops
     WavevectorIndex iqIdx(iq);
     auto q3C = phBandStructure.getWavevector(iqIdx);
     auto ev3 = phBandStructure.getEigenvectors(iqIdx);

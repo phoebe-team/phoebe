@@ -47,8 +47,10 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     fullPoints3 = std::make_unique<Points>(innerBandStructure.getPoints().getCrystal(), mesh2, offset2);
     bool withVelocities = true;
     bool withEigenvectors = true;
-    FullBandStructure bs = h0.populate(*fullPoints3, withVelocities,
-                                               withEigenvectors);
+    if(mpi->mpiHead()) {
+      std::cout << "Allocating the band structure of intermediate phonon states." << std::endl;
+    }
+    FullBandStructure bs = h0.populate(*fullPoints3, withVelocities, withEigenvectors);
     bandStructure3 = std::make_unique<FullBandStructure>(bs);
 
   // final and initial state meshes are the same, as for matrix construction,
@@ -149,6 +151,7 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     bool withEigenvectors = true;
     bool withVelocities = true;
     // note: bandStructure3 stores a copy of ap3: can't pass unique_ptr
+    std::cout << "Allocating the band structure of intermediate phonon states." << std::endl;
     bandStructure3 = std::make_unique<ActiveBandStructure>(
         ap3, &h0, withEigenvectors, withVelocities);
   }
@@ -282,13 +285,18 @@ std::tuple<Eigen::Vector3d, Eigen::VectorXd, int, Eigen::MatrixXcd,
 void HelperElScattering::prepare(const Eigen::Vector3d &k1,
                                  const std::vector<int>& k2Indexes) {
   if (!storedAllQ3) {
+
     int numPoints = int(k2Indexes.size());
-    cacheEnergies.resize(numPoints);
-    cacheEigenVectors.resize(numPoints);
-    cacheBose.resize(numPoints);
-    cachePolarData.resize(numPoints);
-    cacheVelocity.resize(numPoints);
-    cacheOffset = k2Indexes[0];
+    try {
+      cacheEnergies.resize(numPoints);
+      cacheEigenVectors.resize(numPoints);
+      cacheBose.resize(numPoints);
+      cachePolarData.resize(numPoints);
+      cacheVelocity.resize(numPoints);
+      cacheOffset = k2Indexes[0];
+    } catch(std::bad_alloc& e) {
+      Error("Out of memory trying to allocate intermediate el state properties.");
+    }
 
     Particle particle = h0.getParticle();
 

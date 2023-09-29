@@ -113,6 +113,9 @@ Helper3rdState::Helper3rdState(BaseBandStructure &innerBandStructure_,
     // build band structure
     bool withEigenvectors = true;
     bool withVelocities = true;
+    if(mpi->mpiHead()) {
+      std::cout << "Constructing band structure of intermediate phonon states." << std::endl;
+    }
     bandStructure3 = std::make_unique<ActiveBandStructure>(
         activePoints3, &h0, withEigenvectors, withVelocities);
   }
@@ -232,15 +235,19 @@ void Helper3rdState::prepare(const std::vector<int> &q1Indexes, const int &iq2) 
     auto numPoints = int(q1Indexes.size());
     cacheOffset = q1Indexes[0];
 
-    cachePlusEnergies.resize(numPoints);
-    cachePlusEigenVectors.resize(numPoints);
-    cachePlusBose.resize(numPoints);
-    cachePlusVelocity.resize(numPoints);
+    try {
+      cachePlusEnergies.resize(numPoints);
+      cachePlusEigenVectors.resize(numPoints);
+      cachePlusBose.resize(numPoints);
+      cachePlusVelocity.resize(numPoints);
 
-    cacheMinusEnergies.resize(numPoints);
-    cacheMinusEigenVectors.resize(numPoints);
-    cacheMinusBose.resize(numPoints);
-    cacheMinusVelocity.resize(numPoints);
+      cacheMinusEnergies.resize(numPoints);
+      cacheMinusEigenVectors.resize(numPoints);
+      cacheMinusBose.resize(numPoints);
+      cacheMinusVelocity.resize(numPoints);
+    } catch (std::bad_alloc& e) {
+      Error("Out of memory trying to allocate third phonon state info.");
+    }
 
     Particle particle = h0.getParticle();
 

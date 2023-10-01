@@ -40,7 +40,9 @@ void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
   #pragma omp parallel for default(none) shared(                            \
    bandStructure, numCalculations, statisticsSweep, boundaryLength,   \
    particle, outPopulations, inPopulations, linewidth, switchCase, excludeIndices, is1s, matrix)
-  for (int is1 : is1s ) {
+  for (int iis1 = 0; iis1 < is1s.size(); iis1++ ) {
+
+      int is1 = is1s[iis1]; // we do this because an iterator cannot be omp parallelized
 
       StateIndex is1Idx(is1);
       auto vel = bandStructure.getGroupVelocity(is1Idx);

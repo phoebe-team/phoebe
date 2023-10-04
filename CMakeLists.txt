@@ -30,12 +30,21 @@ option(OMP_AVAIL "Build with OMP" ON)
 option(HDF5_AVAIL "Build with HDF5" ON)
 option(HDF5_SERIAL "Force build to accomodate serial only HDF5, but still use MPI" OFF)
 option(BUILD_DOC "Build documentation" ON)
+
+############# KOKKOS SETUP ##########
+
+set(Kokkos_CXX_STANDARD "c++${CMAKE_CXX_STANDARD}")
+
 if(OMP_AVAIL)
   option(Kokkos_ENABLE_OPENMP "Use kokkos with omp" ON)
 else()
   option(Kokkos_ENABLE_OPENMP "Use kokkos with omp" OFF)
   option(Kokkos_ENABLE_SERIAL "Use kokkos in serial" ON)
 endif()
+
+set(KokkosKernels_ADD_DEFAULT_ETI OFF CACHE BOOL "faster build")
+set(KokkosKernels_ENABLED_COMPONENTS BLAS CACHE STRING "faster build")
+
 ############### SOURCE ###############
 
 FILE(GLOB_RECURSE SOURCE_FILES src src/*.cpp)
@@ -59,9 +68,9 @@ set_target_properties(runTests PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_dependencies(phoebe spglib_dep pugixml_dep eigen_dep)
 add_dependencies(runTests spglib_dep pugixml_dep eigen_dep)
 
-target_link_libraries(phoebe symspg pugixml kokkos nlohmann_json::nlohmann_json)
+target_link_libraries(phoebe symspg pugixml kokkos Kokkos::kokkoskernels nlohmann_json::nlohmann_json)
 enable_testing()
-target_link_libraries(runTests symspg pugixml gtest_main kokkos nlohmann_json::nlohmann_json)
+target_link_libraries(runTests symspg pugixml gtest_main kokkos Kokkos::kokkoskernels nlohmann_json::nlohmann_json)
 
 gtest_discover_tests(
     runTests

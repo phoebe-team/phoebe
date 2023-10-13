@@ -20,6 +20,7 @@ BulkTDrift::BulkTDrift(StatisticsSweep &statisticsSweep_,
       auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
       auto chemPot = calcStat.chemicalPotential;
       auto temp = calcStat.temperature;
+      if(particle.isPhonon()) chemPot = 0.;
       for (int i = 0; i < 3; i++) {
         operator()(iCalc, i, iBte) =
             particle.getDndt(energy, temp, chemPot, symmetrize) * vel(i);
@@ -34,6 +35,7 @@ BulkEDrift::BulkEDrift(StatisticsSweep &statisticsSweep_,
                        const int &dimensionality_,
                        const bool& symmetrize)
     : VectorBTE(statisticsSweep_, bandStructure_, dimensionality_) {
+
   Particle particle = bandStructure.getParticle();
   std::vector<int> iss = bandStructure.parallelIrrStateIterator();
   int niss = iss.size();

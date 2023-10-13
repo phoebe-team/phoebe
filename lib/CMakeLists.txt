@@ -1,4 +1,5 @@
 add_subdirectory(lib/kokkos)
+add_subdirectory(lib/kokkos-kernels)
 
 include(ExternalProject)
 include(FetchContent)

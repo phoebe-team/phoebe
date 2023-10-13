@@ -4,6 +4,3 @@
 [submodule "lib/kokkos-kernels"]
 	path = lib/kokkos-kernels
 	url = https://github.com/kokkos/kokkos-kernels.git
-[submodule "kokkos-kernels"]
-	path = kokkos-kernels
-	url = https://github.com/kokkos/kokkos-kernels.git

@@ -12,6 +12,7 @@
 
 void ElectronWannierTransportApp::run(Context &context) {
 
+  Kokkos::Profiling::pushRegion("ETapp.parseHamiltonians");
   auto t2 = Parser::parsePhHarmonic(context);
   auto crystal = std::get<0>(t2);
   auto phononH0 = std::get<1>(t2);
@@ -19,23 +20,28 @@ void ElectronWannierTransportApp::run(Context &context) {
   auto t1 = Parser::parseElHarmonicWannier(context, &crystal);
   auto crystalEl = std::get<0>(t1);
   auto electronH0 = std::get<1>(t1);
+  Kokkos::Profiling::popRegion();
 
   // load the elph coupling
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
+  Kokkos::Profiling::pushRegion("ETapp.parseInteraction");
   InteractionElPhWan couplingElPh(crystal);
   if (std::isnan(context.getConstantRelaxationTime())) {
     couplingElPh = InteractionElPhWan::parse(context, crystal, &phononH0);
   }
+  Kokkos::Profiling::popRegion();
 
   // compute the band structure on the fine grid
   if (mpi->mpiHead()) {
     std::cout << "\nComputing electronic band structure." << std::endl;
   }
+  Kokkos::Profiling::pushRegion("ETapp.setupElBandstructure");
   Points fullPoints(crystal, context.getKMesh());
   auto t3 = ActiveBandStructure::builder(context, electronH0, fullPoints);
   auto bandStructure = std::get<0>(t3);
   auto statisticsSweep = std::get<1>(t3);
+  Kokkos::Profiling::popRegion();
 
   // print some info about how window and symmetries have reduced things
   if (mpi->mpiHead()) {
@@ -61,10 +67,12 @@ void ElectronWannierTransportApp::run(Context &context) {
   //  StatisticsSweep statisticsSweep(context, &bandStructure);
 
   // build/initialize the scattering matrix and the smearing
+  Kokkos::Profiling::pushRegion("ETapp.setupScatteringMatrix");
   ElScatteringMatrix scatteringMatrix(context, statisticsSweep, bandStructure,
                                       bandStructure, phononH0, &couplingElPh);
   scatteringMatrix.setup();
   scatteringMatrix.outputToJSON("rta_el_relaxation_times.json");
+  Kokkos::Profiling::popRegion();
 
   // solve the BTE at the relaxation time approximation level
   // we always do this, as it's the cheapest solver and is required to know
@@ -78,6 +86,8 @@ void ElectronWannierTransportApp::run(Context &context) {
   // compute the phonon populations in the relaxation time approximation.
   // Note: this is the total phonon population n (n != f(1+f) Delta n)
 
+  Kokkos::Profiling::pushRegion("ETapp.computeRTATransport");
+
   BulkEDrift driftE(statisticsSweep, bandStructure, 3);
   BulkTDrift driftT(statisticsSweep, bandStructure, 3);
   VectorBTE relaxationTimes = scatteringMatrix.getSingleModeTimes();
@@ -85,22 +95,19 @@ void ElectronWannierTransportApp::run(Context &context) {
   VectorBTE nTRTA = -driftT * relaxationTimes;
 
   // compute the electrical conductivity
-  OnsagerCoefficients transportCoefficients(statisticsSweep, crystal,
-                                            bandStructure, context);
+  OnsagerCoefficients transportCoefficients(statisticsSweep, crystal, bandStructure, context);
   transportCoefficients.calcFromPopulation(nERTA, nTRTA);
   transportCoefficients.print();
   transportCoefficients.outputToJSON("rta_onsager_coefficients.json");
 
   // compute the Wigner transport coefficients
-  WignerElCoefficients wignerCoefficients(
-      statisticsSweep, crystal, bandStructure, context, relaxationTimes);
+  WignerElCoefficients wignerCoefficients(statisticsSweep, crystal, bandStructure, context, relaxationTimes);
   wignerCoefficients.calcFromPopulation(nERTA, nTRTA);
   wignerCoefficients.print();
   wignerCoefficients.outputToJSON("rta_wigner_coefficients.json");
 
   // compute the electron viscosity
-  ElectronViscosity elViscosity(context, statisticsSweep, crystal,
-                                bandStructure);
+  ElectronViscosity elViscosity(context, statisticsSweep, crystal, bandStructure);
   elViscosity.calcRTA(relaxationTimes);
   elViscosity.print();
   elViscosity.outputToJSON("rta_electron_viscosity.json");
@@ -119,8 +126,12 @@ void ElectronWannierTransportApp::run(Context &context) {
     return; // if we used the constant RTA, we can't solve the BTE exactly
   }
 
+  Kokkos::Profiling::popRegion();
+
   //---------------------------------------------------------------------------
   // start section on exact BTE solvers
+
+  Kokkos::Profiling::pushRegion("ET.exactBTESolvers");
 
   std::vector<std::string> solverBTE = context.getSolverBTE();
 
@@ -184,6 +195,9 @@ void ElectronWannierTransportApp::run(Context &context) {
   }
 
   if (doRelaxons) {
+
+    Kokkos::Profiling::pushRegion("ETapp.relaxonsTransport");
+
     if (mpi->mpiHead()) {
       std::cout << "Starting relaxons BTE solver" << std::endl;
     }
@@ -212,7 +226,9 @@ void ElectronWannierTransportApp::run(Context &context) {
       std::cout << "Finished relaxons BTE solver\n\n";
       std::cout << std::string(80, '-') << "\n" << std::endl;
     }
+    Kokkos::Profiling::popRegion();
   }
+  Kokkos::Profiling::popRegion();
 }
 
 void ElectronWannierTransportApp::checkRequirements(Context &context) {

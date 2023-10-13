@@ -187,6 +187,7 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
     }
   }
   mpi->allReduceSum(&tensordxdxdxd);
+  Kokkos::Profiling::popRegion();
 }
 
 // TODO could merge this into one function with the phonon one

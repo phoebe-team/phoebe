@@ -154,10 +154,14 @@ ParallelMatrix<double>::diagonalize() {
      mpi->time();
   }
 
+  Kokkos::Profiling::pushRegion("pdsyevd");
+
   // call the function to now diagonalize
   pdsyevd_(&jobz, &uplo, &numRows_, mat, &ia, &ja, &descMat_[0], eigenvalues,
           eigenvectors.mat, &ia, &ja, &eigenvectors.descMat_[0],
           work, &lwork, iwork, &liwork, &info);
+
+  Kokkos::Profiling::popRegion();
 
   if(mpi->mpiHead()) {
      std::cout << "Matrix diagonalization completed." << std::endl;
@@ -312,10 +316,15 @@ std::tuple<std::vector<double>, ParallelMatrix<double>>
   allocate(work, 1);
   allocate(iwork, 1);
 
+
+  Kokkos::Profiling::pushRegion("pdsyevr");
+
   pdsyevr_(&jobz, &range, &uplo,  &numRows_, mat, &ia, &ja, &descMat_[0],
         &vl, &vu, &il, &iu, &m, &nz, eigenvalues,
         eigenvectors.mat, &iz, &jz, &eigenvectors.descMat_[0],
         work, &lwork, iwork, &liwork, &info);
+
+  Kokkos::Profiling::popRegion();
 
   lwork=int(work[0]);
   delete[] work;

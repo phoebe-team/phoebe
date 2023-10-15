@@ -30,6 +30,7 @@ option(OMP_AVAIL "Build with OMP" ON)
 option(HDF5_AVAIL "Build with HDF5" ON)
 option(HDF5_SERIAL "Force build to accomodate serial only HDF5, but still use MPI" OFF)
 option(BUILD_DOC "Build documentation" ON)
+option(ELPA_AVAIL "Build with elpa" OFF)
 
 ############## KOKKOS #################
 if(OMP_AVAIL)
@@ -165,6 +166,16 @@ if(HDF5_AVAIL)
   target_link_libraries(runTests ${HDF5_LIBRARIES})
   include_directories(${HDF5_INCLUDE_DIRS})
   add_definitions("-DHDF5_AVAIL")
+endif()
+
+############### ELPA #################
+if(ELPA_AVAIL)
+  find_library(ELPA_LIB NAMES libelpa_openmp.so PATHS "${ELPA_DIR}/lib/")
+  message(STATUS "Found ELPA: ${ELPA_LIB}")
+  include_directories("/n/holystore01/LABS/kozinsky_lab/Lab/User/jcoulter/codes/elpa/build/include/elpa_openmp-2023.05.001/")
+  target_link_libraries(phoebe ${ELPA_LIB})
+  target_link_libraries(runTests ${ELPA_LIB})
+  add_definitions("-DELPA_AVAIL")
 endif()
 
 ############# DOCS ############

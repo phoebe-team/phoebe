@@ -220,10 +220,10 @@ Matrix<T>::Matrix(const Matrix<T>& that) {
 
   // call SMatrix or PMatrix copy constructor
   if(isDistributed) {
-    (*pmat) = (*that.pmat);
+    pmat = that.pmat;
   }
   else {
-    (*mat) = (*that.mat);
+    mat = that.mat;
   }
 }
 

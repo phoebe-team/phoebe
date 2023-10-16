@@ -49,6 +49,10 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
   reorderDynamicalMatrix(directUnitCell, forceConstants_);
 
   if (hasDielectric) { // prebuild terms useful for long range corrections
+
+    // TODO this is important for 3d materials, though I'm not sure about 2D ones
+    dielectricMatrix = dielectricMatrix * 0.5;
+
     double cutoff = gMax * 4.;
 
     // Estimate of nr1x,nr2x,nr3x generating all vectors up to G^2 < geg
@@ -100,6 +104,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
     longRangeCorrection1.resize(3,3,numAtoms);
     longRangeCorrection1.setZero();
     for (int ig=0; ig<numG; ++ig) {
+
       Eigen::Vector3d g = gVectors.col(ig);
 
       // calculate the correction term for screening, Wc as in

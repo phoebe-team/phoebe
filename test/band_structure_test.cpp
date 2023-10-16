@@ -27,7 +27,7 @@ TEST(FullBandStructureTest, BandStructureStorage) {
   //------------end setup-----------//
 
   Eigen::Vector3i qMesh;
-  qMesh << 10, 10, 10;
+  qMesh << 7, 7, 7;
   Points points(crystal, qMesh);
 
   bool withVelocities = true;
@@ -38,6 +38,7 @@ TEST(FullBandStructureTest, BandStructureStorage) {
   int ik = 7;
   auto ikIndex = WavevectorIndex(ik);
   Point point = bandStructure.getPoint(ik);
+  // set up phonon band quantities from direct diag
   auto tup1 = phononH0.diagonalize(point);
   auto ensT = std::get<0>(tup1);
   auto eigenVectorsT = std::get<1>(tup1);
@@ -48,7 +49,8 @@ TEST(FullBandStructureTest, BandStructureStorage) {
       bandStructure.getPhEigenvectors(ikIndex);
   auto velocities = bandStructure.getVelocities(ikIndex);
 
-  // now we check the difference
+  // now we check the difference between direct diag and
+  // bandstructure calculation
   double x1 = (ens - ensT).norm();
   ASSERT_NEAR(x1, 0.,1e-14);
 

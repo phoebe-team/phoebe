@@ -508,9 +508,6 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
     }
   }
 
-  // TODO why is this necessary...
-  dielectricMatrix = dielectricMatrix * 0.5;
-
   //	Now we parse the coarse q grid
   std::getline(infile, line);
   lineSplit = split(line, ' ');

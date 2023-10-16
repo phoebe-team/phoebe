@@ -17,6 +17,8 @@ StatisticsSweep::StatisticsSweep(Context &context,
                         ? fullBandStructure->getIsDistributed()
                         : false) {
 
+  Kokkos::Profiling::pushRegion("StatisticsSweep constructor");
+
   Eigen::VectorXd temperatures = context.getTemperatures();
   nTemp = int(temperatures.size());
   if (nTemp == 0) {
@@ -207,8 +209,8 @@ StatisticsSweep::StatisticsSweep(Context &context,
     infoCalculations = calcTable;
     numCalculations = int(calcTable.rows());
   }
-
   printInfo();
+  Kokkos::Profiling::popRegion();
 }
 
 // copy constructor

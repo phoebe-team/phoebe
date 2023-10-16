@@ -122,6 +122,9 @@ void OnsagerCoefficients::calcFromSymmetricPopulation(VectorBTE &nE, VectorBTE &
 }
 
 void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
+
+  Kokkos::Profiling::pushRegion("calcOnsagerFromPopulation");
+
   double norm = spinFactor / context.getKMesh().prod() /
                 crystal.getVolumeUnitCell(dimensionality);
   LEE.setZero();
@@ -207,11 +210,15 @@ void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
 
   onsagerToTransportCoeffs(statisticsSweep, dimensionality,
                         LEE, LTE, LET, LTT, kappa, sigma, mobility, seebeck);
+
+  Kokkos::Profiling::popRegion();
 }
 
 void OnsagerCoefficients::calcFromRelaxons(
     Eigen::VectorXd &eigenvalues, ParallelMatrix<double> &eigenvectors,
     ElScatteringMatrix &scatteringMatrix) {
+
+  Kokkos::Profiling::pushRegion("calcFromRelaxons");
 
   int numEigenvalues = eigenvalues.size();
   int iCalc = 0;
@@ -320,6 +327,7 @@ void OnsagerCoefficients::calcFromRelaxons(
     mpi->allReduceSum(&nE.data);
     mpi->allReduceSum(&nT.data);
   }
+  Kokkos::Profiling::popRegion();
   calcFromSymmetricPopulation(nE, nT);
 }
 

@@ -386,6 +386,8 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
   //  Here we read the dynamical matrix of inter-atomic force constants
   //	in real space.
 
+  Kokkos::Profiling::pushRegion("parsePhHarmonic (QE)");
+
   std::string fileName = context.getPhFC2FileName();
   if (fileName.empty()) {
     Error("Must provide a FC2 file name");
@@ -506,9 +508,6 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
     }
   }
 
-  // TODO why is this necessary...
-  dielectricMatrix = dielectricMatrix * 0.5;
-
   //	Now we parse the coarse q grid
   std::getline(infile, line);
   lineSplit = split(line, ' ');
@@ -561,12 +560,15 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
   PhononH0 dynamicalMatrix(crystal, dielectricMatrix, bornCharges,
                            forceConstants, context.getSumRuleFC2());
 
+  Kokkos::Profiling::popRegion();
   return std::make_tuple(crystal, dynamicalMatrix);
 }
 
 std::tuple<Crystal, ElectronH0Fourier>
 QEParser::parseElHarmonicFourier(Context &context) {
   //  Here we read the XML file of quantum espresso.
+
+  Kokkos::Profiling::pushRegion("parseElHarmonicFourier (QE)");
 
   std::string fileName = context.getElectronH0Name();
   double fourierCutoff = context.getElectronFourierCutoff();
@@ -799,6 +801,7 @@ QEParser::parseElHarmonicFourier(Context &context) {
   ElectronH0Fourier electronH0(crystal, coarsePoints, coarseBandStructure,
                                fourierCutoff);
 
+  Kokkos::Profiling::popRegion();
   return std::make_tuple(crystal, electronH0);
 }
 
@@ -806,6 +809,8 @@ std::pair<Eigen::Tensor<double, 3>,
           Eigen::Tensor<double, 5>> parseWSVecFromWannier90(
     const std::string &fileName, const int &numWannier,
     const int &numVectors, const Eigen::Matrix3d &directUnitCell) {
+
+  Kokkos::Profiling::pushRegion("parseWSVecFromWannier90");
 
   if (fileName.empty()) {
     Error("Must provide the Wannier90 WsVec file name");
@@ -869,11 +874,15 @@ std::pair<Eigen::Tensor<double, 3>,
     }
   }
 
+  Kokkos::Profiling::popRegion();
   return std::make_pair(degeneracyShifts, phaseShifts);
 }
 
 std::tuple<Crystal, ElectronH0Wannier>
 QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
+
+  Kokkos::Profiling::pushRegion("parseElHarmonicWannier (QE)");
+
   //  Here we read the XML file of quantum espresso.
 
   std::string fileName = context.getElectronH0Name();
@@ -1028,6 +1037,7 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
   }
 
   if (inCrystal != nullptr) {
+    Kokkos::Profiling::popRegion();
     return std::make_tuple(*inCrystal, electronH0);
   } else {
     Eigen::MatrixXd atomicPositions = context.getInputAtomicPositions();
@@ -1045,6 +1055,7 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
     Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
                     speciesNames, speciesMasses);
     crystal.print();
+    Kokkos::Profiling::popRegion();
     return std::make_tuple(crystal, electronH0);
   }
 }

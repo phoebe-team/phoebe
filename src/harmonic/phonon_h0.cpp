@@ -18,6 +18,8 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
   // in this section, we save as class properties a few variables
   // that are needed for the diagonalization of phonon frequencies
 
+  Kokkos::Profiling::pushRegion("phononH0 constructor");
+
   directUnitCell = crystal.getDirectUnitCell();
   Eigen::Matrix3d reciprocalUnitCell = crystal.getReciprocalUnitCell();
   volumeUnitCell = crystal.getVolumeUnitCell();
@@ -94,6 +96,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
       }
     }
 
+    // TODO also add 2d option and move this to a separate function
     longRangeCorrection1.resize(3,3,numAtoms);
     longRangeCorrection1.setZero();
     for (int ig=0; ig<numG; ++ig) {
@@ -231,6 +234,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
     double mem = getDeviceMemoryUsage();
     kokkosDeviceMemory->addDeviceMemoryUsage(mem);
   }
+  Kokkos::Profiling::popRegion();
 }
 
 // copy constructor
@@ -538,6 +542,8 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
   // very rough estimate: geg/4/alpha > gMax = 14
   // (exp (-14) = 10^-6)
 
+  Kokkos::Profiling::pushRegion("PhononH0::addLongRangeTerm");
+
 /*
        IF (loto_2d) THEN
           geg = g1**2 + g2**2 + g3**2
@@ -649,10 +655,14 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
       }
     }
   }
+  Kokkos::Profiling::popRegion();
 }
 
 void PhononH0::reorderDynamicalMatrix(const Eigen::Matrix3d& directUnitCell,
                                       const Eigen::Tensor<double, 7>& forceConstants) {
+
+  Kokkos::Profiling::pushRegion("PhononH0::reorderDynamicalMatrix");
+
   // this part can actually be expensive to execute, so we compute it once
   // at the beginning
 
@@ -747,12 +757,15 @@ void PhononH0::reorderDynamicalMatrix(const Eigen::Matrix3d& directUnitCell,
 
   // wsCache.resize(0, 0, 0, 0, 0);
   // forceConstants.resize(0, 0, 0, 0, 0, 0, 0);
+  Kokkos::Profiling::popRegion();
 }
 
 void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                               const Eigen::VectorXd &q) {
   // calculates the dynamical matrix at q from the (short-range part of the)
   // force constants21, by doing the Fourier transform of the force constants
+
+  Kokkos::Profiling::pushRegion("phononH0.shortRangeTerm");
 
   std::vector<std::complex<double>> phases(numBravaisVectors);
   for (int iR = 0; iR < numBravaisVectors; iR++) {
@@ -785,6 +798,7 @@ void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
     //    }
     //  }
     //}
+  Kokkos::Profiling::popRegion();
 }
 
 std::tuple<Eigen::VectorXd, Eigen::MatrixXcd>
@@ -792,6 +806,8 @@ PhononH0::dynDiagonalize(Eigen::Tensor<std::complex<double>, 4> &dyn) {
   // diagonalise the dynamical matrix
   // On input:  speciesMasses = masses, in amu
   // On output: w2 = energies, z = displacements
+
+  Kokkos::Profiling::pushRegion("PhononH0::dynDiagonalize");
 
   // fill the two-indices dynamical matrix
 
@@ -854,7 +870,7 @@ PhononH0::dynDiagonalize(Eigen::Tensor<std::complex<double>, 4> &dyn) {
   //    printf("old = %.16e %.16e\n", x.real(), x.imag());
   //  }
   //}
-
+  Kokkos::Profiling::popRegion();
   return std::make_tuple(energies, eigenvectors);
 }
 
@@ -867,9 +883,11 @@ PhononH0::diagonalizeVelocity(Point &point) {
 
 Eigen::Tensor<std::complex<double>, 3>
 PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
+
+  Kokkos::Profiling::pushRegion("PhononH0::diagonalizeVelocityFromCoordinates");
+
   Eigen::Tensor<std::complex<double>, 3> velocity(numBands, numBands, 3);
   velocity.setZero();
-
 
   bool withMassScaling = false;
     //for(int i = 0; i < 3; i++){
@@ -1036,6 +1054,7 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
   //    }
   //  }
   //}
+  Kokkos::Profiling::popRegion();
   return velocity;
 }
 

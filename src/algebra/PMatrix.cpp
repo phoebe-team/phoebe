@@ -6,6 +6,9 @@
 #include "constants.h"
 #include "mpiHelper.h"
 #include "utilities.h"
+#ifdef ELPA_AVAIL
+  #include <elpa/elpa.h>
+#endif
 
 template <>
 ParallelMatrix<double> ParallelMatrix<double>::prod(
@@ -94,9 +97,119 @@ ParallelMatrix<std::complex<double>> ParallelMatrix<std::complex<double>>::prod(
   return result;
 }
 
+
 template <>
 std::tuple<std::vector<double>, ParallelMatrix<double>>
-ParallelMatrix<double>::diagonalize() {
+ParallelMatrix<double>::elpaDiagonalize() {
+
+  // allocate space for eigenvalues
+  double *eigenvalues;
+  allocate(eigenvalues, numRows_);
+
+  // Make a new PMatrix to receive the output
+  // zeros here trigger a the default blacs process grid (a square one)
+  ParallelMatrix<double> eigenvectors(numRows_, numCols_, 0, 0,
+                              numBlocksRows_, numBlocksCols_, blacsContext_);
+
+  #ifdef ELPA_AVAIL
+
+  if (numRows_ != numCols_) {
+    Error("Cannot diagonalize non-square matrix");
+  }
+  if ( numBlasRows_ != numBlasCols_ ) {
+    Error("Cannot diagonalize via scalapack with a non-square process grid!");
+  }
+  if (numBlocksRows_ != numBlocksCols_ ) {
+    Error("Cannot diagonalize via ELPA with nonsquare blocksize!");
+  }
+
+  // set up elpa
+  elpa_t handle = 0;
+  int error;
+  //bool elpaSuccess = true;
+  std::string elpaErrorStr = "";
+
+  //error = elpa_init(ELPA_API_VERSION);
+  //assert_elpa_ok(error, "ELPA API version not supported", elpaSuccess, elpaErrorStr);
+
+  //handle = elpa_allocate(&error);
+  //assert_elpa_ok(error, "ELPA instance allocation failed", elpaSuccess, elpaErrorStr);
+
+  // set parameters
+  elpa_set(handle, "na", numRows_, &error);
+  elpa_set(handle, "nev", numRows_, &error);
+  elpa_set(handle, "local_nrows", numLocalRows_, &error);
+  elpa_set(handle, "local_ncols", numLocalCols_, &error);
+  elpa_set(handle, "nblk", numBlocksRows_, &error);
+  // here we should always use the main commworld
+  elpa_set(handle, "mpi_comm_parent", MPI_Comm_c2f(MPI_COMM_WORLD), &error);
+  elpa_set(handle, "process_row", myBlasRow_, &error);
+  elpa_set(handle, "process_col", myBlasCol_, &error);
+
+  //assert_elpa_ok(error, "ELPA matrix initialization failed", elpaSuccess, elpaErrorStr);
+  //error = elpa_setup(handle);
+  //assert_elpa_ok(error, "ELPA setup failed", elpaSuccess, elpaErrorStr);
+
+  // set tunable run-time options
+  elpa_set(handle, "solver", ELPA_SOLVER_2STAGE, &error);
+  elpa_set(handle, "real_kernel", ELPA_2STAGE_COMPLEX_AVX512_BLOCK2, &error);
+
+  if(mpi->mpiHead()) {
+     std::cout << "Starting matrix diagonalization using ELPA." << std::endl;
+     mpi->time();
+  }
+
+  Kokkos::Profiling::pushRegion("elpa diag");
+
+  // do the diagonalization
+  elpa_eigenvectors(handle, mat, eigenvalues, eigenvectors.mat, &error);
+
+  Kokkos::Profiling::popRegion();
+
+  if(mpi->mpiHead()) {
+     std::cout << "Matrix diagonalization completed." << std::endl;
+     mpi->time();
+  }
+
+  if( eigenvalues[0] < 0 ) { // negative modes were found
+    if(mpi->mpiHead()) {
+      Warning("Relaxons diagonalization found negative eigenvalues."
+                "\n\tThis can happen when there's a bit of numerical noise on the scattering matrix,"
+                "\n\tand finding them may indicate the calculation is unconverged."
+                "\n\tWhile we simply do not include these when computing transport, "
+                "\n\tand likely if they are small the calculation will be unaffected, "
+                "\n\tyou may want to consider using with more wavevectors or an improved DFT calculation."
+                "\n\tAdditionally, setting symmetrizeMatrix = true in your input file will help.");
+      std::cout << "These eigenvalues are (in atomic units):" << std::endl;
+      for (int i = 0; eigenvalues[i] <= 0; i++) {
+        std::cout << i << " " << eigenvalues[i] << std::endl;
+        if(i+1 == numRows_) break; // avoid out of bounds
+      }
+      std::cout << std::endl;
+    }
+  }
+
+  //deallocate
+  elpa_deallocate(handle, &error);
+  elpa_uninit(&error);
+
+  #endif
+
+  // copy things into output containers
+  std::vector<double> eigenvalues_(numRows_);
+  for (int i = 0; i < numRows_; i++) {
+    eigenvalues_[i] = *(eigenvalues + i);
+  }
+  delete[] eigenvalues;
+
+  // note that the scattering matrix now has different values
+  return std::make_tuple(eigenvalues_, eigenvectors);
+
+}
+
+template <>
+std::tuple<std::vector<double>, ParallelMatrix<double>>
+ParallelMatrix<double>::scalapackDiagonalize() {
 
   if (numRows_ != numCols_) {
     Error("Cannot diagonalize non-square matrix");
@@ -154,10 +267,14 @@ ParallelMatrix<double>::diagonalize() {
      mpi->time();
   }
 
+  Kokkos::Profiling::pushRegion("pdsyevd");
+
   // call the function to now diagonalize
   pdsyevd_(&jobz, &uplo, &numRows_, mat, &ia, &ja, &descMat_[0], eigenvalues,
           eigenvectors.mat, &ia, &ja, &eigenvectors.descMat_[0],
           work, &lwork, iwork, &liwork, &info);
+
+  Kokkos::Profiling::popRegion();
 
   if(mpi->mpiHead()) {
      std::cout << "Matrix diagonalization completed." << std::endl;
@@ -197,6 +314,18 @@ ParallelMatrix<double>::diagonalize() {
   delete[] work;
   // note that the scattering matrix now has different values
   return std::make_tuple(eigenvalues_, eigenvectors);
+}
+
+template <>
+std::tuple<std::vector<double>, ParallelMatrix<double>>
+ParallelMatrix<double>::diagonalize() {
+
+  #ifdef ELPA_AVAIL
+    return elpaDiagonalize();
+  #else
+    return scalapackDiagonalize();
+  #endif
+
 }
 
 template <>
@@ -312,10 +441,15 @@ std::tuple<std::vector<double>, ParallelMatrix<double>>
   allocate(work, 1);
   allocate(iwork, 1);
 
+
+  Kokkos::Profiling::pushRegion("pdsyevr");
+
   pdsyevr_(&jobz, &range, &uplo,  &numRows_, mat, &ia, &ja, &descMat_[0],
         &vl, &vu, &il, &iu, &m, &nz, eigenvalues,
         eigenvectors.mat, &iz, &jz, &eigenvectors.descMat_[0],
         work, &lwork, iwork, &liwork, &info);
+
+  Kokkos::Profiling::popRegion();
 
   lwork=int(work[0]);
   delete[] work;

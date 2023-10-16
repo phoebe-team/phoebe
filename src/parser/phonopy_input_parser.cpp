@@ -34,6 +34,8 @@ int findRIndex(Eigen::MatrixXd &cellPositions2, Eigen::Vector3d &position2) {
 
 std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
 
+  Kokkos::Profiling::pushRegion("parsePhHarmonic");
+
   // Here read the real space dynamical matrix of inter-atomic force constants
   if (mpi->mpiHead()) {
     std::cout << "Using harmonic force constants from phonopy." << std::endl;
@@ -563,6 +565,7 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
   PhononH0 dynamicalMatrix(crystal, dielectricMatrix, bornCharges,
                            forceConstants, context.getSumRuleFC2());
 
+  Kokkos::Profiling::popRegion();
   return std::make_tuple(crystal, dynamicalMatrix);
 #endif
 }

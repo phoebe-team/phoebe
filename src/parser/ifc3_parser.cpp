@@ -118,6 +118,8 @@ reorderDynamicalMatrix(
         &ifc3Tensor,
     const std::vector<int> &cellMap) {
 
+  Kokkos::Profiling::pushRegion("reorderDynamicalMatrix");
+
   int numAtoms = crystal.getNumAtoms();
   Eigen::MatrixXd atomicPositions = crystal.getAtomicPositions();
   int nr1Big = qCoarseGrid(0) * 2;
@@ -370,15 +372,17 @@ reorderDynamicalMatrix(
     }// close nb loop
   }  // close na loop
 
+  Kokkos::Profiling::popRegion();
   return std::make_tuple(bravaisVectors, weights, bravaisVectors, weights);
 }
 
 Interaction3Ph IFC3Parser::parseFromPhono3py(Context &context,
                                              Crystal &crystal) {
 
+  Kokkos::Profiling::pushRegion("parseFromPhono3py");
+
 #ifndef HDF5_AVAIL
-  Error(
-      "Phono3py HDF5 output cannot be read if Phoebe is not built with HDF5.");
+  Error("Phono3py HDF5 output cannot be read if Phoebe is not built with HDF5.");
   // return void;
 #else
 
@@ -635,6 +639,7 @@ Interaction3Ph IFC3Parser::parseFromPhono3py(Context &context,
   Interaction3Ph interaction3Ph(crystal, FC3, bravaisVectors2, bravaisVectors3,
                                 weights2, weights3);
 
+  Kokkos::Profiling::popRegion();
   return interaction3Ph;
 
 #endif
@@ -642,6 +647,8 @@ Interaction3Ph IFC3Parser::parseFromPhono3py(Context &context,
 
 Interaction3Ph IFC3Parser::parseFromShengBTE(Context &context,
                                              Crystal &crystal) {
+
+  Kokkos::Profiling::pushRegion("parseFromShengBTE");
 
   auto fileName = context.getPhFC3FileName();
 
@@ -828,5 +835,6 @@ Interaction3Ph IFC3Parser::parseFromShengBTE(Context &context,
                  "ShengBTE files.\n"
               << std::endl;
   }
+  Kokkos::Profiling::popRegion();
   return interaction3Ph;
 }

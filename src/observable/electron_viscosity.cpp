@@ -16,6 +16,8 @@ ElectronViscosity::ElectronViscosity(Context &context_, StatisticsSweep &statist
 
 void ElectronViscosity::calcRTA(VectorBTE &tau) {
 
+  Kokkos::Profiling::pushRegion("calcViscosityRTA");
+
   // add a relevant spin factor
   double spinFactor = 2.;
   if (context.getHasSpinOrbit()) {
@@ -73,11 +75,16 @@ void ElectronViscosity::calcRTA(VectorBTE &tau) {
     }
   });
   Kokkos::Experimental::contribute(tensordxdxdxd_k, scatter_tensordxdxdxd);
+
+  Kokkos::Profiling::popRegion();
+
   mpi->allReduceSum(&tensordxdxdxd);
 }
 
 
 void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelMatrix<double> &eigenvectors) {
+
+  Kokkos::Profiling::pushRegion("calcViscosityFromRelaxons");
 
   if (numCalculations > 1) {
     Error("Developer error: Relaxons electron viscosity cannot be calculated for more than one T.");
@@ -187,10 +194,15 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
     }
   }
   mpi->allReduceSum(&tensordxdxdxd);
+
+  Kokkos::Profiling::popRegion();
+
 }
 
 // TODO could merge this into one function with the phonon one
 void ElectronViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors, int& numRelaxons) {
+
+  Kokkos::Profiling::pushRegion("electronRelaxonsEigenvectorsCheck");
 
   // goal is to print and save the indices and scalar products of the special eigenvectors
   // add a relevant spin factor
@@ -271,6 +283,9 @@ void ElectronViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenve
   // as -1 so that no relaxons are skipped
   if(maxTheta0 >= 0.75) alpha0 = idxAlpha0;
   if(maxThetae >= 0.75) alpha_e = idxAlpha_e;
+
+  Kokkos::Profiling::popRegion();
+
 }
 
 void ElectronViscosity::print() {

@@ -11,6 +11,8 @@ void onsagerToTransportCoeffs(StatisticsSweep& statisticsSweep, int& dimensional
                         Eigen::Tensor<double, 3>& kappa, Eigen::Tensor<double, 3>& sigma,
                         Eigen::Tensor<double, 3>& mobility, Eigen::Tensor<double, 3>& seebeck) {
 
+  Kokkos::Profiling::pushRegion("onsagerToTransportCoeffs");
+
   int numCalculations = statisticsSweep.getNumCalculations();
 
   sigma = LEE;
@@ -53,6 +55,7 @@ void onsagerToTransportCoeffs(StatisticsSweep& statisticsSweep, int& dimensional
       }
     }
   }
+  Kokkos::Profiling::popRegion();
 }
 
 void printHelper(StatisticsSweep& statisticsSweep, int& dimensionality,
@@ -219,6 +222,8 @@ void outputCoeffsToJSON(const std::string &outFileName,
 
   if (!mpi->mpiHead()) return;
 
+  Kokkos::Profiling::pushRegion("onsagerToJSON");
+
   int numCalculations = statisticsSweep.getNumCalculations();
 
   std::string unitsSigma, unitsKappa;
@@ -331,5 +336,8 @@ void outputCoeffsToJSON(const std::string &outFileName,
   std::ofstream o(outFileName);
   o << std::setw(3) << output << std::endl;
   o.close();
+
+  Kokkos::Profiling::popRegion();
+
 }
 

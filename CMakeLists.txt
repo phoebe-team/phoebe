@@ -64,9 +64,9 @@ set_target_properties(runTests PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_dependencies(phoebe spglib_dep pugixml_dep eigen_dep)
 add_dependencies(runTests spglib_dep pugixml_dep eigen_dep)
 
-target_link_libraries(phoebe symspg pugixml kokkos nlohmann_json::nlohmann_json)
+target_link_libraries(phoebe symspg pugixml kokkos Kokkos::kokkoskernels nlohmann_json::nlohmann_json)
 enable_testing()
-target_link_libraries(runTests symspg pugixml gtest_main kokkos nlohmann_json::nlohmann_json)
+target_link_libraries(runTests symspg pugixml gtest_main kokkos Kokkos::kokkoskernels nlohmann_json::nlohmann_json)
 
 gtest_discover_tests(
     runTests

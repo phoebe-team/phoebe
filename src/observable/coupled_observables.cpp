@@ -697,7 +697,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     auto is2 = std::get<1>(tup);
     for (auto i : {0, 1, 2}) {
       for (auto j : {0, 1, 2}) {
-        Du(i,j) += phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2) * energyRyToEv;
+        Du(i,j) += phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
       }
     }
   }
@@ -710,9 +710,9 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     for (auto j : {0, 1, 2}) {
       for (auto i : {0, 1, 2}) {
         // calculate quantities for the real-space solve
-        Wji0(j,i) += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
-        elWji0(j,i) += phi(i,is) * v(j) * theta0(is) * velocityRyToSi;
-        Wjie(j,i) += phi(i,is) * v(j) * theta_e(is) * velocityRyToSi;
+        Wji0(j,i) += phi(i,is) * v(j) * theta0(is);
+        elWji0(j,i) += phi(i,is) * v(j) * theta0(is);
+        Wjie(j,i) += phi(i,is) * v(j) * theta_e(is);
       }
     }
   }
@@ -727,9 +727,9 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
         // note: phi and theta here are elStates long, so we need to shift the state
         // index to account for the fact that we summed over the electronic part above
         // calculate qunatities for the real-space solve
-        Wji0(j,i) += phi(i,is+numElStates) * v(j) * theta0(is+numElStates) * velocityRyToSi;
-        phWji0(j,i) += phi(i,is+numElStates) * v(j) * theta0(is+numElStates) * velocityRyToSi;
-        Wjie(j,i) += phi(i,is+numElStates) * v(j) * theta_e(is+numElStates) * velocityRyToSi;
+        Wji0(j,i) += phi(i,is+numElStates) * v(j) * theta0(is+numElStates);
+        phWji0(j,i) += phi(i,is+numElStates) * v(j) * theta0(is+numElStates);
+        Wjie(j,i) += phi(i,is+numElStates) * v(j) * theta_e(is+numElStates);
       }
     }
   }
@@ -746,11 +746,11 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   for (auto i : {0, 1, 2}) {
     std::vector<double> temp1,temp2,temp3,temp4,temp5;
     for (auto j : {0, 1, 2}) {
-      temp1.push_back(Du(i,j));
-      temp2.push_back(Wji0(i,j));
-      temp3.push_back(elWji0(i,j));
-      temp4.push_back(phWji0(i,j));
-      temp5.push_back(Wjie(i,j));
+      temp1.push_back(Du(i,j) * energyRyToEv);
+      temp2.push_back(Wji0(i,j) * velocityRyToSi);
+      temp3.push_back(elWji0(i,j) * velocityRyToSi);
+      temp4.push_back(phWji0(i,j) * velocityRyToSi);
+      temp5.push_back(Wjie(i,j) * velocityRyToSi);
     }
     vecDu.push_back(temp1);
     vecWji0.push_back(temp2);
@@ -759,9 +759,38 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     vecWjie.push_back(temp5);
   }
 
+  // this extra kBoltzmannRy is required when we calculate specific heat ...
+  // TODO need to keep track of this and figure out where it's coming from
+  double specificHeatConversion = kBoltzmannSi / pow(bohrRadiusSi, 3) / kBoltzmannRy;
+
+  // convert Ai to SI, in units of picograms/(mu m^3)
+  double Aconversion = electronMassSi /
+                       std::pow(distanceBohrToMum,dimensionality) * // convert AU mass / V -> SI
+                       2 *   // factor of two is a Ry->Ha conversion required here
+                       1e15; // convert electronMassSi in kg to pico g
+
+                       // Michele's version of this, gives thes same answer
+                       // double altConv =  1./rydbergSi * // convert kBT
+                       // std::pow(hBarSi/bohrRadiusSi,2) * // convert (hbar * q)^2
+                       // 1./std::pow(bohrRadiusSi, dimensionality) * // convert 1/V
+                       // 1e-3; //convert from kg->pg, 1/m^3 -> 1/mum^3; // converting to pico and mu
+
+  std::string specificHeatUnits;
+  std::string AiUnits;
+  if (dimensionality == 1) {
+    specificHeatUnits = "J / K / m";
+    AiUnits = "pg/(mum)";
+  } else if (dimensionality == 2) {
+    specificHeatUnits = "J / K / m^2";
+    AiUnits = "pg/(mum)^2";
+  } else {
+    specificHeatUnits = "J / K / m^3";
+    AiUnits = "pg/(mum)^3";
+  }
+
   if(mpi->mpiHead()) {
     // output to json
-    std::string outFileName = "coupled_relaxons_real_space.json";
+    std::string outFileName = "coupled_relaxons_real_space_coeffs.json";
     nlohmann::json output;
     output["temperature"] = kBT * temperatureAuToSi;
     output["Wji0"] = vecWji0;
@@ -772,6 +801,15 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     output["temperatureUnit"] = "K";
     output["wUnit"] = "m/s";
     output["DuUnit"] = "eV";
+    output["phononSpecificHeat"] = Cph * specificHeatConversion;
+    output["electronSpecificHeat"] = Cel * specificHeatConversion;
+    output["specificHeatUnit"] = specificHeatUnits;
+    std::vector<double> Atemp;
+    for(int i = 0; i < 3; i++) {
+      Atemp.push_back(A(i) * Aconversion );
+    }
+    output["Ai"] = Atemp;
+    output["AiUnit"] = AiUnits;
     std::ofstream o(outFileName);
     o << std::setw(3) << output << std::endl;
     o.close();

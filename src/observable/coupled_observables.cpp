@@ -505,6 +505,16 @@ void CoupledCoefficients::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigen
     std::cout << std::endl;
   }
 
+  // check the norm of phi
+  if(mpi->mpiHead()) {
+    for(int i : {0,1,2}) {
+    double phiTot = 0;
+    for(int is = 0; is < numStates; is++) {
+      phiTot += phi(i,is) * phi(i, is);
+    }
+    std::cout << "phi norm " << i << " " << phiTot << std::endl;;
+  }
+
   // save these indices to the class objects
   // if they weren't really found, we leave these indices
   // as -1 so that no relaxons are skipped
@@ -664,6 +674,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   for(int is = 0; is < numStates; is++) {
     for(int i : {0,1,2}) phi(i,is) *= 1./sqrt(kBT * volume * Nkq * M(i));
   }
+}
 
   // throw errors if normalization fails
   if( abs(theta_e.dot(theta_e) - 1.) > 1e-4 || abs(theta0.dot(theta0) - 1.) > 1e-4) {
@@ -734,6 +745,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     }
   }
   mpi->allReduceSum(&Wji0); mpi->allReduceSum(&Wjie);
+  mpi->allReduceSum(&phWji0);
+  mpi->allReduceSum(&elWji0);
 
   // NOTE we cannot use nested vectors from the start, as
   // vector<vector> is not necessarily contiguous and MPI
@@ -746,7 +759,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   for (auto i : {0, 1, 2}) {
     std::vector<double> temp1,temp2,temp3,temp4,temp5;
     for (auto j : {0, 1, 2}) {
-      temp1.push_back(Du(i,j) * energyRyToEv);
+      temp1.push_back(Du(i,j) * energyRyToFs);
       temp2.push_back(Wji0(i,j) * velocityRyToSi);
       temp3.push_back(elWji0(i,j) * velocityRyToSi);
       temp4.push_back(phWji0(i,j) * velocityRyToSi);
@@ -800,14 +813,17 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     output["Du"] = vecDu;
     output["temperatureUnit"] = "K";
     output["wUnit"] = "m/s";
-    output["DuUnit"] = "eV";
+    output["DuUnit"] = "fs";
     output["phononSpecificHeat"] = Cph * specificHeatConversion;
     output["electronSpecificHeat"] = Cel * specificHeatConversion;
     output["specificHeatUnit"] = specificHeatUnits;
-    std::vector<double> Atemp;
+    std::vector<double> Atemp, Gtemp;
     for(int i = 0; i < 3; i++) {
       Atemp.push_back(A(i) * Aconversion );
+      Gtemp.push_back(G(i) * Aconversion );
     }
+    output["Gi"] = Gtemp;
+    output["GiUnit"] = AiUnits;
     output["Ai"] = Atemp;
     output["AiUnit"] = AiUnits;
     std::ofstream o(outFileName);

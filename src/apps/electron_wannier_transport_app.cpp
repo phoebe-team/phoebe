@@ -199,7 +199,7 @@ void ElectronWannierTransportApp::run(Context &context) {
     Kokkos::Profiling::pushRegion("ETapp.relaxonsTransport");
 
     if (mpi->mpiHead()) {
-      std::cout << "Starting relaxons BTE solver" << std::endl;
+      std::cout << "Starting relaxons BTE solver." << std::endl;
     }
     // scatteringMatrix.a2Omega(); Important!! Must use the matrix A, non-scaled
     // this is because the scaling used for phonons here would cause instability

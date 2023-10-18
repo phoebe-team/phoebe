@@ -505,16 +505,6 @@ void CoupledCoefficients::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigen
     std::cout << std::endl;
   }
 
-  // check the norm of phi
-  if(mpi->mpiHead()) {
-    for(int i : {0,1,2}) {
-    double phiTot = 0;
-    for(int is = 0; is < numStates; is++) {
-      phiTot += phi(i,is) * phi(i, is);
-    }
-    std::cout << "phi norm " << i << " " << phiTot << std::endl;;
-  }
-
   // save these indices to the class objects
   // if they weren't really found, we leave these indices
   // as -1 so that no relaxons are skipped
@@ -674,8 +664,19 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   for(int is = 0; is < numStates; is++) {
     for(int i : {0,1,2}) phi(i,is) *= 1./sqrt(kBT * volume * Nkq * M(i));
   }
-}
 
+  // check the norm of phi
+/*
+  if(mpi->mpiHead()) {
+    for(int i : {0,1,2}) {
+      double phiTot = 0;
+      for(int is = 0; is < numStates; is++) {
+        phiTot += phi(i,is) * phi(i, is);
+      }
+      std::cout << "phi norm " << i << " " << phiTot << std::endl;;
+    }
+  }
+*/
   // throw errors if normalization fails
   if( abs(theta_e.dot(theta_e) - 1.) > 1e-4 || abs(theta0.dot(theta0) - 1.) > 1e-4) {
     Warning("Developer error: Your energy or charge conservation eigenvectors do not"
@@ -813,7 +814,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     output["Du"] = vecDu;
     output["temperatureUnit"] = "K";
     output["wUnit"] = "m/s";
-    output["DuUnit"] = "fs";
+    output["DuUnit"] = "fs^{-1}";
     output["phononSpecificHeat"] = Cph * specificHeatConversion;
     output["electronSpecificHeat"] = Cel * specificHeatConversion;
     output["specificHeatUnit"] = specificHeatUnits;

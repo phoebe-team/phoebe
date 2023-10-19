@@ -615,7 +615,6 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
       // note, this function expects kBT
       sqrtPopTerm = sqrt(electron.getPopPopPm1(energy, kBT, chemPot));
 
-      //ds(is) = sqrt(spinFactor);
       ds(is) = sqrt( spinFactor * Nkq / Nk );
 
       U += sqrtPopTerm * sqrtPopTerm;
@@ -760,7 +759,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   for (auto i : {0, 1, 2}) {
     std::vector<double> temp1,temp2,temp3,temp4,temp5;
     for (auto j : {0, 1, 2}) {
-      temp1.push_back(Du(i,j) * energyRyToFs);
+      temp1.push_back(Du(i,j) / (energyRyToFs / twoPi));
       temp2.push_back(Wji0(i,j) * velocityRyToSi);
       temp3.push_back(elWji0(i,j) * velocityRyToSi);
       temp4.push_back(phWji0(i,j) * velocityRyToSi);
@@ -780,8 +779,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   // convert Ai to SI, in units of picograms/(mu m^3)
   double Aconversion = electronMassSi /
                        std::pow(distanceBohrToMum,dimensionality) * // convert AU mass / V -> SI
-                       2 *   // factor of two is a Ry->Ha conversion required here
-                       1e15; // convert electronMassSi in kg to pico g
+                       2. *   // factor of two is a Ry->Ha conversion required here
+                       1.e15; // convert electronMassSi in kg to pico g
 
                        // Michele's version of this, gives thes same answer
                        // double altConv =  1./rydbergSi * // convert kBT

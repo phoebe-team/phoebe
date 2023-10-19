@@ -251,7 +251,7 @@ void CoupledCoefficients::calcFromRelaxons(
               elViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * elVphi(gamma,i,j) * elVphi(gamma,l,k) * 1./eigenvalues(gamma);
               dragViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * (elVphi(gamma,i,j) * phVphi(gamma,l,k)
                                                                    + phVphi(gamma,i,j) * elVphi(gamma,l,k)) * 1./eigenvalues(gamma);
-              totalViscosity(0,i,j,k,l) = sqrt(M(i) * M(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * 1./eigenvalues(gamma);
+              totalViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * 1./eigenvalues(gamma);
             }
           }
         }
@@ -684,7 +684,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   }
 }
 
-void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatteringMatrix) {
+void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatteringMatrix, Context& context) {
 
   BaseBandStructure* phBandStructure = coupledScatteringMatrix.getPhBandStructure();
   BaseBandStructure* elBandStructure = coupledScatteringMatrix.getElBandStructure();
@@ -708,7 +708,15 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     auto is2 = std::get<1>(tup);
     for (auto i : {0, 1, 2}) {
       for (auto j : {0, 1, 2}) {
-        Du(i,j) += phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
+        if(context.getUseUpperTriangle()) {
+          if( i == j ) {
+            Du(i,j) += phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
+          } else {
+            Du(i,j) += 2. * phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
+          }
+        } else {
+          Du(i,j) += phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
+        }
       }
     }
   }

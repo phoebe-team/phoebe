@@ -48,8 +48,9 @@ public:
 
   /** Calculate Du(i,j) and output it to JSON for real space solvers
   * @param coupledScatteringMatrix: the scattering matrix, before diagonalization
+  * @param context: contains all info about calculation inputs
   */
-  void outputDuToJSON(CoupledScatteringMatrix& coupledScatteringMatrix);
+  void outputDuToJSON(CoupledScatteringMatrix& coupledScatteringMatrix, Context& context);
 
   /** Calculates the special eigenvectors and saves them to the class objects for
    * theta0, thetae, phi, as well as norm coeffs U, G, and A

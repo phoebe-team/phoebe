@@ -85,8 +85,7 @@ void CoupledTransportApp::run(Context &context) {
 
   // Set up electron bandstructure information ---------------------------------------------
   if (mpi->mpiHead()) {
-    std::cout << "\nComputing electronic band structure.\n"
-              << std::endl;
+    std::cout << "\nComputing electronic band structure." << std::endl;
   }
 
   Points kPoints(crystal, context.getKMesh());
@@ -115,6 +114,7 @@ void CoupledTransportApp::run(Context &context) {
     std::cout << "Done computing electronic band structure.\n" << std::endl;
   }
 
+/*
   if(mpi->mpiHead()) {
     std::cout << "Checking for Cartesian wraparound issues." << std::endl;
     int pointsCount = 0;
@@ -137,7 +137,7 @@ void CoupledTransportApp::run(Context &context) {
     }
     if(pointsCount != 0) std::cout << "Found " << pointsCount << " points that do not wraparound properly.\n" << std::endl;
   }
-
+*/
   // Construct the full C matrix
   // the dimensions of this matrix are (numElStates + numPhStates, numElStates + numPhStates)
   // we provide the el stat sweep because we need the one that has information about the
@@ -206,7 +206,7 @@ if(doIterative || doVariational) {
     // here -- they are saved internally to the class
     CoupledCoefficients coupledCoeffs(elStatisticsSweep, crystal, context);
     coupledCoeffs.calcSpecialEigenvectors(elStatisticsSweep, &phBandStructure, &elBandStructure);
-    coupledCoeffs.outputDuToJSON(scatteringMatrix);
+    coupledCoeffs.outputDuToJSON(scatteringMatrix, context);
 
     // diagonalize the coupled matrix
     auto tup2 = scatteringMatrix.diagonalize();

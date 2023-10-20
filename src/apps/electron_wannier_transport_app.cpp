@@ -204,11 +204,21 @@ void ElectronWannierTransportApp::run(Context &context) {
     // scatteringMatrix.a2Omega(); Important!! Must use the matrix A, non-scaled
     // this is because the scaling used for phonons here would cause instability
     // as it could contains factors like 1/0
-    auto tup = scatteringMatrix.diagonalize(context.getNumRelaxonsEigenvalues());
+    // Currently the matrix is already calculated as "omega" for electrons
 
+    // output real space coeffs related to SMatrix before
+    // we destroy the matrix in diagonalization
+    // special eigenvectors are used in this calculation, and
+    // they are saved internally to the viscosity class for later computations
+    elViscosity.calcSpecialEigenvectors();
+    // create the real space solver transport coefficients
+    elViscosity.outputRealSpaceToJSON(scatteringMatrix);
+
+    //diagonalize and get eigenvalues and eigenvectors
+    auto tup = scatteringMatrix.diagonalize(context.getNumRelaxonsEigenvalues());
+    // EV such that Omega = V D V^-1
     Eigen::VectorXd eigenvalues = std::get<0>(tup);
     ParallelMatrix<double> eigenvectors = std::get<1>(tup);
-    // EV such that Omega = V D V^-1
 
     transportCoefficients.calcFromRelaxons(eigenvalues, eigenvectors,
                                            scatteringMatrix);

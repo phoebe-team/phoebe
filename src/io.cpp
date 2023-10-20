@@ -102,6 +102,11 @@ void IO::goodbye(Context &context) {
     std::cout << "\tA. Cepellotti and N. Marzari.\n" <<
     //    "\tThermal transport in crystals as a kinetic theory of relaxons.\n" <<
         "\tPhysical Review X 6, no. 4 (2016): 041013.\n" << std::endl;
+
+    //std::cout << "Generalization of Fourier’s Law into Viscous Heat Equations" << std::endl;
+    std::cout << "\tM. Simoncelli, N. Marzari, and A. Cepellotti.\n" <<
+                 "\tPhysical Review X 10, no. 1 (2020): 011019.\n" << std::endl;
+
   }
   // iterative solver
   if (std::find(solvers.begin(), solvers.end(), "iterative") != solvers.end()) {

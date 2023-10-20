@@ -19,10 +19,14 @@ void ElectronViscosity::calcRTA(VectorBTE &tau) {
   Kokkos::Profiling::pushRegion("calcViscosityRTA");
 
   // add a relevant spin factor
-  double spinFactor = 2.;
+  spinFactor = 2.;
   if (context.getHasSpinOrbit()) {
     spinFactor = 1.;
   }
+
+}
+
+void ElectronViscosity::calcRTA(VectorBTE &tau) {
 
   double Nk = context.getKMesh().prod();
   double norm = spinFactor / Nk / crystal.getVolumeUnitCell(dimensionality);
@@ -81,7 +85,6 @@ void ElectronViscosity::calcRTA(VectorBTE &tau) {
   mpi->allReduceSum(&tensordxdxdxd);
 }
 
-
 void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelMatrix<double> &eigenvectors) {
 
   Kokkos::Profiling::pushRegion("calcViscosityFromRelaxons");
@@ -118,8 +121,6 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
   // and save the indices that need to be skipped
   relaxonEigenvectorsCheck(eigenvectors, numRelaxons);
 
-  //if(mpi->mpiHead()) std::cout << "about to calculate relaxon populations " << std::endl;
-
   // transform from the relaxon population basis to the electron population ------------
   Eigen::Tensor<double, 3> fRelaxons(3, 3, numStates);
   fRelaxons.setZero();
@@ -146,8 +147,6 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
   }
   mpi->allReduceSum(&fRelaxons);
 
-  //if(mpi->mpiHead()) std::cout << "about to switch to relaxon populations " << std::endl;
-
   // transform from relaxon to electron populations
   Eigen::Tensor<double, 3> f(3, 3, bandStructure.getNumStates());
   f.setZero();
@@ -165,8 +164,6 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
     }
   }
   mpi->allReduceSum(&f);
-
- //if(mpi->mpiHead()) std::cout << "about to do final viscosity" << std::endl;
 
   // calculate the final viscosity --------------------------
   double norm = 1. / volume / Nk;
@@ -199,93 +196,26 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
 
 }
 
-// TODO could merge this into one function with the phonon one
 void ElectronViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors, int& numRelaxons) {
 
   Kokkos::Profiling::pushRegion("electronRelaxonsEigenvectorsCheck");
 
-  // goal is to print and save the indices and scalar products of the special eigenvectors
-  // add a relevant spin factor
-  double spinFactor = 2.;
-  if (context.getHasSpinOrbit()) { spinFactor = 1.; }
-
-  double volume = crystal.getVolumeUnitCell(dimensionality);
-  auto particle = bandStructure.getParticle();
-  //int numRelaxons = eigenvalues.size();
-  double Nk = context.getKMesh().prod();
-  int numStates = bandStructure.getNumStates();
-
-  int iCalc = 0; // set to zero because of relaxons
-  auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
-  double kBT = calcStat.temperature;
-  double T = calcStat.temperature / kBoltzmannRy;
-  double chemPot = calcStat.chemicalPotential;
-
-  // calculate the special eigenvectors' product with eigenvectors ----------------
-  // to report it's index and overlap + remove it from the calculation
-  double C = 0; double U = 0;
-  Eigen::VectorXd theta0(numStates);  theta0.setZero();
-  Eigen::VectorXd theta_e(numStates); theta_e.setZero();
-  for (int is : bandStructure.parallelStateIterator()) {
-
-    auto isIdx = StateIndex(is);
-    auto en = bandStructure.getEnergy(isIdx);
-    double popM1 = particle.getPopPopPm1(en, kBT, chemPot);
-
-    theta0(is) = sqrt(popM1) * (en - chemPot) * sqrt(spinFactor);
-    theta_e(is) = sqrt(popM1) * sqrt(spinFactor);
-    U += popM1;
-    C += popM1 * (en - chemPot) * (en - chemPot);
-  }
-  mpi->allReduceSum(&theta0); mpi->allReduceSum(&theta_e);
-  mpi->allReduceSum(&C); mpi->allReduceSum(&U);
-  // apply normalizations
-  C *= spinFactor / (volume * Nk * kBT * T);
-  U *= spinFactor / (volume * Nk * kBT);
-  theta_e *= 1./sqrt(kBT * U * Nk * volume);
-  theta0 *= 1./sqrt(kBT * T * volume * Nk * C);
-
-  // calculate the overlaps with special eigenvectors
-  Eigen::VectorXd prodTheta0(numRelaxons); prodTheta0.setZero();
-  Eigen::VectorXd prodThetae(numRelaxons); prodThetae.setZero();
-  for (auto tup : eigenvectors.getAllLocalStates()) {
-
-    auto is = std::get<0>(tup);
-    auto gamma = std::get<1>(tup);
-    prodTheta0(gamma) += eigenvectors(is,gamma) * theta0(is);
-    prodThetae(gamma) += eigenvectors(is,gamma) * theta_e(is);
-
-  }
-  mpi->allReduceSum(&prodThetae); mpi->allReduceSum(&prodTheta0);
-
-  // find the element with the maximum product
-  prodTheta0 = prodTheta0.cwiseAbs();
-  prodThetae = prodThetae.cwiseAbs();
-  Eigen::Index maxCol0, idxAlpha0;
-  Eigen::Index maxCol_e, idxAlpha_e;
-  float maxTheta0 = prodTheta0.maxCoeff(&idxAlpha0, &maxCol0);
-  float maxThetae = prodThetae.maxCoeff(&idxAlpha_e, &maxCol_e);
-
-  if(mpi->mpiHead()) {
-    std::cout << std::fixed;
-    std::cout << std::setprecision(4);
-    std::cout << "Maximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
-    std::cout << "First ten products with theta_0:";
-    for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodTheta0(gamma); }
-    std::cout << "\n\nMaximum scalar product theta_e.theta_alpha = " << maxThetae << " at index " << idxAlpha_e << "." << std::endl;
-    std::cout << "First ten products with theta_e:";
-    for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodThetae(gamma); }
-    std::cout << std::endl;
-  }
-
-  // save these indices to the class objects
-  // if they weren't really found, we leave these indices
-  // as -1 so that no relaxons are skipped
-  if(maxTheta0 >= 0.75) alpha0 = idxAlpha0;
-  if(maxThetae >= 0.75) alpha_e = idxAlpha_e;
+  // sets alpha0 and alpha_e, the indices
+  // of the special eigenvectors in the eigenvector list,
+  // to be excluded in later calculations
+  Particle particle = bandStructure.getParticle();
+  genericRelaxonEigenvectorsCheck(eigenvectors, numRelaxons, particle,
+                                 theta0, theta_e, alpha0, alpha_e);
 
   Kokkos::Profiling::popRegion();
 
+}
+
+// calculate special eigenvectors
+void ElectronViscosity::calcSpecialEigenvectors() {
+
+  genericCalcSpecialEigenvectors(bandStructure, statisticsSweep,
+                          spinFactor, theta0, theta_e, phi, C, A);
 }
 
 void ElectronViscosity::print() {
@@ -298,10 +228,18 @@ void ElectronViscosity::print() {
 void ElectronViscosity::outputToJSON(const std::string &outFileName) {
 
   bool append = false; // it's a new file to write to
-  bool isPhonon = false;
   std::string viscosityName = "electronViscosity";
   outputViscosityToJSON(outFileName, viscosityName,
-                tensordxdxdxd, isPhonon, append, statisticsSweep, dimensionality);
+                tensordxdxdxd, append, statisticsSweep, dimensionality);
+
+}
+
+
+void ElectronViscosity::outputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix) {
+
+  // call the function in viscosity io
+  genericOutputRealSpaceToJSON(scatteringMatrix, bandStructure, statisticsSweep,
+                                theta0, theta_e, phi, C, A, context);
 
 }
 

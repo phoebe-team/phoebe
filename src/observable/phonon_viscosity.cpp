@@ -13,6 +13,7 @@ PhononViscosity::PhononViscosity(Context &context_, StatisticsSweep &statisticsS
 
   tensordxdxdxd = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
   tensordxdxdxd.setZero();
+
 }
 
 void PhononViscosity::calcRTA(VectorBTE &tau) {
@@ -87,19 +88,9 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
     Error("Developer error: Viscosity for relaxons only for 1 temperature.");
   }
 
-  double volume = crystal.getVolumeUnitCell(dimensionality);
   int numStates = bandStructure.getNumStates();
   int numRelaxons = eigenvalues.size();
-  auto particle = bandStructure.getParticle(); // phonon
-  double Nq = context.getQMesh().prod();
-
-  Eigen::VectorXd A(dimensionality);
-  A.setZero();
-
-  int iCalc = 0;
-  auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
-  double kBT = calcStat.temperature;
-  double chemPot = 0.;
+  int iCalc = 0; // zero index, because we only run one for relaxons
 
   // search for the indices of the special eigenvectors and print info about them
   relaxonEigenvectorsCheck(eigenvectors, numRelaxons);
@@ -131,39 +122,8 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
   //    theta = relaxons eigenvector
   //    tau = relaxons eigenvalues/relaxation times
 
-  // calculate first A_i
-  for (int is : bandStructure.parallelStateIterator()) {
-    auto isIdx = StateIndex(is);
-    auto en = bandStructure.getEnergy(isIdx);
-    if (en < 0.001 / ryToCmm1) { continue; }
-    double boseP1 = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
-    auto q = bandStructure.getWavevector(isIdx);
-    q = bandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
-    for (int iDim = 0; iDim < dimensionality; iDim++) {
-      A(iDim) += boseP1 * q(iDim) * q(iDim);
-    }
-  }
-  A /= kBT * Nq * volume;
-  mpi->allReduceSum(&A);
-  //if(mpi->mpiHead()) std::cout << "A: " << A.transpose() << std::endl;
-
-  // then calculate the drift eigenvectors, phi (eq A12)
-  VectorBTE driftEigenvector(statisticsSweep, bandStructure, 3);
-  for (int is : bandStructure.parallelStateIterator()) {
-
-    auto isIdx = StateIndex(is);
-    auto en = bandStructure.getEnergy(isIdx);
-    if (en < 0.001 / ryToCmm1) { continue; }
-    double boseP1 = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
-    auto q = bandStructure.getWavevector(isIdx);
-    q = bandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
-    for (auto iDim : {0, 1, 2}) {
-      if (A(iDim) != 0.) {
-        driftEigenvector(0, iDim, is) = q(iDim) * sqrt(boseP1 / (kBT * A(iDim)));
-      }
-    }
-  }
-  mpi->allReduceSum(&driftEigenvector.data);
+  // NOTE: phi, theta0, A, and specific heat are calculated earlier
+  // and stored ready to use here
 
   // calculate the first part of w^j_i,alpha
   Eigen::Tensor<double, 3> tmpDriftEigvecs(3, 3, numStates);
@@ -173,7 +133,7 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
     auto v = bandStructure.getGroupVelocity(isIdx);
     for (int i : {0, 1, 2}) {
       for (int j : {0, 1, 2}) {
-        tmpDriftEigvecs(i, j, is) = driftEigenvector(0, j, is) * v(i);
+        tmpDriftEigvecs(i, j, is) = phi(j, is) * v(i);
       }
     }
   }
@@ -204,7 +164,7 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
       // this normalization is needed to make the overall normalization work
       // given that scalapack normalizes the eigenvectors to theta*theta = 1
       for (int ialpha = 0; ialpha < numRelaxons; ialpha++) {
-        w(i, j, ialpha) = x2[ialpha] / ( sqrt(volume) * sqrt(context.getQMesh().prod()) );
+        w(i, j, ialpha) = x2[ialpha];// / ( sqrt(volume) * sqrt(context.getQMesh().prod()) );
       }
       // Andrea's note: in Eq. 9 of PRX, w is normalized by V*N_q
       // here however I normalize the eigenvectors differently:
@@ -248,11 +208,13 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
   mpi->allReduceSum(&tensordxdxdxd);
 }
 
-void PhononViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                                                        int& numRelaxons) {
+// calculate special eigenvectors
+void PhononViscosity::calcSpecialEigenvectors() {
 
-  // goal is to print and save the indices and scalar products of the special eigenvectors
+  genericCalcSpecialEigenvectors(bandStructure, statisticsSweep,
+                          spinFactor, theta0, theta_e, phi, C, A);
 
+/*
   double volume = crystal.getVolumeUnitCell(dimensionality);
   auto particle = bandStructure.getParticle();
   double Nq = context.getQMesh().prod();
@@ -264,10 +226,19 @@ void PhononViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvect
   double T = calcStat.temperature / kBoltzmannRy;
   double chemPot = 0;
 
+  // Precalculate theta_e, theta0, phi  ----------------------------------
+
+  // theta^0 - energy conservation eigenvector
+  //   electronic states = ds * g-1 * (hE - mu) * 1/(kbT^2 * V * Nkq * Ctot)
+  //   phonon states = ds * g-1 * h*omega * 1/(kbT^2 * V * Nkq * Ctot)
+  theta0 = Eigen::VectorXd::Zero(numStates);
+
+  // phi -- the three momentum conservation eigenvectors
+  //     phi = sqrt(1/(kbT*volume*Nkq*M)) * g-1 * ds * hbar * wavevector;
+  phi = Eigen::MatrixXd::Zero(3, numStates);
+
   // calculate the special eigenvectors' product with eigenvectors ----------------
   // to report it's index and overlap + remove it from the calculation
-  double C = 0;
-  Eigen::VectorXd theta0(numStates);  theta0.setZero();
   for (int is : bandStructure.parallelStateIterator()) {
 
     auto isIdx = StateIndex(is);
@@ -283,6 +254,59 @@ void PhononViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvect
   C *= 1. / (volume * Nq * kBT * T);
   theta0 *= 1./sqrt(kBT * T * volume * Nq * C);
 
+  // calculate A_i ----------------------------------------
+
+  // normalization coeff A ("phonon specific momentum")
+  // A = 1/(V*Nq) * (1/kT) sum_qs (hbar*q)^2 * N(1+N)
+  A = Eigen::Vector3d::Zero();
+
+  for (int is : bandStructure.parallelStateIterator()) {
+    auto isIdx = StateIndex(is);
+    auto en = bandStructure.getEnergy(isIdx);
+
+    if (en < 0.001 / ryToCmm1) { continue; }
+    double boseP1 = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
+    auto q = bandStructure.getWavevector(isIdx);
+    q = bandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
+    for (int iDim = 0; iDim < dimensionality; iDim++) {
+      A(iDim) += boseP1 * q(iDim) * q(iDim);
+    }
+  }
+  A /= kBT * Nq * volume;
+  mpi->allReduceSum(&A);
+
+  // then calculate the drift eigenvectors, phi (eq A12 of PRX Simoncelli)
+  // -----------------------------------------------------------------
+  for (int is : bandStructure.parallelStateIterator()) {
+
+    auto isIdx = StateIndex(is);
+    auto en = bandStructure.getEnergy(isIdx);
+    if (en < 0.001 / ryToCmm1) { continue; }
+    double boseP1 = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
+    auto q = bandStructure.getWavevector(isIdx);
+    q = bandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
+    for (auto i : {0, 1, 2}) {
+      if (A(i) != 0.) {
+        phi(i, is) = q(i) * sqrt(boseP1 / (kBT * A(i)));
+      }
+    }
+  }
+  mpi->allReduceSum(&phi);
+*/
+}
+
+void PhononViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
+                                                        int& numRelaxons) {
+
+  // sets alpha0 and alpha_e, the indices
+  // of the special eigenvectors in the eigenvector list,
+  // to be excluded in later calculations
+  Particle particle = bandStructure.getParticle();
+  genericRelaxonEigenvectorsCheck(eigenvectors, numRelaxons, particle,
+                                 theta0, theta_e, alpha0, alpha_e);
+
+  // goal is to print and save the indices and scalar products of the special eigenvectors
+/*
   // calculate the overlaps with special eigenvectors
   Eigen::VectorXd prodTheta0(numRelaxons); prodTheta0.setZero();
   for (auto tup : eigenvectors.getAllLocalStates()) {
@@ -312,7 +336,7 @@ void PhononViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvect
   // if they weren't really found, we leave these indices
   // as -1 so that no relaxons are skipped
   if(maxTheta0 >= 0.75) alpha0 = idxAlpha0;
-
+*/
 }
 
 void PhononViscosity::print() {
@@ -325,11 +349,23 @@ void PhononViscosity::print() {
 void PhononViscosity::outputToJSON(const std::string& outFileName) {
 
   bool append = false; // it's a new file to write to
-  bool isPhonon = true;
   std::string viscosityName = "phononViscosity";
   outputViscosityToJSON(outFileName, viscosityName,
-                tensordxdxdxd, isPhonon, append, statisticsSweep, dimensionality);
+                tensordxdxdxd, append, statisticsSweep, dimensionality);
 
 }
 
 int PhononViscosity::whichType() { return is4Tensor; }
+
+void PhononViscosity::outputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix) {
+
+  // we need a dummy variable for theta_e, as it doesn't matter for phonons
+  Eigen::VectorXd theta_e(bandStructure.getNumStates());
+
+  // call the function in viscosity io
+  genericOutputRealSpaceToJSON(scatteringMatrix, bandStructure, statisticsSweep,
+                                theta0, theta_e, phi, C, A, context);
+
+}
+
+

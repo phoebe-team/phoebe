@@ -204,7 +204,6 @@ public:
    **/
   std::vector<std::tuple<int, int>> getAllLocalStates();
 
-
  protected:
 
   Context &context;

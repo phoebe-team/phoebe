@@ -1489,5 +1489,3 @@ std::vector<std::tuple<int, int>> ScatteringMatrix::getAllLocalStates() {
   return theMatrix.getAllLocalStates();
 
 }
-
-

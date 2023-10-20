@@ -170,7 +170,7 @@ TEST(ABS, Symmetries) {
 
       for (int i : {0, 1, 2}) {
         double diff2 = std::abs(v(i) - v2(i)) * velocityRyToSi;
-        EXPECT_NEAR(diff2, 0., 0.001);
+        EXPECT_NEAR(diff2, 0., 0.0015); // there's variation on this due to degeneracies
       }
     }
   }

@@ -61,6 +61,8 @@ void pdsyevr_(const char*, const char*, const char*, const int*, double*, int*, 
 // calculate all eigenvalues and vectors by divide and conquer algorithm
 void pdsyevd_(char *, char *, int *, double *, int *, int *, int *, double *,
              double *, int *, int *, int *, double *, int *, int *, int *, int *);
+// take the transpose of a real matrix
+void pdtran_(int * m, int * n, double * alpha, double * a, int * ia, int * ja, int * desc_a, double * beta, double * c, int * ic, int * jc, int * desc_c);
 
 }
 

@@ -99,3 +99,10 @@ double Matrix<std::complex<double>>::norm() {
   }
   else{ return mat->norm(); }
 }
+
+template <>
+void Matrix<double>::symmetrize() {
+  if(isDistributed) { return pmat->symmetrize(); }
+  else{ return mat->symmetrize(); }
+}
+

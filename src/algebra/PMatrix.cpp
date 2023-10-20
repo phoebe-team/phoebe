@@ -542,4 +542,28 @@ std::tuple<std::vector<double>, ParallelMatrix<double>>
   return std::make_tuple(eigenvalues_, eigenvectors);
 }
 
+// executes A + AT/2
+template <>
+void ParallelMatrix<double>::symmetrize() {
+
+  // it seems scalapack will make us copy the matrix into a new one
+  ParallelMatrix<double> AT = *(this);
+
+  if (numRows_ != numCols_) {
+    Error("Cannot currently symmetrize a non-square matrix.");
+  }
+
+  int ia = 1;       // row index of start of A
+  int ja = 1;       // col index of start of A
+  int ic = 1;       // row index of start of C
+  int jc = 1;       // row index of start of C
+  double scale = 0.5; // 0.5 factors are for the 1/2 used in the sym (A + AT)/2.
+
+  // C here is the current matrix object stored by this class -- it will be overwritten,
+  // and the copy above will go out of scope.
+  //      C = beta*C + alpha*( A )^T
+  pdtran_(&numRows_, &numRows_, &scale, AT.mat, &ia, &ja, &descMat_[0], &scale, mat, &ic, &jc, &descMat_[0]);
+
+}
+
 #endif  // MPI_AVAIL

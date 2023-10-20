@@ -192,6 +192,10 @@ class SerialMatrix {
   /** Unary negation
    */
   SerialMatrix<T> operator-() const;
+
+  /** Symmetrize the matrix */
+  void symmetrize();
+
 };
 
 // A default constructor to build a dense matrix of zeros to be filled

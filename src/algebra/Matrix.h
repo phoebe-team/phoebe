@@ -185,6 +185,10 @@ class Matrix {
    * for debugging, and only written for PMatrix. */
   void outputToHDF5();
 
+  /** Symmetrize the matrix
+  */
+  void symmetrize();
+
 };
 
 /* ------------------ constructor implementations -------------- */

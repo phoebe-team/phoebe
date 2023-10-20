@@ -1155,6 +1155,7 @@ std::tuple<BteIndex, CartIndex> ScatteringMatrix::getSMatrixIndex(const int &iMa
 }
 
 void ScatteringMatrix::symmetrize() {
+
   // note: if the matrix is not stored in memory, it's not trivial to enforce
   // that the matrix is symmetric
 
@@ -1170,76 +1171,10 @@ void ScatteringMatrix::symmetrize() {
   }
 
   if (highMemory) {
-    ParallelMatrix<double> newMatrix = theMatrix;
-    newMatrix *= 0.;
-
-    for (int iRank = 0; iRank < mpi->getSize(); iRank++) {
-      int thisSize = 0;
-      if (iRank == mpi->getRank()) {
-        thisSize = int(theMatrix.getAllLocalStates().size());
-      }
-      mpi->allReduceSum(&thisSize);
-
-      std::vector<int> index1(thisSize, 0);
-      std::vector<int> index2(thisSize, 0);
-      std::vector<int> index3(thisSize, 0);
-      std::vector<int> index4(thisSize, 0);
-
-      if (iRank == mpi->getRank()) {
-        auto allLocalStates = theMatrix.getAllLocalStates();
-        size_t numAllLocalStates = allLocalStates.size();
-
-        for (size_t i=0; i<numAllLocalStates; i++) {
-          auto tup = allLocalStates[i];
-          int iMat1 = std::get<0>(tup);
-          int iMat2 = std::get<1>(tup);
-          int jMat1, jMat2;
-//          if (context.getUseSymmetries()) {
-//            Error("Symmetrization of the scattering matrix with symmetries"
-//                  " is not verified");
-//            // The matrix may not be symmetric
-//
-//            auto t1 = getSMatrixIndex(iMat1);
-//            auto t2 = getSMatrixIndex(iMat2);
-//            BteIndex iBte1 = std::get<0>(t1);
-//            BteIndex iBte2 = std::get<0>(t2);
-//            CartIndex ii = std::get<1>(t1);
-//            CartIndex jj = std::get<1>(t2);
-//            jMat1 = getSMatrixIndex(iBte1, ii);
-//            jMat2 = getSMatrixIndex(iBte2, jj);
-//          } else {
-          jMat1 = iMat1;
-          jMat2 = iMat2;
-//          }
-
-          index1[i] = iMat1;
-          index2[i] = iMat2;
-          index3[i] = jMat2;
-          index4[i] = jMat1;
-        }
-      }
-
-      mpi->allReduceSum(&index1);
-      mpi->allReduceSum(&index2);
-      mpi->allReduceSum(&index3);
-      mpi->allReduceSum(&index4);
-
-      std::vector<double> values(thisSize, 0.);
-#pragma omp parallel for
-      for (int i = 0; i < thisSize; i++) {
-        values[i] = (theMatrix(index1[i], index2[i]) +
-                     theMatrix(index3[i], index4[i])) *
-                    0.5;
-      }
-      mpi->allReduceSum(&values);
-
-#pragma omp parallel for
-      for (int i = 0; i < thisSize; i++) {
-        newMatrix(index1[i], index2[i]) = values[i];
-        newMatrix(index3[i], index4[i]) = values[i];
-      }
-    }
-    theMatrix = newMatrix;
+    theMatrix.symmetrize();
+  } else {
+    Warning("The symmetrization of the scattering matrix is not\n"
+            "implemented when it is not stored in memory.");
   }
   if(mpi->mpiHead()) {
     std::cout << "Finished symmetrization." << std::endl;

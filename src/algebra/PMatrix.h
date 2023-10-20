@@ -262,6 +262,11 @@ class ParallelMatrix {
   /** Unary negation
    */
   ParallelMatrix<T> operator-() const;
+
+  /** Symmetrize the matrix with pdtran for transpose, (A + A^T)/2
+  */
+  void symmetrize();
+
 };
 
 template <typename T>

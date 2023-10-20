@@ -324,17 +324,15 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 
   // output the viscosities using the helper function in viscosity_io.h
   bool append = false;
-  bool isPhonon = true;
   outputViscosityToJSON("coupled_relaxons_viscosity.json", "phononViscosity", phViscosity,
-        isPhonon, append, statisticsSweep, dimensionality);
-  isPhonon = false;
+        append, statisticsSweep, dimensionality);
   append = true;
   outputViscosityToJSON("coupled_relaxons_viscosity.json", "electronViscosity", elViscosity,
-        isPhonon, append, statisticsSweep, dimensionality);
+        append, statisticsSweep, dimensionality);
   outputViscosityToJSON("coupled_relaxons_viscosity.json", "dragViscosity", dragViscosity,
-        isPhonon, append, statisticsSweep, dimensionality);
+        append, statisticsSweep, dimensionality);
   outputViscosityToJSON("coupled_relaxons_viscosity.json", "totalViscosity", totalViscosity,
-        isPhonon, append, statisticsSweep, dimensionality);
+        append, statisticsSweep, dimensionality);
 
   // output the transport coefficients
   int numCalculations = statisticsSweep.getNumCalculations();

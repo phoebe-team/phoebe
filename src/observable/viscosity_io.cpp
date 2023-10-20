@@ -237,8 +237,9 @@ void printViscosity(std::string& viscosityName, Eigen::Tensor<double, 5>& viscos
 }
 
 void outputViscosityToJSON(const std::string& outFileName, const std::string& viscosityName,
-                Eigen::Tensor<double, 5>& viscosityTensor, const bool& append,
-                StatisticsSweep& statisticsSweep, int& dimensionality) {
+                                Eigen::Tensor<double, 5>& viscosityTensor,
+                                const bool& append,
+                                StatisticsSweep& statisticsSweep, int& dimensionality) {
 
   if (!mpi->mpiHead()) return;
 
@@ -331,15 +332,15 @@ void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
     auto is2 = std::get<1>(tup);
     for (auto i : {0, 1, 2}) {
       for (auto j : {0, 1, 2}) {
-      /*  if(context.getUseUpperTriangle()) {
+        if(context.getUseUpperTriangle()) {
           if( i == j ) {
             Du(i,j) += phi(i,is1) * scatteringMatrix(is1,is2) * phi(j,is2);
           } else {
             Du(i,j) += 2. * phi(i,is1) * scatteringMatrix(is1,is2) * phi(j,is2);
           }
-        } else { */
+        } else {
           Du(i,j) += phi(i,is1) * scatteringMatrix(is1,is2) * phi(j,is2);
-       // }
+        }
       }
     }
   }

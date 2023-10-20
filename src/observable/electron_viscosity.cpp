@@ -12,11 +12,6 @@ ElectronViscosity::ElectronViscosity(Context &context_, StatisticsSweep &statist
 
   tensordxdxdxd = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
   tensordxdxdxd.setZero();
-}
-
-void ElectronViscosity::calcRTA(VectorBTE &tau) {
-
-  Kokkos::Profiling::pushRegion("calcViscosityRTA");
 
   // add a relevant spin factor
   spinFactor = 2.;
@@ -27,6 +22,8 @@ void ElectronViscosity::calcRTA(VectorBTE &tau) {
 }
 
 void ElectronViscosity::calcRTA(VectorBTE &tau) {
+
+  Kokkos::Profiling::pushRegion("calcViscosityRTA");
 
   double Nk = context.getKMesh().prod();
   double norm = spinFactor / Nk / crystal.getVolumeUnitCell(dimensionality);

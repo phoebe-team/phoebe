@@ -1,6 +1,6 @@
 #ifndef VISCOSITY_IO_H
 #define VISCOSITY_IO_H
-#include "scattering.h"
+#include "scattering_matrix.h"
 
   /** Prints the viscosity tensor to std out
    * @param viscosityName: string which is used to print the name of the viscosity tensor

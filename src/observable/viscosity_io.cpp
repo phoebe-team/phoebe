@@ -44,8 +44,8 @@ void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
       std::cout << "First ten products with theta_e:";
       for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodThetae(gamma); }
     }
-    std::cout << std::endl;
-    std::cout << "Eigenvector norm check: " << theta0.dot(theta0) << " " << theta_e.dot(theta_e);
+    std::cout << "\n" << std::endl;
+    //std::cout << "Eigenvector norm check: " << theta0.dot(theta0) << " " << theta_e.dot(theta_e);
 
   }
 
@@ -108,7 +108,6 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
   double U = 0;
 
   // specific heat
-  C = 0.;
 
   // calculate the special eigenvectors ----------------
   for (int is : bandStructure.parallelStateIterator()) {
@@ -282,7 +281,6 @@ void outputViscosityToJSON(const std::string& outFileName, const std::string& vi
   }
 
   // output to json
-  // TODO need to update this with low dim viscosities
   nlohmann::json output;
   if(append) { // we're going to add this to an existing one (as in the coupled case)
     std::ifstream f(outFileName);

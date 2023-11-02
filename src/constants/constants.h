@@ -8,6 +8,7 @@
 //
 const double pi = 3.14159265358979323846;
 const double sqrtPi = sqrt(3.14159265358979323846);
+const double sqrtTwo = sqrt(2.);
 const double twoPi = 2. * pi;
 const double fourPi = 2. * pi;
 const double one = 1.;

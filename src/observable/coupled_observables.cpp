@@ -506,8 +506,8 @@ void CoupledCoefficients::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigen
   // save these indices to the class objects
   // if they weren't really found, we leave these indices
   // as -1 so that no relaxons are skipped
-  if(maxTheta0 >= 0.75) alpha0 = idxAlpha0;
-  if(maxThetae >= 0.75) alpha_e = idxAlpha_e;
+  if(maxTheta0 >= 0.65) alpha0 = idxAlpha0;
+  if(maxThetae >= 0.65) alpha_e = idxAlpha_e;
 
 }
 
@@ -652,6 +652,8 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   G *= spinFactor / (volume * Nk * kBT);
   A *= 1. / (volume * Nq * kBT);
   M = G + A;
+
+  if(mpi->mpiHead()) std::cout << "test printing of U " << U << std::endl;
 
   // apply the normalization to theta_e
   theta_e *= 1./sqrt(kBT * U * Nkq * volume);
@@ -822,6 +824,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     output["DuUnit"] = "fs^{-1}";
     output["phononSpecificHeat"] = Cph * specificHeatConversion;
     output["electronSpecificHeat"] = Cel * specificHeatConversion;
+    output["U"] = U * 1./energyRyToEv;
+    output["UUnit"] = "1/eV";
     output["specificHeatUnit"] = specificHeatUnits;
     std::vector<double> Atemp, Gtemp;
     for(int i = 0; i < 3; i++) {

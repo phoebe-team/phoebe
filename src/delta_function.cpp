@@ -127,15 +127,6 @@ SymAdaptiveGaussianDeltaFunction::SymAdaptiveGaussianDeltaFunction(
 
 }
 
-//  auto tup = bandStructure.getPoints().getMesh();
-//  auto mesh = std::get<0>(tup);
-//  qTensor = bandStructure.getPoints().getCrystal().getReciprocalUnitCell();
-//  qTensor.row(0) /= mesh(0);
-//  qTensor.row(1) /= mesh(1);
-//  qTensor.row(2) /= mesh(2);
-//  broadeningCutoff = broadeningCutoff_;
-//}
-
 double SymAdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
                                            const Eigen::Vector3d &velocity,
                                            const Eigen::Vector3d &velocity2,
@@ -149,11 +140,19 @@ double SymAdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
     sigma_ijk(2) += pow(qTensor.row(i).dot(velocity3), 2);
   }
   double sigma = sigma_ijk.norm();
-  sigma = prefactor * sqrt(sigma / 6.);
+  sigma = prefactor * sqrt(sigma) * 2.; // choose a = 2,
+                // which seems to remove negative el relaxons eigenvalues at low T
+
+  // looking at eq 33 and 34 here,
+  // https://journals.aps.org/prb/pdf/10.1103/PhysRevB.75.195121
+  // Apparently expect good good results for 0.8 < a < 1.3
 
   if (sigma == 0.) { return 0.; }
 
-  // if the smearing is smaller than 0.1 meV, we renormalize it
+  // NOTE are we sure we want to do we want this cutoff?
+  // Seems to affect very little, likely not a big impact either way
+  // if the smearing is smaller than 0.0001 eV, we renormalize it
+  // for electrons, a common smearing is ~0.01 eV in regular gaussian smearing
   if (sigma < broadeningCutoff ) {
     sigma = broadeningCutoff;
   }
@@ -163,7 +162,7 @@ double SymAdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
   double x = energy / sigma;
   if ( x > 6. ) return 0.; // the error is < 2e-16, and prevents underflow
   // note: the factor ERF_2 corrects for the cutoff at 2*sigma
-  return exp(-x * x) / sqrtPi / sigma / erf2;
+  return exp(-(x * x)/2.) / (sqrtTwo * sqrtPi) / sigma / erf2;
 }
 
 // Tetrahedron method smearing -----------------------------------------

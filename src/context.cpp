@@ -920,7 +920,9 @@ void Context::printInputSummary(const std::string &fileName) {
   if (appName.find("Transport") != std::string::npos ||
       appName.find("Lifetimes") != std::string::npos) {
 
-    if (appName.find("honon") != std::string::npos || appName.find("elPh") != std::string::npos) {
+    if (appName.find("honon") != std::string::npos
+                                || appName.find("Coupled") != std::string::npos
+                                || appName.find("elPh") != std::string::npos) {
       std::cout << "qMesh = " << qMesh(0) << " " << qMesh(1) << " " << qMesh(2) << std::endl;
       if(!getElphFileName().empty()) {
         std::cout << "electronH0Name = " << electronH0Name << std::endl;
@@ -928,7 +930,9 @@ void Context::printInputSummary(const std::string &fileName) {
         std::cout << "elphFileName = " << elphFileName << std::endl;
       }
     }
-    if (appName.find("lectron") != std::string::npos || appName.find("elPh") != std::string::npos
+    if (appName.find("lectron") != std::string::npos
+                        || appName.find("Coupled") != std::string::npos
+                        || appName.find("elPh") != std::string::npos
                         || (appName.find("honon") != std::string::npos && !getElphFileName().empty())) {
          std::cout << "kMesh = " << kMesh(0) << " " << kMesh(1) << " " << kMesh(2) << std::endl;
     }
@@ -954,13 +958,26 @@ void Context::printInputSummary(const std::string &fileName) {
 
     if(appName.find("Transport") != std::string::npos) {
       std::cout << "solverBTE = RTA";
-      for (const auto& i : solverBTE)
+      bool doRelaxons = false;
+      bool doVariational = false;
+      bool doIterative = false;
+      for (const auto& i : solverBTE) {
         std::cout << ", " << i;
+        if(i.find("relaxon") != std::string::npos) { doRelaxons = true; }
+        if(i.find("ariational") != std::string::npos) { doVariational = true; }
+        if(i.find("iterative") != std::string::npos) { doIterative = true; }
+      }
       std::cout << std::endl;
-      std::cout << "convergenceThresholdBTE = " << convergenceThresholdBTE << std::endl;
-      std::cout << "maxIterationsBTE = " << maxIterationsBTE << std::endl;
-    } else {
-      std::cout << "solverBTE = RTA";
+      if(doVariational || doIterative) {
+        std::cout << "convergenceThresholdBTE = " << convergenceThresholdBTE << std::endl;
+        std::cout << "maxIterationsBTE = " << maxIterationsBTE << std::endl;
+      }
+      if(doRelaxons) {
+        std::cout << "useUpperTriangle = " << useUpperTriangle << std::endl;
+        std::cout << "symmetrizeMatrix = " << symmetrizeMatrix << std::endl;
+        std::cout << "numRelaxonsEigenvalues = " << numRelaxonsEigenvalues << std::endl;
+        if(numRelaxonsEigenvalues != 0) std::cout << "checkNegativeRelaxons = " << checkNegativeRelaxons << std::endl;
+      }
     }
 
       std::cout << "scatteringMatrixInMemory = " << scatteringMatrixInMemory

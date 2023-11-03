@@ -222,9 +222,9 @@ void CoupledCoefficients::calcFromRelaxons(
       for(auto j : {0, 1, 2} ) {
 
         // TODO change Drag contribution -> elSelf, phSelf, and elph cross terms
-        
+
         // NOTE: all terms are affected by drag, and an uncoupled calculation must be run to determine the effect of drag
-        
+
         // sigma
         sigmaLocal(i,j) += U * elVe(gamma,i) * elVe(gamma,j) * 1./eigenvalues(gamma);
         totalSigmaLocal(i,j) += U * Ve(gamma,i) * Ve(gamma,j) * 1./eigenvalues(gamma);
@@ -295,19 +295,19 @@ void CoupledCoefficients::calcFromRelaxons(
   seebeck = seebeckSelf + seebeckDrag;
 
   // throw warnings if different results come out from parts vs total calculation
-  if(alpha != alphaTotal) {
-    Warning("Developer error: Alpha ph + el does not equal alpha total.");
+  bool sigmaFail = false;
+  bool seebeckFail = false;
+  bool kappaFail = false;
+  for (int i = 0; i < dimensionality; i++) {
+    for(auto j = 0; j < dimensionality; j++) {
+      if(sigma(0,i,j) != sigmaTotal(0,i,j))     { sigmaFail = true; }
+      if(seebeck(0,i,j) != seebeckTotal(0,i,j)) { seebeckFail = true; }
+      if(kappa(0,i,j) != kappaTotal(0,i,j))     { kappaFail = true; }
+    }
   }
-  if(sigma != sigmaTotal) {
-    Warning("Developer error: Sigma el does not equal sigma total.");
-  }
-  if(seebeck != seebeckTotal) {
-    Warning("Developer error: Seebeck cross + self does not equal Seebeck total.");
-  }
-  if(kappa != kappaTotal) {
-    Warning("Developer error: Kappa cross + selfEl + selfPh does not equal kappa total.");
-  }
-
+  if(seebeckFail) Warning("Developer error: Seebeck cross + self does not equal Seebeck total.");
+  if(sigmaFail) Warning("Developer error: Sigma el does not equal sigma total.");
+  if(kappaFail) Warning("Developer error: Kappa cross + selfEl + selfPh does not equal kappa total.");
 }
 
 // standard print

@@ -291,8 +291,8 @@ StatisticsSweep::findChemicalPotentialFromDoping(const double &doping,
           "numBands: " + std::to_string(numBands) + " numElectrons: " + std::to_string(numElectronsDoped)
           + "\nThis likely means you've selected a non-physical doping value, such as\n"
           "a very small doping for a metal, or you didn't Wannierize enough bands."
-          "\nThis can also happen if you had bands under your disentanglement window which"
-          "you did not cut out using exclude_bands in Wannier90. See a note about this in the elphWannier tutorial.");
+          "\nThis can also happen if you had bands under your disentanglement window which\n"
+          "were not excluded using exclude_bands in Wannier90.\nSee a note about this in the elphWannier tutorial.");
   }
   if (numElectronsDoped < 0.) {
     Error("The number of occupied states is negative");
@@ -381,6 +381,9 @@ double StatisticsSweep::findDopingFromChemicalPotential(
   if (isDistributed) mpi->allReduceSum(&fPop);
   fPop /= double(numPoints);
   double doping = (occupiedStates - fPop);
+  // here we save doping in 1/cm^3 because doping is never used 
+  // internally for calculations, with the exception of converting sigma->mu at the very end. 
+  // this is only for printing to file later. 
   doping *= spinFactor / volume / pow(distanceBohrToCm, 3);
   return doping;
 }

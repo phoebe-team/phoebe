@@ -41,6 +41,9 @@ std::tuple<int, int> decompress2Indices(const int &iTot, const int &size1,
 }
 
 std::tuple<double, double> memoryUsage() {
+
+  // based on: https://www.tutorialspoint.com/how-to-get-memory-usage-under-linux-in-cplusplus
+  // see https://man7.org/linux/man-pages/man5/proc.5.html
   double vm_usage = 0.;
   double resident_set = 0.;
   std::ifstream stat_stream("/proc/self/stat",

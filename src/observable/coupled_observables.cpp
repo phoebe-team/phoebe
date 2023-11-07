@@ -221,6 +221,10 @@ void CoupledCoefficients::calcFromRelaxons(
     for (auto i : {0, 1, 2}) {
       for(auto j : {0, 1, 2} ) {
 
+        // TODO change Drag contribution -> elSelf, phSelf, and elph cross terms
+
+        // NOTE: all terms are affected by drag, and an uncoupled calculation must be run to determine the effect of drag
+
         // sigma
         sigmaLocal(i,j) += U * elVe(gamma,i) * elVe(gamma,j) * 1./eigenvalues(gamma);
         totalSigmaLocal(i,j) += U * Ve(gamma,i) * Ve(gamma,j) * 1./eigenvalues(gamma);
@@ -287,9 +291,23 @@ void CoupledCoefficients::calcFromRelaxons(
   }
   // sum to get total contributions
   alpha = alphaPh + alphaEl;
-  kappa = kappaPh + kappaEl;
+  kappa = kappaPh + kappaEl + kappaDrag;
   seebeck = seebeckSelf + seebeckDrag;
 
+  // throw warnings if different results come out from parts vs total calculation
+  bool sigmaFail = false;
+  bool seebeckFail = false;
+  bool kappaFail = false;
+  for (int i = 0; i < dimensionality; i++) {
+    for(auto j = 0; j < dimensionality; j++) {
+      if(sigma(0,i,j) != sigmaTotal(0,i,j))     { sigmaFail = true; }
+      if(seebeck(0,i,j) != seebeckTotal(0,i,j)) { seebeckFail = true; }
+      if(kappa(0,i,j) != kappaTotal(0,i,j))     { kappaFail = true; }
+    }
+  }
+  if(seebeckFail) Warning("Developer error: Seebeck cross + self does not equal Seebeck total.");
+  if(sigmaFail) Warning("Developer error: Sigma el does not equal sigma total.");
+  if(kappaFail) Warning("Developer error: Kappa cross + selfEl + selfPh does not equal kappa total.");
 }
 
 // standard print
@@ -393,26 +411,22 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
     chemPots.push_back(chemPot * energyRyToEv); // output in eV
 
     // store the electrical conductivity for output
-    appendTransportTensorForOutput(sigma, convSigma, iCalc, sigmaOut);
     appendTransportTensorForOutput(sigmaTotal, convSigma, iCalc, sigmaTotalOut);
 
     // store the carrier mobility for output
     // Note: in metals, one has conductivity without doping
     // and the mobility = sigma / doping-density is ill-defined
     if (abs(doping) > 0.) {
-      appendTransportTensorForOutput(mobility, convMobility, iCalc, mobilityOut);
       appendTransportTensorForOutput(mobilityTotal, convMobility, iCalc, mobilityTotalOut);
     }
 
     // store thermal conductivity for output
-    appendTransportTensorForOutput(kappa, convKappa, iCalc, kappaOut);
     appendTransportTensorForOutput(kappaPh, convKappa, iCalc, kappaPhOut);
     appendTransportTensorForOutput(kappaEl, convKappa, iCalc, kappaElOut);
     appendTransportTensorForOutput(kappaDrag, convKappa, iCalc, kappaDragOut);
     appendTransportTensorForOutput(kappaTotal, convKappa, iCalc, kappaTotalOut);
 
     // store seebeck coefficient for output
-    appendTransportTensorForOutput(seebeck, convSeebeck, iCalc, seebeckOut);
     appendTransportTensorForOutput(seebeckDrag, convSeebeck, iCalc, seebeckDragOut);
     appendTransportTensorForOutput(seebeckSelf, convSeebeck, iCalc, seebeckSelfOut);
     appendTransportTensorForOutput(seebeckTotal, convSeebeck, iCalc, seebeckTotalOut);
@@ -428,23 +442,19 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
   output["chemicalPotentials"] = chemPots;
   output["chemicalPotentialUnit"] = "eV";
 
-  output["electricalConductivity"] = sigmaOut;
   output["totalElectricalConductivity"] = sigmaTotalOut;
   output["electricalConductivityUnit"] = unitsSigma;
-  output["mobility"] = mobilityOut;
   output["totalMobility"] = mobilityTotalOut;
   output["mobilityUnit"] = unitsMobility;
 
-  output["thermalConductivity"] = kappaOut;
   output["phononThermalConductivity"] = kappaPhOut;
   output["electronicThermalConductivity"] = kappaElOut;
-  output["dragThermalConductivity"] = kappaDragOut;
+  output["crossElPhThermalConductivity"] = kappaDragOut;
   output["totalThermalConductivity"] = kappaTotalOut;
   output["thermalConductivityUnit"] = unitsKappa;
 
-  output["seebeckCoefficient"] = seebeckOut;
-  output["dragSeebeckCoefficient"] = seebeckDragOut;
-  output["selfSeebeckCoefficient"] = seebeckSelfOut;
+  output["crossElPhSeebeckCoefficient"] = seebeckDragOut;
+  output["selfElSeebeckCoefficient"] = seebeckSelfOut;
   output["totalSeebeckCoefficient"] = seebeckTotalOut;
   output["seebeckCoefficientUnit"] = unitsSeebeck;
 
@@ -824,8 +834,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     output["DuUnit"] = "fs^{-1}";
     output["phononSpecificHeat"] = Cph * specificHeatConversion;
     output["electronSpecificHeat"] = Cel * specificHeatConversion;
-    output["U"] = U * 1./energyRyToEv;
-    output["UUnit"] = "1/eV";
+    output["U"] = U * std::pow(electronSi, 2) / ( std::pow(bohrRadiusSi, 3) * energyRyToEv);
+    output["UUnit"] = "Coulomb$^2$/(m$^3$*eV)";
     output["specificHeatUnit"] = specificHeatUnits;
     std::vector<double> Atemp, Gtemp;
     for(int i = 0; i < 3; i++) {

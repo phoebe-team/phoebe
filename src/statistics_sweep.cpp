@@ -488,8 +488,7 @@ void StatisticsSweep::calcNumFreeCarriers(BaseBandStructure* bandStructure) {
     nFreeCarriers *= spinFactor / (volume * Nk * kBT);
 
     // convert to SI and print, as this is not used otherwise
-    nFreeCarriers *= 1./( std::pow(distanceBohrToCm, dimensionality));
-    //electronMassSi * velocityRyToSi * velocityRyToSi / ( std::pow(distanceBohrToCm, dimensionality) * energyRyToEv * 1.60218e-19); //electronMassSi / ( std::pow(distanceBohrToCm, dimensionality) * energyRyToEv );
+    nFreeCarriers *= 1./( std::pow(distanceBohrToCm, dimensionality)) * electronMassSi * velocityRyToSi * velocityRyToSi /  (energyRyToEv*electronVoltSi);
 
     if(mpi->mpiHead()) {
       std::cout << std::fixed << std::setprecision(6);

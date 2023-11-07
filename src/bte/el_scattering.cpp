@@ -243,6 +243,10 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                 double rate =
                     coupling(ib1, ib2, ib3) * ((fermi2 + bose3) * delta1
                        + (1. - fermi2 + bose3) * delta2) * norm / en3 * pi;
+                // compute the extra 1-cosTheta term needed for MRTA
+		double cosTheta = 1. - (v1s.row(ib1).dot(v2s.row(ib2)) 
+					/ (v1s.row(ib1).norm() * v2s.row(ib2).norm())); 
+                double rateMR = rate * cosTheta;
 
                 double rateOffDiagonal = -
                       coupling(ib1, ib2, ib3) * bose3Symm * (delta1 + delta2)
@@ -265,6 +269,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                         if (matrix.theMatrix.indicesAreLocal(iMat1, iMat2)) {
                           if (i == 0 && j == 0) {
                             linewidth->operator()(iCalc, 0, iBte1) += rate;
+                            matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
                           }
                           if (is1 != is2Irr) {
                             matrix.theMatrix(iMat1, iMat2) +=
@@ -279,14 +284,16 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                     // this isn't really necessary
                     if (matrix.theMatrix.indicesAreLocal(iBte1, iBte2)) {
                       linewidth->operator()(iCalc, 0, iBte1) += rate;
-                      matrix.theMatrix(iBte1, iBte2) += rateOffDiagonal;
+                      matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
+		      matrix.theMatrix(iBte1, iBte2) += rateOffDiagonal;
 
                       // if we're not symmetrizing the matrix, and we have
                       // dropped down to only using the upper triangle of the matrix, we must fill
-                      // in linewidths twice, using detailed balance, in order to get the right ratest
+                      // in linewidths twice, using detailed balance, in order to get the right rates
                       if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
                         linewidth->operator()(iCalc, 0, iBte2) += rate;
-                      }
+                        matrix.linewidthMR->operator()(iCalc, 0, iBte2) += rateMR;
+		      }
 
                     }
                   }
@@ -315,6 +322,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                 } else {
                   // case of linewidth construction
                   linewidth->operator()(iCalc, 0, iBte1) += rate;
+                  matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
                 }
               }
             }
@@ -457,6 +465,11 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
             // Calculate transition probability
             double rate = prefactor * std::pow(denominator,2) * delta;
 
+            // compute the extra 1-cosTheta term needed for MRTA
+            double cosTheta = 1. - (v1s.row(ib1).dot(v2s.row(ib2))
+                                        / (v1s.row(ib1).norm() * v2s.row(ib2).norm()));
+            double rateMR = rate * cosTheta;
+
             if (switchCase == 0) { // case of matrix construction
               if (context.getUseSymmetries()) {
                 BteIndex iBte1Idx(iBte1);
@@ -470,7 +483,8 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
                     if (matrix.theMatrix.indicesAreLocal(iMat1, iMat2)) {
                       if (i == 0 && j == 0) {
                         linewidth->operator()(iCalc, 0, iBte1) += rate;
-                      }
+                        matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
+		      }
                       if (is1 != is2Irr) {
                         matrix.theMatrix(iMat1, iMat2) += rotation.inverse()(i, j) * rate;
                       }
@@ -480,14 +494,17 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
               } else {
                 if (matrix.theMatrix.indicesAreLocal(iBte1, iBte2)) {
                   linewidth->operator()(iCalc, 0, iBte1) += rate;
-                  matrix.theMatrix(iBte1, iBte2) += rate;
+                  matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
+		  matrix.theMatrix(iBte1, iBte2) += rate;
 
                   // if we're not symmetrizing the matrix, and we have
                   // dropped down to only using the upper triangle of the matrix, we must fill
                   // in linewidths twice, using detailed balance, in order to get the right ratest
                   if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
                     linewidth->operator()(iCalc, 0, iBte2) += rate;
-                  }
+		    matrix.linewidthMR->operator()(iCalc, 0, iBte2) += rateMR;
+
+		  }
                 }
               }
             } else if (switchCase == 1) { // case of matrix-vector multiplication
@@ -513,6 +530,7 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
 
             } else { // case of linewidth construction
               linewidth->operator()(iCalc, 0, iBte1) += rate;
+	      matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
             }
           }
         }
@@ -521,3 +539,4 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
   }
   Kokkos::Profiling::popRegion();
 }
+

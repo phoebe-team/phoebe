@@ -74,28 +74,43 @@ void ElectronWannierTransportApp::run(Context &context) {
   scatteringMatrix.outputToJSON("rta_el_relaxation_times.json");
   Kokkos::Profiling::popRegion();
 
-  // solve the BTE at the relaxation time approximation level
+  // solve the BTE at the relaxation time approximation level --------------------------------
   // we always do this, as it's the cheapest solver and is required to know
   // the diagonal for the exact method.
-
-  if (mpi->mpiHead()) {
-    std::cout << "\n" << std::string(80, '-') << "\n\n";
-    std::cout << "Solving BTE within the relaxation time approximation.\n";
-  }
 
   // compute the phonon populations in the relaxation time approximation.
   // Note: this is the total phonon population n (n != f(1+f) Delta n)
 
   Kokkos::Profiling::pushRegion("ETapp.computeRTATransport");
 
+  OnsagerCoefficients transportCoefficients(statisticsSweep, crystal, bandStructure, context);
   BulkEDrift driftE(statisticsSweep, bandStructure, 3);
   BulkTDrift driftT(statisticsSweep, bandStructure, 3);
+
+  // First do the MRTA
+  if (mpi->mpiHead()) {
+    std::cout << "\n" << std::string(80, '-') << "\n\n";
+    std::cout << "Solving BTE in the momentum-relaxation time approximation.\n";
+  }
+
+  VectorBTE momentumRelaxationTimes = scatteringMatrix.getSingleModeMRTimes();
   VectorBTE relaxationTimes = scatteringMatrix.getSingleModeTimes();
-  VectorBTE nERTA = -driftE * relaxationTimes;
+  VectorBTE nERTA = -driftE * momentumRelaxationTimes;
   VectorBTE nTRTA = -driftT * relaxationTimes;
 
-  // compute the electrical conductivity
-  OnsagerCoefficients transportCoefficients(statisticsSweep, crystal, bandStructure, context);
+  transportCoefficients.calcFromPopulation(nERTA, nTRTA);
+  transportCoefficients.print();
+  transportCoefficients.outputToJSON("mrta_onsager_coefficients.json");
+
+  // now standard RTA
+  if (mpi->mpiHead()) {
+    std::cout << std::string(80, '-') << "\n\n";
+    std::cout << "Solving BTE within the relaxation time approximation.\n";
+  }
+
+  nERTA = -driftE * relaxationTimes;
+  nTRTA = -driftT * relaxationTimes;
+
   transportCoefficients.calcFromPopulation(nERTA, nTRTA);
   transportCoefficients.print();
   transportCoefficients.outputToJSON("rta_onsager_coefficients.json");

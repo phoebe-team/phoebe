@@ -50,6 +50,9 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     Error("Developer error: The linewidths shouldn't have dimensionality");
   }
 
+  // set up the MRTA container
+  linewidthMR = std::make_shared<VectorBTE>(statisticsSweep, outerBandStructure, 1);
+
   // precompute particle occupations
   //Eigen::MatrixXd outerFermi = precomputeOccupations(outerBandStructure);
   Eigen::MatrixXd innerFermi = precomputeOccupations(innerBandStructure);
@@ -90,6 +93,7 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   } else {
     mpi->allReduceSum(&linewidth->data);
+    mpi->allReduceSum(&linewidthMR->data);
   }
 
   // Average over degenerate eigenstates.
@@ -97,6 +101,7 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // TODO   ^^ do we?
   if (switchCase == 2) {
     degeneracyAveragingLinewidths(linewidth);
+    degeneracyAveragingLinewidths(linewidthMR);
   }
 
  // we place the linewidths back in the diagonal of the scattering matrix
@@ -128,4 +133,12 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
   Kokkos::Profiling::popRegion();
+
+  // before closing, write the MR relaxation times to file
+  outputLifetimesToJSON("rta_el_momentum_relaxation_times.json", linewidthMR);
+}
+
+// function called on shared ptrs of linewidths
+VectorBTE ElScatteringMatrix::getSingleModeMRTimes() {
+  return getTimesFromVectorBTE(*linewidthMR);
 }

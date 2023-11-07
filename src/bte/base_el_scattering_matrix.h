@@ -22,6 +22,8 @@ class BaseElScatteringMatrix : virtual public ScatteringMatrix {
 
  protected:
 
+  std::shared_ptr<VectorBTE> linewidthMR;
+
   // friend functions for adding scattering rates,
   // these live in el_scattering.cpp. See el_scattering header file for more info.
   friend void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,

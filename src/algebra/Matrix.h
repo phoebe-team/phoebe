@@ -290,9 +290,9 @@ template <typename T>
 double Matrix<T>::getMemory() const{
   // this is done in parts to avoid overflow;
   // size in GB is size of type*rows()*cols()/(1024)^3
-  double temp = sizeof(T)*rows()/1024;
-  temp = temp*cols()/1024;
-  return temp/(1024);
+  double temp = sizeof(T)*rows()/1024.;
+  temp = temp*cols()/1024.;
+  return temp/(1024.);
 }
 
 template <typename T>

@@ -33,6 +33,9 @@ public:
                      BaseBandStructure &outerBandStructure_, PhononH0 &h0,
                      InteractionElPhWan *couplingElPhWan_ = nullptr);
 
+  /** Function to return the momentum relaxation times specifically */
+  VectorBTE getSingleModeMRTimes();
+
 protected:
 
   InteractionElPhWan *couplingElPhWan;

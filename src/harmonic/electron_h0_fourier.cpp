@@ -162,7 +162,7 @@ FullBandStructure ElectronH0Fourier::populate(Points &fullPoints,
 
   LoopPrint loopPrint("populating electronic band structure", "bands", numBands);
 
-  for (auto ik : fullBandStructure.getWavevectorIndices()) {
+  for (auto ik : fullBandStructure.getLocalWavevectorIndices()) {
     Point point = fullBandStructure.getPoint(ik);
     auto tup = diagonalize(point);
     auto ens = std::get<0>(tup);

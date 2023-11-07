@@ -14,21 +14,6 @@ Particle::Particle(int kind_) {
   }
 }
 
-// copy constructor
-Particle::Particle(const Particle &obj) {
-  statistics = obj.statistics;
-  kind = obj.kind;
-}
-
-// copy assignment operator
-Particle &Particle::operator=(const Particle &obj) {
-  if (this != &obj) {
-    statistics = obj.statistics;
-    kind = obj.kind;
-  }
-  return *this;
-}
-
 bool Particle::isFermi() const {
   if (statistics == fermi) {
     return true;

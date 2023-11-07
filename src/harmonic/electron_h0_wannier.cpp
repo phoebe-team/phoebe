@@ -373,7 +373,7 @@ FullBandStructure ElectronH0Wannier::populate(Points &fullPoints,
   // we index from the list of wavevector indices provided by
   // getWavevector indices because if FBS is distributed, it won't have every wavevector
   // from the points object on this process
-  std::vector<int> iks = fullBandStructure.getWavevectorIndices();
+  std::vector<int> iks = fullBandStructure.getLocalWavevectorIndices();
   int niks = iks.size();
   std::vector<Eigen::Vector3d> cartesianCoordinates(niks);
 
@@ -469,7 +469,7 @@ FullBandStructure ElectronH0Wannier::cpuPopulate(Points &fullPoints,
                                       isDistributed);
 
   // first prepare the list of wavevectors
-  std::vector<int> iks = fullBandStructure.getWavevectorIndices();
+  std::vector<int> iks = fullBandStructure.getLocalWavevectorIndices();
   int numK = iks.size();
   std::vector<Eigen::Vector3d> cartesianWavevectors(numK);
   #pragma omp parallel for

@@ -179,7 +179,8 @@ std::tuple<WavevectorIndex, BandIndex> FullBandStructure::getIndex(
 
 int FullBandStructure::getNumStates() { return numBands * getNumPoints(); }
 
-std::vector<int> FullBandStructure::getWavevectorIndices() {
+// if distributed, returns local kpt indices
+std::vector<int> FullBandStructure::getLocalWavevectorIndices() {
   std::set<int> kPointsSet;
   for ( auto tup : energies.getAllLocalStates()) {
     // returns global indices for local index
@@ -190,7 +191,11 @@ std::vector<int> FullBandStructure::getWavevectorIndices() {
   return kPointsList;
 }
 
-std::vector<std::tuple<WavevectorIndex,BandIndex>> FullBandStructure::getStateIndices() {
+// if distributed, returns local state indices
+// These states are local for the energies only! Velocities, etc cannot
+// be accessed this way, would need another funciton
+std::vector<std::tuple<WavevectorIndex,BandIndex>> FullBandStructure::getLocalEnergyStateIndices() {
+
   auto allLocalStates = energies.getAllLocalStates();
   std::vector<std::tuple<WavevectorIndex, BandIndex>> indices;
   for ( auto t : allLocalStates ) {
@@ -202,7 +207,22 @@ std::vector<std::tuple<WavevectorIndex,BandIndex>> FullBandStructure::getStateIn
   return indices;
 }
 
-std::vector<int> FullBandStructure::getBandIndices() const {
+// if distributed, returns local state indices
+/*std::vector<size_t> FullBandStructure::getLocalStateIndices() {
+
+  auto allLocalStates = energies.getAllLocalStates();
+  std::vector<size_t> indices;
+  for ( auto t : allLocalStates ) {
+    auto ib = BandIndex(std::get<0>(t));
+    auto ik = WavevectorIndex(std::get<1>(t));
+    size_t is = getIndex(ik,ib);
+    indices.push_back(is);
+  }
+  return indices;
+}*/
+
+std::vector<int> FullBandStructure::getLocalBandIndices() const {
+
   std::vector<int> bandsList;
   for(int ib = 0; ib < numBands; ib++) {
       bandsList.push_back(ib);
@@ -420,7 +440,7 @@ Eigen::VectorXd FullBandStructure::getBandEnergies(int &bandIndex) {
   // energies are distributed, we need to use global k indices
   // when calling energies(ib,ik)
   Eigen::VectorXd bandEnergies(energies.localCols());
-  std::vector<int> wavevectorIndices = getWavevectorIndices();
+  std::vector<int> wavevectorIndices = getLocalWavevectorIndices();
   for (int i = 0; i < energies.localCols(); i++) {
     int ik = wavevectorIndices[i];  // global wavevector index
     bandEnergies(i) = energies(bandIndex, ik);

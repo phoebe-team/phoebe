@@ -406,10 +406,10 @@ struct containerType;
   };
   // Container for Eigen::MatrixXi
   template<>
-  struct containerType<Eigen::MatrixXi> {
-    static inline int *getAddress(Eigen::MatrixXi *data) { return data->data(); }
-    static inline size_t getSize(Eigen::MatrixXi *data) { return data->size(); }
-    static inline MPI_Datatype getMPItype() { return containerType<int>::getMPItype(); }
+  struct containerType<Eigen::Matrix3d> {
+    static inline double *getAddress(Eigen::Matrix3d *data) { return data->data(); }
+    static inline size_t getSize(Eigen::Matrix3d *data) { return data->size(); }
+    static inline MPI_Datatype getMPItype() { return containerType<double>::getMPItype(); }
     static inline bool allowsAutoWorkDivs() { return false; }
   };
   // Container for Eigen::VectorXi

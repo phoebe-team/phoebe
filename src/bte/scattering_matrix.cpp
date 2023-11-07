@@ -503,18 +503,16 @@ VectorBTE ScatteringMatrix::getTimesFromVectorBTE(VectorBTE &diagonal) {
   return times;
 }
 
-// function to decide which times to prepare
-// 0 -- regular linewidths/internal diagonal
-// 1 -- normal processes
-// 2 -- umklapp processes
-VectorBTE ScatteringMatrix::getSingleModeTimes(int whichTimes) {
-  if(whichTimes == 1) { //normal internal diagonal
-    return getTimesFromVectorBTE(*internalDiagonalNormal);
-  } else if(whichTimes == 2) { // umklapp internal diagonal
-    return getTimesFromVectorBTE(*internalDiagonalUmklapp);
-  } else { // regular internal diagonal of scattering matrix
-    return getTimesFromVectorBTE(*internalDiagonal);
-  }
+// does the internal diagonal
+VectorBTE ScatteringMatrix::getSingleModeTimes() {
+  return getTimesFromVectorBTE(*internalDiagonal);
+}
+
+// function called on shared ptrs of linewidths
+// can be applied to any internal diagonal like object -- that is, 
+// something which may or may not be rescaled by a symmetrization factor 
+VectorBTE ScatteringMatrix::getSingleModeTimes(std::shared_ptr<VectorBTE> anyInternalDiagonal) {
+  return getTimesFromVectorBTE(*anyInternalDiagonal);
 }
 
 // return the diagonal of the scattering matrix,
@@ -648,8 +646,8 @@ void ScatteringMatrix::outputToJSON(const std::string &outFileName) {
   std::shared_ptr<VectorBTE> timesN;
   std::shared_ptr<VectorBTE> timesU;
   if(outputUNTimes) {
-    timesN = std::make_shared<VectorBTE>(getSingleModeTimes(1));
-    timesU = std::make_shared<VectorBTE>(getSingleModeTimes(2));
+    timesN = std::make_shared<VectorBTE>(getSingleModeTimes(internalDiagonalNormal));
+    timesU = std::make_shared<VectorBTE>(getSingleModeTimes(internalDiagonalUmklapp));
   }
 
   std::string particleType;
@@ -814,7 +812,133 @@ void ScatteringMatrix::outputToJSON(const std::string &outFileName) {
   o.close();
 }
 
-// TODO this feels redundant with above function, maybe could be simplified --
+// TODO we may later want to merge this with the above function
+void ScatteringMatrix::outputLifetimesToJSON(const std::string &outFileName, std::shared_ptr<VectorBTE> internalDiag) {
+
+  if (!mpi->mpiHead()) return;
+
+  VectorBTE times = getSingleModeTimes(internalDiag);
+  //VectorBTE tmpLinewidths = getLinewidths();
+  std::shared_ptr<VectorBTE> timesN;
+  std::shared_ptr<VectorBTE> timesU;
+  if(outputUNTimes) {
+    timesN = std::make_shared<VectorBTE>(getSingleModeTimes(internalDiagonalNormal));
+    timesU = std::make_shared<VectorBTE>(getSingleModeTimes(internalDiagonalUmklapp));
+  }
+
+  std::string particleType;
+  auto particle = outerBandStructure.getParticle();
+  double energyConversion = energyRyToEv;
+  std::string energyUnit = "eV";
+  std::string relaxationTimeUnit = "fs";
+  // we need an extra factor of two pi, likely because of unit conversion
+  // (perhaps h vs hbar)
+  double energyToTime = energyRyToFs/twoPi;
+  if (particle.isPhonon()) {
+    particleType = "phonon";
+    energyUnit = "meV";
+    energyConversion *= 1000;
+    relaxationTimeUnit = "ps"; // phonon times more commonly in ps
+    energyToTime *= 1e-3;
+    // this is a bit of a hack to deal with phel scattering, where stat sweep
+    // has nonzero mu values in spite of it being a phonon case
+
+  } else {
+    particleType = "electron";
+  }
+
+  // need to store as a vector format with dimensions
+  // iCalc, ik. ib, iDim (where iState is unfolded into
+  // ik, ib) for the velocities and lifetimes, no dim for energies
+  std::vector<std::vector<std::vector<double>>> outTimes;
+  //std::vector<std::vector<std::vector<double>>> outLinewidths;
+  //std::vector<std::vector<std::vector<std::vector<double>>>> velocities;
+  std::vector<std::vector<std::vector<double>>> energies;
+  std::vector<double> temps;
+  std::vector<double> chemPots;
+  std::vector<double> dopings;
+
+  for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+
+    auto calcStatistics = statisticsSweep.getCalcStatistics(iCalc);
+    double temp = calcStatistics.temperature;
+    double chemPot = calcStatistics.chemicalPotential;
+    double doping = calcStatistics.doping;
+    temps.push_back(temp * temperatureAuToSi);
+    chemPots.push_back(chemPot * energyConversion);
+    dopings.push_back(doping);
+
+    std::vector<std::vector<double>> wavevectorsT;
+    //std::vector<std::vector<double>> wavevectorsL;
+    std::vector<std::vector<double>> wavevectorsE;
+    // loop over wavevectors
+    for (int ik : outerBandStructure.irrPointsIterator()) {
+      auto ikIndex = WavevectorIndex(ik);
+
+      std::vector<double> bandsT;
+      std::vector<double> bandsL;
+      std::vector<std::vector<double>> bandsV;
+      std::vector<double> bandsE;
+      // loop over bands here
+      // get numBands at this point, in case it's an active band structure
+      for (int ib = 0; ib < outerBandStructure.getNumBands(ikIndex); ib++) {
+
+        auto ibIndex = BandIndex(ib);
+        int is = outerBandStructure.getIndex(ikIndex, ibIndex);
+        StateIndex isIdx(is);
+        double ene = outerBandStructure.getEnergy(isIdx);
+        bandsE.push_back(ene * energyConversion);
+        int iBte = int(outerBandStructure.stateToBte(isIdx).get());
+        double tau = times(iCalc, 0, iBte);
+        bandsT.push_back(tau * energyToTime);
+        //double linewidth = tmpLinewidths(iCalc, 0, iBte);
+        //bandsL.push_back(linewidth * energyConversion);
+      }
+      wavevectorsT.push_back(bandsT);
+      //wavevectorsL.push_back(bandsL);
+      wavevectorsE.push_back(bandsE);
+    }
+    outTimes.push_back(wavevectorsT);
+    //outLinewidths.push_back(wavevectorsL);
+    energies.push_back(wavevectorsE);
+  }
+
+  auto points = outerBandStructure.getPoints();
+  std::vector<std::vector<double>> meshCoordinates;
+  for (int ik : outerBandStructure.irrPointsIterator()) {
+    // save the wavevectors
+    auto ikIndex = WavevectorIndex(ik);
+    auto coord = points.cartesianToCrystal(outerBandStructure.getWavevector(ikIndex));
+    meshCoordinates.push_back({coord[0], coord[1], coord[2]});
+  }
+
+  // output to json
+  nlohmann::json output;
+  output["temperatures"] = temps;
+  output["temperatureUnit"] = "K";
+  output["chemicalPotentials"] = chemPots;
+  output["chemicalPotentialUnit"] = "eV";
+  if (particle.isElectron()) {
+    output["dopingConcentrations"] = dopings;
+    output["dopingConcentrationUnit"] =
+        "cm$^{-" + std::to_string(context.getDimensionality()) + "}$";
+  }
+  //output["linewidths"] = outLinewidths;
+  //output["linewidthsUnit"] = energyUnit;
+  output["relaxationTimes"] = outTimes;
+  output["relaxationTimeUnit"] = relaxationTimeUnit;
+  output["energies"] = energies;
+  output["energyUnit"] = energyUnit;
+  output["wavevectorCoordinates"] = meshCoordinates;
+  output["coordsType"] = "lattice";
+  output["particleType"] = particleType;
+  std::ofstream o(outFileName);
+  o << std::setw(3) << output << std::endl;
+  o.close();
+}
+
+
+// TODO this feels redundant with above function, maybe could be simplified
 void ScatteringMatrix::relaxonsToJSON(const std::string &outFileName,
                                       const Eigen::VectorXd &eigenvalues) {
   if (!mpi->mpiHead()) {

@@ -398,20 +398,27 @@ class FullBandStructure : public BaseBandStructure {
   * @return wavevectorIndices: a vector of wavevector indices for use as
   * an iterator.
   */
-  std::vector<int> getWavevectorIndices();
+  std::vector<int> getLocalWavevectorIndices();
 
-  /** Returns the indices of all state indices on this process, or in
+  /** Returns the indices of all n,k indices on this process, or in
   * an undistributed case, returns all state indices.
   * @return stateIndices: a vector of tuples of (ib,ik) indices for use as
   * an iterator.
   */
-  std::vector<std::tuple<WavevectorIndex, BandIndex>> getStateIndices();
+  std::vector<std::tuple<WavevectorIndex, BandIndex>> getLocalEnergyStateIndices();
+
+  /** Returns the indices of all state indices on this process, or in
+  * an undistributed case, returns all state indices.
+  * @return stateIndices: a vector of is state indices for use as
+  * an iterator.
+  */
+  //std::vector<size_t> getLocalStateIndices();
 
   /** Returns the indices of all bands on this process, or in an
   * undistributed case, returns all band indices.
   * @return bandIndices: a vector of band indices for use as an iterator.
   */
-  std::vector<int> getBandIndices() const;
+  std::vector<int> getLocalBandIndices() const;
 
   /** Returns the energy of a quasiparticle from its Bloch index.
    * Same as getEnergy(const int &stateIndex), but using a StateIndex input
@@ -429,6 +436,7 @@ class FullBandStructure : public BaseBandStructure {
   /** Returns the energy of a quasiparticle from its band and wavevector index.
    * Same as getEnergy(const int &stateIndex), but using ib,ik instead.
    * ik should always be the global wavevector index, or this will be wrong!
+   *
    * @param ik: the wavevector index of the particle state
    * @param ib: the band index of the particle state
    * @return energy: the value of the QP energy for that given Bloch index.

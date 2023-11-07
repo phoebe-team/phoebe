@@ -393,7 +393,7 @@ FullBandStructure PhononH0::cpuPopulate(Points &points, bool &withVelocities,
   FullBandStructure fullBandStructure(numBands, particle, withVelocities,
                                       withEigenvectors, points, isDistributed);
 
-  std::vector<int> ikIndices = fullBandStructure.getWavevectorIndices();
+  std::vector<int> ikIndices = fullBandStructure.getLocalWavevectorIndices();
   int numIkIndices = ikIndices.size();
 #pragma omp parallel for
   for (int iik = 0; iik<numIkIndices; ++iik) {

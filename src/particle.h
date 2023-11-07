@@ -27,14 +27,6 @@ public:
 
   explicit Particle(int kind_);
 
-  /** Copy constructor
-   */
-  Particle(const Particle &obj);
-
-  /** Copy assignment operator
-   */
-  Particle &operator=(const Particle &obj);
-
   /** Returns either a Bose--Einstein or a Fermi--Dirac distribution,
    * depending on the value of "statistics".
    * @param energy: value of quasiparticle energy.

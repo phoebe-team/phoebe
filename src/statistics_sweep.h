@@ -83,6 +83,11 @@ class StatisticsSweep {
    */
   void printInfo();
 
+  /** calculate and print the number of free carriers
+  * @param bandStructure : the active band structure to calculate from
+  **/
+  void calcNumFreeCarriers(BaseBandStructure* bandStructure);
+
  protected:
 
   Particle particle;
@@ -92,6 +97,7 @@ class StatisticsSweep {
   int nChemPot = 0;
   int nDop = 0;
   bool isDistributed = false;
+  int dimensionality = 0;
 
   // note: these three private methods are only meant to be used
   // during the construction of this class, as they depend on energies

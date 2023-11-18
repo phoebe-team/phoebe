@@ -4,39 +4,61 @@ on: [push, pull_request]
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         omp: [OFF, ON]
         mpi: [OFF, ON]
-    name: "(OpenMP, MPI) ="
-    runs-on: ubuntu-20.04
+        compiler:
+          [
+            "GCC 10",
+            "GCC 13",
+            "Clang 15",
+            "Clang 11",
+          ]
     env:
-      BUILD_DIR: build_${{ matrix.omp }}_${{ matrix.mpi }}
       OMP_NUM_THREADS: 4
+    name: "Ubuntu 22.04 ( ${{ matrix.compiler  }} OpenMP ( ${{ matrix.omp }} ) , MPI ( ${{ matrix.mpi }} ))"
+    runs-on: ubuntu-22.04
     steps:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt install -y libopenblas-dev liblapack-dev libhdf5-dev libhdf5-openmpi-dev libscalapack-openmpi-dev python3-pip -o Acquire::Retries=3 --fix-missing
+          sudo apt install -y libopenblas-dev liblapack-dev libhdf5-dev libhdf5-openmpi-dev libscalapack-openmpi-dev python3-pip gfortran cmake -o Acquire::Retries=3 --fix-missing
           pip3 install numpy
       - name: Checkout
         uses: actions/checkout@v2
         with:
           submodules: true
+      - name: "Set up output var: CC_VERSION"
+        id: extract_matrix
+        run: |
+          CC_VERSION=$( echo "${{ matrix.compiler }}" | awk '{ print $2; }')
+          echo "CC_VERSION=${CC_VERSION}" >> "$GITHUB_OUTPUT"
+      - name: Install GCC
+        if: ${{ startsWith(matrix.compiler, 'GCC') }}
+        run: sudo apt install -y g++-${{ steps.extract_matrix.outputs.CC_VERSION }}
+      - name: Install Clang
+        if: ${{ startsWith(matrix.compiler, 'Clang') }}
+        run: |
+          sudo apt install -y clang-${{ steps.extract_matrix.outputs.CC_VERSION }}
+          sudo apt install -y libomp-${{ steps.extract_matrix.outputs.CC_VERSION }}-dev
       - name: Configure
         run: |
-          mkdir ${BUILD_DIR}
-          cd ${BUILD_DIR}
-          cmake .. -DOMP_AVAIL=${{ matrix.omp }} -DKokkos_ENABLE_OPENMP=${{ matrix.omp }} -DMPI_AVAIL=${{ matrix.mpi }} -DHDF5_AVAIL=ON
+          CC_NAME=$(echo "${{ matrix.compiler }}" | awk '{ print tolower($1); }')
+          CC_VER=$( echo "${{ matrix.compiler }}" | awk '{ print $2; }')
+          test "${CC_NAME}" = "gcc" && CC_EXE="g++"
+          test "${CC_NAME}" = "clang" && CC_EXE="clang++"
+          cmake -S . -B build -DCMAKE_CXX_COMPILER="${CC_EXE}-${CC_VER}" -DOMP_AVAIL=${{ matrix.omp }} -DKokkos_ENABLE_OPENMP=${{ matrix.omp }} -DMPI_AVAIL=${{ matrix.mpi }} -DHDF5_AVAIL=ON
       - name: Build
-        run: |
-          cd ${BUILD_DIR}
-          make -j4
-          make -j4 runTests
+        run: cmake --build build -- -j4
+      - name: Build Test
+        run: cmake --build build --target runTests
       - name: RunTests
-        run : |
-          cd ${BUILD_DIR}
+        run: |
+          cd build
           ./runTests
       - name: Download test data
+        if: ${{ matrix.compiler == 'GCC 10' }}
         run: |
           wget github.com/mir-group/phoebe-data/archive/master.zip
           unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-phonons/*" -d "example/Silicon-ph/qe-phonons"
@@ -47,59 +69,61 @@ jobs:
           mkdir example/Silicon-epa/qe-elph/out
           unzip -j master.zip "phoebe-data-master/example/Silicon-epa/qe-elph/out/*" -d "example/Silicon-epa/qe-elph/out"
       - name: Run epa example without MPI
+        if: ${{ matrix.compiler == 'GCC 10' }}
         working-directory: example/Silicon-epa
         run: |
-          ../../${BUILD_DIR}/phoebe -in qeToPhoebeEPA.in
-          ../../${BUILD_DIR}/phoebe -in epaTransport.in
-          ../../${BUILD_DIR}/phoebe -in electronFourierBands.in
-          ../../${BUILD_DIR}/phoebe -in electronFourierDos.in
+          ../../build/phoebe -in qeToPhoebeEPA.in
+          ../../build/phoebe -in epaTransport.in
+          ../../build/phoebe -in electronFourierBands.in
+          ../../build/phoebe -in electronFourierDos.in
           python3 reference/run_check.py
       - name: Run epa example with MPI
+        if: ${{ matrix.compiler == 'GCC 10' && matrix.mpi == 'ON'}}
         working-directory: example/Silicon-epa
-        if: matrix.mpi == 'ON'
         run: |
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in epaTransport.in
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in electronFourierBands.in
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in electronFourierDos.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in epaTransport.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in electronFourierBands.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in electronFourierDos.in
           python3 reference/run_check.py
       - name: Run ph example without MPI
+        if: ${{ matrix.compiler == 'GCC 10' }}
         working-directory: example/Silicon-ph
         run: |
-          ../../${BUILD_DIR}/phoebe -in phononTransport.in
-          ../../${BUILD_DIR}/phoebe -in phononBands.in
-          ../../${BUILD_DIR}/phoebe -in phononDos.in
-          ../../${BUILD_DIR}/phoebe -in phononLifetimes.in
+          ../../build/phoebe -in phononTransport.in
+          ../../build/phoebe -in phononBands.in
+          ../../build/phoebe -in phononDos.in
+          ../../build/phoebe -in phononLifetimes.in
           python3 reference/run_check.py
       - name: Run ph example with MPI
+        if: ${{ matrix.compiler == 'GCC 10' && matrix.mpi == 'ON' }}
         working-directory: example/Silicon-ph
-        if: matrix.mpi == 'ON'
         run: |
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in phononTransport.in
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in phononBands.in
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in phononDos.in
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in phononLifetimes.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononTransport.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononBands.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononDos.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononLifetimes.in
           python3 reference/run_check.py
       - name: Run el example without MPI
+        if: ${{ matrix.compiler == 'GCC 10' }}
         working-directory: example/Silicon-el
         run: |
-          ../../${BUILD_DIR}/phoebe -in qeToPhoebeWannier.in
-          ../../${BUILD_DIR}/phoebe -in electronWannierTransport.in
-          ../../${BUILD_DIR}/phoebe -in electronWannierBands.in
-          ../../${BUILD_DIR}/phoebe -in electronWannierDos.in
-          ../../${BUILD_DIR}/phoebe -in electronLifetimes.in
+          ../../build/phoebe -in qeToPhoebeWannier.in
+          ../../build/phoebe -in electronWannierTransport.in
+          ../../build/phoebe -in electronWannierBands.in
+          ../../build/phoebe -in electronWannierDos.in
+          ../../build/phoebe -in electronLifetimes.in
           python3 reference/run_check.py
       - name: Run el example with MPI
+        if: ${{ matrix.compiler == 'GCC 10' && matrix.mpi == 'ON' }}
         working-directory: example/Silicon-el
-        if: matrix.mpi == 'ON'
         run: |
           # Note: don't run this as it runs out-of-memory on the VM
-          #mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in qeToPhoebeWannier.in
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in electronWannierTransport.in
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in electronWannierBands.in
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in electronWannierDos.in
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -in electronLifetimes.in
+          #mpirun -np 4 --oversubscribe ../../build/phoebe -in qeToPhoebeWannier.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in electronWannierTransport.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in electronWannierBands.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in electronWannierDos.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in electronLifetimes.in
           python3 reference/run_check.py
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -ps 2 -in electronWannierTransport.in
-          mpirun -np 4 --oversubscribe ../../${BUILD_DIR}/phoebe -ps 2 -in electronLifetimes.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -ps 2 -in electronWannierTransport.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -ps 2 -in electronLifetimes.in
           python3 reference/run_check.py
-

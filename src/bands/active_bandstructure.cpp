@@ -716,7 +716,7 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
 
 // now we can loop over the trimmed list of points
 #pragma omp parallel for default(none)                                         \
-    shared(mpi, h0, window, filteredBands, withEigenvectors, withVelocities, iks, niks)
+    shared(mpi, h0, window, filteredBands, withEigenvectors, withVelocities, iks, niks, Eigen::Dynamic)
   for (size_t iik = 0; iik < niks; iik++) {
     size_t ik = iks[iik];
     Point point = points.getPoint(ik);

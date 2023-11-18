@@ -219,7 +219,7 @@ ElPhQeToPhoebeApp::readGFromQEFile(Context &context, const int &numModes,
   if (mpi->mpiHead()) {
 
     Eigen::VectorXi ikMap(numKPoints);
-#pragma omp parallel for default(none) shared(numKPoints, kGridFull, kPoints, ikMap)
+#pragma omp parallel for default(none) shared(numKPoints, kGridFull, kPoints, ikMap, Eigen::Dynamic)
     for (int ikOld = 0; ikOld < numKPoints; ikOld++) {
       Eigen::Vector3d kOld = kGridFull.col(ikOld);
       int ikNew = kPoints.getIndex(kOld);

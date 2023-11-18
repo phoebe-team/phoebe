@@ -100,6 +100,7 @@ if (MPI_AVAIL)
               -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
               -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
               -DCMAKE_Fortran_COMPILER=${CMAKE_Fortran_COMPILER}
+              -DCMAKE_C_FLAGS="-Wno-error=implicit-function-declaration"
           )
       set(SCALAPACK_LIB scalapack)
       message(WARNING "No SCALAPACK library found in CMAKE_LIBRARY_PATH, building our own.")
@@ -127,8 +128,8 @@ if (MPI_AVAIL)
   include_directories(${BLAS_INCLUDE_DIR})
   include_directories(${LAPACK_INCLUDE_DIR})
   ## Very important to link scalapack before blas and lapack
-  target_link_libraries(phoebe ${SCALAPACK_LIB} ${BLACS_LIB} ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} -lgfortran)
-  target_link_libraries(runTests ${SCALAPACK_LIB} ${BLACS_LIB} ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} -lgfortran)
+  target_link_libraries(phoebe ${SCALAPACK_LIB} ${BLACS_LIB} ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} )
+  target_link_libraries(runTests ${SCALAPACK_LIB} ${BLACS_LIB} ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} )
 
 else()
   set(HDF5_SERIAL ON)
@@ -138,8 +139,8 @@ else()
   find_package(LAPACK REQUIRED)
   include_directories(${BLAS_INCLUDE_DIR})
   include_directories(${LAPACK_INCLUDE_DIR})
-  target_link_libraries(phoebe ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} -lgfortran)
-  target_link_libraries(runTests ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} -lgfortran)
+  target_link_libraries(phoebe ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES} )
+  target_link_libraries(runTests ${LAPACK_LIBRARIES} ${BLAS_LIBRARIES})
 
 endif()
 

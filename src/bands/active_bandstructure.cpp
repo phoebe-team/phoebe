@@ -60,7 +60,10 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
         "You are likely out of memory.");
   }
   try {
-    if(withVelocities) velocities.resize(numPoints * numFullBands * numFullBands * 3, complexZero);
+    size_t size = numPoints;
+    size *= numFullBands; 
+    size *= numFullBands * 3; 
+    if(withVelocities) velocities.resize(size, complexZero);
   } catch(std::bad_alloc& e) {
     Error("Failed to allocate band structure velocities.\n"
         "You are likely out of memory.");

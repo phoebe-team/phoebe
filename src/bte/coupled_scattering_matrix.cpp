@@ -23,6 +23,8 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
   // we need to overwrite num states as well as the internalDiagonal object,
   // as both of these are now different than the standard smatrix
   internalDiagonal = std::make_shared<CoupledVectorBTE>(statisticsSweep, innerBandStructure_, outerBandStructure_, 1);
+  // set up the MRTA container
+  linewidthMR = std::make_shared<VectorBTE>(statisticsSweep, outerBandStructure, 1);
 
   numStates = internalDiagonal->getNumStates();
   numPhStates = int(innerBandStructure.irrStateIterator().size());

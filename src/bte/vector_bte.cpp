@@ -333,6 +333,13 @@ void VectorBTE::population2Canonical() {
 // get/set operator
 double &VectorBTE::operator()(const int &iCalc, const int &iDim,
                               const int &iState) {
+
+  //if(iCalc * dimensionality + iDim >= numCalculations || iCalc * dimensionality + iDim < 0) {
+  //  DeveloperError("Out of bounds calculation indexing in VectorBTE.");
+  //}
+  //if(iState >= numStates || iState < 0) {
+  //  DeveloperError("Out of bounds state index in VectorBTE.");
+  //}
   return data(iCalc * dimensionality + iDim, iState);
 }
 

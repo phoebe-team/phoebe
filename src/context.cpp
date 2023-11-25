@@ -637,6 +637,10 @@ void Context::setupFromInput(const std::string &fileName) {
         smearingWidth = parseDoubleWithUnits(val);
       }
 
+      if (parameterName == "adaptiveSmearingPrefactor") {
+        adaptiveSmearingPrefactor = parseDouble(val);
+      }
+
       if (parameterName == "constantRelaxationTime") {
         constantRelaxationTime = parseDoubleWithUnits(val);
       }
@@ -954,6 +958,9 @@ void Context::printInputSummary(const std::string &fileName) {
     }
     if (!std::isnan(smearingWidth))
       std::cout << "smearingWidth = " << smearingWidth * energyRyToEv << " eV"
+                << std::endl;
+    if (!std::isnan(adaptiveSmearingPrefactor))
+      std::cout << "adaptiveSmearingPrefactor = " << adaptiveSmearingPrefactor 
                 << std::endl;
 
     if(appName.find("Transport") != std::string::npos) {
@@ -1279,6 +1286,8 @@ void Context::setHasSpinOrbit(const bool &x) { hasSpinOrbit = x; }
 int Context::getSmearingMethod() const { return smearingMethod; }
 double Context::getSmearingWidth() const { return smearingWidth; }
 void Context::setSmearingWidth(const double &x) { smearingWidth = x; }
+double Context::getAdaptiveSmearingPrefactor() const { return adaptiveSmearingPrefactor; }
+void Context::setAdaptiveSmearingPrefactor(const double &x) { adaptiveSmearingPrefactor = x; }
 
 double Context::getConstantRelaxationTime() const {
   return constantRelaxationTime;

@@ -28,6 +28,7 @@ class Context {
   std::string sumRuleFC2;
   int smearingMethod = -1;
   double smearingWidth = std::numeric_limits<double>::quiet_NaN();
+  double adaptiveSmearingPrefactor = std::numeric_limits<double>::quiet_NaN();
   Eigen::VectorXd temperatures;
   std::vector<std::string> solverBTE;
   double convergenceThresholdBTE = 1e-2;
@@ -316,6 +317,8 @@ public:
 
   double getSmearingWidth() const;
   void setSmearingWidth(const double &x);
+  double getAdaptiveSmearingPrefactor() const;
+  void setAdaptiveSmearingPrefactor(const double &x);
 
   double getConstantRelaxationTime() const;
 

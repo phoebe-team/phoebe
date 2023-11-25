@@ -69,6 +69,14 @@ void printHelper(StatisticsSweep& statisticsSweep, int& dimensionality,
 
   int numCalculations = statisticsSweep.getNumCalculations();
 
+  if(numCalculations > 50) { 
+    std::cout << "\nBecause there are more than 50 calculations in this run,\n"
+	    << "the transport tensors will not be printed to output, but can\n"
+	    << "still be found in the corresponding output json file.\n" 
+	    << std::endl;
+    return; 
+  }
+
   std::string unitsSigma, unitsKappa;
   double convSigma, convKappa;
   if (dimensionality == 1) {

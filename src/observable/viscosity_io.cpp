@@ -198,12 +198,20 @@ void printViscosity(std::string& viscosityName, Eigen::Tensor<double, 5>& viscos
 
   if (!mpi->mpiHead()) return;
 
+  int numCalculations = statisticsSweep.getNumCalculations();
+
+  if(numCalculations > 50) {
+    std::cout << "\nBecause there are more than 50 calculations in this run,\n"
+            << "the transport tensors will not be printed to output, but can\n"
+            << "still be found in the corresponding output json file.\n"
+            << std::endl;
+    return;
+  }
+
   std::string units;
   if (dimensionality == 1)      { units = "Pa s / m^2"; } // 3d
   else if (dimensionality == 2) { units = "Pa s / m";   } // 2d
   else                          { units = "Pa s";       } // 1d
-
-  int numCalculations = statisticsSweep.getNumCalculations();
 
   std::cout << "\n";
   std::cout << viscosityName << " viscosity (" << units << ")\n";
@@ -368,9 +376,9 @@ void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
   std::vector<std::vector<double>> vecDu;
   std::vector<std::vector<double>> vecWji0;
   std::vector<std::vector<double>> vecWjie;
-  for (auto i : {0, 1, 2}) {
+  for (int i = 0; i < dimensionality; i++) {
     std::vector<double> temp1,temp2,temp3;
-    for (auto j : {0, 1, 2}) {
+    for (int j = 0; j < dimensionality; j++) {
       temp1.push_back(Du(i,j) / (energyRyToFs / twoPi));
       temp2.push_back(Wji0(i,j) * velocityRyToSi);
       temp3.push_back(Wjie(i,j) * velocityRyToSi);

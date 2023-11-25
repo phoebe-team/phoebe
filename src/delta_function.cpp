@@ -19,13 +19,13 @@ DeltaFunction * DeltaFunction::smearingFactory(Context &context,
 
   auto choice = context.getSmearingMethod();
   if (choice == gaussian) {
-    return new GaussianDeltaFunction(context);
+    return new GaussianDeltaFunction(fullBandStructure, context);
   } else if (choice == adaptiveGaussian) {
-    return new AdaptiveGaussianDeltaFunction(fullBandStructure);
+    return new AdaptiveGaussianDeltaFunction(fullBandStructure, context);
   } else if (choice == tetrahedron) {
     return new TetrahedronDeltaFunction(fullBandStructure);
   } else if (choice == symAdaptiveGaussian) {
-    return new SymAdaptiveGaussianDeltaFunction(fullBandStructure);
+    return new SymAdaptiveGaussianDeltaFunction(fullBandStructure, context);
   } else {
     Error("Unrecognized smearing choice");
     return nullptr;
@@ -34,9 +34,21 @@ DeltaFunction * DeltaFunction::smearingFactory(Context &context,
 
 // Gaussian smearing ----------------------------------------------------
 
-GaussianDeltaFunction::GaussianDeltaFunction(Context &context) {
-  inverseWidth = 1. / context.getSmearingWidth();
-  prefactor = 1. / context.getSmearingWidth() / sqrt(pi);
+GaussianDeltaFunction::GaussianDeltaFunction(BaseBandStructure& bandStructure, Context &context) { 
+
+  double smearingWidth = context.getSmearingWidth();
+
+  // in the coupled case we need two
+  if (context.getAppName().find("Coupled") != std::string::npos && 
+		  	bandStructure.getParticle().isPhonon()) {
+    smearingWidth = smearingWidth * 0.01;  
+  }
+  if(mpi->mpiHead())
+    std::cout << "The Gaussian smearing width is set to " << smearingWidth << std::endl;
+
+  inverseWidth = 1. / smearingWidth;
+  prefactor = 1. / smearingWidth / sqrt(pi);
+
 }
 
 double GaussianDeltaFunction::getSmearing(const double &energy,
@@ -59,7 +71,7 @@ double GaussianDeltaFunction::getSmearing(const double &energy, StateIndex &is) 
 // Adaptive gaussian smearing -----------------------------------------
 
 AdaptiveGaussianDeltaFunction::AdaptiveGaussianDeltaFunction(
-    BaseBandStructure &bandStructure, double broadeningCutoff_) {
+    BaseBandStructure &bandStructure, Context& context, double broadeningCutoff_) {
   auto tup = bandStructure.getPoints().getMesh();
   auto mesh = std::get<0>(tup);
   qTensor = bandStructure.getPoints().getCrystal().getReciprocalUnitCell();
@@ -67,6 +79,25 @@ AdaptiveGaussianDeltaFunction::AdaptiveGaussianDeltaFunction(
   qTensor.row(1) /= mesh(1);
   qTensor.row(2) /= mesh(2);
   broadeningCutoff = broadeningCutoff_;
+
+  // if user set this input we override it here
+  if (!std::isnan(context.getAdaptiveSmearingPrefactor())) {
+
+    adaptivePrefactor = context.getAdaptiveSmearingPrefactor();
+    
+    if(context.getAppName().find("Coupled") != std::string::npos) {
+      Warning("For a coupled calculation, be careful about setting adaptiveSmearingPrefactor --\n"
+		      "this will set the el and ph values to the same thing,\n"
+		      "which is likely not optimal!");
+    }
+  }
+  else if(bandStructure.getParticle().isPhonon()) { 
+    adaptivePrefactor = 0.0001; // this is tested to work well for phonons
+  } else {
+    adaptivePrefactor = 2.; // tested to work well for electrons
+  }
+  if(mpi->mpiHead()) 
+    std::cout << "The adaptive smearing prefactor is set to " << adaptivePrefactor << std::endl;
 }
 
 double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
@@ -88,7 +119,7 @@ double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
   for (int i : {0, 1, 2}) {
     sigma += pow(qTensor.row(i).dot(velocity), 2);
   }
-  sigma = prefactor * sqrt(sigma / 6.);
+  sigma = prefactor * adaptivePrefactor * sqrt(sigma);
 
   if (sigma == 0.) {
     return 0.;
@@ -118,13 +149,12 @@ double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
 // Symmetry respecting adaptive smearing -----------------------------------------
 
 SymAdaptiveGaussianDeltaFunction::SymAdaptiveGaussianDeltaFunction(
-    BaseBandStructure &bandStructure, double broadeningCutoff_)
-    : AdaptiveGaussianDeltaFunction(bandStructure, broadeningCutoff_) {
+    BaseBandStructure &bandStructure, Context& context, double broadeningCutoff_)
+    : AdaptiveGaussianDeltaFunction(bandStructure, context, broadeningCutoff_) {
 
   // cannot override this in the header, as it's an inherited class variable
   // therefore, we have to do it here
   id = DeltaFunction::symAdaptiveGaussian;
-
 }
 
 double SymAdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
@@ -140,13 +170,7 @@ double SymAdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
     sigma_ijk(2) += pow(qTensor.row(i).dot(velocity3), 2);
   }
   double sigma = sigma_ijk.norm();
-  sigma = prefactor * sqrt(sigma) * 2.; // choose a = 2,
-                // which seems to remove negative el relaxons eigenvalues at low T
-
-  // looking at eq 33 and 34 here,
-  // https://journals.aps.org/prb/pdf/10.1103/PhysRevB.75.195121
-  // Apparently expect good good results for 0.8 < a < 1.3
-
+  sigma = prefactor * sqrt(sigma) * adaptivePrefactor; 
   if (sigma == 0.) { return 0.; }
 
   // NOTE are we sure we want to do we want this cutoff?

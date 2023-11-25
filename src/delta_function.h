@@ -71,7 +71,7 @@ public:
   /** Constructor of the gaussian smearing scheme.
    * @param context: object with user input.
    */
-  explicit GaussianDeltaFunction(Context &context); // context to get amplitude
+  explicit GaussianDeltaFunction(BaseBandStructure& bandStructure,Context &context); // context to get amplitude
 
   /** Method to obtain the value of smearing.
    * @param energy: the energy difference.
@@ -110,7 +110,7 @@ public:
    * @param bandStructure: mainly to see what mesh of points and crystal is
    * being used, and to prepare a suitable scaling of velocities.
    */
-  explicit AdaptiveGaussianDeltaFunction(BaseBandStructure &bandStructure,
+  explicit AdaptiveGaussianDeltaFunction(BaseBandStructure &bandStructure, Context& context,
                                          double broadeningCutoff_=0.0001 / energyRyToEv);
 
   /** Method to obtain the value of smearing.
@@ -146,6 +146,15 @@ protected:
   // since we truncate the smearing above 2sigma, we use erf to correct
   // results
   const double erf2 = 0.9953222650189527;
+
+  // choose a = 2 (though this is overwritten if adaptivePrefactor is set in input)
+  // which seems to remove negative el relaxons eigenvalues at low T
+  // looking at eq 33 and 34 here,
+  // https://journals.aps.org/prb/pdf/10.1103/PhysRevB.75.195121
+  // Apparently expect good good results for 0.8 < a < 1.3
+  double adaptivePrefactor = sqrt(1. / 6.);
+  bool isPhonon;
+
 };
 
 /** Class for approximating the Delta function with the tetrahedron method
@@ -216,7 +225,7 @@ public:
    * @param bandStructure: mainly to see what mesh of points and crystal is
    * being used, and to prepare a suitable scaling of velocities.
    */
-  explicit SymAdaptiveGaussianDeltaFunction(BaseBandStructure &bandStructure,
+  explicit SymAdaptiveGaussianDeltaFunction(BaseBandStructure &bandStructure, Context& context,
                                          double broadeningCutoff_=0.0001 / energyRyToEv);
 
   /** Method to obtain the value of smearing.

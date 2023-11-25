@@ -316,6 +316,11 @@ ParallelMatrix<T>::ParallelMatrix(const int& numRows, const int& numCols,
   numLocalCols_ = numroc_(&numCols_, &blockSizeCols_, &myBlasCol_, &iZero, &numBlasCols_);
   numLocalElements_ = numLocalRows_ * numLocalCols_;
 
+  //if(numLocalElements_ < 0) { // probably overflowed
+  //  Error("The number of matrix elements local to this process overflows int\n"
+  //		    "increase the number of MPI processes.");
+  //} 
+
   // allocate the matrix
   mat = new T[numLocalElements_];
 
@@ -334,7 +339,7 @@ ParallelMatrix<T>::ParallelMatrix(const int& numRows, const int& numCols,
             &iZero, &iZero, &blacsContext_, &lddA, &info);
 
   if (info != 0) {
-    Error("Something wrong calling descinit", info);
+    DeveloperError("Something wrong calling descinit", info);
   }
 }
 

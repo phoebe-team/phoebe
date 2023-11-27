@@ -8,6 +8,7 @@
 #include "statistics_sweep.h"
 #include "vector_bte.h"
 #include "vector_epa.h"
+#include <nlohmann/json.hpp>
 
 /** Class to compute the electronic transport coefficients.
  */
@@ -108,6 +109,9 @@ public:
   Eigen::Tensor<double, 3> getElectricalConductivity();
   Eigen::Tensor<double, 3> getThermalConductivity();
 
+  /** For developer purposes, writing the df/dE * (E-mu) style terms to file */
+  void writeIntegralContributions();
+
 protected:
   StatisticsSweep &statisticsSweep;
   Crystal &crystal;
@@ -120,6 +124,7 @@ protected:
 
   Eigen::Tensor<double, 3> sigma, seebeck, kappa, mobility;
   Eigen::Tensor<double, 3> LEE, LET, LTE, LTT;
+
 };
 
 #endif

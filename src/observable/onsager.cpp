@@ -137,6 +137,8 @@ void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
   std::vector<int> states = bandStructure.parallelIrrStateIterator();
   int numStates = states.size();
 
+  // kokkos version of the below code
+  /*
   Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
       LEE_k(LEE.data(), numCalculations, 3, 3);
   Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
@@ -201,6 +203,41 @@ void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
   Kokkos::Experimental::contribute(LET_k, scatter_LET_k);
   Kokkos::Experimental::contribute(LTE_k, scatter_LTE_k);
   Kokkos::Experimental::contribute(LTT_k, scatter_LTT_k);
+*/
+
+  for (int is : bandStructure.parallelIrrStateIterator()) {
+    StateIndex isIdx(is);
+    double energy = bandStructure.getEnergy(isIdx);
+    Eigen::Vector3d velIrr = bandStructure.getGroupVelocity(isIdx);
+    int iBte = bandStructure.stateToBte(isIdx).get();
+    auto rotations = bandStructure.getRotationsStar(isIdx);
+
+    for (int iCalc = 0; iCalc < statisticsSweep.getNumCalculations(); iCalc++) {
+      auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
+      double en = energy - calcStat.chemicalPotential;
+
+      for (const Eigen::Matrix3d& r : rotations) {
+        Eigen::Vector3d thisNE = Eigen::Vector3d::Zero();
+        Eigen::Vector3d thisNT = Eigen::Vector3d::Zero();
+        for (int i : {0, 1, 2}) {
+          thisNE(i) += nE(iCalc, i, iBte);
+          thisNT(i) += nT(iCalc, i, iBte);
+        }
+        thisNE = r * thisNE;
+        thisNT = r * thisNT;
+        Eigen::Vector3d vel = r * velIrr;
+
+        for (int i : {0, 1, 2}) {
+          for (int j : {0, 1, 2}) {
+            LEE(iCalc, i, j) += thisNE(i) * vel(j) * norm;
+            LET(iCalc, i, j) += thisNT(i) * vel(j) * norm;
+            LTE(iCalc, i, j) += thisNE(i) * vel(j) * en * norm;
+            LTT(iCalc, i, j) += thisNT(i) * vel(j) * en * norm;
+          }
+        }
+      }
+    }
+  }
 
   // lastly, the states were distributed with MPI
   mpi->allReduceSum(&LEE);
@@ -211,7 +248,93 @@ void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
   onsagerToTransportCoeffs(statisticsSweep, dimensionality,
                         LEE, LTE, LET, LTT, kappa, sigma, mobility, seebeck);
 
+  // TODO remove, this is for dev purposes
+  writeIntegralContributions();
+
   Kokkos::Profiling::popRegion();
+}
+
+void OnsagerCoefficients::writeIntegralContributions() { 
+
+  int numCalcs = statisticsSweep.getNumCalculations();
+  auto particle = bandStructure.getParticle();
+
+  std::vector<double> dfdeOnly(numCalcs);  // we want to plot mu v fd/de
+  std::vector<double> dfdeEmu(numCalcs);  // we want to plot mu v fd/de
+  std::vector<double> dfdeEmuSq(numCalcs);  // we want to plot mu v fd/de
+  std::vector<double> gaussianDOS(numCalcs);  // regular way to calculate dos
+  std::vector<double> chemPots;
+  std::vector<double> temperatures;
+
+  // set these up so it's easier to use OMP below
+  for (int iCalc = 0; iCalc < numCalcs; iCalc++) {
+
+    double chemPot = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
+    double temp = statisticsSweep.getCalcStatistics(iCalc).temperature;
+    chemPots.push_back(chemPot);
+    temperatures.push_back(temp);
+  }
+
+  size_t Nk = bandStructure.getPoints().getNumPoints();
+  double volume = crystal.getVolumeUnitCell(dimensionality); 
+  size_t Nkcount = 0; 
+
+  for (int iCalc = 0; iCalc < numCalcs; iCalc++) {
+ 
+    double mu = chemPots[iCalc];	  
+    double temp = temperatures[iCalc];	  
+
+    for (int is : bandStructure.parallelIrrStateIterator()) {
+
+      StateIndex isIdx(is);
+      double energy = bandStructure.getEnergy(isIdx);
+      double dfde = particle.getDnde(energy, temp, mu);
+      auto rotations = bandStructure.getRotationsStar(isIdx); 
+
+      // weight by the number of rotations which reduce to this point
+      double contrib = dfde * -1.0;
+      contrib *= rotations.size();
+      dfdeOnly[iCalc] += contrib;
+      dfdeEmu[iCalc] += dfde * (energy - mu) * rotations.size();  
+      dfdeEmuSq[iCalc] += dfde * (energy - mu) * (energy - mu) * rotations.size();
+      Nkcount +=  rotations.size();
+    }
+    dfdeOnly[iCalc] /= Nk;
+    dfdeOnly[iCalc] /= volume;
+  }
+  mpi->allReduceSum(&Nkcount);
+  mpi->allReduceSum(&dfdeOnly);
+  mpi->allReduceSum(&dfdeEmu);
+  mpi->allReduceSum(&dfdeEmuSq);
+
+  // find g(Ef)
+  std::vector<double> Nmu(numCalcs); 
+
+  for (int iCalc = 0; iCalc < numCalcs; iCalc++) {
+    for (int jCalc = 0; jCalc < iCalc; jCalc++) {
+      Nmu[iCalc] += dfdeOnly[jCalc];
+    }
+    double deltaMu = (chemPots[iCalc] - chemPots[0]) / iCalc;
+    Nmu[iCalc] *= volume * deltaMu; 
+  }
+
+  if(mpi->mpiHead()) { 
+    // output to json
+    nlohmann::json output;
+    output["chemicalPotentials"] = chemPots;
+    output["chemicalPotentialUnit"] = "eV";
+    output["temperatures"] = temperatures; 
+    output["temperatureUnit"] = "K";
+    output["sigmaIntegrand"] = dfdeOnly; 
+    output["kappaIntegrand"] = dfdeEmu; 
+    output["sigmaSIntegrand"] = dfdeEmuSq;
+    output["Nmu"] = Nmu; 
+    output["particleType"] = "electron";
+    std::ofstream o("onsager_integrands.json");
+    o << std::setw(3) << output << std::endl;
+    o.close();
+  }
+
 }
 
 void OnsagerCoefficients::calcFromRelaxons(
@@ -274,7 +397,8 @@ void OnsagerCoefficients::calcFromRelaxons(
     mpi->allReduceSum(&nT.data);
 
   } else { // with symmetries
-    Error("Developer error: Theoretically, relaxons with symmetries may not work.");
+
+    DeveloperError("Theoretically, relaxons with symmetries may not work.");
     Eigen::MatrixXd fE(3, eigenvectors.cols());
     Eigen::MatrixXd fT(3, eigenvectors.cols());
     fE.setZero();

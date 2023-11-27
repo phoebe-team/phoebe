@@ -666,8 +666,10 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
   * we do this here because at this point, we have set up the filter
   * but not applied it yet. This makes it easy to edit the filter without
   * causing problems removing bands later */
-  enforceBandNumSymmetry(context, numFullBands, myFilteredPoints, filteredBands,
+  if(context.getSymmetrizeBandStructure()) {
+	  enforceBandNumSymmetry(context, numFullBands, myFilteredPoints, filteredBands,
                          displacements, h0, withVelocities);
+  }
 
   // numBands is a book-keeping of how many bands per point there are
   // this isn't a constant number.
@@ -798,7 +800,7 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
   mpi->allReduceSum(&velocities);
   mpi->allReduceSum(&eigenvectors);
 
-  symmetrize(context, withVelocities);
+  if(context.getSymmetrizeBandStructure()) symmetrize(context, withVelocities);
   buildSymmetries();
   Kokkos::Profiling::popRegion();
 }
@@ -992,8 +994,10 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   * we do this here because at this point, we have set up the filter
   * but not applied it yet. This makes it easy to edit the filter without
   * causing problems removing bands later */
-  enforceBandNumSymmetry(context, numFullBands, myFilteredPoints, filteredBands,
+  if(context.getSymmetrizeBandStructure()) {
+    enforceBandNumSymmetry(context, numFullBands, myFilteredPoints, filteredBands,
                          displacements, h0, withVelocities);
+  }
 
   // ---------- count numBands and numStates  --------------- //
   // numBands is a book-keeping of how many bands per point there are
@@ -1122,10 +1126,10 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
     Kokkos::Profiling::popRegion();
   }
 
-  symmetrize(context, withVelocities);
+  if(context.getSymmetrizeBandStructure()) symmetrize(context, withVelocities);
   buildSymmetries();
   Kokkos::Profiling::popRegion();
-  statisticsSweep.calcNumFreeCarriers(this);
+  //statisticsSweep.calcNumFreeCarriers(this);
   return statisticsSweep;
 }
 

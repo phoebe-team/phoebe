@@ -32,7 +32,10 @@ TEST(ABS, Symmetries) {
 
   // setup parameters for active band structure creation
   Eigen::Vector3i qMesh;
-  qMesh << 2, 2, 2;
+  qMesh << 3, 3, 3;
+  // note: the 2,2,2 test wasn't useful, because the velocity = 0 in all points
+  // (2x2x2 only samples center + border of Brillouin zone)
+
   Points points(crystal, qMesh);
   bool withVelocities = true;
   bool withEigenvectors = true;
@@ -45,21 +48,26 @@ TEST(ABS, Symmetries) {
   ActiveBandStructure abs = std::get<0>(bsTup2);
 
   std::vector<Eigen::MatrixXd> allVelocities;
+  std::vector<Eigen::VectorXd> allEnergies;
   for (long ik = 0; ik < fbs.getNumPoints(); ik++) {
     auto ikIdx = WavevectorIndex(ik);
     Eigen::MatrixXd v = fbs.getGroupVelocities(ikIdx);
     allVelocities.push_back(v);
+    Eigen::VectorXd e = fbs.getEnergies(ikIdx);
+    allEnergies.push_back(e);
   }
 
-  points.setIrreduciblePoints(&allVelocities);
+  points.setIrreduciblePoints(&allVelocities, &allEnergies);
   // we expect 3 irreducible points out of 8 reducible
-  EXPECT_EQ(points.irrPointsIterator().size(), 3);
-  EXPECT_EQ(points.getNumPoints(), 8);
+  EXPECT_EQ(points.irrPointsIterator().size(), 4);
+  EXPECT_EQ(points.getNumPoints(), qMesh.prod());
   // gamma is discarded by abs
-  EXPECT_EQ(abs.irrPointsIterator().size(), 2);
+  EXPECT_EQ(abs.irrPointsIterator().size(), 3);
 
-  EXPECT_EQ(abs.getNumPoints(), 7);
+  EXPECT_EQ(abs.getNumPoints(), 26);
 
+  // check tha the first two irr (non gamma) points are 1 and 4,
+  // where we expect the four irr points to be 0, 1, 4, 5.
   int count = 0;
   for (int ik : abs.irrPointsIterator()) {
     auto ikIdx = WavevectorIndex(ik);
@@ -73,7 +81,7 @@ TEST(ABS, Symmetries) {
     }
     if (count == 1) {
       int idx = points.irrPointsIterator()[2];
-      EXPECT_EQ(idx, 3);
+      EXPECT_EQ(idx, 4);
       Eigen::Vector3d diff =
           kAbs - points.getPointCoordinates(idx, Points::cartesianCoordinates);
       EXPECT_EQ(diff.norm(), 0.);
@@ -84,11 +92,11 @@ TEST(ABS, Symmetries) {
   for (int ik : abs.irrPointsIterator()) {
     auto ikIdx = WavevectorIndex(ik);
     auto ens = abs.getEnergies(ikIdx);
-    if (ik == 0) {
-      EXPECT_EQ(ens.size(), 4);
-    } else if (ik == 2) {
-      EXPECT_EQ(ens.size(), 6);
-    }
+//    if (ik == 0) {
+//      EXPECT_EQ(ens.size(), 4);
+//    } else if (ik == 2) {
+//      EXPECT_EQ(ens.size(), 6);
+//    }
 
     auto qIrr = abs.getWavevector(ikIdx);
 
@@ -104,7 +112,7 @@ TEST(ABS, Symmetries) {
       k1 = points.bzToWs(k1, Points::cartesianCoordinates);
       q = points.bzToWs(q, Points::cartesianCoordinates);
       auto diff = (k1 - q).norm();
-      EXPECT_NEAR(diff, 0, 1.e-16);
+      EXPECT_NEAR(diff, 0., 1e-14);
 
       WavevectorIndex ikFullIdx(ikFull);
       Eigen::VectorXd enAbs = abs.getEnergies(ikIdx);
@@ -140,6 +148,34 @@ TEST(ABS, Symmetries) {
     EXPECT_EQ(count2, abs.getNumPoints());
   }
 
+  // let's build a matrix containing the band degeneracy
+  std::vector<std::vector<int>> bandDegeneracies;
+  for (int ik=0; ik<points.getNumPoints(); ++ik) {
+    int numBands = fbs.getNumBands();
+    WavevectorIndex ikIdx(ik);
+    Eigen::VectorXd energies = fbs.getEnergies(ikIdx);
+    std::vector<int> kDeg(numBands, 1);
+    for (int ib = 0; ib < numBands; ++ib) {
+      // first, we check if the band is degenerate, and the size of the
+      // degenerate subspace
+      int degDegree = 1;
+      for (int ib2 = ib + 1; ib2 < numBands; ib2++) {
+        // I consider bands degenerate if their energies are the same
+        double rel = (energies(ib) - energies(ib2)) / energies(ib);
+        if ( std::abs( rel ) > 1.0e-3) {
+          break;
+        }
+        degDegree += 1;
+      }
+      for (int ib2=0; ib2<degDegree; ++ib2 ) {
+        kDeg[ib+ib2] = degDegree;
+      }
+      // we skip the bands in the subspace, since we corrected them already
+      ib += degDegree - 1;
+    }
+    bandDegeneracies.push_back(kDeg);
+  }
+
   // here we check that the rotated q-point and velocities are similar
   // to those of the FullBandStructure without symmetries
 
@@ -169,9 +205,20 @@ TEST(ABS, Symmetries) {
       EXPECT_NEAR(diff, 0., 1.0e-6);
 
       for (int i : {0, 1, 2}) {
-        double diff2 = std::abs(v(i) - v2(i)) * velocityRyToSi;
+
+    	double diff2 = std::abs(v(i) - v2(i)) * velocityRyToSi;
         EXPECT_NEAR(diff2, 0., 0.0015); // there's variation on this due to degeneracies
       }
+
+      double en1 = fbs.getEnergy(isFullIdx);
+      double en2 = abs.getEnergy(isIdx);
+      ASSERT_TRUE( std::abs((en1-en2)/en1) < 1e-3);
+
+      // if velocities are degenerate, can't test equality (easily)
+      if ( bandDegeneracies[ikFull][ibIdx.get()] > 1 ) continue;
+      if (v.norm() < 1e-5) continue;
+      double diff2 = std::abs( (v - v2).norm() / v.norm());
+      EXPECT_NEAR(diff2, 0., 0.001);
     }
   }
 

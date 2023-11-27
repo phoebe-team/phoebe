@@ -213,7 +213,8 @@ public:
    * symmetries in the BTE to be the same as group velocities.
    */
   void
-  setIrreduciblePoints(std::vector<Eigen::MatrixXd> *groupVelocities = nullptr);
+  setIrreduciblePoints(std::vector<Eigen::MatrixXd> *groupVelocities = nullptr,
+                       std::vector<Eigen::VectorXd> *energies = nullptr);
 
   /** Returns an iterator on the index of irreducible points. If
    * setIrreduciblePoints has not been called, it just loops on all points.
@@ -287,9 +288,26 @@ public:
    */
   std::vector<int> getReducibleStarFromIrreducible(const int &ik);
 
+  /** Change the crystal object for a different one. Used as a helper by the
+  * symmetrize function in the bandstructure class.
+  * @param crystal: the new crystal to swap in
+  */
+  void swapCrystal(Crystal &newCrystal);
+
+  /** getRotationFromReducibleIndex does the following.
+   * Given the index of a point in the full list, it returns the rotation "rot"
+   * that maps the reducible point to the irreducible one, such that
+   * vRed = rot * vIrr , where v* is a vector with the crystal symmetries.
+   *
+   * @param ikFull: index of k-point in the full list of points.
+   * @return rot: the rotation mapping the irreducible point to the reducible
+   * point ik.
+   */
+  Eigen::Matrix3d getRotationFromReducibleIndex(int ikFull);
+
 protected:
   void setMesh(const Eigen::Vector3i &mesh_, const Eigen::Vector3d &offset_);
-  Crystal &crystalObj;
+  Crystal *crystalObj;
   Eigen::Vector3i mesh;
   Eigen::Vector3d offset;
   int numPoints = 0;

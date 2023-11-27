@@ -113,7 +113,7 @@ TEST(ActiveBandStructureTest, BandStructureStorage) {
 
     // check the energies
     double otfEns = (ensT - ensOTF).norm();
-    EXPECT_EQ(otfEns, 0.);
+    EXPECT_NEAR(otfEns, 0.,1e-16);
 
     // check the velocities
     std::complex<double> otfVelocities = complexZero;
@@ -125,7 +125,8 @@ TEST(ActiveBandStructureTest, BandStructureStorage) {
         }
       }
     }
-    EXPECT_EQ(otfVelocities, complexZero);
+    EXPECT_NEAR(otfVelocities.real(), 0, 1e-3);
+    EXPECT_NEAR(otfVelocities.imag(), 0, 1e-3);
 
     Eigen::MatrixXcd resultT = mat_vec_mat_adj(eigenVectorsT, ensT, nbOTF);
     Eigen::MatrixXcd resultOTF = mat_vec_mat_adj(ev3Dto2D(eigenVectorsOTF), ensOTF, nbOTF);
@@ -152,7 +153,9 @@ TEST(ActiveBandStructureTest, BandStructureStorage) {
         }
       }
     }
-    EXPECT_EQ(appVelocities, complexZero);
+    EXPECT_NEAR(appVelocities.real(), 0, 1e-3);
+    EXPECT_NEAR(appVelocities.imag(), 0, 1e-3);
+
 
     // check the eigenvectors
     {

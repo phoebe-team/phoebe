@@ -363,6 +363,10 @@ public:
    */
   std::vector<int> parallelIrrPointsIterator() override;
 
+  /** Returns the number of irr points in this band structure
+  */
+  int getNumIrrStates() override;
+
   /** Find the index of a point in the reducible list of points, given its
    * coordinates in the crystal basis.
    *
@@ -416,6 +420,8 @@ public:
   void buildIndices(); // to be called after building the band structure
   // and these are the tools to convert indices
   void buildSymmetries();
+  // symmetrizes the band energies, velocities, and eigenvectors
+  void symmetrize(Context &context, const bool& withVelocities);
 
   // utilities to convert Bloch indices into internal indices
   int velBloch2Comb(const int &ik, const int &ib1, const int &ib2,
@@ -428,6 +434,7 @@ public:
   std::tuple<int, int> bteComb2Bloch(const int &is);
 
   void buildOnTheFly(Window &window, Points points_, HarmonicHamiltonian &h0,
+                     Context& context,
                      const bool &withEigenvectors = true,
                      const bool &withVelocities = true);
 
@@ -435,6 +442,15 @@ public:
                                         HarmonicHamiltonian &h0,
                                         const bool &withEigenvector = true,
                                         const bool &withVelocities = true);
+
+  /* helper function to enforce that sym eq points have the same number of bands
+  *  during the construction of active band structure */
+  void enforceBandNumSymmetry(Context& context, const int& numFullBands,
+        const std::vector<int>& myFilteredPoints,
+        Eigen::MatrixXi& filteredBands,
+        const std::vector<int>& displacements,
+        HarmonicHamiltonian& h0, const bool &withVelocities);
+
 };
 
 #endif

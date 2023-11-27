@@ -529,6 +529,10 @@ std::vector<int> FullBandStructure::parallelIrrPointsIterator() {
   return points.parallelIrrPointsIterator();
 }
 
+int FullBandStructure::getNumIrrStates() {
+  return points.irrPointsIterator().size() * numBands;
+}
+
 int FullBandStructure::getPointIndex(const Eigen::Vector3d &crystalCoordinates,
                    const bool &suppressError) {
   if (suppressError) {

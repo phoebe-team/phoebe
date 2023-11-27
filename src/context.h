@@ -36,6 +36,7 @@ class Context {
 
   bool scatteringMatrixInMemory = true;
   bool useSymmetries = false;
+  bool symmetrizeBandStructure = false;
 
   std::string windowType = "nothing";
   Eigen::Vector2d windowEnergyLimit = Eigen::Vector2d::Zero();
@@ -131,7 +132,25 @@ class Context {
 
   int hdf5ElphFileFormat = 1;
   std::string wsVecFileName;
+
 public:
+
+  /** Reads the user-provided input file and saves the input parameters
+   * @param fileName: path to the input file
+   */
+  void setupFromInput(const std::string &fileName);
+
+  /** Prints the user-provided input variables to output, including default values.
+   * @param fileName: path to the input file, just to print where input came from.
+   */
+  void printInputSummary(const std::string &fileName);
+
+  /** Reinforce that all variables dependent on each other are correct
+   */
+  void checkDependentVariables(); 
+
+  // Setter and getter for all the variables above ----------------
+
   // Methods for the apps of plotting the electron-phonon coupling
   std::string getG2PlotStyle();
   void setG2PlotStyle(const std::string &x);
@@ -147,8 +166,6 @@ public:
 
   std::pair<int,int> getG2PlotPhBands();
   void setG2PlotPhBands(const std::pair<int,int> &x);
-
-  //  Setter and getter for all the variables above
 
   /** gets the name of the file containing the lattice force constants.
    * For Quantum Espresso, this is the path to the file produced by q2r.
@@ -327,6 +344,8 @@ public:
 
   bool getUseSymmetries() const;
   void setUseSymmetries(const bool &x);
+  bool getSymmetrizeBandStructure() const;
+  void setSymmetrizeBandStructure(const bool &x);
 
   bool getWithIsotopeScattering() const;
 
@@ -346,16 +365,6 @@ public:
   double getEpaEnergyRange() const;
   double getEpaEnergyStep() const;
   double getEFermiRange() const;
-
-  /** Reads the user-provided input file and saves the input parameters
-   * @param fileName: path to the input file
-   */
-  void setupFromInput(const std::string &fileName);
-
-  /** Prints the user-provided input variables to output, including default values.
-   * @param fileName: path to the input file, just to print where input came from.
-   */
-  void printInputSummary(const std::string &fileName);
 
   Eigen::VectorXi getCoreElectrons();
   void setCoreElectrons(const Eigen::VectorXi &x);

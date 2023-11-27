@@ -655,8 +655,6 @@ void Context::setupFromInput(const std::string &fileName) {
 
       if (parameterName == "useUpperTriangle") {
         useUpperTriangle = parseBool(val);
-        // this shouldn't be used if we're symmetrizing
-        if(getSymmetrizeMatrix()) useUpperTriangle = false;
       }
 
       if (parameterName == "numRelaxonsEigenvalues") {
@@ -669,6 +667,10 @@ void Context::setupFromInput(const std::string &fileName) {
 
       if (parameterName == "useSymmetries") {
         useSymmetries = parseBool(val);
+      }
+
+      if (parameterName == "symmetrizeBandStructure") {
+        symmetrizeBandStructure = parseBool(val);
       }
 
       if (parameterName == "withIsotopeScattering") {
@@ -824,7 +826,17 @@ void Context::setupFromInput(const std::string &fileName) {
     }
     lineCounter += 1;
   }
+  // check dependent input variables 
+  checkDependentVariables();
 }
+
+void Context::checkDependentVariables() { 
+
+  // this shouldn't be used if we're symmetrizing
+  if(getSymmetrizeMatrix()) useUpperTriangle = false;
+
+}
+
 // helper functions for printInputSummary
 template <typename T>
 void printVector(const std::string& varName, std::vector<T> vec) {
@@ -854,6 +866,7 @@ void Context::printInputSummary(const std::string &fileName) {
 
   // crystal structure parameters -------------------
   std::cout << "useSymmetries = " << useSymmetries << std::endl;
+  std::cout << "symmetrizeBandStructure = " << symmetrizeBandStructure << std::endl;
   std::cout << "dimensionality = " << dimensionality << std::endl;
   std::cout << std::endl;
 
@@ -1325,6 +1338,9 @@ bool Context::getCheckNegativeRelaxons() const { return checkNegativeRelaxons; }
 
 bool Context::getUseSymmetries() const { return useSymmetries; }
 void Context::setUseSymmetries(const bool &x) { useSymmetries = x; }
+
+bool Context::getSymmetrizeBandStructure() const { return symmetrizeBandStructure; }
+void Context::setSymmetrizeBandStructure(const bool &x) { symmetrizeBandStructure = x; }
 
 Eigen::VectorXd Context::getMasses() { return customMasses; }
 Eigen::VectorXd Context::getIsotopeCouplings() { return customIsotopeCouplings; }

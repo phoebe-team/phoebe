@@ -206,7 +206,9 @@ if(doIterative || doVariational) {
     // here -- they are saved internally to the class
     CoupledCoefficients coupledCoeffs(elStatisticsSweep, crystal, context);
     coupledCoeffs.calcSpecialEigenvectors(elStatisticsSweep, &phBandStructure, &elBandStructure);
-    coupledCoeffs.outputDuToJSON(scatteringMatrix, context);
+    // TODO improve this later, symmetrization here set to false and true
+    coupledCoeffs.outputDuToJSON(scatteringMatrix, context, false);
+    coupledCoeffs.outputDuToJSON(scatteringMatrix, context, true);
 
     // diagonalize the coupled matrix
     auto tup2 = scatteringMatrix.diagonalize();
@@ -228,6 +230,7 @@ if(doIterative || doVariational) {
     coupledCoeffs.print();
     // note: viscosities are output by default internally in calcFromRelaxons
     coupledCoeffs.outputToJSON("coupled_relaxons_transport_coeffs.json");
+    coupledCoeffs.symmetrize3x3Tensors();
 
     // output relaxation times (the eigenvalues)
     // TODO also write the relaxons visulation function?

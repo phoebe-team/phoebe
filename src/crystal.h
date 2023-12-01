@@ -214,6 +214,12 @@ public:
   buildWignerSeitzVectorsWithShift(const Eigen::Vector3i &grid,
                                    const Eigen::MatrixXd &shift,
                                    const int &superCellFactor = 2);
+
+  /** A function to set up the symmetry rotation matrices for a crystal, 
+   * which are then stored in this object. */
+  void generateSymmetryInformation(Context &context);
+
+
 };
 
 #endif

@@ -103,6 +103,14 @@ void PhononThermalConductivity::calcFromPopulation(VectorBTE &n) {
 
   // lastly, the states were distributed with MPI
   mpi->allReduceSum(&tensordxd);
+
+  // we print the unsymmetrized tensor to output file
+  if(mpi->mpiHead()) { 
+    std::cout << "Pre-symmetrization thermal conductivity:\n" << std::endl;
+    print();
+  }
+  // symmetrize the thermal conductivity 
+  symmetrize(tensordxd);
 }
 
 void PhononThermalConductivity::calcVariational(VectorBTE &af, VectorBTE &f, VectorBTE &b) {
@@ -173,6 +181,13 @@ void PhononThermalConductivity::calcVariational(VectorBTE &af, VectorBTE &f, Vec
   mpi->allReduceSum(&y2);
 
   tensordxd = 2 * y2 - y1;
+  // we print the unsymmetrized tensor to output file
+  if(mpi->mpiHead()) {
+    std::cout << "Unsymmetrized thermal conductivity:\n" << std::endl;
+    print();
+  }
+  // symmetrize the thermal conductivity
+  symmetrize(tensordxd);
 }
 
 // TODO this should be commented better to make it more understandable -- Jenny

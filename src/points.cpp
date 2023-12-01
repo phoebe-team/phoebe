@@ -1169,4 +1169,3 @@ Eigen::Matrix3d Points::getRotationFromReducibleIndex(int ikFull) {
   rot = rotationMatricesCartesian[mapEquivalenceRotationIndex(ikFull)];
   return rot;
 }
-

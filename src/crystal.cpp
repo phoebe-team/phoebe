@@ -114,8 +114,14 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
     atomicNames[i] = speciesNames[atomicSpecies(i)];
     atomicIsotopeCouplings(i) = speciesIsotopeCouplings(atomicSpecies(i));
   }
+  // call the function to set up crystal symmetries
+  generateSymmetryInformation(context);
+  if (mpi->mpiHead()) {  // we only really want to print this on construction 
+    std::cout << "Found " << numSymmetries << " symmetries\n";
+  }
+}
 
-  //-----------------------------------------------------------------
+void Crystal::generateSymmetryInformation(Context &context) {
 
   int maxSize = 192;
   int rotations[maxSize][3][3];
@@ -168,10 +174,6 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
       Error("SPGlib failed at recognizing symmetries");
     }
 
-    if (mpi->mpiHead()) {
-      std::cout << "Found " << numSymmetries << " symmetries\n";
-    }
-
   } else { // if we disable symmetries, and just use the identity
 
     numSymmetries = 1;
@@ -193,7 +195,6 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
 
   // store the symmetries inside the class
   // note: spglib returns rotation and translation in fractional coordinates
-
   for (int iSymmetry = 0; iSymmetry < numSymmetries; iSymmetry++) {
     Eigen::Vector3d thisTranslation;
     thisTranslation(0) = translations[iSymmetry][0];

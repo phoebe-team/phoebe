@@ -97,6 +97,7 @@ void OnsagerCoefficients::calcFromCanonicalPopulation(VectorBTE &fE,
 }
 
 void OnsagerCoefficients::calcFromSymmetricPopulation(VectorBTE &nE, VectorBTE &nT) {
+
   VectorBTE nE2 = nE;
   VectorBTE nT2 = nT;
 
@@ -334,7 +335,6 @@ void OnsagerCoefficients::writeIntegralContributions() {
     o << std::setw(3) << output << std::endl;
     o.close();
   }
-
 }
 
 void OnsagerCoefficients::calcFromRelaxons(
@@ -583,4 +583,65 @@ void OnsagerCoefficients::calcVariational(VectorBTE &afE, VectorBTE &afT,
   mpi->allReduceSum(&y2T);
   sigma = 2. * y2E - y1E;
   kappa = 2. * y2T - y1T;
+
+  if(context.getSymmetrizeBandStructure()) {
+    // we print the unsymmetrized tensor to output file
+    if(mpi->mpiHead()) {
+      std::cout << "Unsymmetrized electronic transport properties:\n" << std::endl;
+      print();
+    }
+    // symmetrize the conductivity 
+    symmetrize(sigma);
+    symmetrize(kappa);
+    mpi->barrier();
+  }
 }
+
+// TODO this should be a function of observable rather than of onsager, 
+// however, somehow Onsager does not inherit from observable... 
+void OnsagerCoefficients::symmetrize(Eigen::Tensor<double, 3>& allTransportCoeffs) {
+
+  // get symmetry rotations of the crystal in cartesian coords
+  // in case there's no symmetries, we need to trick Phoebe into
+  // generating a crystal which uses them.
+  bool useSyms = context.getUseSymmetries();
+  context.setUseSymmetries(true);
+  Crystal symCrystal(crystal);
+  symCrystal.generateSymmetryInformation(context);
+  auto symOps = symCrystal.getSymmetryOperations();
+  context.setUseSymmetries(useSyms);
+
+  auto invLVs = crystal.getDirectUnitCell().inverse();
+  auto LVs = crystal.getDirectUnitCell();
+
+  for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+
+    Eigen::Matrix3d transportCoeffs;
+
+    // copy the 3x3 matrix of a single calculation
+    for (int j : {0, 1, 2}) {
+      for (int i : {0, 1, 2}) {
+        transportCoeffs(i,j) = allTransportCoeffs(iCalc,i,j);
+      }
+    }
+    // to hold the symmetrized coeffs
+    Eigen::Matrix3d symCoeffs;
+    symCoeffs.setZero();
+
+    for(SymmetryOperation symOp: symOps) {
+      Eigen::Matrix3d rotation = symOp.rotation;
+      rotation = LVs * rotation * invLVs; //convert to Cartesian
+      Eigen::Matrix3d rotationTranspose = rotation.transpose();
+      symCoeffs += rotationTranspose * transportCoeffs * rotation;
+    }
+    transportCoeffs = symCoeffs * (1. / symOps.size());
+
+    // place them back into the full tensor
+    for (int j : {0, 1, 2}) {
+      for (int i : {0, 1, 2}) {
+        allTransportCoeffs(iCalc,i,j) = transportCoeffs(i,j);
+      }
+    }
+  }
+}
+

@@ -305,6 +305,7 @@ public:
    */
   Eigen::Matrix3d getRotationFromReducibleIndex(int ikFull);
 
+
 protected:
   void setMesh(const Eigen::Vector3i &mesh_, const Eigen::Vector3d &offset_);
   Crystal *crystalObj;

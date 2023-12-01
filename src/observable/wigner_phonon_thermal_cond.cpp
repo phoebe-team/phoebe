@@ -112,23 +112,6 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
   mpi->allReduceSum(&wignerCorrection);
 }
 
-// copy constructor
-WignerPhononThermalConductivity::WignerPhononThermalConductivity(
-    const WignerPhononThermalConductivity &that)
-    : PhononThermalConductivity(that), smaRelTimes(that.smaRelTimes),
-      wignerCorrection(that.wignerCorrection) {}
-
-// copy assignment
-WignerPhononThermalConductivity &WignerPhononThermalConductivity::operator=(
-    const WignerPhononThermalConductivity &that) {
-  PhononThermalConductivity::operator=(that);
-  if (this != &that) {
-    smaRelTimes = that.smaRelTimes;
-    wignerCorrection = that.wignerCorrection;
-  }
-  return *this;
-}
-
 void WignerPhononThermalConductivity::calcFromPopulation(VectorBTE &n) {
   PhononThermalConductivity::calcFromPopulation(n);
   tensordxd += wignerCorrection;

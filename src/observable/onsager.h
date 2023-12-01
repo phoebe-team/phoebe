@@ -125,6 +125,12 @@ protected:
   Eigen::Tensor<double, 3> sigma, seebeck, kappa, mobility;
   Eigen::Tensor<double, 3> LEE, LET, LTE, LTT;
 
+  /** Use crystal symmetries to reinforce symmetry on a 3x3 transport tensor 
+   * @param transportCoeffs: the 3x3 tensor to symmetrize, which will be updated
+   * NOTE: duplicate code with the one in observables... really should be merged
+   **/
+  void symmetrize(Eigen::Tensor<double, 3>& allTransportCoeffs);
+
 };
 
 #endif

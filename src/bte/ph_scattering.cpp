@@ -621,6 +621,10 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
     massVariance = crystal.getAtomicIsotopeCouplings();
     Eigen::VectorXd masses = crystal.getAtomicMasses();
 
+    std::cout.precision(5);
+    if(mpi->mpiHead()) std::cout << "massVariance " << massVariance << " " << 0.0000738723 << std::endl; 
+    if(mpi->mpiHead()) std::cout << "masses " << masses.transpose() << std::endl;
+
     if (masses.size() != massVariance.size() || masses.size() != numAtoms) {
       Error("Developer error: Problem setting up mass variance: incosistent sizes");
     }
@@ -690,8 +694,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
           int iBte2 = innerBandStructure.stateToBte(is2IrrIdx).get();
 
           // remove gamma point acoustic phonon frequencies
-          if (std::find(excludeIndices.begin(), excludeIndices.end(),
-                          iBte2) != excludeIndices.end()) {
+          if (std::find(excludeIndices.begin(), excludeIndices.end(), iBte2) != excludeIndices.end()) {
             continue;
           }
           if (en2 < phEnergyCutoff) { continue; }
@@ -754,7 +757,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
                         linewidth->operator()(iCalc, 0, iBte1) += rateIso;
                       }
                       if (is1 != is2Irr) {
-                        matrix.theMatrix(iMat1, iMat2) +=
+                        matrix.theMatrix(iMat1, iMat2) -=
                             rotation.inverse()(i, j) * rateIso;
                       }
                     }
@@ -762,18 +765,17 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
                 }
               } else {
                 if (matrix.theMatrix.indicesAreLocal(iBte1Shift, iBte2Shift)) {
-                  linewidth->operator()(iCalc, 0, iBte1Shift) += rateIso;
-                  matrix.theMatrix(iBte1Shift, iBte2Shift) += rateIso;
 
+   	          linewidth->operator()(iCalc, 0, iBte1Shift) += rateIso; 
                   // if we're not symmetrizing the matrix, and we have
                   // dropped down to only using the upper triangle of the matrix, we must fill
                   // in linewidths twice, using detailed balance, in order to get the right ratest
-                  if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
+  		  if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
                     linewidth->operator()(iCalc, 0, iBte2Shift) += rateIso;
-                  }
+		  }
+                  matrix.theMatrix(iBte1Shift, iBte2Shift) -= rateIso;
                 }
               }
-
             } else if (switchCase == 1) { // case of matrix-vector multiplication
               for (unsigned int iInput = 0; iInput < inPopulations.size(); iInput++) {
 
@@ -787,9 +789,10 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
                   }
                 }
                 for (int i : {0, 1, 2}) {
-                  if (is1 != is2Irr) {
-                    outPopulations[iInput](iCalc, i, iBte1) += rateIso * inPopRot(i);
-                  }
+		  // off diagonals
+      		  if (is1 != is2Irr) {
+                    outPopulations[iInput](iCalc, i, iBte1) -= rateIso * inPopRot(i);
+                  } // diagonals 
                   outPopulations[iInput](iCalc, i, iBte1) +=
                       rateIso * inPopulations[iInput](iCalc, i, iBte1);
                 }

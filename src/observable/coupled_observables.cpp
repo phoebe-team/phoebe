@@ -101,8 +101,8 @@ void CoupledCoefficients::calcFromRelaxons(
   double T = calcStat.temperature / kBoltzmannRy;
 
   // electron and phonon participation ratios, summed over later
-  Eigen::VectorXd phPR(numRelaxons);  phPR.setZero();
-  Eigen::VectorXd elPR(numRelaxons);  elPR.setZero();
+  std::vector<double> phPR(numRelaxons);
+  std::vector<double> elPR(numRelaxons); 
 
   // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
@@ -135,8 +135,8 @@ void CoupledCoefficients::calcFromRelaxons(
 
     // sum up the participation ratios
     // Here, we expect all the el state indices will come first
-    if(is < numElStates) { elPR(gamma) += eigenvectors(is,gamma) * eigenvectors(is,gamma); }
-    else { phPR(gamma) += eigenvectors(is,gamma) * eigenvectors(is,gamma); }
+    if(is < numElStates) { elPR[gamma] += eigenvectors(is,gamma) * eigenvectors(is,gamma); }
+    else { phPR[gamma] += eigenvectors(is,gamma) * eigenvectors(is,gamma); }
 
     if(gamma >= numRelaxons) continue; // this relaxon wasn't calculated
     // negative eigenvalues are spurious, zero ones are not summed here
@@ -208,11 +208,12 @@ void CoupledCoefficients::calcFromRelaxons(
   sigmaLocal.setZero(); totalSigmaLocal.setZero(), selfSigmaS.setZero(); dragSigmaS.setZero(); totalSigmaS.setZero();
 
   // containers to calculate the specific contributions to the transport tensors
-  Eigen::Tensor<double, 3> kappaContrib(numRelaxons, 3, 3);    kappaContrib.setZero();
-  Eigen::Tensor<double, 3> sigmaContrib(numRelaxons, 3, 3);    sigmaContrib.setZero();
-  Eigen::Tensor<double, 3> sigmaSContrib(numRelaxons, 3, 3);  sigmaSContrib.setZero();
-  Eigen::VectorXd iiiiContrib(numRelaxons);   iiiiContrib.setZero();
+  kappaContrib.resize(numRelaxons, 3, 3);    kappaContrib.setZero();
+  sigmaContrib.resize(numRelaxons, 3, 3);    sigmaContrib.setZero();
+  sigmaSContrib.resize(numRelaxons, 3, 3);  sigmaSContrib.setZero();
+  iiiiContrib.resize(numRelaxons);  
 
+  // TODO could parallelize this
   for(int gamma = 0; gamma < numRelaxons; gamma++) {
 
     if(eigenvalues(gamma) <= 0) continue; // should not be counted
@@ -247,7 +248,9 @@ void CoupledCoefficients::calcFromRelaxons(
         // viscosities
         if(gamma != alpha0 || gamma != alpha_e) { // important -- including theta_0 or theta_e will lead to a wrong answer!
 
-          iiiiContrib(gamma) += sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * 1./eigenvalues(gamma);
+	  double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * 1./eigenvalues(gamma);
+	  double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1) * 1./eigenvalues(gamma);
+          iiiiContrib[gamma] += (xxxx + yyyy)/2.;
 
           for(auto k : {0, 1, 2}) {
             for(auto l : {0, 1, 2}) {
@@ -308,6 +311,26 @@ void CoupledCoefficients::calcFromRelaxons(
   if(seebeckFail) Warning("Developer error: Seebeck cross + self does not equal Seebeck total.");
   if(sigmaFail) Warning("Developer error: Sigma el does not equal sigma total.");
   if(kappaFail) Warning("Developer error: Kappa cross + selfEl + selfPh does not equal kappa total.");
+
+  // dump the participation ratios to file here, 
+  // maybe this should be a designated function 
+  nlohmann::json output;
+
+  std::vector<double> chemPots = { calcStat.chemicalPotential };
+  std::vector<double> dopings = { calcStat.doping };
+  std::vector<double> temps = { T };
+  output["temperatures"] = temps;
+  output["temperatureUnit"] = "K";
+  output["dopingConcentrations"] = dopings;
+  output["dopingConcentrationUnit"] = "cm$^{-" + std::to_string(dimensionality) + "}$";
+  output["chemicalPotentials"] = chemPots;
+  output["chemicalPotentialUnit"] = "eV";
+  output["phononParticipationRatio"] = phPR; 
+  output["electronParticipationRatio"] = elPR;
+  std::ofstream o("coupled_participation_ratios.json");
+  o << std::setw(3) << output << std::endl;
+  o.close();
+
 }
 
 // standard print
@@ -315,8 +338,6 @@ void CoupledCoefficients::print() {
 
   // prints the total tensors to the main output file
   printHelper(statisticsSweep, dimensionality, kappa, sigma, mobility, seebeck);
-
-  // TODO prints the total viscosity components?
 
 }
 
@@ -355,24 +376,30 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
   // output the transport coefficients
   int numCalculations = statisticsSweep.getNumCalculations();
 
-  std::string unitsSigma, unitsKappa;
-  double convSigma, convKappa;
+  std::string unitsSigma, unitsKappa, unitsViscosity;
+  double convSigma, convKappa, convViscosity;
   // TODO check the kappa units, I think it's missing a kb
   if (dimensionality == 1) {
     unitsSigma = "S m";
     unitsKappa = "W m / K";
+    unitsViscosity = "Pa s / m^2";
     convSigma = elConductivityAuToSi * rydbergSi * rydbergSi;
     convKappa = thConductivityAuToSi * rydbergSi * rydbergSi;
+    convViscosity = viscosityAuToSi * rydbergSi * rydbergSi;  
   } else if (dimensionality == 2) {
     unitsSigma = "S";
     unitsKappa = "W / K";
+    unitsViscosity = "Pa s / m";
     convSigma = elConductivityAuToSi * rydbergSi;
     convKappa = thConductivityAuToSi * rydbergSi;
+    convViscosity = viscosityAuToSi * rydbergSi;  
   } else {
     unitsSigma = "S / m";
     unitsKappa = "W / m / K";
+    unitsViscosity = "Pa s";
     convSigma = elConductivityAuToSi;
     convKappa = thConductivityAuToSi;
+    convViscosity = viscosityAuToSi;  
   }
 
   // TODO should this use dimensionality instead??
@@ -433,6 +460,60 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 
   }
 
+  { // so that it can be reused below
+	  
+    // output to json
+    nlohmann::json output;
+    output["temperatures"] = temps;
+    output["temperatureUnit"] = "K";
+    output["dopingConcentrations"] = dopings;
+    output["dopingConcentrationUnit"] = "cm$^{-" + std::to_string(dimensionality) + "}$";
+    output["chemicalPotentials"] = chemPots;
+    output["chemicalPotentialUnit"] = "eV";
+  
+    output["totalElectricalConductivity"] = sigmaTotalOut;
+    output["electricalConductivityUnit"] = unitsSigma;
+    output["totalMobility"] = mobilityTotalOut;
+    output["mobilityUnit"] = unitsMobility;
+  
+    output["phononThermalConductivity"] = kappaPhOut;
+    output["electronicThermalConductivity"] = kappaElOut;
+    output["crossElPhThermalConductivity"] = kappaDragOut;
+    output["totalThermalConductivity"] = kappaTotalOut;
+    output["thermalConductivityUnit"] = unitsKappa;
+  
+    output["crossElPhSeebeckCoefficient"] = seebeckDragOut;
+    output["selfElSeebeckCoefficient"] = seebeckSelfOut;
+    output["totalSeebeckCoefficient"] = seebeckTotalOut;
+    output["seebeckCoefficientUnit"] = unitsSeebeck;
+  
+    std::ofstream o(outFileName);
+    o << std::setw(3) << output << std::endl;
+    o.close();
+  }
+
+  // now output the separated contributions
+  std::vector<std::vector<std::vector<double>>> sigmaContribOut;
+  std::vector<std::vector<std::vector<double>>> kappaContribOut;
+  std::vector<std::vector<std::vector<double>>> sigmaSContribOut;
+  double convSigmaS = convSeebeck*convSigma;
+
+  int numRelaxons = iiiiContrib.size(); 
+
+  for (int gamma = 0; gamma < numRelaxons; gamma++) {
+
+    // convert viscosity units
+    iiiiContrib[gamma] *= convViscosity;  
+
+    // store the electrical conductivity for output
+    appendTransportTensorForOutput(sigmaContrib, convSigma, gamma, sigmaContribOut);
+    // store thermal conductivity for output
+    appendTransportTensorForOutput(kappaContrib, convKappa, gamma, kappaContribOut);
+    // store seebeck coefficient for output
+    appendTransportTensorForOutput(sigmaSContrib, convSigmaS, gamma, sigmaSContribOut);
+
+  }
+
   // output to json
   nlohmann::json output;
   output["temperatures"] = temps;
@@ -442,23 +523,18 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
   output["chemicalPotentials"] = chemPots;
   output["chemicalPotentialUnit"] = "eV";
 
-  output["totalElectricalConductivity"] = sigmaTotalOut;
+  output["electricalConductivityContributions"] = sigmaContribOut;
   output["electricalConductivityUnit"] = unitsSigma;
-  output["totalMobility"] = mobilityTotalOut;
-  output["mobilityUnit"] = unitsMobility;
 
-  output["phononThermalConductivity"] = kappaPhOut;
-  output["electronicThermalConductivity"] = kappaElOut;
-  output["crossElPhThermalConductivity"] = kappaDragOut;
-  output["totalThermalConductivity"] = kappaTotalOut;
+  output["thermalConductivityContribution"] = kappaContribOut;
   output["thermalConductivityUnit"] = unitsKappa;
 
-  output["crossElPhSeebeckCoefficient"] = seebeckDragOut;
-  output["selfElSeebeckCoefficient"] = seebeckSelfOut;
-  output["totalSeebeckCoefficient"] = seebeckTotalOut;
-  output["seebeckCoefficientUnit"] = unitsSeebeck;
+  output["sigmaSContribution"] = sigmaSContribOut;
+  output["sigmaSCoefficientUnit"] = unitsSeebeck + " x " + unitsSigma;
 
-  std::ofstream o(outFileName);
+  output["iiiiViscosityContribution"] = iiiiContrib;
+
+  std::ofstream o("coupled_transport_coeffs_contributions.json");
   o << std::setw(3) << output << std::endl;
   o.close();
 
@@ -694,7 +770,8 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   }
 }
 
-void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatteringMatrix, Context& context) {
+void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatteringMatrix, Context& context,
+						bool isSymmetrized) {
 
   BaseBandStructure* phBandStructure = coupledScatteringMatrix.getPhBandStructure();
   BaseBandStructure* elBandStructure = coupledScatteringMatrix.getElBandStructure();
@@ -705,11 +782,11 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
   // write D to file before diagonalizing, as the scattering matrix
   // will be destroyed by scalapack
-  Eigen::MatrixXd Du(3,3); Du.setZero();
-  Eigen::MatrixXd Wjie(3,3); Wjie.setZero();
-  Eigen::MatrixXd Wji0(3,3); Wji0.setZero();
-  Eigen::MatrixXd elWji0(3,3); elWji0.setZero();
-  Eigen::MatrixXd phWji0(3,3); phWji0.setZero();
+  Eigen::Matrix3d Du; Du.setZero();
+  Eigen::Matrix3d Wjie; Wjie.setZero();
+  Eigen::Matrix3d Wji0; Wji0.setZero();
+  Eigen::Matrix3d elWji0; elWji0.setZero();
+  Eigen::Matrix3d phWji0; phWji0.setZero();
 
   // sum over the alpha and v states that this process owns
   for (auto tup : coupledScatteringMatrix.getAllLocalStates()) {
@@ -766,6 +843,14 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   mpi->allReduceSum(&phWji0);
   mpi->allReduceSum(&elWji0);
 
+  if(isSymmetrized) {
+    symmetrize(Du);
+    symmetrize(Wji0);
+    symmetrize(elWji0);
+    symmetrize(phWji0);
+    symmetrize(Wjie);
+  }
+
   // NOTE we cannot use nested vectors from the start, as
   // vector<vector> is not necessarily contiguous and MPI
   // cannot all reduce on it
@@ -792,11 +877,11 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
   // this extra kBoltzmannRy is required when we calculate specific heat ...
   // TODO need to keep track of this and figure out where it's coming from
-  double specificHeatConversion = kBoltzmannSi / pow(bohrRadiusSi, 3) / kBoltzmannRy;
+  double specificHeatConversion = kBoltzmannSi / pow(bohrRadiusSi, dimensionality) / kBoltzmannRy;
 
   // convert Ai to SI, in units of picograms/(mu m^3)
   double Aconversion = electronMassSi /
-                       std::pow(distanceBohrToMum,dimensionality) * // convert AU mass / V -> SI
+                       std::pow(distanceBohrToMum, dimensionality) * // convert AU mass / V -> SI
                        2. *   // factor of two is a Ry->Ha conversion required here
                        1.e15; // convert electronMassSi in kg to pico g
 
@@ -822,6 +907,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   if(mpi->mpiHead()) {
     // output to json
     std::string outFileName = "coupled_relaxons_real_space_coeffs.json";
+    if(isSymmetrized)  outFileName = "sym_coupled_relaxons_real_space_coeffs.json";
     nlohmann::json output;
     output["temperature"] = kBT * temperatureAuToSi;
     output["Wji0"] = vecWji0;
@@ -851,3 +937,109 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     o.close();
   }
 }
+
+void CoupledCoefficients::symmetrize3x3Tensors() {
+
+  // symmetrize the transport tensors 
+  symmetrize(sigma);
+  symmetrize(kappa);
+  symmetrize(mobility);
+  symmetrize(seebeck);
+
+  symmetrize(sigmaTotal);
+  symmetrize(kappaTotal);
+  symmetrize(mobilityTotal);
+  symmetrize(seebeckTotal);
+
+  symmetrize(seebeckSelf);
+  symmetrize(seebeckDrag);
+  symmetrize(kappaDrag);
+  symmetrize(kappaEl);
+  symmetrize(kappaPh);
+
+  symmetrize(alphaEl);
+  symmetrize(alphaPh);
+  symmetrize(alpha);
+
+  outputToJSON("sym_coupled_relaxons_transport_coeffs.json");
+
+}
+
+// TODO this should be a function of observable rather than of onsager, 
+// however, somehow Onsager does not inherit from observable... 
+void CoupledCoefficients::symmetrize(Eigen::Matrix3d& transportCoeffs) {
+
+  // get symmetry rotations of the crystal in cartesian coords
+  // in case there's no symmetries, we need to trick Phoebe into
+  // generating a crystal which uses them.
+  bool useSyms = context.getUseSymmetries();
+  context.setUseSymmetries(true);
+  Crystal symCrystal(crystal);
+  symCrystal.generateSymmetryInformation(context);
+  auto symOps = symCrystal.getSymmetryOperations();
+  context.setUseSymmetries(useSyms);
+
+  auto invLVs = crystal.getDirectUnitCell().inverse();
+  auto LVs = crystal.getDirectUnitCell();
+
+  // to hold the symmetrized coeffs
+  Eigen::Matrix3d symCoeffs;
+  symCoeffs.setZero();
+
+  for(SymmetryOperation symOp: symOps) {
+    Eigen::Matrix3d rotation = symOp.rotation;
+    rotation = LVs * rotation * invLVs; //convert to Cartesian
+    Eigen::Matrix3d rotationTranspose = rotation.transpose();
+    symCoeffs += rotationTranspose * transportCoeffs * rotation;
+  }
+  transportCoeffs = symCoeffs * (1. / symOps.size());
+}
+
+// TODO this should be a function of observable rather than of onsager, 
+// however, somehow Onsager does not inherit from observable... 
+void CoupledCoefficients::symmetrize(Eigen::Tensor<double, 3>& allTransportCoeffs) {
+
+  // get symmetry rotations of the crystal in cartesian coords
+  // in case there's no symmetries, we need to trick Phoebe into
+  // generating a crystal which uses them.
+  bool useSyms = context.getUseSymmetries();
+  context.setUseSymmetries(true);
+  Crystal symCrystal(crystal);
+  symCrystal.generateSymmetryInformation(context);
+  auto symOps = symCrystal.getSymmetryOperations();
+  context.setUseSymmetries(useSyms);
+
+  auto invLVs = crystal.getDirectUnitCell().inverse();
+  auto LVs = crystal.getDirectUnitCell();
+
+  for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+
+    Eigen::Matrix3d transportCoeffs;
+
+    // copy the 3x3 matrix of a single calculation
+    for (int j : {0, 1, 2}) {
+      for (int i : {0, 1, 2}) {
+        transportCoeffs(i,j) = allTransportCoeffs(iCalc,i,j);
+      }
+    }
+    // to hold the symmetrized coeffs
+    Eigen::Matrix3d symCoeffs;
+    symCoeffs.setZero();
+
+    for(SymmetryOperation symOp: symOps) {
+      Eigen::Matrix3d rotation = symOp.rotation;
+      rotation = LVs * rotation * invLVs; //convert to Cartesian
+      Eigen::Matrix3d rotationTranspose = rotation.transpose();
+      symCoeffs += rotationTranspose * transportCoeffs * rotation;
+    }
+    transportCoeffs = symCoeffs * (1. / symOps.size());
+
+    // place them back into the full tensor
+    for (int j : {0, 1, 2}) {
+      for (int i : {0, 1, 2}) {
+        allTransportCoeffs(iCalc,i,j) = transportCoeffs(i,j);
+      }
+    }
+  }
+}
+

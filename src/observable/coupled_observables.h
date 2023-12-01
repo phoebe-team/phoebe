@@ -50,7 +50,7 @@ public:
   * @param coupledScatteringMatrix: the scattering matrix, before diagonalization
   * @param context: contains all info about calculation inputs
   */
-  void outputDuToJSON(CoupledScatteringMatrix& coupledScatteringMatrix, Context& context);
+  void outputDuToJSON(CoupledScatteringMatrix& coupledScatteringMatrix, Context& context, bool isSymmetrized);
 
   /** Calculates the special eigenvectors and saves them to the class objects for
    * theta0, thetae, phi, as well as norm coeffs U, G, and A
@@ -60,6 +60,9 @@ public:
   void calcSpecialEigenvectors(StatisticsSweep& statisticsSweep,
         BaseBandStructure* phBandStructure, BaseBandStructure* elBandStructure);
 
+  // TODO probably better in protected
+  /** Symmetrize all 3x3 transport tensors in this class */
+  void symmetrize3x3Tensors();
 
 protected:
 
@@ -114,11 +117,20 @@ protected:
   double Ctot; //the total electron and phonon specific heats, Cph + Cel
   double Cph, Cel; // phonon and electron specific heats
 
+  // containers to calculate the specific contributions to the transport tensors
+  Eigen::Tensor<double, 3> kappaContrib;
+  Eigen::Tensor<double, 3> sigmaContrib;
+  Eigen::Tensor<double, 3> sigmaSContrib;
+  std::vector<double> iiiiContrib;
+
   /** Helper function to simplify outputing 3x3 transport tensors to json
   */
   void appendTransportTensorForOutput(Eigen::Tensor<double, 3>& tensor,
                         double& unitConv, int& iCalc,
                         std::vector<std::vector<std::vector<double>>>& outFormat);
+
+  void symmetrize(Eigen::Tensor<double,3>& allTransportCoeffs);
+  void symmetrize(Eigen::Matrix3d& transportCoeffs);
 
 };
 

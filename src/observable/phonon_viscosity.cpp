@@ -77,6 +77,10 @@ void PhononViscosity::calcRTA(VectorBTE &tau) {
   });
   Kokkos::Experimental::contribute(tensordxdxdxd_k, scatter_tensordxdxdxd);
   mpi->allReduceSum(&tensordxdxdxd);
+
+  // TODO for ALEX: call a function from viscosity_io.h here, to output
+  // the ballistic viscosity. 
+
 }
 
 void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,

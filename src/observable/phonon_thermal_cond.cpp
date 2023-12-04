@@ -110,7 +110,13 @@ void PhononThermalConductivity::calcFromPopulation(VectorBTE &n) {
     print();
   }
   // symmetrize the thermal conductivity 
-  symmetrize(tensordxd);
+  //symmetrize(tensordxd);
+}
+
+void PhononThermalConductivity::calcBallisticConductivity() { 
+
+  // TODO for ALEX : put the generic ballistic conductivity function call here
+
 }
 
 void PhononThermalConductivity::calcVariational(VectorBTE &af, VectorBTE &f, VectorBTE &b) {
@@ -187,7 +193,7 @@ void PhononThermalConductivity::calcVariational(VectorBTE &af, VectorBTE &f, Vec
     print();
   }
   // symmetrize the thermal conductivity
-  symmetrize(tensordxd);
+  //symmetrize(tensordxd);
 }
 
 // TODO this should be commented better to make it more understandable -- Jenny
@@ -396,6 +402,8 @@ void PhononThermalConductivity::calcFromRelaxons(
   // now calculate the thermal conductivity using the standard phonon population
   calcFromPopulation(population);
 }
+
+// IO related functions =====================================================
 
 void PhononThermalConductivity::print() {
   if (!mpi->mpiHead())

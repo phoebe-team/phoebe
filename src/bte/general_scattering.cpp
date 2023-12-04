@@ -70,9 +70,9 @@ void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
           double temperature = statisticsSweep->getCalcStatistics(iCalc).temperature;
           double energy = bandStructure.getEnergy(is1Idx);
           double termPop = particle.getPopPopPm1(energy, temperature);
-          rate = vel.squaredNorm() / boundaryLength * termPop;
+          rate = sqrt(vel.squaredNorm()) / boundaryLength * termPop;
         } else {
-          rate = vel.squaredNorm() / boundaryLength;
+          rate = sqrt(vel.squaredNorm()) / boundaryLength;
         }
 
         if (switchCase == 0) {// case of matrix construction

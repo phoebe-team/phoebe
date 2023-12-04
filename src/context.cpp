@@ -665,6 +665,10 @@ void Context::setupFromInput(const std::string &fileName) {
         checkNegativeRelaxons = parseBool(val);
       }
 
+      if (parameterName == "useDragTerms") {
+        useDragTerms = parseBool(val);
+      }
+
       if (parameterName == "useSymmetries") {
         useSymmetries = parseBool(val);
       }
@@ -938,7 +942,7 @@ void Context::printInputSummary(const std::string &fileName) {
       appName.find("Lifetimes") != std::string::npos) {
 
     if (appName.find("honon") != std::string::npos
-                                || appName.find("Coupled") != std::string::npos
+                                || appName.find("oupled") != std::string::npos
                                 || appName.find("elPh") != std::string::npos) {
       std::cout << "qMesh = " << qMesh(0) << " " << qMesh(1) << " " << qMesh(2) << std::endl;
       if(!getElphFileName().empty()) {
@@ -948,10 +952,14 @@ void Context::printInputSummary(const std::string &fileName) {
       }
     }
     if (appName.find("lectron") != std::string::npos
-                        || appName.find("Coupled") != std::string::npos
+                        || appName.find("oupled") != std::string::npos
                         || appName.find("elPh") != std::string::npos
                         || (appName.find("honon") != std::string::npos && !getElphFileName().empty())) {
          std::cout << "kMesh = " << kMesh(0) << " " << kMesh(1) << " " << kMesh(2) << std::endl;
+    }
+    // specific to coupled scattering matrix app
+    if (appName.find("oupled") != std::string::npos) {
+      std::cout << "useDragTerms = " << useDragTerms << std::endl;
     }
 
     if (!std::isnan(constantRelaxationTime))
@@ -1325,6 +1333,13 @@ bool Context::getUseUpperTriangle() const {
 }
 void Context::setUseUpperTriangle(const bool &x) {
   useUpperTriangle = x;
+}
+
+bool Context::getUseDragTerms() const {
+  return useDragTerms;
+}
+void Context::setUseDragTerms(const bool &x) {
+  useDragTerms = x;
 }
 
 int Context::getNumRelaxonsEigenvalues() const {

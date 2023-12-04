@@ -130,6 +130,9 @@ class Context {
   // toggle the check for negative relaxons eigenvalues in few eigenvalues case
   bool checkNegativeRelaxons = true;
 
+  // for coupled transport
+  bool useDragTerms = true;
+
   int hdf5ElphFileFormat = 1;
   std::string wsVecFileName;
 
@@ -372,6 +375,17 @@ public:
   bool getDistributedElPhCoupling() const;
   void setDistributedElPhCoupling(const bool &x);
 
+  int getHdf5ElPhFileFormat() const;
+  void setHdf5ElPhFileFormat(const int &x);
+
+  std::string getWsVecFileName() const;
+  void setWsVecFileName(const std::string& x);
+
+  bool getUseDragTerms() const;
+  void setUseDragTerms(const bool &x);
+
+  // relaxons variables
+
   bool getSymmetrizeMatrix() const;
   void setSymmetrizeMatrix(const bool &x);
 
@@ -382,12 +396,8 @@ public:
   void setNumRelaxonsEigenvalues(const int &x);
 
   bool getCheckNegativeRelaxons() const;
+  bool setCheckNegativeRelaxons() const;
 
-  int getHdf5ElPhFileFormat() const;
-  void setHdf5ElPhFileFormat(const int &x);
-
-  std::string getWsVecFileName() const;
-  void setWsVecFileName(const std::string& x);
 };
 
 #endif

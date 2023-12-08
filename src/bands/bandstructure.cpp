@@ -8,11 +8,118 @@
 #include "Matrix.h"
 #include <iomanip>
 #include <set>
+#include <nlohmann/json.hpp>
 
 std::vector<size_t> BaseBandStructure::parallelStateIterator() {
     size_t numStates = getNumStates();
     return mpi->divideWorkIter(numStates);
 }
+
+// this is very similar to the function which outputs the band
+// structure info, we should make it generic
+void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) { 
+                                        //const bool& symReduced) {
+
+  if (!mpi->mpiHead()) return;
+
+  std::string particleType;
+  auto particle = getParticle();
+  double energyConversion = energyRyToEv;
+  std::string energyUnit = "eV";
+  if (particle.isPhonon()) {
+    particleType = "phonon";
+    energyUnit = "meV";
+    energyConversion *= 1000;
+  } else {
+    particleType = "electron";
+  }
+
+  // need to store as a vector format with dimensions
+  // iCalc, ik. ib, iDim (where iState is unfolded into
+  // ik, ib) for the velocities, no dim for energies
+  std::vector<std::vector<std::vector<std::vector<double>>>> velocities;
+  std::vector<std::vector<std::vector<double>>> energies;
+
+  std::vector<int> pointsIterator = irrPointsIterator();
+  // could use this to 
+  //if(symReduced) {
+  //  pointsIterator = irrPointsIterator();
+  //} else {
+  //  pointsIterator = pointsIterator();
+  //}
+
+  // later we might also want to output population factors, 
+  // so we leave this here, but set numCalcs = 1,
+  // as the plain band structure is only T = 0, etc
+  int numCalculations = 1;
+  for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+
+    //double temp = calcStatistics.temperature;
+    //double chemPot = calcStatistics.chemicalPotential;
+    //double doping = calcStatistics.doping;
+    //temps.push_back(temp * temperatureAuToSi);
+    //chemPots.push_back(chemPot * energyConversion);
+    //dopings.push_back(doping);
+
+    std::vector<std::vector<double>> wavevectorsE;
+
+    // loop over wavevectors
+    for (int ik : pointsIterator) {
+
+      auto ikIndex = WavevectorIndex(ik);
+
+      std::vector<std::vector<double>> bandsV;
+      std::vector<double> bandsE;
+
+      // loop over bands here
+      // get numBands at this point, in case it's an active band structure
+      for (int ib = 0; ib < getNumBands(ikIndex); ib++) {
+
+        auto ibIndex = BandIndex(ib);
+        int is = getIndex(ikIndex, ibIndex);
+        StateIndex isIdx(is);
+        double ene = getEnergy(isIdx);
+        bandsE.push_back(ene * energyConversion);
+      }
+      wavevectorsE.push_back(bandsE);
+    }
+    energies.push_back(wavevectorsE);
+  }
+
+  //auto points = getPoints();
+  // save the points in relevant coords to write to file
+  std::vector<std::vector<double>> meshCoordinatesCart;
+  std::vector<std::vector<double>> meshCoordinatesWSCart;
+  std::vector<std::vector<double>> meshCoordinatesCrys;
+  for (int ik : pointsIterator) {
+    // save the wavevectors
+    auto ikIndex = WavevectorIndex(ik);
+
+    auto coordCart = getWavevector(ikIndex);
+    auto refoldedCart = getPoints().bzToWs(coordCart,Points::cartesianCoordinates);
+    meshCoordinatesCart.push_back({coordCart[0], coordCart[1], coordCart[2]});
+    meshCoordinatesWSCart.push_back({refoldedCart[0], refoldedCart[1], refoldedCart[2]});
+    auto coordCrys = getPoints().cartesianToCrystal(coordCart);
+    meshCoordinatesCrys.push_back({coordCrys[0], coordCrys[1], coordCrys[2]});
+  }
+
+  // output to json
+  nlohmann::json output;
+  output["energies"] = energies;
+  output["energyUnit"] = energyUnit;
+  output["wavevectorsCartesian"] = meshCoordinatesCart;
+  output["wavevectorsWignerSeitzCartesian"] = meshCoordinatesWSCart;
+  output["wavevectorsCrystal"] = meshCoordinatesCrys;
+  output["velocityCoordinatesType"] = "cartesian";
+  output["distanceUnit"] = "Bohr";
+  output["particleType"] = particleType;
+  std::ofstream o(outFileName);
+  o << std::setw(3) << output << std::endl;
+  o.close();
+}
+
+
+
 //-----------------------------------------------------------------------------
 
 FullBandStructure::FullBandStructure(int numBands_, Particle &particle_,

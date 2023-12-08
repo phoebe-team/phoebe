@@ -278,6 +278,14 @@ class BaseBandStructure {
    * equivalent to point #ik.
    */
   virtual std::vector<int> getReducibleStarFromIrreducible(const int &ik) = 0;
+
+  /** Outputs the bandstructure information to file, either sym reduced or not 
+   * @param outFileName : optional output file name
+   * @param symReduced : if the bandstructure info should be sym reduced or not
+   */
+  void outputComponentsToJSON(const std::string &outFileName = "bandstructure.json"); 
+                                //const bool& symReduced = true);
+
 };
 
 class ActiveBandStructure;

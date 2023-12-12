@@ -175,7 +175,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
   std::vector<size_t> kIterator = mpi->divideWorkIter(numKPoints);
   #pragma omp parallel for
-  for (int iik = 0; iik < kIterator.size(); iik++) {
+  for (size_t iik = 0; iik < kIterator.size(); iik++) {
 
     int ik = kIterator[iik]; // avoid omp parallel on iterator loops 
 	  

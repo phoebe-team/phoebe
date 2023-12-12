@@ -210,7 +210,7 @@ void CoupledCoefficients::calcFromRelaxons(
   // containers to calculate the specific contributions to the transport tensors
   kappaContrib.resize(numRelaxons, 3, 3);    kappaContrib.setZero();
   sigmaContrib.resize(numRelaxons, 3, 3);    sigmaContrib.setZero();
-  sigmaSContrib.resize(numRelaxons, 3, 3);  sigmaSContrib.setZero();
+  sigmaSContrib.resize(numRelaxons, 3, 3);   sigmaSContrib.setZero();
   iiiiContrib.resize(numRelaxons);  
 
   // TODO could parallelize this
@@ -460,7 +460,7 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 
   }
 
-  { // so that it can be reused below
+  { // so that the output json goes out of scope and it can be reused below
 	  
     // output to json
     nlohmann::json output;

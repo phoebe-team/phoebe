@@ -62,6 +62,7 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
     //dopings.push_back(doping);
 
     std::vector<std::vector<double>> wavevectorsE;
+    std::vector<std::vector<std::vector<double>>> wavevectorsV;
 
     // loop over wavevectors
     for (int ik : pointsIterator) {
@@ -80,10 +81,14 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
         StateIndex isIdx(is);
         double ene = getEnergy(isIdx);
         bandsE.push_back(ene * energyConversion);
+        Eigen::Vector3d vel = getGroupVelocity(isIdx);
+        bandsV.push_back(vel);
       }
       wavevectorsE.push_back(bandsE);
+      wavevectorsV.push_back(bandsV)
     }
     energies.push_back(wavevectorsE);
+    velocities.push_back(wavevectorsV);
   }
 
   //auto points = getPoints();
@@ -111,6 +116,8 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
   output["wavevectorsWignerSeitzCartesian"] = meshCoordinatesWSCart;
   output["wavevectorsCrystal"] = meshCoordinatesCrys;
   output["velocityCoordinatesType"] = "cartesian";
+  output["velocityUnit"] = "???"; // couldn't find in code
+  output["groupVelocities"] = velocities;
   output["distanceUnit"] = "Bohr";
   output["particleType"] = particleType;
   std::ofstream o(outFileName);

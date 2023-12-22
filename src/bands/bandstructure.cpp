@@ -108,8 +108,13 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
     meshCoordinatesCrys.push_back({coordCrys[0], coordCrys[1], coordCrys[2]});
   }
 
+  // volume of the unit cell of the crystal
+  double unitCellVolume = getPoints().getCrystal().getVolumeUnitCell();
+
   // output to json
   nlohmann::json output;
+  output["unitCellVolume"] = unitCellVolume;
+  output["volumeUnit"] = "Bohr^3";
   output["energies"] = energies;
   output["energyUnit"] = energyUnit;
   output["wavevectorsCartesian"] = meshCoordinatesCart;

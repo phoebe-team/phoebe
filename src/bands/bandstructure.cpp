@@ -82,7 +82,7 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
         double ene = getEnergy(isIdx);
         bandsE.push_back(ene * energyConversion);
         Eigen::Vector3d vel = getGroupVelocity(isIdx);
-        bandsV.push_back(vel);
+        bandsV.push_back(vel * velocityRyToSi);
       }
       wavevectorsE.push_back(bandsE);
       wavevectorsV.push_back(bandsV)
@@ -116,8 +116,8 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
   output["wavevectorsWignerSeitzCartesian"] = meshCoordinatesWSCart;
   output["wavevectorsCrystal"] = meshCoordinatesCrys;
   output["velocityCoordinatesType"] = "cartesian";
-  output["velocityUnit"] = "???"; // couldn't find in code
-  output["groupVelocities"] = velocities;
+  output["velocityUnit"] = "m/s"; // couldn't find in code
+  output["velocities"] = velocities;
   output["distanceUnit"] = "Bohr";
   output["particleType"] = particleType;
   std::ofstream o(outFileName);

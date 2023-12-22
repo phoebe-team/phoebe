@@ -116,7 +116,7 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
   output["wavevectorsWignerSeitzCartesian"] = meshCoordinatesWSCart;
   output["wavevectorsCrystal"] = meshCoordinatesCrys;
   output["velocityCoordinatesType"] = "cartesian";
-  output["velocityUnit"] = "m/s"; // couldn't find in code
+  output["velocityUnit"] = "m/s";
   output["velocities"] = velocities;
   output["distanceUnit"] = "Bohr";
   output["particleType"] = particleType;

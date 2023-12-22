@@ -117,7 +117,7 @@ class BaseBandStructure {
   */
   virtual double getMaxEnergy() = 0;
 
-  /** Returns the energy of a quasiparticle from its Bloch index
+  /** Returns the velocity of a quasiparticle from its Bloch index
    * Used for accessing the band structure in the BTE.
    * @param stateIndex: an integer index in range [0,numStates[
    * @return velocity: a 3d vector with velocity. By policy, we save it in
@@ -132,7 +132,7 @@ class BaseBandStructure {
   virtual Eigen::Tensor<std::complex<double>, 3> getPhEigenvectors(
       WavevectorIndex &ik) = 0;
 
-  /** Returns the energy of a quasiparticle from its Bloch index
+  /** Returns the wavevector of a quasiparticle from its Bloch index
    * Used for accessing the band structure in the BTE.
    * @param stateIndex: an integer index in range [0,numStates[
    * @return wavevector: a 3d vector with the wavevector in cartesian

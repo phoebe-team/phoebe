@@ -34,9 +34,6 @@ void PhononBandsApp::run(Context &context) {
   FullBandStructure fullBandStructure =
       phononH0.populate(pathPoints, withVelocities, withEigenvectors);
 
-  // arguments: outputFileName
-  fullBandStructure.outputComponentsToJSON("bandstructure.json")
-
   // arguments: bandStructure, context, pathPoints, outputFileName
   outputBandsToJSON(fullBandStructure, context, pathPoints,
                     "phonon_bands.json");

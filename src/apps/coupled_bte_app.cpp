@@ -114,6 +114,11 @@ void CoupledTransportApp::run(Context &context) {
     std::cout << "Done computing electronic band structure.\n" << std::endl;
   }
 
+  // output bandstructure to a JSON file for both electrons and phonons
+  phBandStructure.outputComponentsToJSON("phonon_bandstructure.json")
+  elBandStructure.outputComponentsToJSON("electron_bandstructure.json")
+  std::cout << "Bandstructures output to JSON files.\n" << std::endl;
+
 /*
   if(mpi->mpiHead()) {
     std::cout << "Checking for Cartesian wraparound issues." << std::endl;

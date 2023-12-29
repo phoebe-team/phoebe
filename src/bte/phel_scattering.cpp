@@ -4,6 +4,7 @@
 #include "periodic_table.h"
 #include "interaction_elph.h"
 #include "phel_scattering_matrix.h"
+#include "coupled_scattering_matrix.h"
 
 const double phononCutoff = 0.001 / ryToCmm1; // used to discard small phonon energies
 
@@ -54,10 +55,10 @@ std::vector<std::tuple<int, std::vector<int>>> getPhElIterator(
 }
 
 void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
-                BaseBandStructure& phBandStructure,
-                ElectronH0Wannier* electronH0,
-                InteractionElPhWan* couplingElPhWan,
-                std::shared_ptr<VectorBTE> linewidth) {
+                       BaseBandStructure& phBandStructure,
+	               ElectronH0Wannier* electronH0,
+                       InteractionElPhWan* couplingElPhWan,
+                       std::shared_ptr<VectorBTE> linewidth) {
 
   // TODO throw error if it's not a ph band structure
   // TODO should we be using exclude indices here?
@@ -465,7 +466,204 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
     }
   }
   mpi->barrier();
-  // I prefer to close loopPrint after the MPI barrier: all MPI are synced here
+  // better to close loopPrint after the MPI barrier: all MPI are synced here
   loopPrint.close();
+}
+
+void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
+	       			                    Context& context, 	
+				                          std::shared_ptr<CoupledVectorBTE> phElLinewidths, 
+				                          BaseBandStructure& elBandStructure,
+                                  BaseBandStructure& phBandStructure) {
+
+  if(context.getUseSymmetries()) {
+    DeveloperError("Phonon-electron acoustic sum rule isn't implemented with symmetries.");
+  } 
+
+  // el statistics sweep should be stored in the coupled matrix
+  StatisticsSweep& elStatisticsSweep = matrix.statisticsSweep;
+
+  size_t Nq = phBandStructure.getNumPoints();
+  size_t Nk = elBandStructure.getNumPoints();
+  double Nkq = (Nk + Nq)/2.;
+  size_t numPhStates = phBandStructure.getNumStates();
+  size_t numElStates = elBandStructure.getNumStates();
+
+  double spinFactor = 2.; // non spin pol = 2
+  if (context.getHasSpinOrbit()) { spinFactor = 1.; }
+
+  double volume = phBandStructure.getPoints().getCrystal().getVolumeUnitCell();
+  double norm = 1./(Nkq * volume) * sqrt(spinFactor * Nkq / double(Nk)); 
+
+  // this is for coupled matrices, only one temperature and mu value
+  int iCalc = 0; 
+  auto calcStat = elStatisticsSweep.getCalcStatistics(iCalc);
+  double kBT = calcStat.temperature;
+  double mu = calcStat.chemicalPotential;
+
+  // Rqs = sum_km D_phel_qs,km sqrt(f(1-f))
+  std::vector<double> Rqs(numPhStates);
+  // used in the next step, sum_km step_fn(|Delph| - 1e-16)
+  std::vector<double> weightDenominator(numPhStates); 
+
+  // calculate Rqs and look at how far it is from zero
+  for(auto matrixState : matrix.getAllLocalStates()) {
+
+    // unpack the state info into matrix indices. 
+    size_t iMat1 = std::get<0>(matrixState);
+    size_t iMat2 = std::get<1>(matrixState);
+
+    // check if this is a drag-related index
+    // if iMat1 is electron, iMat2 is phonon 
+    // ( we only sum over one quadrant for now) 
+    if(( iMat1 < numElStates && iMat2 >= numElStates)) { //|| 
+       		//(iMat1 > numElStates && iMat2 < numElStates) ) {
+
+       size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index
+
+       // here because symmetries are not used, we can directly use
+       // the matrix indices without converting iBte/iMat -> iState
+       StateIndex is1(iMat1);
+       double energy = elBandStructure.getEnergy(is1);
+       double f1mf = elBandStructure.getParticle().getPopPopPm1(energy, kBT, mu);
+       Rqs[iMat2Ph] += matrix(iMat1,iMat2) * sqrt(f1mf); 
+       // here we're summing over sum_km step_fn(|Delph| - 1e-16), where
+       // if the argument is positive, the value is 1, and if it's <= 0 it's 0
+       weightDenominator[iMat2Ph] += abs(matrix(iMat1,iMat2)) - 1e-16 > 0. ? 1. : 0;
+    } 
+  }
+  mpi->allReduceSum(&Rqs);
+  mpi->allReduceSum(&weightDenominator);
+
+  //if(mpi->mpiHead()) std::cout << "Sum of the Rqs components: " << std::endl; //<< std::accumulate(Rqs.begin(),Rqs.end(),0) << std::endl;
+  //for (auto i: Rqs) {
+  //  std::cout << i << '\n';
+  //} 
+  //if(mpi->mpiHead()) { std::cout << "Weight denominator: " << std::endl; 
+  //for (auto i: weightDenominator)
+  //  std::cout << i << '\n';
+  //}
+
+  // now correct the drag terms by calculating
+  // w_qs,km = step_fn (Delph - 1e-16) / sum_km step_fn(|Delph| - 1e-16)
+  // and then 
+  // Dphel_qs,km^corrected = Dphel_qs,km - w_qs,km * Rqs / sqrt(f(1-f)
+  for(auto matrixState : matrix.getAllLocalStates()) {
+    
+    // unpack the state info into matrix indices 
+    size_t iMat1 = std::get<0>(matrixState);
+    size_t iMat2 = std::get<1>(matrixState);
+
+    // if iMat1 is electron, iMat2 is phonon (upper quadrant only for now)
+    if(( iMat1 < numElStates && iMat2 >= numElStates)) { 
+          
+      size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index
+
+      // here because symmetries are not used, we can directly use
+      // the matrix indices without converting iBte/iMat -> iState
+      StateIndex is1(iMat1);
+      double energy = elBandStructure.getEnergy(is1);
+      double f1mf = elBandStructure.getParticle().getPopPopPm1(energy, kBT, mu);    
+
+      if(weightDenominator[iMat2Ph] == 0) continue; // avoid nan
+      if(sqrt(f1mf) < 1e-16) continue; // avoid nan
+
+      double weightNumerator = abs(matrix(iMat1,iMat2)) - 1e-16 > 0. ? 1. : 0;   
+      double weight  = weightNumerator / weightDenominator[iMat2Ph];
+
+      // replace the matrix elements with the corrected ones
+      //matrix(iMat1, iMat2) = matrix(iMat1, iMat2) - weight * Rqs[iMat2Ph] / sqrt(f1mf);  
+
+    }
+  }
+  /*
+  // sanity check the correction 
+  std::vector<double> RqsSanity(numPhStates);
+  for(auto matrixState : matrix.getAllLocalStates()) {
+
+    // unpack the state info into matrix indices. 
+    size_t iMat1 = std::get<0>(matrixState);
+    size_t iMat2 = std::get<1>(matrixState);
+
+    // check if this is a drag-related index
+    // if iMat1 is electron, iMat2 is phonon 
+    if(( iMat1 < numElStates && iMat2 >= numElStates)) { 
+
+      size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index
+
+      // here because symmetries are not used, we can directly use
+      // the matrix indices without converting iBte/iMat -> iState
+      StateIndex is1(iMat1);
+      double energy = elBandStructure.getEnergy(is1);
+      double f1mf = elBandStructure.getParticle().getPopPopPm1(energy, kBT, mu);
+      RqsSanity[iMat2Ph] += matrix(iMat1,iMat2) * sqrt(f1mf); 
+    } 
+  }
+  mpi->allReduceSum(&RqsSanity);
+
+  if(mpi->mpiHead()) std::cout << "Rqs sanity check: " << std::endl; //<< std::accumulate(Rqs.begin(),Rqs.end(),0) << std::endl;
+  for (auto i: RqsSanity) {
+    std::cout << i << ' ';
+  }
+  */ 
+  
+  // compute the corrected phel linewidths
+  if(size_t(phElLinewidths->data.cols()) != numPhStates + numElStates) { 
+    DeveloperError("Attempting to use ph-el ASR on a "
+		    "linewidths vector of the wrong size!");
+  } 
+  // we will replace vectorBTE's data internal matrix with this
+  Eigen::MatrixXd newPhElLinewidths(phElLinewidths->data.rows(),
+	  			                          phElLinewidths->data.cols());
+  newPhElLinewidths.setZero();  
+  
+  // sum over all the off diagonal states from the el,ph drag quandrant
+  // to reconstruct the linewidths 
+  for(auto matrixState : matrix.getAllLocalStates()) {
+
+    // unpack the state info into matrix indices 
+    size_t iMat1 = std::get<0>(matrixState);
+    size_t iMat2 = std::get<1>(matrixState);
+
+    // if iMat1 is electron, iMat2 is phonon
+    if(( iMat1 < numElStates && iMat2 >= numElStates)) { 
+
+      size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index, 
+      					  // for use in bandstructure indexed objects
+
+      // here because symmetries are not used, we can directly use
+      // the matrix indices without converting iBte/iMat -> iState
+      StateIndex is1(iMat1); // electron
+      double elEnergy = elBandStructure.getEnergy(is1);
+      double f1mf = elBandStructure.getParticle().getPopPopPm1(elEnergy, kBT, mu);
+      StateIndex is2(iMat2Ph); // phonon 
+      double phEnergy = phBandStructure.getEnergy(is2);
+      double nnp1 = phBandStructure.getParticle().getPopPopPm1(phEnergy, kBT, 0);
+
+      if (phEnergy < phononCutoff) { continue; } // skip the acoustic modes
+      if (sqrt(nnp1) * phEnergy < 1e-16) { continue; } // skip values which would cause divergence
+
+      newPhElLinewidths(iCalc, iMat2) += norm * matrix(iMat1, iMat2) * sqrt(f1mf) * (elEnergy - mu) 
+      					/ ( sqrt(nnp1) * phEnergy ); 
+       
+    }
+  }
+  mpi->allReduceSum(&newPhElLinewidths); 
+
+  // print statement to print new and old linewidths side by side
+  if(mpi->mpiHead()) std::cout << "compare " << std::endl;
+  for (int i = numElStates; i<numPhStates+numElStates; i++) {
+
+    double x = newPhElLinewidths(iCalc,i); 
+    double y = phElLinewidths->data(iCalc,i);
+    if (abs(x) < 1e-12) x = 0;
+    if (abs(y) < 1e-12) y = 0;
+
+    //std::cout <<  x << " " << y << "\n" ;
+  } 
+
+  // replace the linewidth data
+  phElLinewidths->data = newPhElLinewidths; 
 
 }
+

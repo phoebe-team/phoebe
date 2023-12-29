@@ -62,6 +62,7 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
     //dopings.push_back(doping);
 
     std::vector<std::vector<double>> wavevectorsE;
+    std::vector<std::vector<std::vector<double>>> wavevectorsV;
 
     // loop over wavevectors
     for (int ik : pointsIterator) {
@@ -80,10 +81,14 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
         StateIndex isIdx(is);
         double ene = getEnergy(isIdx);
         bandsE.push_back(ene * energyConversion);
+        Eigen::Vector3d vel = getGroupVelocity(isIdx);
+        bandsV.push_back(vel * velocityRyToSi);
       }
       wavevectorsE.push_back(bandsE);
+      wavevectorsV.push_back(bandsV)
     }
     energies.push_back(wavevectorsE);
+    velocities.push_back(wavevectorsV);
   }
 
   //auto points = getPoints();
@@ -103,14 +108,21 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
     meshCoordinatesCrys.push_back({coordCrys[0], coordCrys[1], coordCrys[2]});
   }
 
+  // volume of the unit cell of the crystal
+  double unitCellVolume = getPoints().getCrystal().getVolumeUnitCell();
+
   // output to json
   nlohmann::json output;
+  output["unitCellVolume"] = unitCellVolume;
+  output["volumeUnit"] = "Bohr^3";
   output["energies"] = energies;
   output["energyUnit"] = energyUnit;
   output["wavevectorsCartesian"] = meshCoordinatesCart;
   output["wavevectorsWignerSeitzCartesian"] = meshCoordinatesWSCart;
   output["wavevectorsCrystal"] = meshCoordinatesCrys;
   output["velocityCoordinatesType"] = "cartesian";
+  output["velocityUnit"] = "m/s";
+  output["velocities"] = velocities;
   output["distanceUnit"] = "Bohr";
   output["particleType"] = particleType;
   std::ofstream o(outFileName);

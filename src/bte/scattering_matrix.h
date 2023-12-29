@@ -365,6 +365,37 @@ public:
   std::tuple<int,int> shiftToCoupledIndices(
         const int& iBte1, const int& iBte2, const Particle& p1, const Particle& p2);
 
+  /** A function to fix the linewidths to agree with the off diagonal elements, to enforce finding the
+   * special eigenvectors. 
+   */
+  void reinforceLinewidths();
+
+  /** Replace the linewidths of the scatterng matrix with the supplied 
+   * VectorBTE values.
+   // * @param switchCase: the type of matrix we have stored, see notes in *_scattering_matrix.cpp
+   * @param linewidths: the linewidths to replace the diagonal with
+   **/
+  void replaceMatrixLinewidths(const int &switchCase);
+
+
+  // NOTE: feels like there should be a better way to write reinforce linewidths than this... 
+  // better strategy would be a coupledBandStructure object
+
+  /** Returns a tuple of final and initial particles for a give state
+  * @param iBte1, iBte2: the bte indices used to index this state
+  */
+  std::tuple<BaseBandStructure*,BaseBandStructure*> getStateBandStructures(const BteIndex& iBte1,
+                                                                    const BteIndex& iBte2);
+
+  /** If we have a coupled scattering matrix, we need to shift the matrix element indices
+   * back to those associated with ph and el bandstructures before accessing their quantities
+  * @param iBte1, iBte2: the bte indices used to index the global matrix 
+  * @param p1, p2: the particle types indicating the quadrant of this element
+  * @return: a tuple containing the bandstructure relevant indices
+  */
+  std::tuple<int,int> coupledToBandStructureIndices(const int& iBte1, const int& iBte2,
+                                                    const Particle& p1, const Particle& p2);
+
   // friend functions for scattering
   friend void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
                                 //std::vector<std::tuple<std::vector<int>, int>> pairIterator,

@@ -30,7 +30,7 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
   numPhStates = int(innerBandStructure.irrStateIterator().size());
   numElStates = int(outerBandStructure.irrStateIterator().size());
   isCoupled = true;
-  // this is only actually true after we call phononOnlyA2Omega at the bottom of the scattering
+  // TODO this is only actually true after we call phononOnlyA2Omega at the bottom of the scattering
   // process addition section.
   // Otherwise, because ph scattering not symmetrized and el scattering is symmetrized,
   // we would have a very mismatched matrix
@@ -198,27 +198,35 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
   // requires the replacing of the linewidths object into the SMatrix diagonal at the
   // end of this function
-
   addPhElScattering(*this, context, innerBandStructure, electronH0, couplingElPh, postSymLinewidths);
   mpi->barrier();
 
-  // after adding phel scattering to the diagonal, we also need to all reduce again
+  // all reduce the calculated phel linewidths 
   mpi->allReduceSum(&postSymLinewidths->data);
+  // TODO maybe output these phel linewidths? 
+
+  // Add drag terms ----------------------------------------------
+  if(context.getUseDragTerms()) { 
+    // first add the el drag term 
+    // TODO replace these 0 and 1s with something smarter 
+    addDragTerm(*this, context, kqPairIterator, 0, electronH0,
+                         couplingElPh, innerBandStructure, outerBandStructure);
+    // now the ph drag term
+    addDragTerm(*this, context, qkPairIterator, 1, electronH0,
+                          couplingElPh, innerBandStructure, outerBandStructure);
+  }
+
+  // use drag ASR to correct the dra terms and recompute the phel linewidths 
+  phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
+                                outerBandStructure,   // electron bands
+                                innerBandStructure);  // phonon bands 
+
   // Add in the phel contribution
   // NOTE: would be nicer to use the add operatore from VectorBTE, but inheritance
-  // is causing me trouble -- Jenny
+  // is causing trouble -- Jenny
   linewidth->data = linewidth->data + postSymLinewidths->data;
 
   }// braces to have postSymLinewidths go out of scope
-
-  // Add drag terms ----------------------------------------------
-  // TODO add ability to add in the linewidths
-  // first add the el drag term
-  addDragTerm(*this, context, kqPairIterator, 0, electronH0,
-                       couplingElPh, innerBandStructure, outerBandStructure);
-  // now the ph drag term
-  addDragTerm(*this, context, qkPairIterator, 1, electronH0,
-                        couplingElPh, innerBandStructure, outerBandStructure);
 
 // TODO do we need to keep this here
   /*if(outputUNTimes) {
@@ -288,6 +296,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
 
+  // TODO debug the "replaceLinewidths" function and use it instead
   // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths
   if (switchCase == 0) { // case of matrix construction
@@ -319,7 +328,13 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // apply the spin degen factors
   reweightQuadrants();
 
+  // use the off diagonals to calculate the linewidths, 
+  // to ensure the special eigenvectors can be found/preserve conservation of momentum 
+  // that might be ruined by the delta functions 
+  reinforceLinewidths();
+
   if(mpi->mpiHead()) std::cout << "\nFinished computing the coupled scattering matrix." << std::endl;
+
 }
 
 // set,unset the scaling of omega = A/sqrt(bose1*bose1+1)/sqrt(bose2*bose2+1)

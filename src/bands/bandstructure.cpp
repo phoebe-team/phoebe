@@ -81,11 +81,12 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
         StateIndex isIdx(is);
         double ene = getEnergy(isIdx);
         bandsE.push_back(ene * energyConversion);
-        Eigen::Vector3d vel = getGroupVelocity(isIdx);
-        bandsV.push_back(vel * velocityRyToSi);
+        auto tempVel = getGroupVelocity(isIdx) * velocityRyToSi; 
+        std::vector<double> vel = {tempVel[0], tempVel[1], tempVel[2]};
+        bandsV.push_back(vel);
       }
       wavevectorsE.push_back(bandsE);
-      wavevectorsV.push_back(bandsV)
+      wavevectorsV.push_back(bandsV);
     }
     energies.push_back(wavevectorsE);
     velocities.push_back(wavevectorsV);

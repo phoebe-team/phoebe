@@ -198,7 +198,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
   // requires the replacing of the linewidths object into the SMatrix diagonal at the
   // end of this function
-  addPhElScattering(*this, context, innerBandStructure, electronH0, couplingElPh, postSymLinewidths);
+  //addPhElScattering(*this, context, innerBandStructure, electronH0, couplingElPh, postSymLinewidths);
   mpi->barrier();
 
   // all reduce the calculated phel linewidths 
@@ -331,7 +331,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // use the off diagonals to calculate the linewidths, 
   // to ensure the special eigenvectors can be found/preserve conservation of momentum 
   // that might be ruined by the delta functions 
-  reinforceLinewidths();
+  //reinforceLinewidths();
 
   if(mpi->mpiHead()) std::cout << "\nFinished computing the coupled scattering matrix." << std::endl;
 

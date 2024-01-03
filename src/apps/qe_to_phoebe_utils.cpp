@@ -491,18 +491,18 @@ void writeElPhCouplingHDF5v1(
           gWannier.data(), gWannier.size());
 
       // note: gwan is distributed
-      unsigned int globalSize = numWannier * numWannier * numModes * numPhBravaisVectors * numElBravaisVectors;
+      size_t globalSize = size_t(numWannier) * numWannier * numModes * numPhBravaisVectors * numElBravaisVectors;
 
       // Create the data-space to write gWannier to
       std::vector<size_t> dims(2);
       dims[0] = 1;
-      dims[1] = size_t(globalSize);
+      dims[1] = globalSize;
       HighFive::DataSet dgwannier = file.createDataSet<std::complex<double>>(
           "/gWannier", HighFive::DataSpace(dims));
 
       // start point and the number of the total number of elements
       // to be written by this process
-      size_t start = mpi->divideWorkIter(numElBravaisVectors)[0] * numWannier * numWannier * numModes * numPhBravaisVectors;
+      size_t start = mpi->divideWorkIter(numElBravaisVectors)[0] * size_t(numWannier) * numWannier * numModes * numPhBravaisVectors;
       size_t offset = start;
 
       // Note: HDF5 < v1.10.2 cannot write datasets larger than 2 Gbs
@@ -515,7 +515,7 @@ void writeElPhCouplingHDF5v1(
       // what we write
       auto maxSize = int(pow(1000, 3)) / sizeof(std::complex<double>);
       size_t smallestSize =
-          numWannier * numWannier * numModes * numPhBravaisVectors;
+          size_t(numWannier) * numWannier * numModes * numPhBravaisVectors;
       std::vector<int> irEBunchSizes;
 
       // determine the size of each bunch of electronic bravais vectors
@@ -540,7 +540,7 @@ void writeElPhCouplingHDF5v1(
 
       // we now loop over these data sets, and write each chunk of
       // bravais vectors in parallel
-      int netOffset = 0;// offset from first bunch in this set to current bunch
+      size_t netOffset = 0;// offset from first bunch in this set to current bunch
       for (int iBunch = 0; iBunch < numDatasets; iBunch++) {
 
         // we need to determine the start, stop and offset of this
@@ -548,6 +548,8 @@ void writeElPhCouplingHDF5v1(
         size_t bunchElements = irEBunchSizes[iBunch] * smallestSize;
         size_t bunchStart = start + netOffset;
         size_t bunchOffset = offset + netOffset;
+	// we will use this to update the offset for the bunch during the
+	// next loop
         netOffset += bunchElements;
 
         int gwanSliceStart;

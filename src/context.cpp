@@ -1052,7 +1052,11 @@ void Context::printInputSummary(const std::string &fileName) {
       if (!std::isnan(fermiLevel))
         std::cout << "fermiLevel = " << fermiLevel * energyRyToEv << std::endl;
       if (!std::isnan(numOccupiedStates))
-        std::cout << "numOccupiedStates = " << numOccupiedStates << std::endl;
+        if(!hasSpinOrbit) { // need to account for spin factor
+          std::cout << "numOccupiedStates = " << numOccupiedStates/2.0 << std::endl;
+        } else {
+          std::cout << "numOccupiedStates = " << numOccupiedStates << std::endl;
+        }
     }
     // should not be printed when phellifetimes app is run
     if (appName.find("honon") != std::string::npos && appName.find("lectron") == std::string::npos) {

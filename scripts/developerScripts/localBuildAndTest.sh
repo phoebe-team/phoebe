@@ -1,10 +1,16 @@
+# run this in an empty directory, or in one directory outside your 
+# phoebe directory
+
+# change the items below this line ===============
+
 export OMP_ON="ON"
 export MPI_ON="ON"
 
-# which chunks of this to run each time
+# choose if you want to set up the code, download the 
+# test data, or run the tests
 BUILD=false
 DOWNLOAD=false
-RUN=true
+RUN=false
 
 if [ "$MPI_ON" == "ON" ]
 then
@@ -16,12 +22,14 @@ fi
 export OMP_NUM_THREADS=4
 export MPI_PROCS=4
 
+# use this if on a slurm system, replace with
+# your modules
 module restore phoebe
 
 BUILD_DIR="build/"
 PHOEBE_DIR="phoebe/"
 
-# ACTUALLY RUN THE TESTS
+# SET UP AND RUN THE TESTS ============
 
 # pull down the code
 if ${BUILD}

@@ -980,7 +980,7 @@ symmetrizeMatrix
 
 * **Required:** no
 
-* **Default:** `false`
+* **Default:** `true`
 
 
 .. _numRelaxonsEigenvalues:
@@ -1499,6 +1499,8 @@ numOccupiedStates
 ^^^^^^^^^^^^^^^^^
 
 * **Description:** Determines the number of occupied Kohn-Sham states at the ground state. The default value might be read from the :ref:`electronH0Name` (when this is the Quantum-ESPRESSO xml file) or the file with the el-ph interaction (so, the user may not need to specify it for transport calculations). This value controls where the Fermi level is set. The user alternatively can specify the :ref:`fermiLevel` (and :ref:`numOccupiedStates` will be computed from the Fermi level).
+
+Be aware that this is essentially the number of filled bands -- so if the number of electrons in the DFT calculation is say, 27, and the calculation is not spin polarized, then the numOccupiedStates should be set as 13.5. In general, it's good to ensure that the value of :math:`E_F` found in the DFT calculation matches the one calculated by Phoebe. 
 
 * **Format:** *double*
 

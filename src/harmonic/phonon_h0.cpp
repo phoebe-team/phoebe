@@ -51,7 +51,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
   if (hasDielectric) { // prebuild terms useful for long range corrections
 
     // TODO this is important for 3d materials, though I'm not sure about 2D ones
-    dielectricMatrix = dielectricMatrix * 0.5;
+    //dielectricMatrix = dielectricMatrix * 0.5;
 
     double cutoff = gMax * 4.;
 

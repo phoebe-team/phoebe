@@ -742,7 +742,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
               iBte2Shift = std::get<1>(tup);
             }
 
-            if (switchCase == 0) { // case of matrix construction
+	    if (switchCase == 0) { // case of matrix construction
               if (context.getUseSymmetries()) {
                 BteIndex iBte1Idx(iBte1);
                 BteIndex iBte2Idx(iBte2);

@@ -15,7 +15,7 @@
 
 /** Class to handle the coupling between electron and phonons.
  * Currently implements the calculation of the diagram for the interaction
- * k+q -> k'.
+ * k + q -> k'.
  * Use the static method to initialize an instance of this class.
  * Then, use calc + get to compute and retrieve the values of the
  * electron-phonon interaction strength in Bloch space |g|^2.
@@ -153,8 +153,6 @@ public:
    * of k2 wavevectors.
    * @param phEigvecs: phonon eigenvectors, in matrix form, for a bunch of
    * wavevectors q3
-   * @param k1: value of first wavevector.
-   * @param k2s: list of k2 wavevectors.
    * @param q3s: list of phonon wavevectors.
    */
   void calcCouplingSquared(

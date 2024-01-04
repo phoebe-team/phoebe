@@ -101,11 +101,12 @@ class Context {
   double epaDeltaEnergy = std::numeric_limits<double>::quiet_NaN();
 
   // plot of el-ph coupling
-  std::string g2PlotStyle;
-  Eigen::Vector3d g2PlotFixedPoint;
-  std::pair<int,int> g2PlotEl1Bands;
-  std::pair<int,int> g2PlotEl2Bands;
-  std::pair<int,int> g2PlotPhBands;
+  std::string g2PlotStyle = "allToAll";
+  std::string g2MeshStyle = "pointsMesh";
+  Eigen::Vector3d g2PlotFixedPoint = {0,0,0};
+  std::pair<int,int> g2PlotEl1Bands = std::make_pair(-1,-1);
+  std::pair<int,int> g2PlotEl2Bands = std::make_pair(-1,-1);
+  std::pair<int,int> g2PlotPhBands = std::make_pair(-1,-1);
 
   // utilities for parsing
 
@@ -157,6 +158,9 @@ public:
   // Methods for the apps of plotting the electron-phonon coupling
   std::string getG2PlotStyle();
   void setG2PlotStyle(const std::string &x);
+
+  std::string getG2MeshStyle();
+  void setG2MeshStyle(const std::string &x);
 
   Eigen::Vector3d getG2PlotFixedPoint();
   void setG2PlotFixedPoint(const Eigen::Vector3d &x);

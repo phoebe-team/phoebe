@@ -4,7 +4,7 @@
 #include <string>
 #include "app.h"
 
-/** Main driver for the transport calculation
+/** Main driver for the calculation
  */
 class ElPhCouplingPlotApp: public App {
 public:

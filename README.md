@@ -1,4 +1,5 @@
 ![Build and Test](https://github.com/mir-group/phoebe/workflows/Build%20and%20Test/badge.svg)
+[![Documentation Status](https://readthedocs.org/projects/phoebe/badge/?version=develop)](https://phoebe.readthedocs.io/en/develop/?badge=develop)
 
 # Phoebe <img src="doc/sphinx/source/_static/icon.png" width="25"/>
 

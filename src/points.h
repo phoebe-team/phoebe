@@ -71,7 +71,11 @@ private:
  */
 class Points {
 public:
-  /** Default constructor for a Monkhorst-Pack grid of wavevectors.
+
+  /** Default constructor */
+  Points(Crystal &crystalObj_);
+
+  /** Constructor for a Monkhorst-Pack grid of wavevectors.
    * @param crystal: the crystal object that defines the Brillouin zone.
    * @param mesh: grid size of the Monkhorst-pack.
    * @param offset: the offset of the grid w.r.t. the Gamma point. Offset

@@ -167,8 +167,40 @@ To install (without GPU support)::
 Note that paths to the HDF5 library may need to be updated.
 Tested on Ubuntu 20.04.
 
-MacOS
-^^^^^
+MacOS 
+^^^^^^
+
+To install Phoebe on a machine running a MacOS:: 
+  
+  # if you don't have these already, use homebrew to install: 
+  
+  brew install cmake
+  brew install gcc
+  brew install llvm
+  # stop here and follow the instructions llvm provides regarding setting path variables --
+  # run whatever line it tells you that looks like the one below, where username should be your laptop username. 
+  #echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> /Users/username/.bash_profile
+  
+  brew install open-mpi
+  brew install hdf5-mpi
+  brew install scalapack
+  brew install libomp
+  
+  # before building, set these flags
+  export CC=/opt/homebrew/opt/llvm/bin/clang
+  export CXX=/opt/homebrew/opt/llvm/bin/clang++
+  export LDFLAGS="-L/opt/homebrew/opt/llvm/lib/c++ -Wl,-no_compact_unwind,-rpath,/opt/homebrew/opt/llvm/lib/c++"
+  export CXXFLAGS="-I/opt/homebrew/opt/llvm/include -I/opt/homebrew/opt/libomp/include -fopenmp"
+  export CFLAGS="-I/usr/local/opt/libomp/include -I/opt/homebrew/opt/llvm/include"
+  export LIBRARY_PATH=$LIBRARY_PATH:/opt/homebrew/Cellar/gcc/13.2.0/lib/gcc/13/
+  export SDKROOT=$(xcrun --show-sdk-path)
+  
+  mkdir build
+  cd build
+  cmake ../
+  make -j 4 phoebe  # change number to appropriate number of cpus
+
+**Additional notes:**
 
 * We have encountered difficulty linking the ScaLAPACK library, especially when linking with libgfortran. If libgfortran is not found, try adding it specifically to ``LD_LIBRARY_PATH`` or ``LIBRARY_PATH`` as follows:
   ::
@@ -181,3 +213,5 @@ MacOS
 
 * Additonally, there exists an issue when building with the Apple Clang compiler
   and the Eigen library, specifically when Eigen is built using OpenMP with a c++ std>11. We recommend either building without OpenMP (``cmake -DOMP_AVAIL=OFF ../``), or using a different compiler.
+
+

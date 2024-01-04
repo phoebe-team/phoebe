@@ -42,6 +42,11 @@ class InteractionElPhWan {
   DoubleView1D phBravaisVectorsDegeneracies_k;
   DoubleView2D elBravaisVectors_k;
   DoubleView1D elBravaisVectorsDegeneracies_k;
+  std::vector<ComplexView4D::HostMirror> elPhCached_hs;
+
+#ifdef MPI_AVAIL
+  std::vector<MPI_Request> mpi_requests;
+#endif
 
   /** Add polar correction to the electron-phonon coupling.
    * @param q3: phonon wavevector, in cartesian coordinates
@@ -62,26 +67,9 @@ class InteractionElPhWan {
    */
   double getDeviceMemoryUsage();
 
-  // TODO documentation 
-  static Eigen::VectorXcd polarCorrectionPart1Static(
-        const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev3,
-        const double &volume, const Eigen::Matrix3d &reciprocalUnitCell,
-        const Eigen::Matrix3d &epsilon, const Eigen::Tensor<double, 3> &bornCharges,
-        const Eigen::MatrixXd &atomicPositions,
-        const Eigen::Vector3i &qCoarseMesh);
-  // TODO documentation 
-  static Eigen::Tensor<std::complex<double>, 3> polarCorrectionPart2(
-        const Eigen::MatrixXcd &ev1, const Eigen::MatrixXcd &ev2, const Eigen::VectorXcd &x);
-
-
-  std::vector<ComplexView4D::HostMirror> elPhCached_hs;
-#ifdef MPI_AVAIL
-  std::vector<MPI_Request> mpi_requests;
-#endif
-
 public:
 
-  /** Default constructor
+  /** Main constructor
    * @param crystal_: object describing the crystal unit cell.
    * @param couplingWannier_: matrix elements of the electron phonon
    * interaction. A tensor of shape (iw1,iw2,imode,rPh,rEl), where iw1 iw2 are
@@ -129,6 +117,8 @@ public:
    */
   ~InteractionElPhWan();
 
+  // Core elph interpolation functions --------------------------------
+
   /** Computes the values of the el-ph coupling strength for transitions of
    * type k1,q3 -> k2, where k1 is one fixed wavevector, and k2,q3 are
    * wavevectors running in lists of wavevectors.
@@ -154,13 +144,16 @@ public:
    * @param phEigvecs: phonon eigenvectors, in matrix form, for a bunch of
    * wavevectors q3
    * @param q3s: list of phonon wavevectors.
+   * @param kPrimeIsKMinusQ: boolean to tell us if the convention k'=k-q, 
+   * 	rather than the standard k'=k+q should be used. Defaults to false. 
    */
   void calcCouplingSquared(
       const Eigen::MatrixXcd &eigvec1,
       const std::vector<Eigen::MatrixXcd> &eigvecs2,
       const std::vector<Eigen::MatrixXcd> &eigvecs3,
       const std::vector<Eigen::Vector3d> &q3Cs,
-      const std::vector<Eigen::VectorXcd> &polarData);
+      const std::vector<Eigen::VectorXcd> &polarData, 
+      const bool kPrimeIsKMinusQ = false);
 
   /** Computes a partial Fourier transform over the k1/R_el variables.
    * @param k1C: values of the k1 cartesian coordinates over which the Fourier
@@ -191,22 +184,8 @@ public:
   static InteractionElPhWan parse(Context &context, Crystal &crystal,
                                   PhononH0 *phononH0_ = nullptr);
 
-  /** precompute the q-dependent part of the polar correction 
-  * @param phbandstructure: the bandstructure object containing all q-points
-  *     for which this precomputation should occur
-  * @return polarData: the q-dependent part of the polar correction
-  */
-  Eigen::MatrixXcd precomputeQDependentPolar(BaseBandStructure &phBandStructure);
 
-  // TODO this function needs documentation 
-  static Eigen::Tensor<std::complex<double>, 3> getPolarCorrectionStatic(
-      const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev1,
-      const Eigen::MatrixXcd &ev2, const Eigen::MatrixXcd &ev3,
-      const double &volume, const Eigen::Matrix3d &reciprocalUnitCell,
-      const Eigen::Matrix3d &epsilon,
-      const Eigen::Tensor<double, 3> &bornCharges,
-      const Eigen::MatrixXd &atomicPositions,
-      const Eigen::Vector3i &qCoarseMesh);
+  // Helper functions --------------------------------
 
   /** Auxiliary function to return the shape of the electron-phonon tensor
    * @return (numWannier,numWannier,numPhModes,numElVectors,numPhVectors)
@@ -221,11 +200,50 @@ public:
    */
   int estimateNumBatches(const int &nk2, const int &nb1);
 
-  // TODO this function needs documentation 
+  // Internal polar correction functions --------------------------------
+
+  // TODO these functions need documentation 
+
+  // functions to help with the calculation of the polar correction
+  // as described in doi:10.1103/physRevLett.115.176401, Eq. 4
+
+  // This calculates the long range V_L component of g_L, to be used
+  // in the qe->Wannier transformation
+  static Eigen::Tensor<std::complex<double>, 3> getPolarCorrectionStatic(
+      const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev1,
+      const Eigen::MatrixXcd &ev2, const Eigen::MatrixXcd &ev3,
+      const double &volume, const Eigen::Matrix3d &reciprocalUnitCell,
+      const Eigen::Matrix3d &epsilon,
+      const Eigen::Tensor<double, 3> &bornCharges,
+      const Eigen::MatrixXd &atomicPositions,
+      const Eigen::Vector3i &qCoarseMesh, const int dimensionality);
+
+  // this function calculates V_L for the "static" case used in the bloch->Wannier transform
+  static Eigen::VectorXcd polarCorrectionPart1Static(
+        const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev3,
+        const double &volume, const Eigen::Matrix3d &reciprocalUnitCell,
+        const Eigen::Matrix3d &epsilon, const Eigen::Tensor<double, 3> &bornCharges,
+        const Eigen::MatrixXd &atomicPositions,
+        const Eigen::Vector3i &qCoarseMesh, const int dimensionality);
+
+  // Sets up a call to polarCorrectionPart1Static for the calculation of V_L
+  // during wannier interpolation of the matrix elements
   // TODO this function is also public because of elph coupling app. 
-        // seems like it should be private
+  // seems like it should be private
   Eigen::VectorXcd polarCorrectionPart1(
         const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev3);
+
+  // adds the transformation of V_L to the wannier gauge
+  // regardless of the use case, this calculates <psi|e^{i(G+q).r}|psi> part of polar correction
+  static Eigen::Tensor<std::complex<double>, 3> polarCorrectionPart2(
+        const Eigen::MatrixXcd &ev1, const Eigen::MatrixXcd &ev2, const Eigen::VectorXcd &x);
+
+  /** precompute the q-dependent part of the polar correction 
+  * @param phbandstructure: the bandstructure object containing all q-points
+  *     for which this precomputation should occur
+  * @return polarData: the q-dependent part of the polar correction
+  */
+  Eigen::MatrixXcd precomputeQDependentPolar(BaseBandStructure &phBandStructure);
 
 };
 

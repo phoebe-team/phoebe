@@ -138,6 +138,7 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
         auto bornCharges = phononH0.getBornCharges();
         auto atomicPositions = crystal.getAtomicPositions();
         auto qCoarseMesh = phononH0.getCoarseGrid();
+	auto dimensionality = crystal.getDimensionality();
 
         for (int iq = 0; iq < numQStar; iq++) {
           Eigen::Vector3d qCrystal = qStar.col(iq);
@@ -175,7 +176,7 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
 
               auto v = InteractionElPhWan::getPolarCorrectionStatic(
                   q, ev1, ev2, ev3, volume, reciprocalUnitCell,
-                  dielectricMatrix, bornCharges, atomicPositions, qCoarseMesh);
+                  dielectricMatrix, bornCharges, atomicPositions, qCoarseMesh, dimensionality);
               for (int nu = 0; nu < numModes; nu++) {
                 for (int j = 0; j < numBands; j++) {
                   for (int i = 0; i < numBands; i++) {
@@ -478,6 +479,7 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
     // we need to subtract the polar correction
     // this contribution will be reinstated during the interpolation
     auto volume = crystal.getVolumeUnitCell();
+    auto dimensionality = crystal.getDimensionality();
     auto reciprocalUnitCell = crystal.getReciprocalUnitCell();
     auto bornCharges = phononH0.getBornCharges();
     auto atomicPositions = crystal.getAtomicPositions();
@@ -518,7 +520,7 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
 
           auto v = InteractionElPhWan::getPolarCorrectionStatic(
               q, ev1, ev2, ev3, volume, reciprocalUnitCell, dielectricMatrix,
-              bornCharges, atomicPositions, qCoarseMesh);
+              bornCharges, atomicPositions, qCoarseMesh, dimensionality);
           for (int nu = 0; nu < numModes; nu++) {
             for (int j = 0; j < numBands; j++) {
               for (int i = 0; i < numBands; i++) {

@@ -112,6 +112,7 @@ InteractionElPhWan::getCouplingSquared(const int &ik2) {
   return cacheCoupling[ik2];
 }
 
+// set up V_L for the regular wannier interpolation of the matrix elements
 Eigen::Tensor<std::complex<double>, 3> InteractionElPhWan::getPolarCorrection(
     const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev1,
     const Eigen::MatrixXcd &ev2, const Eigen::MatrixXcd &ev3) {
@@ -163,6 +164,25 @@ Eigen::MatrixXcd InteractionElPhWan::precomputeQDependentPolar(
   return polarData;
 }
 
+Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1(const Eigen::Vector3d &q3, 
+							  const Eigen::MatrixXcd &ev3) {
+
+  // gather variables
+  double volume = crystal.getVolumeUnitCell();
+  Eigen::Matrix3d reciprocalUnitCell = crystal.getReciprocalUnitCell();
+  Eigen::Matrix3d epsilon = phononH0->getDielectricMatrix();
+  Eigen::Tensor<double, 3> bornCharges = phononH0->getBornCharges();
+  int dimensionality = crystal.getDimensionality();
+  // must be in Bohr
+  Eigen::MatrixXd atomicPositions = crystal.getAtomicPositions();
+  Eigen::Vector3i qCoarseMesh = phononH0->getCoarseGrid();
+
+  return polarCorrectionPart1Static(q3, ev3, volume, reciprocalUnitCell, epsilon, 
+		  		bornCharges, atomicPositions, qCoarseMesh, dimensionality);
+}
+
+// compute g_L for block->wannierTransform
+// TODO would it not be simpler to pass the crystal object here? 
 Eigen::Tensor<std::complex<double>, 3>
 InteractionElPhWan::getPolarCorrectionStatic(
     const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev1,
@@ -171,92 +191,151 @@ InteractionElPhWan::getPolarCorrectionStatic(
     const Eigen::Matrix3d &epsilon,
     const Eigen::Tensor<double, 3> &bornCharges,
     const Eigen::MatrixXd &atomicPositions,
-    const Eigen::Vector3i &qCoarseMesh) {
-  Eigen::VectorXcd x = polarCorrectionPart1Static(q3, ev3, volume, reciprocalUnitCell,
-                                                  epsilon, bornCharges, atomicPositions, qCoarseMesh);
+    const Eigen::Vector3i &qCoarseMesh, const int dimensionality) {
+
+  Eigen::VectorXcd x = polarCorrectionPart1Static(q3, ev3, volume, reciprocalUnitCell, epsilon, 
+		  		bornCharges, atomicPositions, qCoarseMesh, dimensionality);
   return polarCorrectionPart2(ev1, ev2, x);
 }
 
-Eigen::VectorXcd
-InteractionElPhWan::polarCorrectionPart1(const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev3) {
-  // gather variables
-  double volume = crystal.getVolumeUnitCell();
-  Eigen::Matrix3d reciprocalUnitCell = crystal.getReciprocalUnitCell();
-  Eigen::Matrix3d epsilon = phononH0->getDielectricMatrix();
-  Eigen::Tensor<double, 3> bornCharges = phononH0->getBornCharges();
-  // must be in Bohr
-  Eigen::MatrixXd atomicPositions = crystal.getAtomicPositions();
-  Eigen::Vector3i qCoarseMesh = phononH0->getCoarseGrid();
-
-  return polarCorrectionPart1Static(q3, ev3, volume, reciprocalUnitCell,
-                                    epsilon, bornCharges, atomicPositions, qCoarseMesh);
-}
-
+// compute the V_L component of g_L for block->wannierTransform
 Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1Static(
     const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev3,
     const double &volume, const Eigen::Matrix3d &reciprocalUnitCell,
     const Eigen::Matrix3d &epsilon, const Eigen::Tensor<double, 3> &bornCharges,
-    const Eigen::MatrixXd &atomicPositions, const Eigen::Vector3i &qCoarseMesh) {
+    const Eigen::MatrixXd &atomicPositions, const Eigen::Vector3i &qCoarseMesh, 
+    const int dimensionality) {
+
+
+  // for 3D:
   // doi:10.1103/physRevLett.115.176401, Eq. 4, is implemented here
+
+  // for 2D case: https://arxiv.org/pdf/2207.10187.pdf Eq 2.
 
   Kokkos::Profiling::pushRegion("polarCorrectionPart1Static");
 
   auto numAtoms = int(atomicPositions.rows());
-
-  // auxiliary terms
-  double gMax = 14.;
-  double chargeSquare = 2.;// = e^2/4/Pi/eps_0 in atomic units
-  std::complex<double> factor = chargeSquare * fourPi / volume * complexI;
-
-  // build a list of (q+G) vectors
-  std::vector<Eigen::Vector3d> gVectors;// here we insert all (q+G)
-  for (int m1 = -qCoarseMesh(0); m1 <= qCoarseMesh(0); m1++) {
-    for (int m2 = -qCoarseMesh(1); m2 <= qCoarseMesh(1); m2++) {
-      for (int m3 = -qCoarseMesh(2); m3 <= qCoarseMesh(2); m3++) {
-        Eigen::Vector3d gVector;
-        gVector << m1, m2, m3;
-        gVector = reciprocalUnitCell * gVector;
-        gVector += q3;
-        gVectors.push_back(gVector);
-      }
-    }
-  }
-
   auto numPhBands = int(ev3.rows());
   Eigen::VectorXcd x(numPhBands);
   x.setZero();
-  for (Eigen::Vector3d gVector : gVectors) {
-    double qEq = gVector.transpose() * epsilon * gVector;
-    if (qEq > 0. && qEq / 4. < gMax) {
-      std::complex<double> factor2 = factor * exp(-qEq / 4.) / qEq;
-      for (int iAt = 0; iAt < numAtoms; iAt++) {
-        double arg = -gVector.dot(atomicPositions.row(iAt));
-        std::complex<double> phase = {cos(arg), sin(arg)};
-        std::complex<double> factor3 = factor2 * phase;
-        for (int iPol : {0, 1, 2}) {
-          double gqDotZ = gVector(0) * bornCharges(iAt, 0, iPol) + gVector(1) * bornCharges(iAt, 1, iPol) + gVector(2) * bornCharges(iAt, 2, iPol);
-          int k = PhononH0::getIndexEigenvector(iAt, iPol, numAtoms);
-          for (int ib3 = 0; ib3 < numPhBands; ib3++) {
-            x(ib3) += factor3 * gqDotZ * ev3(k, ib3);
+
+  if(dimensionality == 3) {
+
+    // auxiliary terms
+    double gMax = 14.;
+    double chargeSquare = 2.;// = e^2/4/Pi/eps_0 in atomic units
+    std::complex<double> factor = chargeSquare * fourPi / volume * complexI;
+
+    // build a list of (q+G) vectors
+    std::vector<Eigen::Vector3d> gVectors;// here we insert all (q+G)
+    for (int m1 = -qCoarseMesh(0); m1 <= qCoarseMesh(0); m1++) {
+      for (int m2 = -qCoarseMesh(1); m2 <= qCoarseMesh(1); m2++) {
+        for (int m3 = -qCoarseMesh(2); m3 <= qCoarseMesh(2); m3++) {
+          Eigen::Vector3d gVector;
+          gVector << m1, m2, m3;
+          gVector = reciprocalUnitCell * gVector;
+          gVector += q3;
+          gVectors.push_back(gVector);
+        }
+      }
+    }
+
+    for (Eigen::Vector3d gVector : gVectors) {
+
+      // (q+G) * eps_inf * (q+G)
+      double qEq = gVector.transpose() * epsilon * gVector;
+
+      if (qEq > 0. && qEq / 4. < gMax) {
+
+        // TODO what is this? Ask Norma
+        std::complex<double> factor2 = factor * exp(-qEq / 4.) / qEq;
+
+        for (int iAt = 0; iAt < numAtoms; iAt++) {
+
+          // e^-(G+q).r ? TODO what is this phase...
+          double arg = -gVector.dot(atomicPositions.row(iAt));
+          std::complex<double> phase = {cos(arg), sin(arg)};
+          // factor 3 = (4pi*i/V) * (e^2/(4pi*eps0) * e^(-qEq / 4.) / qEq  * e^-i(G+q).r
+          std::complex<double> factor3 = factor2 * phase;
+
+          for (int iPol : {0, 1, 2}) {
+
+            double gqDotZ = gVector(0) * bornCharges(iAt, 0, iPol)
+                          + gVector(1) * bornCharges(iAt, 1, iPol)
+                          + gVector(2) * bornCharges(iAt, 2, iPol);
+            int k = PhononH0::getIndexEigenvector(iAt, iPol, numAtoms);
+
+            for (int ib3 = 0; ib3 < numPhBands; ib3++) {
+              //  x = (4pi*i/V) * (e^2/(4pi*eps0) * e^(-qEq / 4.) / qEq  * e^-i(G+q).r  * (q+G)*Z * ph_eig
+              x(ib3) += factor3 * gqDotZ * ev3(k, ib3);
+            }
           }
         }
       }
     }
   }
+  else if(dimensionality == 2) {
+
+    if(mpi->mpiHead()) Warning("El-ph polar correction for 2D materials implemented but not tested!"); 
+
+    // TODO in phoebe is volume when dim = 2 used actually S? I think so, let's check.
+    double S = volume; // ! ESPECIALLY check that this is the case in the call from B->W !
+    double qNorm = q3.norm(); // TODO do I need to sqrt this
+    double L = 1.; // TODO check how to optimize this, it's an "arbitrary" param
+    double fq = 1. - tanh(qNorm * L / 2.); // TODO check if there is a numerically smarter tanh
+    double vq = twoPi * fq / qNorm;
+    // "The macroscopic in-plane polarizability can be obtained from the in-plane
+    // dielectric constant eps_ab of an artificially periodic stack of
+    // monolayers with spacing c through alphaPar(q) = (c/4pi) sum_ab q*a(eps_ab − delta_ab)*q*b TODO Norma?
+    double alphaPar = 1.; // TODO how to determine this? -- the macroscopic in-plane polarizability
+    double epsPar_q = 1. + vq * alphaPar;
+    Eigen::Tensor<double, 3> Zpar = bornCharges; // TODO later add in quadrupoles
+
+    // TODO -- how to handle this form factor? Eq. 3 -- to start, maybe leave this as 1?
+
+    double prefactor = 1./S * vq;
+
+    for (int iAt = 0; iAt < numAtoms; iAt++) {
+
+      // e^-i(q.r)
+      double arg = -q3.dot(atomicPositions.row(iAt));
+      std::complex<double> phase = {cos(arg), sin(arg)};
+
+      for (int iPol : {0, 1, 2}) {
+
+        std::complex<double> iqDotZ = complexI *
+                       (q3(0) * Zpar(iAt, 0, iPol)
+                      + q3(1) * Zpar(iAt, 1, iPol)
+                      + q3(2) * Zpar(iAt, 2, iPol));
+        // get combined eigenvector index for atom + polarization
+        int kappa = PhononH0::getIndexEigenvector(iAt, iPol, numAtoms);
+
+        for (int ib3 = 0; ib3 < numPhBands; ib3++) {
+          x(ib3) += prefactor * iqDotZ * epsPar_q * ev3(kappa, ib3) * phase;
+        }
+      }
+    }
+  }
+  else { //(dimensionality == 1)
+    if(mpi->mpiHead()) Warning("El-ph polar correction for 1D materials not implemented. Let us know if you need this!");
+  }
+
   Kokkos::Profiling::popRegion();
+
   return x;
 }
 
+// regardless of the use case, this calculates <psi|e^{i(G+q).r}|psi> part of polar correction
 Eigen::Tensor<std::complex<double>, 3>
 InteractionElPhWan::polarCorrectionPart2(const Eigen::MatrixXcd &ev1, const Eigen::MatrixXcd &ev2, const Eigen::VectorXcd &x) {
+
   // overlap = <U^+_{b2 k+q}|U_{b1 k}>
   //         = <psi_{b2 k+q}|e^{i(q+G)r}|psi_{b1 k}>
   Eigen::MatrixXcd overlap = ev2.adjoint() * ev1;// matrix size (nb2,nb1)
   overlap = overlap.transpose();                 // matrix size (nb1,nb2)
 
   int numPhBands = x.rows();
-  Eigen::Tensor<std::complex<double>, 3> v(overlap.rows(), overlap.cols(),
-                                           numPhBands);
+  Eigen::Tensor<std::complex<double>, 3> v(overlap.rows(), overlap.cols(), numPhBands);
   v.setZero();
   for (int ib3 = 0; ib3 < numPhBands; ib3++) {
     for (int i = 0; i < overlap.rows(); i++) {
@@ -268,13 +347,13 @@ InteractionElPhWan::polarCorrectionPart2(const Eigen::MatrixXcd &ev1, const Eige
   return v;
 }
 
-void InteractionElPhWan::calcCouplingSquared(
-    const Eigen::MatrixXcd &eigvec1,
-    const std::vector<Eigen::MatrixXcd> &eigvecs2,
-    const std::vector<Eigen::MatrixXcd> &eigvecs3,
-    const std::vector<Eigen::Vector3d> &q3Cs,
-    const std::vector<Eigen::VectorXcd> &polarData) {
-
+void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
+                   			     const std::vector<Eigen::MatrixXcd> &eigvecs2,
+                         		     const std::vector<Eigen::MatrixXcd> &eigvecs3,
+                         		     const std::vector<Eigen::Vector3d> &q3Cs,
+                         		     const std::vector<Eigen::VectorXcd> &polarData, 
+					     const bool kPrimeIsKMinusQ) {
+                     
   Kokkos::Profiling::pushRegion("calcCouplingSquared");
   int numWannier = numElBands;
   auto nb1 = int(eigvec1.cols());
@@ -326,6 +405,7 @@ void InteractionElPhWan::calcCouplingSquared(
   // precompute all needed polar corrections
 #pragma omp parallel for
   for (int ik = 0; ik < numLoops; ik++) {
+
     Eigen::Vector3d q3C = q3Cs[ik];
     Eigen::MatrixXcd eigvec2 = eigvecs2[ik];
     Eigen::MatrixXcd eigvec3 = eigvecs3[ik];
@@ -333,6 +413,7 @@ void InteractionElPhWan::calcCouplingSquared(
     if (usePolarCorrections_h(ik)) {
       Eigen::Tensor<std::complex<double>, 3> singleCorrection =
           polarCorrectionPart2(eigvec1, eigvec2, polarData[ik]);
+
       for (int nu = 0; nu < numPhBands; nu++) {
         for (int ib1 = 0; ib1 < nb1; ib1++) {
           for (int ib2 = 0; ib2 < nb2s_h(ik); ib2++) {

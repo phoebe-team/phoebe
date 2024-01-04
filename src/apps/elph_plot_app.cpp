@@ -39,6 +39,13 @@ void ElPhCouplingPlotApp::run(Context &context) {
     mesh = context.getKMesh();
   } else if (context.getG2PlotStyle() == "kFixed") {
     mesh = context.getQMesh();
+  } else if (context.getG2PlotStyle() == "allToAll") {
+    if(context.getKMesh() != context.getQMesh()) { 
+      Error("Elph plotting app currently only works with kMesh = qMesh for allToAll calculations.");
+    }
+    mesh = context.getKMesh(); 
+  } else {
+    Error("Elph plotting app found an incorrect input to couplingPlotStyle.");
   }
 
   Points points(crystal);
@@ -75,15 +82,37 @@ void ElPhCouplingPlotApp::run(Context &context) {
         thisPair.first = thisPoint;
         thisPair.second = points.getPointCoordinates(iq, Points::cartesianCoordinates);;
         pointsPairs.push_back(thisPair);
-        pointsPairs.push_back(thisPair);
       }
     }
   }
 
-  // band ranges to calculate the coupling for
+  // band ranges to calculate the coupling for -----------------------------
   std::pair<int, int> g2PlotEl1Bands = context.getG2PlotEl1Bands();
   std::pair<int, int> g2PlotEl2Bands = context.getG2PlotEl2Bands();
   std::pair<int, int> g2PlotPhBands = context.getG2PlotPhBands();
+
+  // warn users if they have selected a bad band range 
+  if( g2PlotEl1Bands.second > electronH0.getNumBands() ) { 
+    Warning("The first band range exceeds the possible number of bands. Setting to max # of bands.");
+  }
+  if( g2PlotEl2Bands.second > electronH0.getNumBands() ) {
+    Warning("The second band range exceeds the possible number of bands. Setting to max # of bands.");
+  }
+  if( g2PlotPhBands.second > phononH0.getNumBands() ) {
+    Warning("The phonon band range exceeds the possible number of bands. Setting to max # of bands.");
+  }
+
+  // if not supplied, set first band index is already 0
+  // set the max number of bands to the higher end of the ranges 
+  if(g2PlotEl1Bands.second == 0 || g2PlotEl1Bands.second >= electronH0.getNumBands()) { 
+    g2PlotEl1Bands.second = electronH0.getNumBands() - 1; 
+  } 
+  if(g2PlotEl2Bands.second == 0 || g2PlotEl2Bands.second >= electronH0.getNumBands()) {
+    g2PlotEl2Bands.second = electronH0.getNumBands() - 1; 
+  } 
+  if(g2PlotPhBands.second == 0 || g2PlotPhBands.second >= phononH0.getNumBands()) { 
+    g2PlotPhBands.second = phononH0.getNumBands() - 1; // minus 1 to account for index from 0 
+  } 
 
   // Compute the coupling --------------------------------------------------
   std::vector<double> allGs;
@@ -136,7 +165,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
     Eigen::VectorXcd polar = couplingElPh.polarCorrectionPart1(q3C, eigenVector3);
     polarData.push_back(polar);
 
-    // calculate the elph coupling
+    // calculate the elph coupling squared
     couplingElPh.cacheElPh(eigenVector1, k1C); // THIS hangs when run with ps > 1, TODO
     couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, q3Cs, polarData);
     auto coupling = couplingElPh.getCouplingSquared(0);
@@ -161,7 +190,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
   if(mpi->mpiHead())
     std::cout << "\nFinished calculating coupling, writing to file." << std::endl;
 
-  std::string outFileName = "gmatrix.phoebe.hdf5";
+  std::string outFileName = "coupling.elph.phoebe.hdf5";
   std::remove(&outFileName[0]);
 
   // product of nbands1 * nbands2 * nmodes -- + 1 is because range is inclusive
@@ -187,7 +216,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
     dims[0] = 1;
     dims[1] = size_t(globalSize);
     HighFive::DataSet dgmat = file.createDataSet<double>(
-          "/gMat", HighFive::DataSpace(dims));
+          "/g2Matrix", HighFive::DataSpace(dims));
 
     // start point and the number of the total number of elements
     // to be written by this process
@@ -263,7 +292,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
     // write elph matrix elements
     HighFive::File file(outFileName, HighFive::File::Overwrite);
-    file.createDataSet("/gMat", collectedGs);
+    file.createDataSet("/g2Matrix", collectedGs);
 
     }
     #endif
@@ -303,7 +332,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
     }
   } catch (std::exception &error) {
-      Error("Issue writing el-el Wannier representation to hdf5.");
+      Error("Issue writing el-ph Wannier representation to hdf5.");
   }
   // close else for HDF5_AVAIL
   #else

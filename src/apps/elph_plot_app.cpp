@@ -13,11 +13,12 @@
 
 void ElPhCouplingPlotApp::run(Context &context) {
 
-  if(mpi->hasPools()) {
-    Error("Cannot currently run el-ph coupling plot app with\n"
-        "MPI pool size (-ps) greater than 1. Please run without pools\n"
-        "or let the developers know you need this feature.");
-  }
+// NOTE: this appears to work now	
+//  if(mpi->hasPools()) {
+//    Error("Cannot currently run el-ph coupling plot app with\n"
+//        "MPI pool size (-ps) greater than 1. Please run without pools\n"
+//        "or let the developers know you need this feature.");
+// }
 
   // load ph files
   auto t2 = Parser::parsePhHarmonic(context);
@@ -48,8 +49,10 @@ void ElPhCouplingPlotApp::run(Context &context) {
     Error("Elph plotting app found an incorrect input to couplingPlotStyle.");
   }
 
-  Points points(crystal);
   // decide what kind of points path we're going to use ---------------------------
+
+  Points points(crystal);
+
   if (context.getG2MeshStyle() == "pointsPath") {
     points = Points(crystal, context.getPathExtrema(), context.getDeltaPath());
   }
@@ -104,13 +107,13 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
   // if not supplied, set first band index is already 0
   // set the max number of bands to the higher end of the ranges 
-  if(g2PlotEl1Bands.second == 0 || g2PlotEl1Bands.second >= electronH0.getNumBands()) { 
+  if(g2PlotEl1Bands.second <= 0 || g2PlotEl1Bands.second >= electronH0.getNumBands()) { 
     g2PlotEl1Bands.second = electronH0.getNumBands() - 1; 
   } 
-  if(g2PlotEl2Bands.second == 0 || g2PlotEl2Bands.second >= electronH0.getNumBands()) {
+  if(g2PlotEl2Bands.second <= 0 || g2PlotEl2Bands.second >= electronH0.getNumBands()) {
     g2PlotEl2Bands.second = electronH0.getNumBands() - 1; 
   } 
-  if(g2PlotPhBands.second == 0 || g2PlotPhBands.second >= phononH0.getNumBands()) { 
+  if(g2PlotPhBands.second <= 0 || g2PlotPhBands.second >= phononH0.getNumBands()) { 
     g2PlotPhBands.second = phononH0.getNumBands() - 1; // minus 1 to account for index from 0 
   } 
 
@@ -166,7 +169,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
     polarData.push_back(polar);
 
     // calculate the elph coupling squared
-    couplingElPh.cacheElPh(eigenVector1, k1C); // THIS hangs when run with ps > 1, TODO
+    couplingElPh.cacheElPh(eigenVector1, k1C);
     couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, q3Cs, polarData);
     auto coupling = couplingElPh.getCouplingSquared(0);
 
@@ -186,6 +189,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
   mpi->barrier();
   loopPrint.close();
 
+  // ==========================================================================
   // now that we've collected all the G values, we want to write them to file.
   if(mpi->mpiHead())
     std::cout << "\nFinished calculating coupling, writing to file." << std::endl;

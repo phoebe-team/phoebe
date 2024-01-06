@@ -133,7 +133,8 @@ Eigen::Tensor<std::complex<double>, 3> InteractionElPhWan::getPolarCorrection(
 // calculated by the external pointsHelper class, rather than as a precomputation
 // over q at the start of the scattering rate calculation/
 Eigen::MatrixXcd InteractionElPhWan::precomputeQDependentPolar(
-                                                BaseBandStructure &phBandStructure) {
+                                             BaseBandStructure &phBandStructure,
+					     const bool useMinusQ) {
 
   if(!phBandStructure.getParticle().isPhonon()) {
     Error("Developer error: cannot use electron bands to "
@@ -147,14 +148,20 @@ Eigen::MatrixXcd InteractionElPhWan::precomputeQDependentPolar(
   int nbQMax = 3 * phBandStructure.getPoints().getCrystal().getNumAtoms();
   Eigen::MatrixXcd polarData(numQPoints, nbQMax);
   polarData.setZero();
+
   // Fine to divide over qpoints as all processes have pairs k1, allQpoints
   std::vector<size_t> qIterator = mpi->divideWorkIter(numQPoints);
 #pragma omp parallel for
-  for(int iiq = 0; iiq < int(qIterator.size()); iiq++) { 
-    int iq = qIterator[iiq];
+  for(size_t iiq = 0; iiq < size_t(qIterator.size()); iiq++) { 
+    size_t iq = qIterator[iiq];
     WavevectorIndex iqIdx(iq);
     auto qC = phBandStructure.getWavevector(iqIdx);
     auto evQ = phBandStructure.getEigenvectors(iqIdx);
+    if(useMinusQ) { 
+      qC = qC * -1.;
+      evQ = evQ.conjugate(); // u_{-q} = u_{q}^*, see 2017 giustino review eq 18  
+    } 
+    // prepare part of the correction for this q point 
     Eigen::VectorXcd thisPolar = polarCorrectionPart1(qC, evQ);
     for (int i=0; i<thisPolar.size(); ++i) {
       polarData(iq, i) = thisPolar(i);
@@ -212,7 +219,7 @@ Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1Static(
 
   // for 2D case: https://arxiv.org/pdf/2207.10187.pdf Eq 2.
 
-  Kokkos::Profiling::pushRegion("polarCorrectionPart1Static");
+  Kokkos::Profiling::pushRegion("Interaction Elph: polarCorrectionPart1Static");
 
   auto numAtoms = int(atomicPositions.rows());
   auto numPhBands = int(ev3.rows());
@@ -326,8 +333,10 @@ Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1Static(
 }
 
 // regardless of the use case, this calculates <psi|e^{i(G+q).r}|psi> part of polar correction
-Eigen::Tensor<std::complex<double>, 3>
-InteractionElPhWan::polarCorrectionPart2(const Eigen::MatrixXcd &ev1, const Eigen::MatrixXcd &ev2, const Eigen::VectorXcd &x) {
+Eigen::Tensor<std::complex<double>, 3> InteractionElPhWan::polarCorrectionPart2(
+							const Eigen::MatrixXcd &ev1, 
+							const Eigen::MatrixXcd &ev2, 
+							const Eigen::VectorXcd &x) {
 
   // overlap = <U^+_{b2 k+q}|U_{b1 k}>
   //         = <psi_{b2 k+q}|e^{i(q+G)r}|psi_{b1 k}>
@@ -348,11 +357,11 @@ InteractionElPhWan::polarCorrectionPart2(const Eigen::MatrixXcd &ev1, const Eige
 }
 
 void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
-                   			     const std::vector<Eigen::MatrixXcd> &eigvecs2,
-                         		     const std::vector<Eigen::MatrixXcd> &eigvecs3,
-                         		     const std::vector<Eigen::Vector3d> &q3Cs,
-                         		     const std::vector<Eigen::VectorXcd> &polarData, 
-					     const bool kPrimeIsKMinusQ) {
+                   			        const std::vector<Eigen::MatrixXcd> &eigvecs2,
+                         		    const std::vector<Eigen::MatrixXcd> &eigvecs3,
+                         		    const std::vector<Eigen::Vector3d> &q3Cs,
+                         		    const std::vector<Eigen::VectorXcd> &polarData, 
+					                      const bool useMinusQ) {
                      
   Kokkos::Profiling::pushRegion("calcCouplingSquared");
   int numWannier = numElBands;
@@ -408,8 +417,11 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
 
     Eigen::Vector3d q3C = q3Cs[ik];
     Eigen::MatrixXcd eigvec2 = eigvecs2[ik];
-    Eigen::MatrixXcd eigvec3 = eigvecs3[ik];
-    usePolarCorrections_h(ik) = usePolarCorrection && q3C.norm() > 1.0e-8;
+    //Eigen::MatrixXcd eigvec3 = eigvecs3[ik];
+    //if(useMinusQ) { 
+    //  eigvec3 = eigvec3.conjugate(); 
+    //}
+    usePolarCorrections_h(ik) = usePolarCorrection && abs(q3C.norm()) > 1.0e-8;
     if (usePolarCorrections_h(ik)) {
       Eigen::Tensor<std::complex<double>, 3> singleCorrection =
           polarCorrectionPart2(eigvec1, eigvec2, polarData[ik]);
@@ -446,7 +458,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
     auto eigvecs3_h = Kokkos::create_mirror_view(eigvecs3_k);
     auto q3Cs_h = Kokkos::create_mirror_view(q3Cs_k);
 
-#pragma omp parallel for default(none) shared(eigvecs3_h, eigvecs2Dagger_h, nb2s_h, q3Cs_h, q3Cs_k, q3Cs, numLoops, numWannier, numPhBands, eigvecs2Dagger_k, eigvecs3_k, eigvecs2, eigvecs3)
+#pragma omp parallel for default(none) shared(eigvecs3_h, eigvecs2Dagger_h, nb2s_h, q3Cs_h, q3Cs_k, q3Cs, numLoops, numWannier, numPhBands, eigvecs2Dagger_k, eigvecs3_k, eigvecs2, eigvecs3, useMinusQ)
     for (int ik = 0; ik < numLoops; ik++) {
       for (int i = 0; i < numWannier; i++) {
         for (int j = 0; j < nb2s_h(ik); j++) {
@@ -460,12 +472,20 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
       }
       for (int i = 0; i < numPhBands; i++) {
         for (int j = 0; j < numPhBands; j++) {
-          eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
+          if(useMinusQ) {   // i,j flipped here due to row/col major, 
+		  	                    // this is intentionally a * not a dagger
+	          eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i));
+	        } else { 
+            eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
+	        } 
         }
       }
-
       for (int i = 0; i < 3; i++) {
-        q3Cs_h(ik, i) = q3Cs[ik](i);
+	      if(useMinusQ) {
+          q3Cs_h(ik, i) = -1. * q3Cs[ik](i);
+	      } else { 
+          q3Cs_h(ik, i) = q3Cs[ik](i);
+        }
       }
     }
     Kokkos::deep_copy(eigvecs2Dagger_k, eigvecs2Dagger_h);
@@ -480,7 +500,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   ComplexView2D phases("phases", numLoops, numPhBravaisVectors);
   Kokkos::complex<double> complexI(0.0, 1.0);
   Kokkos::parallel_for(
-      "phases", Range2D({0, 0}, {numLoops, numPhBravaisVectors}),
+      "Interaction elph: calculate q phases", Range2D({0, 0}, {numLoops, numPhBravaisVectors}),
       KOKKOS_LAMBDA(int ik, int irP) {
         double arg = 0.0;
         for (int j = 0; j < 3; j++) {
@@ -494,7 +514,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   // apply phases
   ComplexView4D g3(Kokkos::ViewAllocateWithoutInitializing("g3"), numLoops, numPhBands, nb1, numWannier);
   Kokkos::parallel_for(
-      "g3", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, numWannier}),
+      "Interaction elph: apply q phases", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, numWannier}),
       KOKKOS_LAMBDA(int ik, int nu, int ib1, int iw2) {
         Kokkos::complex<double> tmp(0., 0.);
         for (int irP = 0; irP < numPhBravaisVectors; irP++) {
@@ -507,7 +527,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   // rotate using phonon eigenvectors
   ComplexView4D g4(Kokkos::ViewAllocateWithoutInitializing("g4"), numLoops, numPhBands, nb1, numWannier);
   Kokkos::parallel_for(
-      "g4", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, numWannier}),
+      "Interaction elph: rotate using phonon eigenvectors", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, numWannier}),
       KOKKOS_LAMBDA(int ik, int nu2, int ib1, int iw2) {
         Kokkos::complex<double> tmp(0., 0.);
         for (int nu = 0; nu < numPhBands; nu++) {
@@ -520,7 +540,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   // rotate using U^dagger eigenvectors
   ComplexView4D gFinal(Kokkos::ViewAllocateWithoutInitializing("gFinal"), numLoops, numPhBands, nb1, nb2max);
   Kokkos::parallel_for(
-      "gFinal", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, nb2max}),
+      "Interaction elph: rotate using U^dagger eigenvectors", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, nb2max}),
       KOKKOS_LAMBDA(int ik, int nu, int ib1, int ib2) {
         Kokkos::complex<double> tmp(0., 0.);
         for (int iw2 = 0; iw2 < numWannier; iw2++) {
@@ -533,7 +553,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   // we now add the precomputed polar corrections, before taking the norm of g
   if (usePolarCorrection) {
     Kokkos::parallel_for(
-        "correction",
+        "re-add polar correction to g",
         Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, nb2max}),
         KOKKOS_LAMBDA(int ik, int nu, int ib1, int ib2) {
           gFinal(ik, nu, ib1, ib2) += polarCorrections(ik, nu, ib1, ib2);
@@ -542,9 +562,9 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   Kokkos::realloc(polarCorrections, 0, 0, 0, 0);
 
   // finally, compute |g|^2 from g
-  DoubleView4D coupling_k(Kokkos::ViewAllocateWithoutInitializing("coupling"), numLoops, numPhBands, nb2max, nb1);
+  DoubleView4D coupling_k(Kokkos::ViewAllocateWithoutInitializing("gSq"), numLoops, numPhBands, nb2max, nb1);
   Kokkos::parallel_for(
-      "coupling", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb2max, nb1}),
+      "Interaction elph: modulus coupling", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb2max, nb1}),
       KOKKOS_LAMBDA(int ik, int nu, int ib2, int ib1) {
         // notice the flip of 1 and 2 indices is intentional
         // coupling is |<k+q,ib2 | dV_nu | k,ib1>|^2

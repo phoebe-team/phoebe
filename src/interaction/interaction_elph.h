@@ -144,8 +144,9 @@ public:
    * @param phEigvecs: phonon eigenvectors, in matrix form, for a bunch of
    * wavevectors q3
    * @param q3s: list of phonon wavevectors.
-   * @param kPrimeIsKMinusQ: boolean to tell us if the convention k'=k-q, 
-   * 	rather than the standard k'=k+q should be used. Defaults to false. 
+   * @param useMinusQ: boolean to tell us if we should negate q (and related quantities)
+   *                   this results in a conjugation of the ph eigenvector, e(-q) = e(q)^*
+   *                   This can be useful if you want to do g(k,-q)
    */
   void calcCouplingSquared(
       const Eigen::MatrixXcd &eigvec1,
@@ -153,7 +154,7 @@ public:
       const std::vector<Eigen::MatrixXcd> &eigvecs3,
       const std::vector<Eigen::Vector3d> &q3Cs,
       const std::vector<Eigen::VectorXcd> &polarData, 
-      const bool kPrimeIsKMinusQ = false);
+      const bool useMinusQ = false);
 
   /** Computes a partial Fourier transform over the k1/R_el variables.
    * @param k1C: values of the k1 cartesian coordinates over which the Fourier
@@ -202,7 +203,7 @@ public:
 
   // Internal polar correction functions --------------------------------
 
-  // TODO these functions need documentation 
+  // TODO these functions need full documentation 
 
   // functions to help with the calculation of the polar correction
   // as described in doi:10.1103/physRevLett.115.176401, Eq. 4
@@ -241,9 +242,12 @@ public:
   /** precompute the q-dependent part of the polar correction 
   * @param phbandstructure: the bandstructure object containing all q-points
   *     for which this precomputation should occur
+  * @param useMinusQ: this variable triggers -q rather than q to be used in this function
+  * 	This can be useful if you want to do g(k,-q)
   * @return polarData: the q-dependent part of the polar correction
   */
-  Eigen::MatrixXcd precomputeQDependentPolar(BaseBandStructure &phBandStructure);
+  Eigen::MatrixXcd precomputeQDependentPolar(BaseBandStructure &phBandStructure, 
+		  			     const bool useMinusQ = false);
 
 };
 

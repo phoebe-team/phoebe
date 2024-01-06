@@ -132,7 +132,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                   fermiOccupations,
                                   outerBandStructure, outerBandStructure,
                                   *phononH0, couplingElPh, internalDiagonal);
-
+  
   // add charged impurity electron scattering  -------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
                        switchCase, kPairIterator,
@@ -153,7 +153,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                             innerBandStructure, innerBandStructure, internalDiagonal);
   }
 
-  // TODO check boundary scattering
+  // TODO check boundary scattering addition 
   // Add boundary scattering ----------------------
   // Call this twice for each section of the diagonal,
   // in one case handing it the phonon bands, in the other the electron bands.
@@ -198,7 +198,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
   // requires the replacing of the linewidths object into the SMatrix diagonal at the
   // end of this function
-  //addPhElScattering(*this, context, innerBandStructure, electronH0, couplingElPh, postSymLinewidths);
+  addPhElScattering(*this, context, innerBandStructure, electronH0, couplingElPh, postSymLinewidths);
   mpi->barrier();
 
   // all reduce the calculated phel linewidths 

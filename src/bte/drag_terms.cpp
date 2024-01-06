@@ -41,30 +41,27 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 /* In pseudocode, the below follows as: 
 
   loop over k {
+
     # Fourier transform + rotation on elph matrix elements related to k
 
- 	loop over a batch of q points {
+ 	  loop over a batch of q points {
 
- 		# set up phonon quantities for q 
- 		# set up electronic quantities for k'+
+ 		  # set up phonon quantities for q 
 
- 		loop over k'+ points {
- 			# sum up k'+ part of the D term
- 			  # electronic quantities for k'-
- 			  # the matrix elements g(k,k'+,q)
- 		} 
+      loop over k'+, k'- points {
 
- 		# set up electronic quantities for k'-
- 		# generate elph matrix elements for g(k,k'-,q)
+        k' = k +/- q
 
- 		loop over k'- points {
- 			# sum up k'- part of the D term, using 
- 			  # electronic quantities for k'-
- 			  # the matrix elements g(k,k'-,q)
- 		}
- 		matrixElement = (sum_(k'+) contribution) - (sum_(k'-) contribution)
- 	}
- }
+ 		    # set up electronic quantities for k'
+          # calculate cosh
+          # calculate K' energies 
+
+        # calculate the matrix elements g(k,k',q)
+ 			  # sum the components to calculate contribution to D
+
+ 	    }
+    }
+  }
  */
 
   StatisticsSweep &statisticsSweep = matrix.statisticsSweep;
@@ -90,7 +87,11 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
   // TODO change this to the same in phel scattering as well
   // precompute the q-dependent part of the polar correction
-  Eigen::MatrixXcd polarData = couplingElPhWan->precomputeQDependentPolar(phononBandStructure);
+  // TODO for now we precompute BOTH q+ and q-. It would be much smarter
+  // to figure out how to use only q+ so that we do not have to do this twice... 
+  Eigen::MatrixXcd polarDataQPlus = couplingElPhWan->precomputeQDependentPolar(phononBandStructure);
+  bool useMinusQ = true; // trigger -q calculation using the already computed bandstructure
+  Eigen::MatrixXcd polarDataQMinus = couplingElPhWan->precomputeQDependentPolar(phononBandStructure, useMinusQ);
 
   // set up the loopPrint object which prints out progress 
   std::string dragName = (dragTermType == Del) ? "el-ph" : "ph-el";
@@ -144,7 +145,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
     Eigen::MatrixXcd eigenVectorK = electronBandStructure.getEigenvectors(ikIdx);
 
     // perform the first fourier transform + rotation for state k
-    couplingElPhWan->cacheElPh(eigenVectorK, kCartesian);
+    couplingElPhWan->cacheElPh(eigenVectorK, kCartesian); // U_k = eigenVectorK, FT using phase e^{ik.Re}
 
     // prepare batches of intermediate states, kp, which are determined by the points helper
     // by memory usage
@@ -168,14 +169,8 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
       size_t batchSize = end - start;
       batchTotal += batchSize;
 
-      // Kp, intermediate state quantities
-      // For this implementation, there's two kinds of k'
-      //    k' = k + q, and 
-      //    k' = k - q
-      // Here, we set up both, though we can recycle the elph matrix elements from k' = k + q
-      // for k' = k - q, as g(k,k',q)^2 = g(k,k',-q)^2
-      std::vector<Eigen::Vector3d> allKpPlusCartesian(batchSize);   // list of kp = k + q wavevectors
-      std::vector<Eigen::Vector3d> allKpMinusCartesian(batchSize);  // list of kp = k - q wavevectors
+      // container for the list of kp wavevectors
+      std::vector<Eigen::Vector3d> allKpCartesian(batchSize);
 
       // final state quantities, q
       std::vector<Eigen::Vector3d> allQCartesian(batchSize);        // list of q wavevectors
@@ -184,280 +179,301 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
       std::vector<Eigen::MatrixXd> allVQs(batchSize);               // phonon group velocities
       std::vector<Eigen::VectorXcd> allPolarData(batchSize);        // related to long range elph elements
 
-      Kokkos::Profiling::pushRegion("drag preprocessing loop");
+      Kokkos::Profiling::pushRegion("drag preprocessing loop: q states");
 
-      // do prep work for all values of q in the current batch,
-      // and store all quantities needed to calculate couplings later
-#pragma omp parallel for default(none) shared(iQIndexes, allKpPlusCartesian, allKpMinusCartesian, batchSize, start, allQCartesian, allStateEnergiesQ, allVQs, allEigenVectorsQ, kCartesian, allPolarData, polarData, phononBandStructure)
+      // do prep work for all values of q in the current batch
+      #pragma omp parallel for default(none) shared(iQIndexes, batchSize, start, allQCartesian, allStateEnergiesQ, allVQs, allEigenVectorsQ, phononBandStructure)
       for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
 
-        // Set phonon state quantities from band structure ------------
+        // Set phonon state quantities from band structure --------------------------
         int iQ = iQIndexes[start + iQBatch];    // index the q state within this batch
         WavevectorIndex iQIdx(iQ);
-        allQCartesian[iQBatch] = phononBandStructure.getWavevector(iQIdx);  // ph wavevector in cartesian
-        allPolarData[iQBatch] = polarData.row(iQ);                          // long range polar data
-        allStateEnergiesQ[iQBatch] = phononBandStructure.getEnergies(iQIdx);  // ph energies
-        allVQs[iQBatch] = phononBandStructure.getGroupVelocities(iQIdx);      // ph vels in cartesian
+        allQCartesian[iQBatch] = phononBandStructure.getWavevector(iQIdx);       // ph wavevector in cartesian
+        allStateEnergiesQ[iQBatch] = phononBandStructure.getEnergies(iQIdx);     // ph energies
+        allVQs[iQBatch] = phononBandStructure.getGroupVelocities(iQIdx);         // ph vels in cartesian
         allEigenVectorsQ[iQBatch] = phononBandStructure.getEigenvectors(iQIdx);  // ph eigenvectors 
 
-        // Set up intermediate electron state wavevectors 
-        // (energies, etc, done on the fly below)
-        // There are two rates which contribute to the rate at each k,q index of the matrix
-        // We set up a loop above to count the "plus" and "minus" contributions one at a time
-        // TODO calc coupling squared expects q = k - k', and for the drag terms we need
-        // k' = k + q  -> q = k' - k (the standard one used in coupling squared)
-        // k' = k - q  -> -q = k' - k
-        Eigen::Vector3d kpPlusCartesian = kCartesian + allQCartesian[iQBatch];
-        Eigen::Vector3d kpMinusCartesian = kCartesian - allQCartesian[iQBatch];
-        allKpPlusCartesian[iQBatch] = kpPlusCartesian;
-        allKpMinusCartesian[iQBatch] = kpMinusCartesian;
-
       }
       Kokkos::Profiling::popRegion();
 
-      // TODO set up the p / m loop above before the points? 
-
-      // populate kp band properties -------------------------
-      // NOTE: kp must be generated on the fly, as we have not enforced
-      // k = q meshes, and therefore we do not know if kP will be on the same mesh as k
-      // (and, likely it's not)
-      bool withEigenvectors = true;     // we need these for the transfom in calcCoupling
-      bool withVelocities = false;       
-      // need velocities for adaptive smearing 
-      if (smearing->getType() == DeltaFunction::adaptiveGaussian
-                                || smearing->getType() == DeltaFunction::symAdaptiveGaussian) {
-        withVelocities = true;
-      }
+      // Kp, intermediate state quantities
+      // For this implementation, there's two kinds of k'
+      //    k+' = k + q, 
+      //    k-' = k - q
+      // Because both correspond to the same initial k state, 
+      // we can re-use the first fourier transform done by the cacheElph call above.
+      // Additionally, remember q is fixed by the phonon state -- only k' varies. 
       
-      // generate the kp+ quantities from the Wannier Hamiltonian
-      auto infoElKp = electronH0->populate(allKpPlusCartesian, withVelocities, withEigenvectors);
+      // The below loop will cover the generation of k+' and k-' ----------------------------------
+      // Here, k+' = 0, k-' = 1 
+      // TODO can we OMP this?
+      for (auto isKpMinus: {0,1}) { 
 
-      std::vector<Eigen::VectorXd> allStatesEnergiesKpPlus = std::get<0>(infoElKp);
-      std::vector<Eigen::MatrixXcd> allEigenVectorsKpPlus = std::get<1>(infoElKp);
-      std::vector<Eigen::Tensor<std::complex<double>,3>> allVKpPlus = std::get<2>(infoElKp);
+        Kokkos::Profiling::pushRegion("drag preprocessing loop: kPrime states");
 
-      // generate the kp-, k' = k - q quantities
-      infoElKp = electronH0->populate(allKpMinusCartesian, withVelocities, withEigenvectors);
+        // do prep work for all values of k' in this batch -------------------------- 
+        #pragma omp parallel for default(none) shared(allKpCartesian, batchSize, allQCartesian, kCartesian, allPolarData, polarDataQPlus, polarDataQMinus, phononBandStructure, isKpMinus)
+        for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
 
-      std::vector<Eigen::VectorXd> allStatesEnergiesKpMinus = std::get<0>(infoElKp);
-      std::vector<Eigen::Tensor<std::complex<double>,3>> allVKpMinus = std::get<2>(infoElKp);
+          // Set up intermediate electron state wavevectors 
+          // (energies, etc, done on the fly below)
+          // There are two rates which contribute to the rate at each k,q index of the matrix
+          // We set up a loop above to count the "plus" and "minus" contributions one at a time
+          Eigen::Vector3d kpCartesian = {0,0,0};
+          Eigen::VectorXcd kpPolarData; 
+          kpPolarData.setZero(); 
+          
+    	    // remember: k+' = 0, k-' = 1 
+          if(isKpMinus == 0) { // kp is plus 
+            kpCartesian = kCartesian + allQCartesian[iQBatch];
+            //kpPolarData = polarDataQPlus.row(iQBatch);
+          } 
+          if(isKpMinus == 1) { // kp is minus
+            kpCartesian = kCartesian - allQCartesian[iQBatch];
+            //kpPolarData = polarDataQMinus.row(iQBatch);   // TODO check that this is the right syntax vs the old version 
+          } 
+          allKpCartesian[iQBatch] = kpCartesian;      // kP wavevector 
+          allPolarData[iQBatch] = kpPolarData;        // long range polar data
+        }  
+        Kokkos::Profiling::popRegion();
 
-      // do the remaining fourier transforms + basis rotations
-      // after this call, the couplingElPhWan object contains the coupling for
-      // this batch of points, and therefore is indexed by iQBatch
-      //
-      // We calculate the couplings for g(k,k',q) then use them for g(k,k',-q) as well
-      couplingElPhWan->calcCouplingSquared(eigenVectorK, allEigenVectorsKpPlus,
-                                           allEigenVectorsQ, allQCartesian, allPolarData);
+        // populate kp band properties ---------------------------------------------
+	
+        // NOTE: kp must be generated on the fly, as we have not enforced
+        // k = q meshes, and therefore we do not know if kP will be on the same mesh as k
+        // (and, likely it's not)
+        bool withEigenvectors = true;     // we need these for the transfom in calcCoupling
+        bool withVelocities = false;       
 
-      Kokkos::Profiling::pushRegion("symmetrize drag coupling");
-
-#pragma omp parallel for
-      for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
-        matrix.symmetrizeCoupling(
-            couplingElPhWan->getCouplingSquared(iQBatch),
-            stateEnergiesK, allStatesEnergiesKpPlus[iQBatch], allStateEnergiesQ[iQBatch]
-        );
-      }
-      Kokkos::Profiling::popRegion();
-
-      Kokkos::Profiling::pushRegion("drag terms postprocessingloop");
-
-      // do postprocessing loop with batch of couplings to calculate the rates
-      for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
-
-        // get the qpoint index
-        int iQ = iQIndexes[start + iQBatch];
-
-        // grab the coupling matrix elements for the batch of q points
-        Eigen::Tensor<double, 3>& coupling = couplingElPhWan->getCouplingSquared(iQBatch);
-
-        Eigen::Vector3d qCartesian = allQCartesian[iQBatch];
-        auto t3 = phononBandStructure.getRotationToIrreducible(qCartesian, Points::cartesianCoordinates);
-        int iQIrr = std::get<0>(t3);
-        // TODO Could add this later if we someday want symmetry
-        //Eigen::Matrix3d rotation = std::get<1>(t3); // unused for now as we block sym
-
-        WavevectorIndex iQIdx(iQ);
-        WavevectorIndex iQIrrIdx(iQIrr);
-
-        // pull out the energies, etc, for this batch of points
-        Eigen::VectorXd stateEnergiesQ = allStateEnergiesQ[iQBatch];
-
-        // TODO if we can reuse the matrix elements, this might be the spot to put the new loop of +/-
-
-        Eigen::VectorXd stateEnergiesKpPlus = allStatesEnergiesKpPlus[iQBatch];
-        Eigen::VectorXd stateEnergiesKpMinus = allStatesEnergiesKpMinus[iQBatch];
-        Eigen::Tensor<std::complex<double>,3> vKpPlus = allVKpPlus[iQBatch];
-        Eigen::Tensor<std::complex<double>,3> vKpMinus = allVKpMinus[iQBatch];
-
-        int nbQ = int(stateEnergiesQ.size());
-        // this should be the same for both kpPlus and kpMinus, because
-        // we generate these on the fly and don't filter out any bands
-        int nbKp = int(stateEnergiesKpPlus.size());
-
-        // pre compute the cosh terms 
-        Eigen::MatrixXd coshDataKpPlus(nbKp, numCalculations);
-        Eigen::MatrixXd coshDataKpMinus(nbKp, numCalculations);
-
-#pragma omp parallel for collapse(2)
-        for (int ibKp = 0; ibKp < nbKp; ibKp++) {
-          for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
-
-            double enKpPlus = stateEnergiesKpPlus(ibKp);
-            double enKpMinus = stateEnergiesKpMinus(ibKp);
-            double kT = statisticsSweep.getCalcStatistics(iCalc).temperature;
-            double chemPot = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
-            coshDataKpPlus(ibKp, iCalc) = 0.5 / cosh(0.5 * (enKpPlus - chemPot) / kT);
-            coshDataKpMinus(ibKp, iCalc) = 0.5 / cosh(0.5 * (enKpMinus - chemPot) / kT);
-
-          }
+	      // TODO add a "requiresVelocities()" to delta functions --  need velocities for adaptive smearing 
+        if (smearing->getType() == DeltaFunction::adaptiveGaussian
+                                || smearing->getType() == DeltaFunction::symAdaptiveGaussian) {
+          withVelocities = true;
         }
+      
+        // generate the kp quantities on the fly from the Wannier Hamiltonian
+        // returns allStatesEnergiesKp, allEigenVectorsKp, allVKp
+        auto kpElQuantities = electronH0->populate(allKpCartesian, withVelocities, withEigenvectors);
 
-        // Loop over state bands and now calculate scattering rates
-        for (int ibQ = 0; ibQ < nbQ; ibQ++) {
+        std::vector<Eigen::VectorXd> allStatesEnergiesKp = std::get<0>(kpElQuantities);
+        std::vector<Eigen::MatrixXcd> allEigenVectorsKp = std::get<1>(kpElQuantities); // U_{k+q}, or U_{k-q}
+        std::vector<Eigen::Tensor<std::complex<double>,3>> allVKp = std::get<2>(kpElQuantities);
 
-          double enQ = stateEnergiesQ(ibQ);
-          int isQ = phononBandStructure.getIndex(iQIdx, BandIndex(ibQ));
-          int isQIrr = phononBandStructure.getIndex(iQIrrIdx, BandIndex(ibQ));
-          StateIndex isQIdx(isQ);
-          StateIndex isQIrrIdx(isQIrr);
-          BteIndex indQIdx = phononBandStructure.stateToBte(isQIrrIdx);
-          int iBteQ = indQIdx.get();
+        // do the remaining fourier transforms + basis rotations ----------------------------
+	      //
+        // after this call, the couplingElPhWan object contains the coupling for
+        // this batch of points, and therefore is indexed by iQBatch
+        //
+        // Depending on which kP this is, we calculate either: 
+	      //    - for k'+ -> g(k,k+q,q) 
+        //    - for k'- -> g(k,k-q,-q)
+        // We do this because |g(k,k-q,-q)|^2 = |g(k,k-q,q)|^2, 
+        // but simply changing q -> -q makes the changes to interaction elph a bit simpler. 
+        // TODO is the above true? could we instead only changes U_{k+q} -> U_{k-q}? 
+        // remember: k+' = 0, k-' = 1
+        bool useMinusQ = bool(isKpMinus); 
+        couplingElPhWan->calcCouplingSquared(eigenVectorK, allEigenVectorsKp, allEigenVectorsQ, 
+					                                   allQCartesian, allPolarData, useMinusQ);
 
-          // remove small divergent phonon energies
-          if (enQ < phEnergyCutoff) { continue; }
+        // symmetrize the coupling matrix elements for improved numerical stability 
+        Kokkos::Profiling::pushRegion("symmetrize drag coupling");
 
-          // initial electron state
-          for (int ibK = 0; ibK < nbK; ibK++) {
+        #pragma omp parallel for
+        for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
+          matrix.symmetrizeCoupling(couplingElPhWan->getCouplingSquared(iQBatch),
+                    stateEnergiesK, allStatesEnergiesKp[iQBatch], allStateEnergiesQ[iQBatch]
+          );
+        }
+        Kokkos::Profiling::popRegion();
 
-            double enK = stateEnergiesK(ibK);
-            int isK = electronBandStructure.getIndex(ikIdx, BandIndex(ibK));
-            StateIndex isKIdx(isK);
-            BteIndex indKIdx = electronBandStructure.stateToBte(isKIdx);
-            int iBteK = indKIdx.get();
+        Kokkos::Profiling::pushRegion("drag terms postprocessingloop");
+ 
+        // do postprocessing loop with batch of couplings to calculate the rates
+        for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
 
-            // intermediate electron states
-            for (int ibKp = 0; ibKp < nbKp; ibKp++) {
+          // get the qpoint index
+          int iQ = iQIndexes[start + iQBatch];
 
-              double enKpPlus = stateEnergiesKpPlus(ibKp);
-              double enKpMinus = stateEnergiesKpMinus(ibKp);
+          // grab the coupling matrix elements for the batch of q points
+          // returns |g(m,m',nu)|^2
+          Eigen::Tensor<double, 3>& couplingSq = couplingElPhWan->getCouplingSquared(iQBatch); 
 
-              // set up the delta functions
-              double deltaPlus = 0;  // for k' = k + q, delta(E_kp - omega - E_k)
-              double deltaMinus = 0; // for k' = k - q, delta(E_k - omega - E_kp)
+          //Eigen::Vector3d qCartesian = allQCartesian[iQBatch];
+          //auto t3 = phononBandStructure.getRotationToIrreducible(qCartesian, Points::cartesianCoordinates);
+          //int iQIrr = std::get<0>(t3);
+          // TODO Could add this later if we someday want symmetry
+          //Eigen::Matrix3d rotation = std::get<1>(t3); // unused for now as we block sym
 
-              if (smearing->getType() == DeltaFunction::gaussian) {
+          WavevectorIndex iQIdx(iQ);
+          //WavevectorIndex iQIrrIdx(iQIrr);
 
-                deltaPlus = smearing->getSmearing(enKpPlus - enK - enQ);
-                deltaMinus = smearing->getSmearing(enKpMinus - enK + enQ);
+          // pull out the energies, etc, for this batch of points
+          Eigen::VectorXd stateEnergiesQ = allStateEnergiesQ[iQBatch];
+          Eigen::VectorXd stateEnergiesKp = allStatesEnergiesKp[iQBatch];
+          Eigen::Tensor<std::complex<double>,3> vKp = allVKp[iQBatch];   
 
-              } else if (smearing->getType() == DeltaFunction::adaptiveGaussian) {
+	        // number of bands 
+          int nbQ = int(stateEnergiesQ.size());
+          int nbKp = int(stateEnergiesKp.size());
 
-                // in this case, the delta functions are all |vk - vk'|
-                Eigen::Vector3d vdiffPlus = vKs.row(ibK);
-                Eigen::Vector3d vdiffMinus = vKs.row(ibK);
-                for (int i : {0,1,2}) {
-                  vdiffPlus(i) -= vKpPlus(ibKp, ibKp, i).real();
-                  vdiffMinus(i) -= vKpMinus(ibKp, ibKp, i).real();
-                }
-                deltaPlus = smearing->getSmearing(enKpPlus - enK - enQ, vdiffPlus);
-                deltaMinus = smearing->getSmearing(enKpMinus - enK + enQ, vdiffMinus);
+          // pre compute the cosh term 
+          Eigen::MatrixXd coshDataKp(nbKp, numCalculations);
 
-              } else if (smearing->getType() == DeltaFunction::symAdaptiveGaussian) {
+          #pragma omp parallel for collapse(2)
+          for (int ibKp = 0; ibKp < nbKp; ibKp++) {
+            for (int iCalc = 0; iCalc < numCalculations; iCalc++) { // only one calculation here
 
-                Eigen::Vector3d vQ = allVQs[iQBatch].row(ibQ);
-                Eigen::Vector3d vK = vKs.row(ibK);
-                Eigen::Vector3d vKpP, vKpM;
-                for (int i : {0,1,2}) {
-                  vKpP(i) = vKpPlus(ibKp, ibKp, i).real();
-                  vKpM(i) = vKpMinus(ibKp, ibKp, i).real();
-                }
-                deltaPlus = smearing->getSmearing(enKpPlus - enK - enQ, vQ, vK, vKpP);
-                deltaMinus = smearing->getSmearing(enKpMinus - enK + enQ, vQ, vK, vKpM);
-              } else { // tetrahedron
-                // we actually block this for transport in the parent scattering matrix obj
-                // Therefore, I merely here again throw an error if this is used
-                Error("Developer error: Tetrahedron not implemented for CBTE.");
-              }
+              double enKp = stateEnergiesKp(ibKp);
+              double kT = statisticsSweep.getCalcStatistics(iCalc).temperature;
+              double chemPot = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
+              coshDataKp(ibKp, iCalc) = 0.5 / cosh(0.5 * (enKp - chemPot) / kT);
+            }
+          }
 
-//              if(mpi->mpiHead()) {
-//                    std::cout << "nK nkP nPh " << ibK << " " << ibKp << " " <<  ibQ <<  " Ek1 Ek2 omega " << enK << " " << enKp << " " << enQ << " delta 123 " << delta1 << " " << delta2 << " "<< delta3 << " coupling " << coupling(ibK, ibKp, ibQ) << std::endl;
-//              }
+          // Calculate the scattering rate  -------------------------------------------
+          // Loop over state bands 
+          for (int ibQ = 0; ibQ < nbQ; ibQ++) {
 
-              // if nothing contributes, go to the next triplet
-              if (deltaMinus <= 0. && deltaPlus <= 0.) { continue; }
+            double enQ = stateEnergiesQ(ibQ);
+            int isQ = phononBandStructure.getIndex(iQIdx, BandIndex(ibQ));
+            //int isQIrr = phononBandStructure.getIndex(iQIrrIdx, BandIndex(ibQ));
+            StateIndex isQIdx(isQ);
+            //StateIndex isQIrrIdx(isQIrr);
+            //BteIndex indQIdx = phononBandStructure.stateToBte(isQIrrIdx);
+            BteIndex bteQIdx = phononBandStructure.stateToBte(isQIdx);
+            int iBteQ = bteQIdx.get();
 
-              // loop on temperature (for now this is only ever one temp at a time)
-              for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+            // remove small divergent phonon energies
+            if (enQ < phEnergyCutoff) { continue; }
 
-                double coshKpPlus = coshDataKpPlus(ibKp, iCalc); // symmetrization term
-                double coshKpMinus = coshDataKpMinus(ibKp, iCalc); // symmetrization term
+            // initial electron state
+            for (int ibK = 0; ibK < nbK; ibK++) {
 
-                // Note: in these statements, because |g|^2 in coupling needs
-                // the factor of * sqrt(hbar/(2M0*omega)) to convert it to the SE el-ph
-                // matrix elements. We apply /enQ and cancel a factor of 2
+              double enK = stateEnergiesK(ibK);
+              int isK = electronBandStructure.getIndex(ikIdx, BandIndex(ibK));
+              StateIndex isKIdx(isK);
+              BteIndex indKIdx = electronBandStructure.stateToBte(isKIdx);
+              int iBteK = indKIdx.get();
 
-                // Note: we can't do both Delph and Dphel at once because of the block cyclic distribution
-                // of the scattering matrix. There's no guarantee that A_ij and A_ji will both
-                // be available to the same MPI process.
-                // Therefore, this function is called with an argument to either one or the other
-                double dragRate = 0;
-                // Calculate D_k,q  += 2pi/N * |g|^2 * [delta(enKp - enQ - enK)] * 1/(2cosh)
-                // where kp is either k+ or k-
-                dragRate += pi * norm / enQ * coupling(ibK, ibKp, ibQ) * (deltaPlus) * coshKpPlus;
-                dragRate -= pi * norm / enQ * coupling(ibK, ibKp, ibQ) * (deltaMinus) * coshKpMinus;
+              // loop over intermediate electron state bands 
+              for (int ibKp = 0; ibKp < nbKp; ibKp++) {
 
-                // the other scattering classes use a "switchCase" variable to determine
-                // if we're peforming a matrix*vector product, just filling in linewidths,
-                // or filling the whole matrix.
-                // In this class, for now we only use the whole matrix, and therefore I only
-                // implement switch case 0.
-                //
-                // Additionally, there's no reason here to fill in the "linewidths" variable,
-                // as we'll never have two of the same state, when dimensions are nph, nel states
+                double enKp = stateEnergiesKp(ibKp);
 
-                // shift the indices if it's necessary
-                // if it's not a coupled matrix, these will be just iBte1 and iBte2
-                // We have to define shifted versions, or they will be further shifted every loop.
-                //
-                // Additionally, these are only needed in no-sym case,
-                // as coupled matrix never has sym, is always case = 0
-                int iBteKShift = iBteK;
-                int iBteQShift = iBteQ;
-                if(matrix.isCoupled) {
-                  Particle el(Particle::electron); Particle ph(Particle::phonon);
-                  if(dragTermType == Del) { // indexing is K, Q
-                    auto tup = matrix.shiftToCoupledIndices(iBteKShift, iBteQShift, el, ph);
-                    iBteKShift = std::get<0>(tup);
-                    iBteQShift = std::get<1>(tup);
-                  } else { // ph-el drag, indexing is Q, K
-                    auto tup = matrix.shiftToCoupledIndices(iBteQShift, iBteKShift, ph, el);
-                    iBteQShift = std::get<0>(tup);
-                    iBteKShift = std::get<1>(tup);
+                // set up the delta functions
+                // for k' = k + q, delta(E_kp - omega - E_k) = delta(E_kp - E_k - omega)
+                // for k' = k - q, delta(E_k - omega - E_kp) = delta(E_kp - E_k + omega)
+                double delta = 0;
+                double enQSign = (isKpMinus) ? enQ : -1*enQ; // if kP is k-, use +omega, else -omega
+
+                if (smearing->getType() == DeltaFunction::gaussian) {
+
+                  delta = smearing->getSmearing(enKp - enK + enQSign);
+
+                } else if (smearing->getType() == DeltaFunction::adaptiveGaussian) {
+
+                  // in this case, the delta functions are all |vk - vk'|
+                  Eigen::Vector3d vdiff = vKs.row(ibK);
+                  for (int i : {0,1,2}) {
+                    vdiff(i) -= vKp(ibKp, ibKp, i).real();
                   }
+                  delta = smearing->getSmearing(enKp - enK + enQSign, vdiff);
+
+                } else if (smearing->getType() == DeltaFunction::symAdaptiveGaussian) {
+
+                  Eigen::Vector3d vQ = allVQs[iQBatch].row(ibQ);
+                  Eigen::Vector3d vK = vKs.row(ibK);
+                  Eigen::Vector3d vKprime; 
+                  for (int i : {0,1,2}) {
+                    vKprime(i) = vKp(ibKp, ibKp, i).real();
+                  }
+                  delta = smearing->getSmearing(enKp - enK + enQSign, vQ, vK, vKprime);
+
+                } else { // tetrahedron
+                  // we actually block this for transport in the parent scattering matrix obj
+                  // Therefore, I merely here again throw an error if this is used
+                  Error("Developer error: Tetrahedron not implemented for CBTE.");
                 }
 
-                if (withSymmetries) {
-                    Error("For now, the drag terms aren't implemented with symmetries.\n"
-                        "This is because we only use them with a relaxons solver, "
-                        "which doesn't allow symmetries.");
-                } else {
-                  if (dragTermType == Del) {
-                    if (matrix.theMatrix.indicesAreLocal(iBteKShift, iBteQShift)) {
-                      matrix.theMatrix(iBteKShift, iBteQShift) += dragRate;
+                //if(mpi->mpiHead()) {
+                //      std::cout << "nK nkP nPh " << ibK << " " << ibKp << " " <<  ibQ <<  " Ek1 Ek2 omega " << enK << " " << enKp << " " << enQ << " delta 123 " << delta1 << " " << delta2 << " "<< delta3 << " coupling " << coupling(ibK, ibKp, ibQ) << std::endl;
+                //}
+
+                // if nothing contributes, go to the next triplet
+                if (delta <= 0.) { continue; }
+
+                // loop on temperature (for now this is only one temp/mu at a time)
+                for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+
+                  double coshKp = coshDataKp(ibKp, iCalc); // symmetrization term
+
+                  // Note: in these statements, because |g|^2 in coupling needs
+                  // the factor of * sqrt(hbar/(2M0*omega)) to convert it to the SE el-ph
+                  // matrix elements. We apply /enQ and cancel a factor of 2
+  
+                  // Note: we can't do both Delph and Dphel at once because of the block cyclic distribution
+                  // of the scattering matrix. There's no guarantee that A_ij and A_ji will both
+                  // be available to the same MPI process.
+                  // Therefore, this function is called with an argument to either one or the other
+  
+                  // Calculate D^+(k,q) = 2pi/N * Sum_(k'=k+q) |g(k,k+q,q)|^2 * [delta(enKp_+ - enQ - enK)] * 1/(2cosh(k+q))
+		              // OR
+                  // Calculate D^-(k,q) = -2pi/N * Sum_(k'=k-q) |g(k,k-q,q)|^2 * [delta(enKp_- - enQ + enK)] * 1/(2cosh(k-q))
+                  
+                  double Dsign = (isKpMinus) ? -1. : 1.; // if kP is k-, D term is -, else +
+                  double dragRate = Dsign * pi * norm / enQ * couplingSq(ibK, ibKp, ibQ) * delta * coshKp;
+ 
+  		            // add this contribution to the matrix -------------------------------------
+
+                  // the other scattering classes use a "switchCase" variable to determine
+                  // if we're peforming a matrix*vector product, just filling in linewidths,
+                  // or filling the whole matrix.
+                  // In this class, for now we only use the whole matrix, and therefore I only
+		              // implement switch case = 0
+                  //
+                  // Additionally, there's (for now) no reason here to fill in the "linewidths" variable,
+                  // as we'll never have two of the same state, when dimensions are nph, nel states
+  
+                  // Shift the BTE indices from the ph and el state indices to the relevant k,q quadrant
+		              // in order to index the matrix  
+                  int iBteKShift = iBteK;
+                  int iBteQShift = iBteQ;
+                  if(matrix.isCoupled) {
+
+                    Particle el(Particle::electron); 
+		                Particle ph(Particle::phonon);
+                    if(dragTermType == Del) { // indexing is K, Q
+                      auto tup = matrix.shiftToCoupledIndices(iBteKShift, iBteQShift, el, ph);
+                      iBteKShift = std::get<0>(tup);
+                      iBteQShift = std::get<1>(tup);
+                    } else { // ph-el drag, indexing is Q, K
+                      auto tup = matrix.shiftToCoupledIndices(iBteQShift, iBteKShift, ph, el);
+                      iBteQShift = std::get<0>(tup);
+                      iBteKShift = std::get<1>(tup);
                     }
+
+                  }
+                  if (withSymmetries) {
+                      Error("For now, the drag terms aren't implemented with symmetries.\n"
+                          "This is because we only use them with a relaxons solver, "
+                          "which doesn't allow symmetries.");
                   } else {
-                    if (matrix.theMatrix.indicesAreLocal(iBteQShift, iBteKShift)) {
-                      matrix.theMatrix(iBteQShift, iBteKShift) += dragRate;
+                    if (dragTermType == Del) {
+                      if (matrix.theMatrix.indicesAreLocal(iBteKShift, iBteQShift)) {
+                        matrix.theMatrix(iBteKShift, iBteQShift) += dragRate;
+                      }
+                    } else {
+                      if (matrix.theMatrix.indicesAreLocal(iBteQShift, iBteKShift)) {
+                        matrix.theMatrix(iBteQShift, iBteKShift) += dragRate;
+                      }
                     }
-                  }
-                } // end symmetries if
-              } // end icalc loop
-            } // end band Kp loop
-          } // band K loop
-        } // band Q loop
-      Kokkos::Profiling::popRegion();
+                  } // end symmetries if
+                } // end icalc loop
+              } // end band Kp loop
+            } // band K loop
+          } // band Q loop
+        } // close the loop over +/- kp
+        Kokkos::Profiling::popRegion();
       } // loop over points in qbatch
     } // loop over batches
   } // pair iterator loop

@@ -1595,7 +1595,7 @@ void ScatteringMatrix::replaceMatrixLinewidths(const int &switchCase) {
 std::tuple<int,int> ScatteringMatrix::coupledToBandStructureIndices(
             const int& iBteShift1, const int& iBteShift2, const Particle& p1, const Particle& p2) {
 
-  // we shift the iBte indices into the relevant quadrant before savign things to the
+  // we shift the iBte indices into the relevant quadrant before saving things to the
   // scattering matrix in the coupled case
   // ibte1 = row, ibte2 = col
 
@@ -1615,7 +1615,6 @@ std::tuple<int,int> ScatteringMatrix::coupledToBandStructureIndices(
       iBte1 -= numElStates;
       iBte2 -= numElStates;
     }
-    return std::make_tuple(iBte1, iBte2);
   }
   return std::make_tuple(iBte1, iBte2);
 }
@@ -1625,8 +1624,8 @@ std::tuple<int,int> ScatteringMatrix::coupledToBandStructureIndices(
 std::tuple<BaseBandStructure*,BaseBandStructure*> ScatteringMatrix::getStateBandStructures(
                                                                 const BteIndex& iBte1,
                                                                 const BteIndex& iBte2) {
-  BaseBandStructure* bandsInitial;
-  BaseBandStructure* bandsFinal;
+  BaseBandStructure* bands1;
+  BaseBandStructure* bands2;
 
   // NOTE: if we ever wanted to use this with symmetries of the BTE, we would need to
   // find a way to convert these BTE indices into state ones,
@@ -1641,29 +1640,33 @@ std::tuple<BaseBandStructure*,BaseBandStructure*> ScatteringMatrix::getStateBand
 
   // this default behavior is for pure el and ph matrices
   if(!isCoupled) {
-    bandsInitial = &innerBandStructure;
-    bandsFinal = &outerBandStructure;
+    bands1 = &innerBandStructure;  
+    bands2 = &outerBandStructure;
   } else {
-    // if coupled matrix, the innerBandStructure = phonon and outer = electron,
+    // if coupled matrix, the innerBandStructure = phonon and outer = electron
     // which is a bit different than how the standard matrices behave, unfortunately
-    if(is1 >= size_t(numElStates)) { // set initial state species
-      bandsInitial = &innerBandStructure; // set it to phonon
+    if(is1 >= size_t(numElStates)) {      // set initial state species
+      bands1 = &innerBandStructure; // set it to phonon
     } else {
-      bandsInitial = &outerBandStructure; // set it to electron
+      bands1 = &outerBandStructure; // set it to electron
     }
-    if(is2 >= size_t(numElStates)) { // set final state species
-      bandsFinal = &innerBandStructure; // set it to phonon
+    if(is2 >= size_t(numElStates)) {      // set final state species
+      bands2 = &innerBandStructure;   // set it to phonon
     } else {
-      bandsFinal = &outerBandStructure; // set it to electron
+      bands2 = &outerBandStructure;   // set it to electron
     }
   }
-  return std::make_tuple(bandsInitial, bandsFinal);
+  return std::make_tuple(bands1, bands2);
 }
 
 // this could be simplified by the existence of a "coupled band structure"
 // containing an el and ph bandstructure
 void ScatteringMatrix::reinforceLinewidths() {
 
+  // kill the function if it's used inappropriately 
+  if(!isMatrixOmega) { // If this matrix has not been symmetrized, this function won't work
+    DeveloperError("Reinforce linewidths should not be called on an unsymmetrized matrix.");
+  } 
   if(!highMemory) return;  // if high mem, we know iCalc=1 is being used
   if(context.getUseSymmetries()) return; // this is not designed for BTE syms, would need to
                                          // change the way we are indexing this
@@ -1715,8 +1718,7 @@ void ScatteringMatrix::reinforceLinewidths() {
     // so these elements won't matter
     if(ibte1 == ibte2) continue;
 
-    // NOTE state and bte indices are here the same, as we are blocking the
-    // use of symmetries
+    // NOTE state and bte indices are here the same, as we are blocking the use of symmetries
     BteIndex bteIdx1(ibte1);
     BteIndex bteIdx2(ibte2);
 
@@ -1744,50 +1746,63 @@ void ScatteringMatrix::reinforceLinewidths() {
     double initialChemicalPotential = (initialParticle.isPhonon()) ? 0 : chemicalPotential;
     double finalChemicalPotential = (finalParticle.isPhonon()) ? 0 : chemicalPotential;
 
-    // note, these two bandstructures should be the same anyway
-    double initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential;
-    double finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;
+    double initialEn = initialBandStructure->getEnergy(sIdx1); // - initialChemicalPotential;
+    double finalEn = finalBandStructure->getEnergy(sIdx2); // - finalChemicalPotential;
 
     // calculate population terms
     double initialFFm1 = initialParticle.getPopPopPm1(initialEn, kBT, initialChemicalPotential);
     double finalFFm1 = finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
 
-    // spin degeneracy info
+    // spin degeneracy info 
+    // For phonons, =  sqrt(Nkq/Nq)
+    // For electrons, = sqrt((Nkq * spinFactor)/Nk)
     double initialD = (initialParticle.isPhonon()) ? sqrt(Nkq/Nq) : sqrt((Nkq * spinFactor)/Nk);
     double finalD = (finalParticle.isPhonon()) ? sqrt(Nkq/Nq) : sqrt((Nkq * spinFactor)/Nk) ;
 
-    if(abs(sqrt(initialFFm1) * initialD * initialEn) < 1e-22) continue;  
-    if((initialParticle.isPhonon() && initialEn < 1e-12) || (finalParticle.isPhonon() && finalEn < 1e-12)) continue;  
+    // avoid issues with nan coming from very small denominators
+    //if(abs(sqrt(initialFFm1) * initialD * initialEn) < 1e-12) continue;  
+    //if((initialParticle.isPhonon() && initialEn < 1e-2)) continue;  
 
+    //std::cout << "ibte1 ibte2 " << ibte1 << " " << ibte2 << " is1 is2 " << is1 << " " << is2 << " isPh1 isPh2 " << initialParticle.isPhonon() << " " << finalParticle.isPhonon() << std::endl;
+
+    // calculate the new linewidths 
     newLinewidths(ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
                                         / (sqrt(initialFFm1) * initialD * initialEn) ;
 
+    //if(mpi->mpiHead() && ((theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
+    //                                    / (sqrt(initialFFm1) * initialD * initialEn)) > 1.e2 ) {
+    //  std::cout << ((theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
+    //                                    / (sqrt(initialFFm1) * initialD * initialEn)) << " " << theMatrix(ibte1,ibte2) << " " << sqrt(finalFFm1) << " " << finalD << " " << finalEn << " " << sqrt(initialFFm1) << " " << initialD << " " << initialEn << std::endl; 
+    //}
+
   }
   loopPrint.close();
+
   // sum the element contributions from all processes
   mpi->allReduceSum(&newLinewidths);
 
   // TODO this is temporary, for now use the old electron linewidths instead of new ones, 
   // -- later we will remove this and reconstruct all linewidths 
-  if(mpi->mpiHead()) std::cout << "compare " << std::endl; 
-  for (int i = 0; i<numElStates; i++) {
-    newLinewidths(0,i) = internalDiagonal->operator()(0, 0, i);
-  } 
+  //if(mpi->mpiHead()) std::cout << "compare " << std::endl; 
+  //for (int i = 0; i<numElStates; i++) {
+  //  newLinewidths(0,i) = internalDiagonal->operator()(0, 0, i);
+  //} 
 
-  if(mpi->mpiHead()) std::cout << "compare " << std::endl; 
-  for (int i = numElStates; i<numStates; i++) {
+  if(mpi->mpiHead()) std::cout << "compare " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl; 
+  for (int i = 0; i<numStates; i++) {
     // zero out anything below 1e-12 so this is easier to read
     double x = newLinewidths(0,i); 
     double y = internalDiagonal->data(0,i);
     if (abs(x) < 1e-12) x = 0;
     if (abs(y) < 1e-12) y = 0;
 
-    //std::cout <<  x << " " << y << "\n" ;
+    if( abs((x - y)/x) > 1 ) 
+      std::cout << i << " " <<  x << " " << y << " " << (x - y)/x << "\n" ;
   } 
 
   // reinsert the linewidths in the scattering matrix
-  // TODO figure out why this function doesn't work right now
   internalDiagonal->data = newLinewidths;
+  // TODO figure out why this function doesn't work right now
   //replaceMatrixLinewidths();
 
   // replace the linewidths on the scattering matrix diagonal

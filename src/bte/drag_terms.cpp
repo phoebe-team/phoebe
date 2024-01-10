@@ -23,6 +23,10 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                 "drag calculation is the wrong type!");
   }
 
+  
+  VectorBTE minusEllw(matrix.statisticsSweep, electronBandStructure, 1);
+  VectorBTE plusEllw(matrix.statisticsSweep, electronBandStructure, 1);
+
   // Notes:
   // The matrix we are trying to fill in here is the coupled BTE matrix
   // * We are trying to fill here the upper right hand side of it, D_{el-ph},
@@ -83,7 +87,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
   // TODO this should be the correct norm, but worth double checking
   double norm = 0.;
   if (dragTermType == Del) { norm = 1. / context.getKMesh().prod(); }
-  else { norm = 1. / context.getKMesh().prod(); }
+  else { norm = 1. / context.getQMesh().prod(); }
 
   // TODO change this to the same in phel scattering as well
   // precompute the q-dependent part of the polar correction
@@ -226,11 +230,11 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
     	    // remember: k+' = 0, k-' = 1 
           if(isKpMinus == 0) { // kp is plus 
             kpCartesian = kCartesian + allQCartesian[iQBatch];
-            //kpPolarData = polarDataQPlus.row(iQBatch);
+            kpPolarData = polarDataQPlus.row(iQBatch);
           } 
           if(isKpMinus == 1) { // kp is minus
             kpCartesian = kCartesian - allQCartesian[iQBatch];
-            //kpPolarData = polarDataQMinus.row(iQBatch);   // TODO check that this is the right syntax vs the old version 
+            kpPolarData = polarDataQMinus.row(iQBatch);   // TODO check that this is the right syntax vs the old version 
           } 
           allKpCartesian[iQBatch] = kpCartesian;      // kP wavevector 
           allPolarData[iQBatch] = kpPolarData;        // long range polar data
@@ -269,7 +273,8 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
         //    - for k'- -> g(k,k-q,-q)
         // We do this because |g(k,k-q,-q)|^2 = |g(k,k-q,q)|^2, 
         // but simply changing q -> -q makes the changes to interaction elph a bit simpler. 
-        // TODO is the above true? could we instead only changes U_{k+q} -> U_{k-q}? 
+        // Note: we must switch q->-q as well as U_{k+q} -> U_{k-q}, 
+        // see notes by Michele. 
         // remember: k+' = 0, k-' = 1
         bool useMinusQ = bool(isKpMinus); 
         couplingElPhWan->calcCouplingSquared(eigenVectorK, allEigenVectorsKp, allEigenVectorsQ, 
@@ -298,14 +303,8 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
           // returns |g(m,m',nu)|^2
           Eigen::Tensor<double, 3>& couplingSq = couplingElPhWan->getCouplingSquared(iQBatch); 
 
-          //Eigen::Vector3d qCartesian = allQCartesian[iQBatch];
-          //auto t3 = phononBandStructure.getRotationToIrreducible(qCartesian, Points::cartesianCoordinates);
-          //int iQIrr = std::get<0>(t3);
-          // TODO Could add this later if we someday want symmetry
-          //Eigen::Matrix3d rotation = std::get<1>(t3); // unused for now as we block sym
-
+          Eigen::Vector3d qCartesian = allQCartesian[iQBatch];
           WavevectorIndex iQIdx(iQ);
-          //WavevectorIndex iQIrrIdx(iQIrr);
 
           // pull out the energies, etc, for this batch of points
           Eigen::VectorXd stateEnergiesQ = allStateEnergiesQ[iQBatch];
@@ -336,10 +335,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
             double enQ = stateEnergiesQ(ibQ);
             int isQ = phononBandStructure.getIndex(iQIdx, BandIndex(ibQ));
-            //int isQIrr = phononBandStructure.getIndex(iQIrrIdx, BandIndex(ibQ));
             StateIndex isQIdx(isQ);
-            //StateIndex isQIrrIdx(isQIrr);
-            //BteIndex indQIdx = phononBandStructure.stateToBte(isQIrrIdx);
             BteIndex bteQIdx = phononBandStructure.stateToBte(isQIdx);
             int iBteQ = bteQIdx.get();
 
@@ -399,6 +395,80 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                 //      std::cout << "nK nkP nPh " << ibK << " " << ibKp << " " <<  ibQ <<  " Ek1 Ek2 omega " << enK << " " << enKp << " " << enQ << " delta 123 " << delta1 << " " << delta2 << " "<< delta3 << " coupling " << coupling(ibK, ibKp, ibQ) << std::endl;
                 //}
 
+/*
+  Eigen::Vector3d cart1 =   phononBandStructure.getPoints().crystalToCartesian({3./8.,3./8.,3./8.});
+  Eigen::Vector3d cart2 =   phononBandStructure.getPoints().crystalToCartesian({1./8.,1./8.,1./8.});
+
+           if(ibK == 2  && ibKp == 2 && ibQ == 2 && 
+                        qCartesian(0) == cart2(0) && qCartesian(1) == cart2(0) && qCartesian(2) == cart2(0) &&
+                        kCartesian(0) == cart1(0) && kCartesian(1) == cart1(0) && kCartesian(2) == cart1(0)) {
+              double kT = statisticsSweep.getCalcStatistics(0).temperature;
+              double chemPot = statisticsSweep.getCalcStatistics(0).chemicalPotential;
+            std::cout << std::setprecision(8) << "mu kBT 1/Nk " << chemPot << " " << kT << " " << norm << "b1 b2 nu " << ibK << " " << ibKp << " " << ibQ << " g enK enKp w cosh delta " << couplingSq(ibK, ibKp, ibQ) << " " << enK << " " << enKp << " " << enQ << " " << coshDataKp(ibKp, 0) << " " << delta << std::endl;
+          }
+*/
+//---------------------
+
+/*
+              // remove small divergent phonon energies
+              if (enQ < phEnergyCutoff) { continue; }
+
+              double delta1 = 0; double delta2 = 0; 
+              if (smearing->getType() == DeltaFunction::gaussian) {
+                delta1 = smearing->getSmearing(enK - enKp + enQ);
+                delta2 = smearing->getSmearing(enK - enKp - enQ);
+              } else if (smearing->getType() == DeltaFunction::adaptiveGaussian) {
+                  Eigen::Vector3d vdiff = vKs.row(ibK);
+                  for (int i : {0,1,2}) {
+                    vdiff(i) -= vKp(ibKp, ibKp, i).real();
+                  }                
+                delta1 = smearing->getSmearing(enK - enKp + enQ, vdiff);
+                delta2 = smearing->getSmearing(enK - enKp - enQ, vdiff);
+              } else if (smearing->getType() == DeltaFunction::symAdaptiveGaussian) {
+                  Eigen::Vector3d vQ = allVQs[iQBatch].row(ibQ);
+                  Eigen::Vector3d vK = vKs.row(ibK);
+                  Eigen::Vector3d vKprime; 
+                  for (int i : {0,1,2}) {
+                    vKprime(i) = vKp(ibKp, ibKp, i).real();
+                  }
+                delta1 = smearing->getSmearing(enK - enKp + enQ, vK, vKprime, vQ);
+                delta2 = smearing->getSmearing(enK - enKp - enQ, vK, vKprime, vQ);
+              } else {
+                Error("cant do that");
+              }
+
+              if (delta1 <= 0. && delta2 <= 0.) { continue; } // doesn't contribute
+
+              // loop on temperature
+              for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+
+                //double fermi1 = outerFermi(iCalc, iBte1);
+                double kT = statisticsSweep.getCalcStatistics(iCalc).temperature;
+                double chemPot = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
+                double fermi2 = electronBandStructure.getParticle().getPopulation(enKp,kT,chemPot);
+                double bose3 = phononBandStructure.getParticle().getPopulation(enQ,kT,0);
+                //double bose3Symm = 0.5 / sinh(0.5 * (enKp - chemPot) / kT); // 1/2/sinh() term
+
+                // Calculate transition probability W+
+                if(isKpMinus) { 
+                  minusEllw(0,0,iBteK) +=
+                    couplingSq(ibK, ibKp, ibQ) * ((fermi2 + bose3) * delta1
+                       + (1. - fermi2 + bose3) * delta2) * norm / enQ * pi;
+
+
+                } else {  // it's plus
+                  plusEllw(0,0,iBteK) +=
+                    couplingSq(ibK, ibKp, ibQ) * ((fermi2 + bose3) * delta1
+                       + (1. - fermi2 + bose3) * delta2) * norm / enQ * pi;
+                //if(mpi->mpiHead()) std::cout << std::setprecision(8) << "ibte " << iBteK << " " << iBteQ << " " << couplingSq(ibK, ibKp, ibQ) << " " << fermi2 << " " << bose3 << " " << delta1 << " " << delta2 << " " << enQ  << " "<< couplingSq(ibK, ibKp, ibQ) * ((fermi2 + bose3) * delta1
+                //       + (1. - fermi2 + bose3) * delta2) * norm / enQ * pi << std::endl;
+                }
+
+              }  
+*/
+// ---------------------
+
+
                 // if nothing contributes, go to the next triplet
                 if (delta <= 0.) { continue; }
 
@@ -422,7 +492,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   
                   double Dsign = (isKpMinus) ? -1. : 1.; // if kP is k-, D term is -, else +
                   double dragRate = Dsign * pi * norm / enQ * couplingSq(ibK, ibKp, ibQ) * delta * coshKp;
- 
+
   		            // add this contribution to the matrix -------------------------------------
 
                   // the other scattering classes use a "switchCase" variable to determine
@@ -469,14 +539,23 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                     }
                   } // end symmetries if
                 } // end icalc loop
+          //*/
               } // end band Kp loop
             } // band K loop
           } // band Q loop
-        } // close the loop over +/- kp
+        } // loop over points in qbatch
         Kokkos::Profiling::popRegion();
-      } // loop over points in qbatch
+      } // close the loop over +/- kp
     } // loop over batches
   } // pair iterator loop
+  //mpi->allReduceSum(&plusEllw.data);
+  //mpi->allReduceSum(&minusEllw.data);
+
+  //if(mpi->mpiHead()) std::cout << "plus \n" << std::setprecision(8) << plusEllw.data << '\n' << std::endl;
+  //if(mpi->mpiHead()) std::cout << "minus \n" << std::setprecision(8) << minusEllw.data << std::endl;
+
+  //if(mpi->mpiHead()) std::cout << "\n\n difference \n" << std::setprecision(8) << plusEllw.data - minusEllw.data << std::endl;
+
   loopPrint.close();
 }
 

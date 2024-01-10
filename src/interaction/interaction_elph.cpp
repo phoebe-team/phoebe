@@ -470,10 +470,12 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
           eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
         }
       }
+      // copy in the phonon eigenvectors 
       for (int i = 0; i < numPhBands; i++) {
         for (int j = 0; j < numPhBands; j++) {
           if(useMinusQ) {   // i,j flipped here due to row/col major, 
 		  	                    // this is intentionally a * not a dagger
+                            // e(-q) = e(q)^*
 	          eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i));
 	        } else { 
             eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
@@ -490,13 +492,13 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
     }
     Kokkos::deep_copy(eigvecs2Dagger_k, eigvecs2Dagger_h);
     Kokkos::deep_copy(eigvecs3_k, eigvecs3_h);
-    Kokkos::deep_copy(q3Cs_k, q3Cs_h);
+    Kokkos::deep_copy(q3Cs_k, q3Cs_h); // kokkos, h = host is the cpu
   }
 
   // now we finish the Wannier transform. We have to do the Fourier transform
   // on the lattice degrees of freedom, and then do two rotations (at k2 and q)
   // -------------------------------------------------------------------------
-  // set up the phases
+  // set up the phases related to phonons
   ComplexView2D phases("phases", numLoops, numPhBravaisVectors);
   Kokkos::complex<double> complexI(0.0, 1.0);
   Kokkos::parallel_for(

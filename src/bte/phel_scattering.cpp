@@ -663,7 +663,7 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
       //if (phEnergy < phononCutoff) { continue; } // skip the acoustic modes
       //if (sqrt(nnp1) * phEnergy < 1e-16) { continue; } // skip values which would cause divergence
 
-      newPhElLinewidths(iCalc, iMat1) += norm * matrix(iMat1, iMat2) * sqrt(f1mf) * (elEnergy) 
+      newPhElLinewidths(iCalc, iMat1) += norm * matrix(iMat1, iMat2) * sqrt(f1mf) * (elEnergy - mu) 
       					/ ( sqrt(nnp1) * phEnergy ); 
       //if(mpi->mpiHead()) std::cout << norm << " " << matrix(iMat1, iMat2) << " " << sqrt(f1mf) << " " << (elEnergy) << std::endl;
     }

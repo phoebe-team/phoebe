@@ -236,7 +236,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
         Kokkos::Profiling::pushRegion("drag preprocessing loop: kPrime states");
 
         // do prep work for all values of k' in this batch -------------------------- 
-        #pragma omp parallel for default(none) shared(allKpCartesian, batchSize, allQCartesian, kCartesian, allPolarData, polarDataQPlus, polarDataQMinus, phononBandStructure, isKpMinus)
+//        #pragma omp parallel for default(none) shared(allKpCartesian, batchSize, allQCartesian, kCartesian, allPolarData, polarDataQPlus, polarDataQMinus, phononBandStructure, isKpMinus)
         for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
 
           // Set up intermediate electron state wavevectors 
@@ -490,11 +490,12 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   double kT = statisticsSweep.getCalcStatistics(iCalc).temperature;
                   double chemPot = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
                   //double coshK = coshDataK(ibK, iCalc) / (enK - chemPot); 
-                  //double enQSign = (isKpMinus) ? enQ : -1*enQ; // if kP is k-, use +omega, else -omega  // defined above, reminder here
-
+                  //double enQSign = (isKpMinus) ? enQ : -1*enQ; 
+		  // if kP is k-, use +omega, else -omega  // defined above, reminder here
 
                   double coshK = 1./(2. * cosh(0.5 * (enKp - chemPot) / kT)); 
-                  double dragRate = 1./(enK - chemPot) * Dsign * 1./(context.getQMesh().prod()) * pi / enQ * coshK * couplingSq(ibK,ibKp,ibQ) * delta * ((enKp + enK)/2. - chemPot + enQSign/2.); 
+                  double dragRate = 1./(enK - chemPot) * Dsign * 1./(context.getQMesh().prod()) * 
+			  pi / enQ * coshK * couplingSq(ibK,ibKp,ibQ) * delta * ((enKp + enK)/2. - chemPot + enQSign/2.); 
 
   		            // add this contribution to the matrix -------------------------------------
 

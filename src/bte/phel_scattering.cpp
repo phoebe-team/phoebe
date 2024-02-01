@@ -55,12 +55,15 @@ std::vector<std::tuple<int, std::vector<int>>> getPhElIterator(
 }
 
 void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
-                       BaseBandStructure& phBandStructure,
-	               ElectronH0Wannier* electronH0,
-                       InteractionElPhWan* couplingElPhWan,
-                       std::shared_ptr<VectorBTE> linewidth) {
+                      BaseBandStructure& phBandStructure,
+	                    ElectronH0Wannier* electronH0,
+                      InteractionElPhWan* couplingElPhWan,
+                      std::shared_ptr<VectorBTE> linewidth) {
 
-  // TODO throw error if it's not a ph band structure
+  // throw error if it's not a ph band structure
+  if(!phBandStructure.getParticle().isPhonon()) { 
+    DeveloperError("Cannot calculate phel scattering with an electron BS.");
+  }
   // TODO should we be using exclude indices here?
 
   Particle elParticle(Particle::electron);
@@ -417,15 +420,26 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
             StateIndex isIdx3(is3);
             BteIndex ibteIdx3 = phBandStructure.stateToBte(isIdx3);
             int ibte3 = ibteIdx3.get();
+            double en3 = state3Energies(ib3);
 
+            auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
+            double temp = calcStat.temperature;
+            double chemPot = calcStat.chemicalPotential;
+        
             for (int ib1 = 0; ib1 < nb1; ib1++) {
               for (int ib2 = 0; ib2 < nb2; ib2++) {
+
+              double en2 = state2Energies(ib2);
+              double en1 = state1Energies(ib1);
+              double fermi1 = elBandStructure.getParticle().getPopulation(en1,temp,chemPot);
+              double fermi2 = elBandStructure.getParticle().getPopulation(en2,temp,chemPot);
+
               // loop on temperature
                 // https://arxiv.org/pdf/1409.1268.pdf
                 // double rate =
-                //    coupling(ib1, ib2, ib3)
-                //    * (fermi(iCalc, ik1, ib1) - fermi(iCalc, ik2, ib2))
-                //    * smearing_values(ib1, ib2, ib3) * norm / en3 * pi;
+                //    coupling(ib1, ib2, ib3) 
+                //    * (fermi1 - fermi2)
+                //    * smearingValues(ib1, ib2, ib3) * norm / en3 * pi;
 
                 // NOTE: although the expression above is formally correct,
                 // fk-fk2 could be negative due to numerical noise.
@@ -433,10 +447,16 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 // fk-fk2 ~= dfk/dek dwq
                 // However, we don't include the dwq here, as this is gSE^2, which
                 // includes a factor of (1/wq)
+                //double rate =
+                //    coupling(ib1, ib2, ib3) * fermiTerm(iCalc, ik1, ib1)
+                //    * smearingValues(ib1, ib2, ib3)
+                //    * norm / temperatures(iCalc) * pi * k1Weight;
+
                 double rate =
-                    coupling(ib1, ib2, ib3) * fermiTerm(iCalc, ik1, ib1)
+                    coupling(ib1, ib2, ib3)  //fermiTerm(iCalc, ik1, ib1)
                     * smearingValues(ib1, ib2, ib3)
-                    * norm / temperatures(iCalc) * pi * k1Weight;
+                    * norm * pi / en3 * k1Weight 
+                    * sinh(0.5 * en3 / temperatures(iCalc)) / (2 * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))  * cosh(0.5*(en1 - chemPot)/temperatures(iCalc)));
 
                 // if it's not a coupled matrix, this will be ibte3
                 // We have to define shifted ibte3, or it will be further
@@ -625,43 +645,44 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
     size_t iMat1 = std::get<0>(matrixState);
     size_t iMat2 = std::get<1>(matrixState);
 
-    // if iMat1 is electron, iMat2 is phonon
-    if(( iMat1 < numElStates && iMat2 >= numElStates)) { 
+    // if iMat1 is phonon, iMat2 is electron
+    if(( iMat1 >= numElStates && iMat2 < numElStates)) { 
 
-      size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index, 
+      size_t iMat1Ph = iMat1 - numElStates; // shift back to phonon index, 
       					  // for use in bandstructure indexed objects
 
       // here because symmetries are not used, we can directly use
       // the matrix indices without converting iBte/iMat -> iState
-      StateIndex is1(iMat1); // electron
-      double elEnergy = elBandStructure.getEnergy(is1);
-      double f1mf = elBandStructure.getParticle().getPopPopPm1(elEnergy, kBT, mu);
-      StateIndex is2(iMat2Ph); // phonon 
-      double phEnergy = phBandStructure.getEnergy(is2);
+      StateIndex is1(iMat1Ph); // phonon
+      double phEnergy = phBandStructure.getEnergy(is1);
       double nnp1 = phBandStructure.getParticle().getPopPopPm1(phEnergy, kBT, 0);
+      StateIndex is2(iMat2); // phonon 
+      double elEnergy = elBandStructure.getEnergy(is2);
+      double f1mf = elBandStructure.getParticle().getPopPopPm1(elEnergy, kBT, mu);
 
-      if (phEnergy < phononCutoff) { continue; } // skip the acoustic modes
-      if (sqrt(nnp1) * phEnergy < 1e-16) { continue; } // skip values which would cause divergence
+      //if (phEnergy < phononCutoff) { continue; } // skip the acoustic modes
+      //if (sqrt(nnp1) * phEnergy < 1e-16) { continue; } // skip values which would cause divergence
 
-      newPhElLinewidths(iCalc, iMat2) += norm * matrix(iMat1, iMat2) * sqrt(f1mf) * (elEnergy - mu) 
+      newPhElLinewidths(iCalc, iMat1) += norm * matrix(iMat1, iMat2) * sqrt(f1mf) * (elEnergy) 
       					/ ( sqrt(nnp1) * phEnergy ); 
-       
+      //if(mpi->mpiHead()) std::cout << norm << " " << matrix(iMat1, iMat2) << " " << sqrt(f1mf) << " " << (elEnergy) << std::endl;
     }
   }
   mpi->allReduceSum(&newPhElLinewidths); 
 
   // print statement to print new and old linewidths side by side
-  if(mpi->mpiHead()) std::cout << "compare " << std::endl;
-  for (int i = numElStates; i<numPhStates+numElStates; i++) {
+if(mpi->mpiHead()) {
+  std::cout << "compare " << std::endl;
+  for (int i = numElStates; i<100+numElStates; i++) {
 
     double x = newPhElLinewidths(iCalc,i); 
     double y = phElLinewidths->data(iCalc,i);
-    if (abs(x) < 1e-12) x = 0;
-    if (abs(y) < 1e-12) y = 0;
+    //if (abs(x) < 1e-12) x = 0;
+    //if (abs(y) < 1e-12) y = 0;
 
-    //std::cout <<  x << " " << y << "\n" ;
+    std::cout <<  x << " " << y << "\n" ;
   } 
-
+}
   // replace the linewidth data
   phElLinewidths->data = newPhElLinewidths; 
 

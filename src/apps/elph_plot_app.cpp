@@ -6,6 +6,7 @@
 #include "io.h"
 #include "points.h"
 #include "parser.h"
+#include "delta_function.h"
 
 #ifdef HDF5_AVAIL
 #include <highfive/H5Easy.hpp>
@@ -62,6 +63,17 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
   // loop over points and set up points pairs
   std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> pointsPairs;
+  std::pair<Eigen::Vector3d, Eigen::Vector3d> thisPair;
+  Eigen::Vector3d cart1 =   points.crystalToCartesian({34./178.,34./85.,3./54.});
+  Eigen::Vector3d cart2 =   points.crystalToCartesian({12./52.,45./38.,11./84.});
+
+  thisPair.first = cart1; //{3./8.,3./8.,3./8.};
+  thisPair.second = cart2; // {1./8.,1./8.,1./8.};
+  std::cout << cart1.transpose() << " " << cart2.transpose() << std::endl;
+  pointsPairs.push_back(thisPair);
+
+
+  /*
   for (int ik = 0; ik < points.getNumPoints(); ik++) {
 
     auto thisPoint = points.getPointCoordinates(ik, Points::cartesianCoordinates);
@@ -88,7 +100,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
       }
     }
   }
-
+*/
   // band ranges to calculate the coupling for -----------------------------
   std::pair<int, int> g2PlotEl1Bands = context.getG2PlotEl1Bands();
   std::pair<int, int> g2PlotEl2Bands = context.getG2PlotEl2Bands();
@@ -117,15 +129,54 @@ void ElPhCouplingPlotApp::run(Context &context) {
     g2PlotPhBands.second = phononH0.getNumBands() - 1; // minus 1 to account for index from 0 
   } 
 
+  // check lower bounds 
+  if(g2PlotPhBands.first < 0 || g2PlotEl1Bands.first < 0 || g2PlotEl2Bands.first < 0) { 
+    Warning("One of your band range has an index below zero. Setting band range to index from first band.");
+  }
+
+  // check that the first index is minimum of zero 
+  if(g2PlotEl1Bands.first < 0)  { g2PlotEl1Bands.first = 0; }
+  if(g2PlotEl2Bands.first < 0) { g2PlotEl2Bands.first = 0; }
+  if(g2PlotPhBands.first < 0)  { g2PlotPhBands.first = 0;  }
+
+  // check if lower band is less than higher band 
+  if(g2PlotPhBands.first > g2PlotPhBands.second || g2PlotEl1Bands.first > g2PlotEl1Bands.second 
+		  				|| g2PlotEl2Bands.first > g2PlotEl2Bands.second ) {
+    Error("One of your band range index2 - index1 < 0. Check the band ranges."); 
+  }
+
+  if(mpi->mpiHead()) { 
+	  std::cout << "Coupling to be calculated with (inclusive) band ranges: el1 [" << g2PlotEl1Bands.first << " "
+	 	<< g2PlotEl1Bands.second << "] el2 [" << g2PlotEl2Bands.first << " " <<  g2PlotEl2Bands.second 
+	        << "] ph [" <<  g2PlotPhBands.first << " " <<  g2PlotPhBands.second << "]" << std::endl; 
+  }   
+
   // Compute the coupling --------------------------------------------------
   std::vector<double> allGs;
 
   // distribute over k,q pairs
   int numPairs = pointsPairs.size();
-  auto pairParallelIter = mpi->divideWorkIter(numPairs);
+  std::vector<size_t> pairParallelIter = mpi->divideWorkIter(numPairs);
+
+  // If mpi pools are used and each process does not have the same 
+  // amount of work, the code can hang waiting for couplingElph to return.
+  // In the worse case, some processes will have one less item. 
+  // We check if this process's work value is less than the max value across 
+  // processes, and if so, append a -1 index. 
+  size_t max = pairParallelIter.size(); 
+  mpi->allReduceMax(&max); 
+  if(pairParallelIter.size() < max) {
+    Eigen::Vector3d kCartesian = Eigen::Vector3d::Zero();
+    int numWannier = couplingElPh.getCouplingDimensions()(4);
+    Eigen::MatrixXcd eigenVectorK = Eigen::MatrixXcd::Zero(numWannier, 1);
+    couplingElPh.cacheElPh(eigenVectorK, kCartesian);
+  } 
 
   // we calculate the coupling for each pair, flatten it, and append
   // it to allGs. Then at the end, we write this chunk to HDF5.
+
+  FullBandStructure fbs = phononH0.populate(points, false, false);
+  GaussianDeltaFunction smearing(fbs,context);
 
   if(mpi->mpiHead())
     std::cout << "\nCoupling requested for " << numPairs << " k,q pairs." << std::endl;
@@ -137,16 +188,33 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
     std::pair<Eigen::Vector3d, Eigen::Vector3d> thisPair = pointsPairs[iPair];
 
+    //|g(k,k'=k+q,+q)|^2 = |g(k+q, k'=k, -q)|^2
     Eigen::Vector3d k1C = thisPair.first;
     Eigen::Vector3d q3C = thisPair.second;
-    Eigen::Vector3d k2C = k1C + q3C;
+    Eigen::Vector3d k2C = k1C + q3C; // TODO change this relation to minus 
+
+    //  0.2489 -0.1444  0.5038   1.269 -0.9182   1.712    1.02 -0.7739   1.208
+    //  b1 b2 nu 2 2 2 g enK enKp w cosh delta 2.3933232e-08 0.78022665 0.77693261 0.0015745507 9.5618391e-28 6.7474551e-17
+    //
+
+    //Eigen::Vector3d k2C = thisPair.first;
+    //Eigen::Vector3d q3C = -1.*thisPair.second;
+    //Eigen::Vector3d k1C = k2C - q3C; //k = k' - q 
+
+    //  k = 1.269 -0.9182   1.712, k' =  0.2489 -0.1444  0.5038 q =  -1.02 0.7739 -1.208
+    //  b1 b2 nu 2 2 2 g enK enKp w cosh delta 5.0973418e-09 0.77693261 0.78022665 0.0015745507 2.2750635e-27 3.2223694
+    //
+
+    std::cout << k1C.transpose() << " " << k2C.transpose() << " " << q3C.transpose() << std::endl;
 
     // need to get the eigenvectors at these three wavevectors
     auto t3 = electronH0.diagonalizeFromCoordinates(k1C);
+    auto en1 = std::get<0>(t3);
     auto eigenVector1 = std::get<1>(t3);
 
     // second electron eigenvector
     auto t4 = electronH0.diagonalizeFromCoordinates(k2C);
+    auto en2 = std::get<0>(t4);
     auto eigenVector2 = std::get<1>(t4);
 
     std::vector<Eigen::MatrixXcd> eigenVectors2;
@@ -154,14 +222,15 @@ void ElPhCouplingPlotApp::run(Context &context) {
     std::vector<Eigen::Vector3d> k2Cs;
     k2Cs.push_back(k2C);
 
-    // phonon eigenvectors
-    auto t5 = phononH0.diagonalizeFromCoordinates(q3C);
-    auto eigenVector3 = std::get<1>(t5);
+    // phonon eigenvectors    
+    auto t5 = phononH0.diagonalizeFromCoordinates(q3C); 
+    auto en3 = std::get<0>(t5);
+    auto eigenVector3 = std::get<1>(t5); 
 
     std::vector<Eigen::MatrixXcd> eigenVectors3;
     eigenVectors3.push_back(eigenVector3);
     std::vector<Eigen::Vector3d> q3Cs;
-    q3Cs.push_back(q3C);
+    q3Cs.push_back(q3C); 
 
     // calculate polar correction
     std::vector<Eigen::VectorXcd> polarData;
@@ -169,19 +238,22 @@ void ElPhCouplingPlotApp::run(Context &context) {
     polarData.push_back(polar);
 
     // calculate the elph coupling squared
-    couplingElPh.cacheElPh(eigenVector1, k1C);
-    couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, q3Cs, polarData);
-    auto coupling = couplingElPh.getCouplingSquared(0);
+    couplingElPh.cacheElPh(eigenVector1, k1C);  // fourier transform + rotation by k
+    couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, q3Cs, polarData);   // fourier transform + rotation by k' and q
+    auto couplingSq = couplingElPh.getCouplingSquared(0);  // access the stored matrix elements, which are for the given triplet. Object has bands |g(m,m',nu)|^2
 
     // the coupling object is coupling at a given set of k,q, for a range of bands
     // band ranges are inclusive of start and finish ones
     for (int ib1 = g2PlotEl1Bands.first; ib1 <= g2PlotEl1Bands.second; ib1++) {
       for (int ib2 = g2PlotEl2Bands.first; ib2 <= g2PlotEl2Bands.second; ib2++) {
         for (int ib3 = g2PlotPhBands.first; ib3 <= g2PlotPhBands.second; ib3++) {
-          allGs.push_back(coupling(ib1, ib2, ib3));
-          //if(ib1 == 1  && ib2 == 2 && ib3 == 1) {
-            //if(mpi->mpiHead()) std::cout << "coupling " << std::setprecision(8) << coupling(ib1, ib2, ib3) << " " << k1C.transpose() << std::endl;
-         // }
+          allGs.push_back(couplingSq(ib1, ib2, ib3));
+          if(ib1 == 2  && ib2 == 2 && ib3 == 2) {
+
+            //double deltaWeight = smearing.getSmearing(en2[ib2] - en1[ib1] - en3[ib3]);
+            //double coshDataKp = 0.5 / cosh(0.5 * (en2[ib2] - mu) / kT);
+            std::cout << std::setprecision(8) << "b1 b2 nu " << ib1 << " " << ib2 << " " << ib3 << " g enK enKp omega " << couplingSq(ib1, ib2, ib3) << " " << en1[ib1] << " " << en2[ib2] << " " << en3[ib3] << std::endl; //<< " " << coshDataKp << " " << deltaWeight << std::endl;
+          }
         }
       }
     }

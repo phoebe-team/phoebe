@@ -30,7 +30,7 @@
 class InteractionElPhWan {
 
   Crystal &crystal;
-  PhononH0 *phononH0 = nullptr;
+  //PhononH0 *phononH0 = nullptr;
   int numPhBands, numElBands, numElBravaisVectors, numPhBravaisVectors;
   std::vector<Eigen::Tensor<double, 3>> cacheCoupling;
   bool usePolarCorrection = false;
@@ -43,6 +43,15 @@ class InteractionElPhWan {
   DoubleView2D elBravaisVectors_k;
   DoubleView1D elBravaisVectorsDegeneracies_k;
   std::vector<ComplexView4D::HostMirror> elPhCached_hs;
+
+  // TODO TEMPORARY
+  Eigen::MatrixXd elBravaisVectors;
+  Eigen::VectorXd elBravaisVectorsDegeneracies;
+  Eigen::MatrixXd phBravaisVectors;
+  Eigen::VectorXd phBravaisVectorsDegeneracies;
+  Eigen::Tensor<std::complex<double>, 4> elPhCached_old;
+  Eigen::Vector3d cachedK1;
+  Eigen::Tensor<std::complex<double>, 5> couplingWannier;
 
 #ifdef MPI_AVAIL
   std::vector<MPI_Request> mpi_requests;
@@ -68,6 +77,8 @@ class InteractionElPhWan {
   double getDeviceMemoryUsage();
 
 public:
+
+  PhononH0 *phononH0 = nullptr;
 
   /** Main constructor
    * @param crystal_: object describing the crystal unit cell.
@@ -155,6 +166,14 @@ public:
       const std::vector<Eigen::Vector3d> &q3Cs,
       const std::vector<Eigen::VectorXcd> &polarData, 
       const bool useMinusQ = false);
+
+
+  void oldCalcCouplingSquared(
+    const Eigen::MatrixXcd &eigvec1,
+    const std::vector<Eigen::MatrixXcd> &eigvecs2,
+    const std::vector<Eigen::MatrixXcd> &eigvecs3, const Eigen::Vector3d &k1C,
+    const std::vector<Eigen::Vector3d> &k2Cs,
+    const std::vector<Eigen::Vector3d> &q3Cs);
 
   /** Computes a partial Fourier transform over the k1/R_el variables.
    * @param k1C: values of the k1 cartesian coordinates over which the Fourier

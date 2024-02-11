@@ -31,11 +31,18 @@ InteractionElPhWan::InteractionElPhWan(
     }
   }
 
+  // TODO REMOVE TEMPORARY VARS
+  elBravaisVectors = elBravaisVectors_;
+  elBravaisVectorsDegeneracies = elBravaisVectorsDegeneracies_;
+  phBravaisVectors = phBravaisVectors_; 
+  phBravaisVectorsDegeneracies = phBravaisVectorsDegeneracies_;
+  cachedK1.setZero();
+  couplingWannier = couplingWannier_;
+
   // in the first call to this function, we must copy the el-ph tensor
   // from the CPU to the accelerator
   {
-    Kokkos::realloc(couplingWannier_k, numElBravaisVectors, numPhBravaisVectors,
-                    numPhBands, numElBands, numElBands);
+    Kokkos::realloc(couplingWannier_k, numElBravaisVectors, numPhBravaisVectors, numPhBands, numElBands, numElBands);
     Kokkos::realloc(elBravaisVectorsDegeneracies_k, numElBravaisVectors);
     Kokkos::realloc(phBravaisVectorsDegeneracies_k, numPhBravaisVectors);
     Kokkos::realloc(elBravaisVectors_k, numElBravaisVectors, 3);
@@ -465,29 +472,29 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
           eigvecs2Dagger_h(ik, i, j) = std::conj(eigvecs2[ik](i, j));
         }
       }
-      for (int i = 0; i < numPhBands; i++) {
-        for (int j = 0; j < numPhBands; j++) {
-          eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
-        }
-      }
+      //for (int i = 0; i < numPhBands; i++) {
+      //  for (int j = 0; j < numPhBands; j++) {
+      //    eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
+      //  }
+      //}
       // copy in the phonon eigenvectors 
       for (int i = 0; i < numPhBands; i++) {
         for (int j = 0; j < numPhBands; j++) {
-          if(useMinusQ) {   // i,j flipped here due to row/col major, 
+          //if(useMinusQ) {   // i,j flipped here due to row/col major, 
 		  	                    // this is intentionally a * not a dagger
                             // e(-q) = e(q)^*
-	          eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i));
-	        } else { 
+	        //  eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i));
+	        //} else { 
             eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
-	        } 
+	        //} 
         }
       }
       for (int i = 0; i < 3; i++) {
-	      if(useMinusQ) {
-          q3Cs_h(ik, i) = -1. * q3Cs[ik](i);
-	      } else { 
+	      //if(useMinusQ) {
+        //  q3Cs_h(ik, i) =  -1. * q3Cs[ik](i); 
+	      //} else { 
           q3Cs_h(ik, i) = q3Cs[ik](i);
-        }
+        //}
       }
     }
     Kokkos::deep_copy(eigvecs2Dagger_k, eigvecs2Dagger_h);
@@ -508,8 +515,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
         for (int j = 0; j < 3; j++) {
           arg += q3Cs_k(ik, j) * phBravaisVectors_k(irP, j);
         }
-        phases(ik, irP) =
-            exp(complexI * arg) / phBravaisVectorsDegeneracies_k(irP);
+        phases(ik, irP) = exp(complexI * arg) / phBravaisVectorsDegeneracies_k(irP);
      });
    Kokkos::fence();
 
@@ -727,6 +733,8 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
     // now we complete the Fourier transform
     // We have to write two codes: one for when the GPU runs on CUDA,
     // the other for when we compile the code without GPU support
+
+    // TODO should we switch the below gemv code to work with CUDA also? 
 #ifdef KOKKOS_ENABLE_CUDA
     Kokkos::parallel_for(
         "g1",
@@ -854,4 +862,135 @@ double InteractionElPhWan::getDeviceMemoryUsage() {
   double x = 16 * (this->elPhCached.size() + couplingWannier_k.size())
       + 8 * (phBravaisVectorsDegeneracies_k.size() + phBravaisVectors_k.size() + elBravaisVectors_k.size() + elBravaisVectorsDegeneracies_k.size());
   return x;
+}
+
+
+void InteractionElPhWan::oldCalcCouplingSquared(
+    const Eigen::MatrixXcd &eigvec1,
+    const std::vector<Eigen::MatrixXcd> &eigvecs2,
+    const std::vector<Eigen::MatrixXcd> &eigvecs3, 
+    const Eigen::Vector3d &k1C,
+    const std::vector<Eigen::Vector3d> &k2Cs,
+    const std::vector<Eigen::Vector3d> &q3Cs) {
+
+  (void)k2Cs;
+  int numWannier = numElBands;
+  int nb1 = eigvec1.cols();
+
+  std::cout << "eigenvec1 size " << eigvec1.rows() << " " << eigvec1.cols() << " " << numWannier << " " << nb1 << std::endl;
+
+  int numLoops = eigvecs2.size();
+  cacheCoupling.resize(0);
+  cacheCoupling.resize(numLoops);
+
+  if (k1C != cachedK1 || elPhCached.size() == 0) {
+    cachedK1 = k1C;
+
+    Eigen::Tensor<std::complex<double>, 4> g1(numWannier, numWannier,
+                                              numPhBands, numPhBravaisVectors);
+    g1.setZero();
+
+    std::vector<std::complex<double>> phases(numElBravaisVectors);
+    for (int irE = 0; irE < numElBravaisVectors; irE++) {
+      double arg = k1C.dot(elBravaisVectors.col(irE));
+      phases[irE] =
+          exp(complexI * arg) / double(elBravaisVectorsDegeneracies(irE));
+    }
+    for (int irE = 0; irE < numElBravaisVectors; irE++) {
+      for (int irP = 0; irP < numPhBravaisVectors; irP++) {
+        for (int nu = 0; nu < numPhBands; nu++) {
+          for (int iw1 = 0; iw1 < numWannier; iw1++) {
+            for (int iw2 = 0; iw2 < numWannier; iw2++) {
+              // important note: the first index iw2 runs over the k+q transform
+              // while iw1 runs over k
+              g1(iw2, iw1, nu, irP) +=
+                  couplingWannier(iw2, iw1, nu, irP, irE) * phases[irE];
+            }
+          }
+        }
+      }
+    }
+
+    elPhCached_old.resize(numWannier, nb1, numPhBands, numPhBravaisVectors);
+    elPhCached_old.setZero();
+
+    for (int irP = 0; irP < numPhBravaisVectors; irP++) {
+      for (int nu = 0; nu < numPhBands; nu++) {
+        for (int iw1 = 0; iw1 < numWannier; iw1++) {
+          for (int ib1 = 0; ib1 < nb1; ib1++) {
+            for (int iw2 = 0; iw2 < numWannier; iw2++) {
+              elPhCached_old(iw2, ib1, nu, irP) += g1(iw2, iw1, nu, irP) * eigvec1(iw1, ib1);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (int ik = 0; ik < numLoops; ik++) {
+    Eigen::Vector3d q3C = q3Cs[ik];
+
+    Eigen::MatrixXcd eigvec2 = eigvecs2[ik];
+    int nb2 = eigvec2.cols();
+    Eigen::MatrixXcd eigvec3 = eigvecs3[ik];
+
+    Eigen::Tensor<std::complex<double>, 3> g3(numWannier, nb1, numPhBands);
+    g3.setZero();
+    std::vector<std::complex<double>> phases(numPhBravaisVectors);
+    for (int irP = 0; irP < numPhBravaisVectors; irP++) {
+      double arg = q3C.dot(phBravaisVectors.col(irP));
+      phases[irP] =
+          exp(complexI * arg) / double(phBravaisVectorsDegeneracies(irP));
+    }
+    for (int irP = 0; irP < numPhBravaisVectors; irP++) {
+      for (int nu = 0; nu < numPhBands; nu++) {
+        for (int ib1 = 0; ib1 < nb1; ib1++) {
+          for (int iw2 = 0; iw2 < numWannier; iw2++) {
+            g3(iw2, ib1, nu) += phases[irP] * elPhCached_old(iw2, ib1, nu, irP);
+          }
+        }
+      }
+    }
+
+    Eigen::Tensor<std::complex<double>, 3> g4(numWannier, nb1, numPhBands);
+    g4.setZero();
+    for (int nu = 0; nu < numPhBands; nu++) {
+      for (int nu2 = 0; nu2 < numPhBands; nu2++) {
+        for (int ib1 = 0; ib1 < nb1; ib1++) {
+          for (int iw2 = 0; iw2 < numWannier; iw2++) {
+            g4(iw2, ib1, nu2) += g3(iw2, ib1, nu) * eigvec3(nu, nu2);
+          }
+        }
+      }
+    }
+
+    auto eigvec2Dagger = eigvec2.adjoint();
+    Eigen::Tensor<std::complex<double>, 3> gFinal(nb2, nb1, numPhBands);
+    gFinal.setZero();
+    for (int nu = 0; nu < numPhBands; nu++) {
+      for (int ib1 = 0; ib1 < nb1; ib1++) {
+        for (int iw2 = 0; iw2 < numWannier; iw2++) {
+          for (int ib2 = 0; ib2 < nb2; ib2++) {
+            gFinal(ib2, ib1, nu) += eigvec2Dagger(ib2, iw2) * g4(iw2, ib1, nu);
+          }
+        }
+      }
+    }
+
+    if (usePolarCorrection && q3C.norm() > 1.0e-8) {
+      gFinal += getPolarCorrection(q3C, eigvec1, eigvec2, eigvec3);
+    }
+
+    Eigen::Tensor<double, 3> coupling(nb1, nb2, numPhBands);
+    for (int nu = 0; nu < numPhBands; nu++) {
+      for (int ib2 = 0; ib2 < nb2; ib2++) {
+        for (int ib1 = 0; ib1 < nb1; ib1++) {
+          // notice the flip of 1 and 2 indices is intentional
+          // coupling is |<k+q,ib2 | dV_nu | k,ib1>|^2
+          coupling(ib1, ib2, nu) = std::norm(gFinal(ib2, ib1, nu));
+        }
+      }
+    }
+    cacheCoupling[ik] = coupling;
+  }
 }

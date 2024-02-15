@@ -63,33 +63,35 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
   // loop over points and set up points pairs
   std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> pointsPairs;
+  /*
   std::pair<Eigen::Vector3d, Eigen::Vector3d> thisPair;
-  Eigen::Vector3d cart1 =   points.crystalToCartesian({34./178.,34./85.,3./54.});
-  Eigen::Vector3d cart2 =   points.crystalToCartesian({12./52.,45./38.,11./84.});
+  Eigen::Vector3d crys1 = {64./178.,34./85.,3./54.}; 
+  Eigen::Vector3d crys2 = {12./52.,95./38.,11./44.};
+
+  Eigen::Vector3d cart1 = points.crystalToCartesian(crys1);
+  Eigen::Vector3d cart2 = points.crystalToCartesian(crys2);
 
   thisPair.first = cart1; //{3./8.,3./8.,3./8.};
   thisPair.second = cart2; // {1./8.,1./8.,1./8.};
   std::cout << cart1.transpose() << " " << cart2.transpose() << std::endl;
   pointsPairs.push_back(thisPair);
-
-
-  /*
+*/
   for (int ik = 0; ik < points.getNumPoints(); ik++) {
 
     auto thisPoint = points.getPointCoordinates(ik, Points::cartesianCoordinates);
     std::pair<Eigen::Vector3d, Eigen::Vector3d> thisPair;
 
-    // create a list of (k,q) pairs, where k is on a path and q is fixed
+    // create a list of (k,q) pairs, where k is on a path/mesh and q is fixed
     if (context.getG2PlotStyle() == "qFixed") {
-      thisPair.first = thisPoint;
-      thisPair.second = points.crystalToCartesian(context.getG2PlotFixedPoint());
+      thisPair.first = thisPoint; // set the k point
+      thisPair.second = points.crystalToCartesian(context.getG2PlotFixedPoint()); // fixed q point 
       pointsPairs.push_back(thisPair);
 
     }
     // create a list of (k,q) pairs, where k is fixed and q is on the path
     else if (context.getG2PlotStyle() == "kFixed") {
       thisPair.first = points.crystalToCartesian(context.getG2PlotFixedPoint());
-      thisPair.second = thisPoint;
+      thisPair.second = thisPoint; // set the q point 
       pointsPairs.push_back(thisPair);
     }
     else { // if neither point is fixed, it's all to all
@@ -100,7 +102,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
       }
     }
   }
-*/
+
   // band ranges to calculate the coupling for -----------------------------
   std::pair<int, int> g2PlotEl1Bands = context.getG2PlotEl1Bands();
   std::pair<int, int> g2PlotEl2Bands = context.getG2PlotEl2Bands();
@@ -153,6 +155,8 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
   // Compute the coupling --------------------------------------------------
   std::vector<double> allGs;
+  // push back all the state 2 energies 
+  std::vector<double> energiesK2C; 
 
   // distribute over k,q pairs
   int numPairs = pointsPairs.size();
@@ -175,9 +179,6 @@ void ElPhCouplingPlotApp::run(Context &context) {
   // we calculate the coupling for each pair, flatten it, and append
   // it to allGs. Then at the end, we write this chunk to HDF5.
 
-  FullBandStructure fbs = phononH0.populate(points, false, false);
-  GaussianDeltaFunction smearing(fbs,context);
-
   if(mpi->mpiHead())
     std::cout << "\nCoupling requested for " << numPairs << " k,q pairs." << std::endl;
 
@@ -188,29 +189,35 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
     std::pair<Eigen::Vector3d, Eigen::Vector3d> thisPair = pointsPairs[iPair];
 
-    //|g(k,k'=k+q,+q)|^2 = |g(k+q, k'=k, -q)|^2
+    //Eigen::Vector3d k1C = {0.18, 0.18, 0};
+    //Eigen::Vector3d k2C = {0.32, 0.32, 0};
+    //Eigen::Vector3d q3C = {0.14,0.14,0};
+    //Eigen::Vector3d k2C = k1C + q3C; 
+    
+    //Eigen::Vector3d k2C = {0.04, 0.04, 0};
+
+    //|g(k,k'=k+q,+q)|^2 = 
     Eigen::Vector3d k1C = thisPair.first;
     Eigen::Vector3d q3C = thisPair.second;
     Eigen::Vector3d k2C = k1C + q3C; // TODO change this relation to minus 
 
-    //  0.2489 -0.1444  0.5038   1.269 -0.9182   1.712    1.02 -0.7739   1.208
-    //  b1 b2 nu 2 2 2 g enK enKp w cosh delta 2.3933232e-08 0.78022665 0.77693261 0.0015745507 9.5618391e-28 6.7474551e-17
-    //
-
+    // |g(k+q, k'= k, -q)|^2
     //Eigen::Vector3d k2C = thisPair.first;
     //Eigen::Vector3d q3C = -1.*thisPair.second;
-    //Eigen::Vector3d k1C = k2C - q3C; //k = k' - q 
+    ///Eigen::Vector3d k1C = k2C - q3C; //k = k' - q 
+    //q3C = thisPair.second;
 
-    //  k = 1.269 -0.9182   1.712, k' =  0.2489 -0.1444  0.5038 q =  -1.02 0.7739 -1.208
-    //  b1 b2 nu 2 2 2 g enK enKp w cosh delta 5.0973418e-09 0.77693261 0.78022665 0.0015745507 2.2750635e-27 3.2223694
-    //
+    //Eigen::Vector3d k2C = thisPair.first;
+    //Eigen::Vector3d q3C = thisPair.second;
+    //Eigen::Vector3d k1C = k2C - q3C; //k = k' - q --> k+q = k'
+    //q3C = -1.*thisPair.second;
 
-    std::cout << k1C.transpose() << " " << k2C.transpose() << " " << q3C.transpose() << std::endl;
+    //std::cout << k1C.transpose() << " " << k2C.transpose() << " " << q3C.transpose() << std::endl;
 
     // need to get the eigenvectors at these three wavevectors
     auto t3 = electronH0.diagonalizeFromCoordinates(k1C);
     auto en1 = std::get<0>(t3);
-    auto eigenVector1 = std::get<1>(t3);
+    Eigen::MatrixXcd eigenVector1 = std::get<1>(t3);
 
     // second electron eigenvector
     auto t4 = electronH0.diagonalizeFromCoordinates(k2C);
@@ -221,6 +228,10 @@ void ElPhCouplingPlotApp::run(Context &context) {
     eigenVectors2.push_back(eigenVector2);
     std::vector<Eigen::Vector3d> k2Cs;
     k2Cs.push_back(k2C);
+
+    for (int ib2 = g2PlotEl2Bands.first; ib2 <= g2PlotEl2Bands.second; ib2++) {
+      energiesK2C.push_back(en2[ib2]);
+    }
 
     // phonon eigenvectors    
     auto t5 = phononH0.diagonalizeFromCoordinates(q3C); 
@@ -240,6 +251,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
     // calculate the elph coupling squared
     couplingElPh.cacheElPh(eigenVector1, k1C);  // fourier transform + rotation by k
     couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, q3Cs, polarData);   // fourier transform + rotation by k' and q
+    //couplingElPh.oldCalcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, k1C, k2Cs, q3Cs);   // fourier transform + rotation by k' and q
     auto couplingSq = couplingElPh.getCouplingSquared(0);  // access the stored matrix elements, which are for the given triplet. Object has bands |g(m,m',nu)|^2
 
     // the coupling object is coupling at a given set of k,q, for a range of bands
@@ -248,11 +260,11 @@ void ElPhCouplingPlotApp::run(Context &context) {
       for (int ib2 = g2PlotEl2Bands.first; ib2 <= g2PlotEl2Bands.second; ib2++) {
         for (int ib3 = g2PlotPhBands.first; ib3 <= g2PlotPhBands.second; ib3++) {
           allGs.push_back(couplingSq(ib1, ib2, ib3));
-          if(ib1 == 2  && ib2 == 2 && ib3 == 2) {
 
-            //double deltaWeight = smearing.getSmearing(en2[ib2] - en1[ib1] - en3[ib3]);
-            //double coshDataKp = 0.5 / cosh(0.5 * (en2[ib2] - mu) / kT);
-            std::cout << std::setprecision(8) << "b1 b2 nu " << ib1 << " " << ib2 << " " << ib3 << " g enK enKp omega " << couplingSq(ib1, ib2, ib3) << " " << en1[ib1] << " " << en2[ib2] << " " << en3[ib3] << std::endl; //<< " " << coshDataKp << " " << deltaWeight << std::endl;
+          if(ib1 == 2  && ib2 == 2 && ib3 == 2) {
+            //std::cout << std::setprecision(8) << "b1 b2 nu " << ib1-1 << " " << ib2-1 << " " << ib3-1 << " g enK enKp omega " << couplingSq(ib1-1, ib2-1, ib3-1) << " " << en1[ib1-1] << " " << en2[ib2-1] << " " << en3[ib3-1] << std::endl; //<< " " << coshDataKp << " " << deltaWeight << std::endl;
+            //std::cout << std::setprecision(8) << "b1 b2 nu " << ib1 << " " << ib2 << " " << ib3 << " g enK enKp omega " << couplingSq(ib1, ib2, ib3) << " " << en1[ib1] << " " << en2[ib2] << " " << en3[ib3] << std::endl; //<< " " << coshDataKp << " " << deltaWeight << std::endl;
+            //std::cout << std::setprecision(8) << "b1 b2 nu " << ib1+1 << " " << ib2+1 << " " << ib3+1 << " g enK enKp omega " << couplingSq(ib1+1, ib2+1, ib3+1) << " " << en1[ib1+1] << " " << en2[ib2+1] << " " << en3[ib3+1] << std::endl; //<< " " << coshDataKp << " " << deltaWeight << std::endl;
           }
         }
       }
@@ -292,7 +304,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
     dims[0] = 1;
     dims[1] = size_t(globalSize);
     HighFive::DataSet dgmat = file.createDataSet<double>(
-          "/g2Matrix", HighFive::DataSpace(dims));
+          "/elphCouplingMat", HighFive::DataSpace(dims));
 
     // start point and the number of the total number of elements
     // to be written by this process
@@ -368,17 +380,47 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
     // write elph matrix elements
     HighFive::File file(outFileName, HighFive::File::Overwrite);
-    file.createDataSet("/g2Matrix", collectedGs);
+    file.createDataSet("/elphCouplingMat", collectedGs);
 
     }
     #endif
     // now we write a few other pieces of smaller information using only mpiHead
+/*
+    std::vector<double> collectedEn2s;
+    if(mpi->mpiHead()) collectedEn2s.resize(numPairs * (g2PlotEl2Bands.second - g2PlotEl2Bands.first + 1));
+      
+      std::vector<int> workDivisionHeads(mpi->getSize());
+      int offset = pairParallelIter[0]*(g2PlotEl2Bands.second - g2PlotEl2Bands.first + 1); 
+      mpi->allGather(&offset, &workDivisionHeads);
+      std::vector<int> workDivs(mpi->getSize());
+      int wd = energiesK2C.size();
+      mpi->allGather(&wd, &workDivs);
+
+  std::cout << "work divs " << std::endl;
+  for(auto wd : workDivs) {
+    std::cout << wd << std::endl;
+  }
+  std::cout << "work divs " << std::endl;
+  for(auto wd : workDivisionHeads) {
+    std::cout << wd << std::endl;
+  }
+
+    mpi->allGatherv(&collectedEn2s, &energiesK2C, &workDivs, &workDivisionHeads);
+
+    std::cout << collectedEn2s.size() << " " <<  energiesK2C.size() << " " << workDivs[mpi->getRank()] << std::endl;
+
+    for(auto enKC2 : collectedEn2s) { 
+      std::cout << enKC2 << std::endl;
+    }
+*/
     if (mpi->mpiHead()) {
 
       HighFive::File file(outFileName, HighFive::File::ReadWrite);
 
       // shape the points pairs list into a format that can be written
       Eigen::MatrixXd pointsTemp(pointsPairs.size(),6);
+      Eigen::MatrixXd pointsTempCart(pointsPairs.size(),6);
+
       for (size_t iPair = 0; iPair < pointsPairs.size(); iPair++) {
 
         auto thisPair = pointsPairs[iPair];
@@ -387,10 +429,13 @@ void ElPhCouplingPlotApp::run(Context &context) {
         for( int i : {0,1,2} ) {
           pointsTemp(iPair,i) = k1C(i);
           pointsTemp(iPair,i+3) = q3C(i);
+          pointsTempCart(iPair,i) = thisPair.first(i);
+          pointsTempCart(iPair,i+3) = thisPair.second(i);
         }
       }
       // write the points pairs to file
-      file.createDataSet("/pointsPairs", pointsTemp);
+      file.createDataSet("/pointsPairsCrystal", pointsTemp);
+      file.createDataSet("/pointsPairsCartesian", pointsTempCart);
 
       // write the band ranges
       std::vector<int> temp;
@@ -405,6 +450,9 @@ void ElPhCouplingPlotApp::run(Context &context) {
       temp.push_back(g2PlotPhBands.first);
       temp.push_back(g2PlotPhBands.second);
       file.createDataSet("/phModeRange", temp);
+
+      // TODO write to file 
+      file.createDataSet("/en2s", energiesK2C);
 
     }
   } catch (std::exception &error) {
@@ -428,10 +476,14 @@ void ElPhCouplingPlotApp::run(Context &context) {
 void ElPhCouplingPlotApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getElectronH0Name(), "electronH0Name");
   throwErrorIfUnset(context.getPhFC2FileName(), "phFC2FileName");
-  if(context.getG2PlotStyle() == "pointsPath")
+  if(context.getG2PlotStyle() == "pointsPath") {
     throwErrorIfUnset(context.getPathExtrema(), "points path extrema");
-  else {
+  } 
+  if(context.getG2PlotStyle() == "pointsMesh" && context.getG2PlotStyle() == "qFixed") {
     throwErrorIfUnset(context.getKMesh(), "kMesh");
+  }
+  if(context.getG2PlotStyle() == "pointsMesh" && context.getG2PlotStyle() == "kFixed") {
+    throwErrorIfUnset(context.getKMesh(), "qMesh");
   }
   throwErrorIfUnset(context.getElphFileName(), "elphFileName");
 }

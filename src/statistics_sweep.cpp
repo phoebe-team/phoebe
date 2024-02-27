@@ -305,11 +305,11 @@ StatisticsSweep::findChemicalPotentialFromDoping(const double &doping,
   // when we have completely empty bands or completely full bands.
   if (doping == 0. && temperature == 0.) {// case of computing fermi level
     if (numElectronsDoped == 0.) {
-      fermiLevel = *min_element(energies.begin(), energies.end());
+      if(energies.size() > 0) fermiLevel = *min_element(energies.begin(), energies.end());
       chemicalPotential = fermiLevel;
       return chemicalPotential;
     } else if (numElectronsDoped == float(numBands)) {
-      fermiLevel = *max_element(energies.begin(), energies.end());
+      if(energies.size() > 0) fermiLevel = *max_element(energies.begin(), energies.end());
       chemicalPotential = fermiLevel;
       return chemicalPotential;
     }

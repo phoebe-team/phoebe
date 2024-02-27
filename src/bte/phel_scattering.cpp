@@ -94,15 +94,15 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // scale slice around mu, 1.25* the max phonon energy
   double maxPhEnergy = phBandStructure.getMaxEnergy();
   auto inputWindowType = context.getWindowType();
-  context.setWindowType("muCenteredEnergy");
+  //context.setWindowType("muCenteredEnergy");
   if(mpi->mpiHead()) {
     std::cout << "Of the active phonon modes, the maximum energy state is " <<
        maxPhEnergy*energyRyToEv*1e3 << " meV." <<
-        "\nSelecting states within +/- 1.25 x " << maxPhEnergy*energyRyToEv*1e3 << " meV"
+        "\nSelecting states within +/- 1.5 x " << maxPhEnergy*energyRyToEv*1e3 << " meV"
         << " of max/min electronic mu values." << std::endl;
   }
-  Eigen::Vector2d range = {-1.25*maxPhEnergy,1.25*maxPhEnergy};
-  context.setWindowEnergyLimit(range);
+  Eigen::Vector2d range = {-1.5*maxPhEnergy,1.5*maxPhEnergy};
+  //context.setWindowEnergyLimit(range); // TODO undo this
 
   // construct electronic band structure
   Points fullPoints(crystalPh, context.getKMeshPhEl());
@@ -303,10 +303,24 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         int iq3 = iq3Indexes[start + iq3Batch];
         WavevectorIndex iq3Idx(iq3);
 
-        allPolarData[iq3Batch] = polarData.row(iq3);
-        allEigenVectors3[iq3Batch] = phBandStructure.getEigenvectors(iq3Idx);
-        allV3s[iq3Batch] = phBandStructure.getGroupVelocities(iq3Idx);
-        allQ3C[iq3Batch] = phBandStructure.getWavevector(iq3Idx);
+        // REMOVE THE FOLLOWING LINES TO RESET!
+        //allPolarData[iq3Batch] = polarData.row(iq3);
+        //allEigenVectors3[iq3Batch] = phBandStructure.getEigenvectors(iq3Idx);
+        //allV3s[iq3Batch] = phBandStructure.getGroupVelocities(iq3Idx);
+        //allQ3C[iq3Batch] = phBandStructure.getWavevector(iq3Idx); // TODO remove this test statement
+
+        allQ3C[iq3Batch] = phBandStructure.getWavevector(iq3Idx); // FLIP THIS 
+
+        // REMAP Q
+        Eigen::Vector3d qCrys = phBandStructure.getPoints().cartesianToCrystal(allQ3C[iq3Batch]);
+        WavevectorIndex qIdx = WavevectorIndex(phBandStructure.getPointIndex(qCrys));
+        allQ3C[iq3Batch]  = phBandStructure.getWavevector(qIdx);
+
+        auto t5 = couplingElPhWan->phononH0->diagonalizeFromCoordinates(allQ3C[iq3Batch]); 
+
+        //allEigenVectors3[iq3Batch] = phBandStructure.getEigenvectors(iq3Idx);
+        allEigenVectors3[iq3Batch] = std::get<1>(t5);
+
       }
 
       // precompute the k2 indices such that k2-k1=q3, where k1 is fixed
@@ -316,10 +330,24 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
         int iq3 = iq3Indexes[start + iq3Batch];
         auto iq3Index = WavevectorIndex(iq3);
-        Eigen::Vector3d q3C = phBandStructure.getWavevector(iq3Index);
+        Eigen::Vector3d q3C = allQ3C[iq3Batch]; //phBandStructure.getWavevector(iq3Index);
 
         // k' = k + q : phonon absorption
-        Eigen::Vector3d k2C = q3C + k1C;
+        Eigen::Vector3d k2C = q3C + k1C; 
+
+       // Eigen::Vector3d kCrys = elBandStructure.getPoints().cartesianToCrystal(k2C);
+       // WavevectorIndex kpIdx = WavevectorIndex(elBandStructure.getPointIndex(kCrys));
+       // k2C = elBandStructure.getWavevector(kpIdx);
+
+//          k2C = elBandStructure.getPoints().bzToWs(k2C,Points::cartesianCoordinates);
+/*
+          auto kpCartesianOrig = k2C;
+          Eigen::Vector3d kCrys = elBandStructure.getPoints().cartesianToCrystal(k2C);
+          WavevectorIndex kpIdx = WavevectorIndex(elBandStructure.getPointIndex(kCrys));
+          k2C = elBandStructure.getWavevector(kpIdx);
+          Eigen::Vector3d kCrysNew = elBandStructure.getPoints().cartesianToCrystal(k2C);
+          //std::cout << "kpOrig " << kpCartesianOrig.transpose() << " | kPnew " << k2C.transpose() << " | diff | " << kCrys.transpose() << " " << kCrysNew.transpose() << std::endl;
+*/
         allK2C[iq3Batch] = k2C;
       }
 
@@ -330,6 +358,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         withVelocities = true;
       }
       bool withEigenvectors = true; // we need these below to calculate coupling
+
       // TODO can we actually just use the stored band structure? why not?
       auto tHelp = electronH0->populate(allK2C, withVelocities, withEigenvectors);
 
@@ -348,9 +377,14 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         WavevectorIndex iq3Idx(iq3);
 
         Eigen::VectorXd state2Energies = allStates2Energies[iq3Batch];
+        auto k2C = allK2C[iq3Batch]; // TODO remove this it's just for testing
+        auto q3C = allQ3C[iq3Batch]; // TODO remove this it's just for testing
         auto nb2 = int(state2Energies.size());
+        
         // for gpu would replace with compute OTF
-        Eigen::VectorXd state3Energies = phBandStructure.getEnergies(iq3Idx); // iq3Idx
+        //Eigen::VectorXd state3Energies = phBandStructure.getEnergies(iq3Idx); // iq3Idx
+        auto t5 = couplingElPhWan->phononH0->diagonalizeFromCoordinates(q3C); 
+        Eigen::VectorXd state3Energies = std::get<0>(t5);
 
         // NOTE: these loops are already set up to be applicable to gpus
         // the precomputaton of the smearing values and the open mp loops could
@@ -452,12 +486,50 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 //    * smearingValues(ib1, ib2, ib3)
                 //    * norm / temperatures(iCalc) * pi * k1Weight;
 
-                double rate =
-                    coupling(ib1, ib2, ib3)  //fermiTerm(iCalc, ik1, ib1)
-                    * smearingValues(ib1, ib2, ib3)
-                    * norm * pi / en3 * k1Weight 
-                    * sinh(0.5 * en3 / temperatures(iCalc)) / (2 * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))  * cosh(0.5*(en1 - chemPot)/temperatures(iCalc)));
+                if (smearingValues(ib1, ib2, ib3) <= 0.) { continue; }
 
+                double rate =
+                    coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)
+                    smearingValues(ib1, ib2, ib3)
+                    * norm * pi / en3 * k1Weight 
+                    * sinh(0.5 * en3 / temperatures(iCalc)) / 
+                    (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
+                    * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc))); 
+/*
+                    if(ib3 == 1) {
+                      Eigen::Vector3d kpCrys = elBandStructure.getPoints().cartesianToCrystal(k2C);
+                      Eigen::Vector3d kCrys = elBandStructure.getPoints().cartesianToCrystal(k1C);
+                      Eigen::Vector3d qCrys = phBandStructure.getPoints().cartesianToCrystal(q3C);
+                      //std::cout << "kCrys, kpCrys, qCrys | b1 b2 bq " << kCrys.transpose() << " " << kpCrys.transpose() << " " << qCrys.transpose() << " |b| " << ib1 << " " << ib2 << " " << ib3 << " |g| " << coupling(ib1, ib2, ib3) << std::endl;
+          
+                  Eigen::IOFormat HeavyFmt(Eigen::FullPrecision, 0, ", ", ";\n", "[", "]", "[", "]");
+                  Eigen::Vector3d kptest1 = {0.0, 0.0, 0.0 }; 
+                  Eigen::Vector3d kptest2 = {0, 1./3., 0};     
+                  //std::cout << std::setprecision(17) << std::endl;
+
+                //if( abs(qCrys(0) - qtest1(0)) < 1e-3 && abs(qCrys(1) - qtest1(1)) < 1e-3 && abs(qCrys(2) - qtest1(2)) < 1e-3 && ibQ == 2) {
+                    if( (abs(kCrys(0) - kptest1(0)) < 1e-3 && abs(kCrys(1) - kptest1(1)) < 1e-3 && abs(kCrys(2) - kptest1(2)) < 1e-3 && ib1 == 2) && 
+                    (abs(kpCrys(0) - kptest2(0)) < 1e-3 && abs(kpCrys(1) - kptest2(1)) < 1e-3 && abs(kpCrys(2) - kptest2(2)) < 1e-3 && ib2 == 2) ) { 
+
+                      std::cout << "triplet 1 " << kCrys.transpose() << " " << kpCrys.transpose() << " " << qCrys.transpose() << " bands " << ib1 << " " << ib2 << " " << ib3 << std::endl;
+                      std::cout << "triplet 1 Energies: " << std::setprecision(17) << en1 << " " << en2 << " " << en3 << " " << coupling(ib1,ib2,ib3) << std::setprecision(6) << std::endl;
+                      std::cout << "triplet 1 ph eigenvector \n" << allEigenVectors3[iq3Batch].transpose().format(HeavyFmt) << std::endl;
+                      std::cout << "triplet 1 k eigenvector \n" << eigenVector1.transpose().format(HeavyFmt) << std::endl;
+                      std::cout << "triplet 1 k' eigenvector \n" << allEigenVectors2[iq3Batch].transpose().format(HeavyFmt) << std::endl;
+                  }
+                //}
+                //if( abs(qCrys(0) - qtest2(0)) < 1e-3 && abs(qCrys(1) - qtest2(1)) < 1e-3 && abs(qCrys(2) - qtest2(2)) < 1e-3 && ibQ == 2) {
+                    if( (abs(kCrys(0) - kptest2(0)) < 1e-3 && abs(kCrys(1) - kptest2(1)) < 1e-3 && abs(kCrys(2) - kptest2(2)) < 1e-3 && ib1 == 2) && 
+                    (abs(kpCrys(0) - kptest1(0)) < 1e-3 && abs(kpCrys(1) - kptest1(1)) < 1e-3 && abs(kpCrys(2) - kptest1(2)) < 1e-3 && ib2 == 2) ) { 
+
+                      std::cout << "triplet 2 " << kCrys.transpose() << " " << kpCrys.transpose() << " " << qCrys.transpose() << " bands " << ib1 << " " << ib2 << " " << ib3 << std::endl;
+                      std::cout << "triplet 2 Energies: " << std::setprecision(17) << en1 << " " << en2 << " " << en3 << " " << coupling(ib1,ib2,ib3) << std::setprecision(6) << std::endl;
+                      std::cout << "triplet 2 ph eigenvector \n" << allEigenVectors3[iq3Batch].transpose().format(HeavyFmt) << std::endl;
+                      std::cout << "triplet 2 k eigenvector \n" << eigenVector1.transpose().format(HeavyFmt) << std::endl;
+                      std::cout << "triplet 2 k' eigenvector \n" << allEigenVectors2[iq3Batch].transpose().format(HeavyFmt) << std::endl;
+                    }
+                  }
+*/ 
                 // if it's not a coupled matrix, this will be ibte3
                 // We have to define shifted ibte3, or it will be further
                 // shifted every loop.
@@ -645,27 +717,26 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
     size_t iMat1 = std::get<0>(matrixState);
     size_t iMat2 = std::get<1>(matrixState);
 
-    // if iMat1 is phonon, iMat2 is electron
-    if(( iMat1 >= numElStates && iMat2 < numElStates)) { 
+    // if iMat2 is phonon, iMat1 is electron
+    if(( iMat2 >= numElStates && iMat1 < numElStates)) { 
 
-      size_t iMat1Ph = iMat1 - numElStates; // shift back to phonon index, 
+      size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index, 
       					  // for use in bandstructure indexed objects
 
       // here because symmetries are not used, we can directly use
       // the matrix indices without converting iBte/iMat -> iState
-      StateIndex is1(iMat1Ph); // phonon
-      double phEnergy = phBandStructure.getEnergy(is1);
+      StateIndex is2(iMat2Ph); // phonon
+      double phEnergy = phBandStructure.getEnergy(is2);
       double nnp1 = phBandStructure.getParticle().getPopPopPm1(phEnergy, kBT, 0);
-      StateIndex is2(iMat2); // phonon 
-      double elEnergy = elBandStructure.getEnergy(is2);
+      StateIndex is1(iMat1); // phonon 
+      double elEnergy = elBandStructure.getEnergy(is1);
       double f1mf = elBandStructure.getParticle().getPopPopPm1(elEnergy, kBT, mu);
 
       //if (phEnergy < phononCutoff) { continue; } // skip the acoustic modes
       //if (sqrt(nnp1) * phEnergy < 1e-16) { continue; } // skip values which would cause divergence
 
-      newPhElLinewidths(iCalc, iMat1) += norm * matrix(iMat1, iMat2) * sqrt(f1mf) * (elEnergy - mu) 
+      newPhElLinewidths(iCalc, iMat2) -= matrix(iMat1, iMat2) * sqrt(f1mf) * (elEnergy - mu) // * norm 
       					/ ( sqrt(nnp1) * phEnergy ); 
-      //if(mpi->mpiHead()) std::cout << norm << " " << matrix(iMat1, iMat2) << " " << sqrt(f1mf) << " " << (elEnergy) << std::endl;
     }
   }
   mpi->allReduceSum(&newPhElLinewidths); 
@@ -673,14 +744,35 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
   // print statement to print new and old linewidths side by side
 if(mpi->mpiHead()) {
   std::cout << "compare " << std::endl;
-  for (int i = numElStates; i<100+numElStates; i++) {
+  for (int i = numElStates; i<200+numElStates; i++) {
+
+    StateIndex istate(i-numElStates);
+    auto qPlusRemap = phBandStructure.getWavevector(istate);
+
+    // jesus christ we have to improve this lookup
+    auto qMinus = -1*phBandStructure.getWavevector(istate);
+    Eigen::Vector3d qMinusCrys = phBandStructure.getPoints().cartesianToCrystal(qMinus);
+    WavevectorIndex qIdxMinusRemap = WavevectorIndex(phBandStructure.getPointIndex(qMinusCrys));
+    auto qMinusRemapCart = phBandStructure.getWavevector(qIdxMinusRemap);
+    Eigen::Vector3d qMinusRemapCrys = phBandStructure.getPoints().cartesianToCrystal(qMinusRemapCart);
+    Eigen::Vector3d qPlusRemapCrys = phBandStructure.getPoints().cartesianToCrystal(qPlusRemap);
+
+    auto qPlusWS = phBandStructure.getPoints().bzToWs(qPlusRemapCrys,Points::crystalCoordinates);
+    auto qMinusWS = phBandStructure.getPoints().bzToWs(qMinusRemapCrys,Points::crystalCoordinates);
+
+    if( newPhElLinewidths(iCalc,i) <= 0 ) { 
+      newPhElLinewidths(iCalc,i) = phElLinewidths->data(iCalc,i);
+    }
 
     double x = newPhElLinewidths(iCalc,i); 
     double y = phElLinewidths->data(iCalc,i);
-    //if (abs(x) < 1e-12) x = 0;
-    //if (abs(y) < 1e-12) y = 0;
+    if (abs(x) < 1e-12) x = 0;
+    if (abs(y) < 1e-12) y = 0;
 
-    std::cout <<  x << " " << y << "\n" ;
+    if(x == 0 && y == 0) continue;
+    //if( !( abs(abs(x/y) - 0.5) < 1e-3)) continue; 
+    std::cout <<  x << " " << y << "  " << x/y << " | "  << qPlusRemapCrys.transpose() << " " << qMinusRemapCrys.transpose() << " | " << qPlusWS.transpose() << " " << qMinusWS.transpose() << "\n" ;
+
   } 
 }
   // replace the linewidth data

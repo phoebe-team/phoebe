@@ -127,12 +127,12 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator = allPairIterators[3];
 
   // add el-ph scattering -----------------------------------------
-  /*addElPhScattering(*this, context, inPopulations, outPopulations,
+  addElPhScattering(*this, context, inPopulations, outPopulations,
                                   switchCase, kPairIterator,
                                   fermiOccupations,
                                   outerBandStructure, outerBandStructure,
                                   *phononH0, couplingElPh, internalDiagonal);
-  */
+  
   // add charged impurity electron scattering  -------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
                        switchCase, kPairIterator,
@@ -205,20 +205,12 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   mpi->allReduceSum(&postSymLinewidths->data);
   // TODO maybe output these phel linewidths? 
 
-  //if(mpi->mpiHead()) std::cout << postSymLinewidths->data.transpose() << std::endl;
-for(int i = numElStates; i<100+numElStates; i++) { 
-
-    //if(mpi->mpiHead()) std::cout << postSymLinewidths->operator()(0,0,i) << std::endl;
-    //std::cout << "terms 1 2 3 " << term1(0,0,i) << " " << term2(0,0,i) << " " << term3(0,0,i) << std::endl;
-
-  }
-
   // Add drag terms ----------------------------------------------
   if(context.getUseDragTerms()) { 
     // first add the el drag term 
     // TODO replace these 0 and 1s with something smarter 
-    //addDragTerm(*this, context, kqPairIterator, 0, electronH0,
-    //                     couplingElPh, innerBandStructure, outerBandStructure);
+    addDragTerm(*this, context, kqPairIterator, 0, electronH0,
+                         couplingElPh, innerBandStructure, outerBandStructure);
     // now the ph drag term
     addDragTerm(*this, context, qkPairIterator, 1, electronH0,
                           couplingElPh, innerBandStructure, outerBandStructure);
@@ -334,7 +326,7 @@ for(int i = numElStates; i<100+numElStates; i++) {
   }
 
   // apply the spin degen factors
-  //reweightQuadrants();
+  reweightQuadrants();
 
   // use the off diagonals to calculate the linewidths, 
   // to ensure the special eigenvectors can be found/preserve conservation of momentum 
@@ -633,8 +625,6 @@ void CoupledScatteringMatrix::reweightQuadrants() {
 //    }
   }
 }
-
-
 
 BaseBandStructure* CoupledScatteringMatrix::getPhBandStructure() { return &innerBandStructure; }
 BaseBandStructure* CoupledScatteringMatrix::getElBandStructure() { return &outerBandStructure; }

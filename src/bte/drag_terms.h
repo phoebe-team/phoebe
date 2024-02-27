@@ -22,4 +22,14 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   InteractionElPhWan *couplingElPhWan,
                   BaseBandStructure &innerBandStructure, // phonon
                   BaseBandStructure &outerBandStructure); // electron
+
+// TODO change this to a coupled scattering matrix
+void addDragTerm2(CoupledScatteringMatrix &matrix, Context &context,
+                  std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
+                  int dragTermType,
+                  ElectronH0Wannier* electronH0,
+                  InteractionElPhWan *couplingElPhWan,
+                  BaseBandStructure &innerBandStructure, // phonon
+                  BaseBandStructure &outerBandStructure); // electron
+
 #endif

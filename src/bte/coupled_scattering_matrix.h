@@ -178,6 +178,15 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
                   BaseBandStructure& elBandStructure,
                   BaseBandStructure& phBandStructure);
 				
+// TODO change this to a coupled scattering matrix
+friend void addDragTerm2(CoupledScatteringMatrix &matrix, Context &context,
+                  std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
+                  int dragTermType,
+                  ElectronH0Wannier* electronH0,
+                  InteractionElPhWan *couplingElPhWan,
+                  BaseBandStructure &innerBandStructure, // phonon
+                  BaseBandStructure &outerBandStructure); // electron
+
 };
 
 #endif

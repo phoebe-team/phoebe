@@ -51,8 +51,12 @@ void CoupledTransportApp::run(Context &context) {
   // things so it's possible to add contribution separately
 
   // read in phonon-phonon coupling -------------------------------------
-  // TODO does this also checks that the crystal is the same one read in for ph FC2?
+  // TODO does this also checks that the crystal is the same one read in for ph FC2?\
+  Interaction3Ph coupling3Ph(crystal) = 
   Interaction3Ph coupling3Ph = IFC3Parser::parse(context, crystal);
+  //if(usePhPhInteraction) {
+  //  coupling3Ph = IFC3Parser::parse(context, crystal);
+ // }
 
   // read in electron-phonon coupling ---------------------------------
   // TODO does this also checks that the crystal is the same one read in for ph FC2?
@@ -113,7 +117,6 @@ void CoupledTransportApp::run(Context &context) {
     }
     std::cout << "Done computing electronic band structure.\n" << std::endl;
   }
-
 /*
   if(mpi->mpiHead()) {
     std::cout << "Checking for Cartesian wraparound issues." << std::endl;
@@ -125,7 +128,10 @@ void CoupledTransportApp::run(Context &context) {
       Eigen::Vector3d qminus = -1*q;
       qminus = elBandStructure.getPoints().cartesianToCrystal(qminus);
       int qmidx = elBandStructure.getPoints().getIndex(qminus);
-      if(qmidx == -1) std::cout << is << " point " << q.transpose() << " not found." << std::endl;
+      if(qmidx == -1) {
+        std::cout << is << " point " << q.transpose() << " not found." << std::endl;
+        continue;
+      } 
       Eigen::Vector3d qminusLookup = elBandStructure.getPoints().getPointCoordinates(qmidx,Points::cartesianCoordinates);
       qminusLookup = elBandStructure.getPoints().bzToWs(qminusLookup,Points::cartesianCoordinates);
       if(abs((q+qminusLookup).norm()) > 1e-8) {
@@ -249,7 +255,7 @@ void CoupledTransportApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getPhFC2FileName(), "PhFC2FileName");
   throwErrorIfUnset(context.getQMesh(), "qMesh");
   throwWarningIfUnset(context.getSumRuleFC2(), "sumRuleFC2");
-  throwErrorIfUnset(context.getPhFC3FileName(), "PhFC3FileName");
+  //throwErrorIfUnset(context.getPhFC3FileName(), "PhFC3FileName");
   throwErrorIfUnset(context.getTemperatures(), "temperatures");
   throwErrorIfUnset(context.getSmearingMethod(), "smearingMethod");
   if (context.getSmearingMethod() == DeltaFunction::gaussian) {

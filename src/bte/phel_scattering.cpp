@@ -82,7 +82,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // may be larger than innerNumPoints, when we use ActiveBandStructure
   // note: in the equations for this rate, because there's an integraton over k,
   // this rate is actually 1/NK (sometimes written N_eFermi).
-  double spinFactor = 2.; // nonspin pol = 2
+  double spinFactor = 1.; // nonspin pol = 2
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
   double norm = spinFactor / context.getKMeshPhEl().prod();
 
@@ -460,7 +460,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
             double en3 = state3Energies(ib3);
 
             // remove small divergent phonon energies
-            //if (en3 < phononCutoff) { continue; }
+            if (en3 < phononCutoff) {
+              continue;
+            }
 
             auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
             double temp = calcStat.temperature;
@@ -494,8 +496,8 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
                 if (smearingValues(ib1, ib2, ib3) <= 0.) { continue; }
                 // avoid overflow
-                //double denominator = (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc)) * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)));
-                //if (denominator < 1e-14) continue; 
+                double denominator = (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc)) * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)));
+                if (abs(denominator < 1e-15)) continue; 
 
                 double rate =
                     coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)

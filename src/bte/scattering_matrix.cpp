@@ -1759,19 +1759,21 @@ void ScatteringMatrix::reinforceLinewidths() {
     double finalEn = finalBandStructure->getEnergy(sIdx2);// - finalChemicalPotential;
 
     // calculate population terms
+    // f(1-f) or n(n+1)
     double initialFFm1 = initialParticle.getPopPopPm1(initialEn, kBT, initialChemicalPotential);
     double finalFFm1 = finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
 
     // add in mu factors if needed now that we calculated population, which wanted the bare energies 
-    //if(initialParticle.isPhonon()) { 
     initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential; // do not shift by mu because we use this below in the getPop function which assumes it's unshifted
     finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;
 
     // spin degeneracy info 
     // For phonons, =  sqrt(Nkq/Nq)
     // For electrons, = sqrt((Nkq * spinFactor)/Nk)
-    double initialD = (initialParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk);
-    double finalD = (finalParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk);
+    double initialD = 1.;  //(initialParticle.isPhonon()) ? sqrt(Nkq/Nq) : sqrt((Nkq * spinFactor)/Nk);
+    double finalD = 1.;    //(finalParticle.isPhonon()) ? sqrt(Nkq/Nq) : sqrt((Nkq * spinFactor)/Nk) ;
+    //double initialD = (initialParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk);
+    //double finalD = (finalParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk) ;
 
     // avoid issues with nan coming from very small denominators
     if(abs(sqrt(initialFFm1) * initialD * initialEn) < 1e-15) continue;  
@@ -1779,9 +1781,6 @@ void ScatteringMatrix::reinforceLinewidths() {
     if((finalParticle.isPhonon() && finalEn < 1e-9)) continue;  
 
     // calculate the new linewidths 
-    //double value = (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn ) /(sqrt(initialFFm1) * initialD * initialEn) ;
-    //if(ibte1 == 40) std::cout << "piece " << value << " " << theMatrix(ibte1,ibte2) << " " << sqrt(finalFFm1) << " " << finalD << " " << finalEn << " " <<  sqrt(initialFFm1) << " " <<  initialD  << " " << initialEn << " " << sqrt(initialFFm1) * initialD * initialEn << std::endl;
-
     newLinewidths(0,ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
                                         / (sqrt(initialFFm1) * initialD * initialEn) ;                
   }
@@ -1794,8 +1793,8 @@ void ScatteringMatrix::reinforceLinewidths() {
   // -- later we will remove this and reconstruct all linewidths 
   for (int i = 0; i<numStates; i++) {
     if(newLinewidths(0,i) <= 0) {
-      std::cout << "replacing a bad linewidth for state: " << i << " " << newLinewidths(0,i) << std::endl;
-  //    newLinewidths(0,i) = internalDiagonal->data(0, i);
+      if(mpi->mpiHead()) std::cout << "replacing a bad linewidth for state: " << i << " " << newLinewidths(0,i) << std::endl;
+      newLinewidths(0,i) = internalDiagonal->data(0, i);
     }
   } 
 
@@ -1811,7 +1810,7 @@ void ScatteringMatrix::reinforceLinewidths() {
 
       //if(x == 0 && y == 0) continue;
       //if( !( abs(abs(x/y) - 0.5) < 1e-3)) continue; 
-      std::cout << i << " " << std::scientific << std::setprecision(2) <<  x << " " << y << " | " << std::fixed << std::setprecision(2) << x/y << "\n" ;
+      std::cout << std::scientific << std::setprecision(2) <<  x << " " << y << " | " << std::fixed << std::setprecision(2) << x/y << "\n" ;
 
     } 
 
@@ -1825,8 +1824,8 @@ void ScatteringMatrix::reinforceLinewidths() {
       if (abs(x) < 1e-12) x = 0;
       if (abs(y) < 1e-12) y = 0;
 
-      //if(x == 0 && y == 0) continue;
-      std::cout << i << " " <<  std::scientific << std::setprecision(2) <<  x << " " << y << " | " << std::fixed << std::setprecision(2) << x/y << "\n" ;
+      if(x == 0 && y == 0) continue;
+      std::cout << std::scientific << std::setprecision(2) <<  x << " " << y << " | " << std::fixed << std::setprecision(2) << x/y << "\n" ;
 
     }
     std::cout << std::scientific << std::setprecision(4) << std::endl;

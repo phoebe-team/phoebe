@@ -1688,6 +1688,10 @@ void ScatteringMatrix::reinforceLinewidths() {
   // which we use here because of some trouble with coupledVectorBTE object
   Eigen::MatrixXd newLinewidths(1,numStates); // copy matrix which is the same as internal diag
   newLinewidths.setZero();
+  Eigen::MatrixXd elSelfLinewidths(1,numStates); // copy matrix which is the same as internal diag
+  Eigen::MatrixXd elDragLinewidths(1,numStates); // copy matrix which is the same as internal diag
+  elSelfLinewidths.setZero();
+  elDragLinewidths.setZero();
 
   // there are three cases:
   // 1) initial,final bandStructure = phonon, phonon - pure phonon matrix
@@ -1764,19 +1768,30 @@ void ScatteringMatrix::reinforceLinewidths() {
     double finalFFm1 = finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
 
     // add in mu factors if needed now that we calculated population, which wanted the bare energies 
-    initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential; // do not shift by mu because we use this below in the getPop function which assumes it's unshifted
-    finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;
+    //initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential; // do not shift by mu because we use this below in the getPop function which assumes it's unshifted
+    //finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;
+
+    // self electronic term 
+    if(initialParticle.isElectron() && finalParticle.isElectron()) {
+      initialEn = initialChemicalPotential; // do not shift by mu because we use this below in the getPop function which assumes it's unshifted
+      finalEn = finalChemicalPotential;
+    } 
+    // phonon linewidth from drag 
+    if(initialParticle.isPhonon() && finalParticle.isElectron()) {
+      initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential;
+      finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;     
+    }
+    // electron linewidth from drag 
+    if(initialParticle.isElectron() && finalParticle.isPhonon()) {
+      initialEn = initialChemicalPotential; // do not shift by mu because we use this below in the getPop function which assumes it's unshifted
+      finalEn = 0.;   
+    }
 
     // spin degeneracy info 
     // For phonons, =  sqrt(Nkq/Nq)
     // For electrons, = sqrt((Nkq * spinFactor)/Nk)
-    //double initialD = 1.;  //(initialParticle.isPhonon()) ? sqrt(Nkq/Nq) : sqrt((Nkq * spinFactor)/Nk);
-    //double finalD = 1.;    //(finalParticle.isPhonon()) ? sqrt(Nkq/Nq) : sqrt((Nkq * spinFactor)/Nk) ;
     double initialD = (initialParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk);
     double finalD = (finalParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk) ;
-
-    //double initialD = (initialParticle.isPhonon()) ? sqrt(1./1.) : sqrt(spinFactor/1.); 
-    //double finalD = (finalParticle.isPhonon()) ? sqrt(1./1.) : sqrt(spinFactor/1.); 
 
     // avoid issues with nan coming from very small denominators
     if(abs(sqrt(initialFFm1) * initialD * initialEn) < 1e-15) continue;  
@@ -1785,7 +1800,17 @@ void ScatteringMatrix::reinforceLinewidths() {
 
     // calculate the new linewidths 
     newLinewidths(0,ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
-                                        / (sqrt(initialFFm1) * initialD * initialEn) ;                
+                                        / (sqrt(initialFFm1) * initialD * initialEn) ;      
+
+    // calculate the new linewidths 
+    if(initialParticle.isElectron() && finalParticle.isElectron()) {
+      elSelfLinewidths(0,ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
+                                          / (sqrt(initialFFm1) * initialD * initialEn) ;  
+    }
+    if(initialParticle.isElectron() && finalParticle.isPhonon()) {
+      elDragLinewidths(0,ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
+                                          / (sqrt(initialFFm1) * initialD * initialEn) ;  
+    }                                    
   }
   loopPrint.close();
 

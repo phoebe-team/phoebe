@@ -84,7 +84,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // this rate is actually 1/NK (sometimes written N_eFermi).
   double spinFactor = 2.; // nonspin pol = 2
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
-  double norm = spinFactor / context.getKMeshPhEl().prod();
+  double norm = spinFactor / double(context.getKMeshPhEl().prod());
 
   // compute the elBand structure on the fine grid -------------------------
   if (mpi->mpiHead()) {

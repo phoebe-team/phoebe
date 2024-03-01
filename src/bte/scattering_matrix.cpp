@@ -1695,8 +1695,8 @@ void ScatteringMatrix::reinforceLinewidths() {
   // 3) initial,final bandStructure = phonon, electron -- coupled
   // If they are the same, Nkq will just be Nq or Nk. Otherwise, 
   // it has the correct coupled behavior
-  double Nk = outerBandStructure.getPoints().getNumPoints();
-  double Nq = innerBandStructure.getPoints().getNumPoints();
+  double Nk = double(context.getKMesh().prod());
+  double Nq = double(context.getQMesh().prod());
   //double Nkq = (Nk + Nq)/2.;
   double spinFactor = 2.; // nonspin pol = 2
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
@@ -1772,11 +1772,11 @@ void ScatteringMatrix::reinforceLinewidths() {
     // For electrons, = sqrt((Nkq * spinFactor)/Nk)
     //double initialD = 1.;  //(initialParticle.isPhonon()) ? sqrt(Nkq/Nq) : sqrt((Nkq * spinFactor)/Nk);
     //double finalD = 1.;    //(finalParticle.isPhonon()) ? sqrt(Nkq/Nq) : sqrt((Nkq * spinFactor)/Nk) ;
-    //double initialD = (initialParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk);
-    //double finalD = (finalParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk) ;
+    double initialD = (initialParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk);
+    double finalD = (finalParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk) ;
 
-    double initialD = (initialParticle.isPhonon()) ? sqrt(1./1.) : sqrt(spinFactor/1.); 
-    double finalD = (finalParticle.isPhonon()) ? sqrt(1./1.) : sqrt(spinFactor/1.); 
+    //double initialD = (initialParticle.isPhonon()) ? sqrt(1./1.) : sqrt(spinFactor/1.); 
+    //double finalD = (finalParticle.isPhonon()) ? sqrt(1./1.) : sqrt(spinFactor/1.); 
 
     // avoid issues with nan coming from very small denominators
     if(abs(sqrt(initialFFm1) * initialD * initialEn) < 1e-15) continue;  

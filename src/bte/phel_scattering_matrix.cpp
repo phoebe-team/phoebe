@@ -45,6 +45,7 @@ void PhElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // compute the phonon electron lifetimes
   addPhElScattering(*this, context, getPhBandStructure(),
                         electronH0, couplingElPhWan, linewidth);
+
   // reduce as this is parallelized over mpi processes for wavevectrors
   mpi->allReduceSum(&linewidth->data);
 

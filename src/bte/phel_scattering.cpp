@@ -82,7 +82,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // may be larger than innerNumPoints, when we use ActiveBandStructure
   // note: in the equations for this rate, because there's an integraton over k,
   // this rate is actually 1/NK (sometimes written N_eFermi).
-  double norm = 1. / context.getKMeshPhEl().prod();
+  double spinFactor = 2.; // nonspin pol = 2
+  if (context.getHasSpinOrbit()) { spinFactor = 1.; }
+  double norm = spinFactor / context.getKMeshPhEl().prod();
 
   // compute the elBand structure on the fine grid -------------------------
   if (mpi->mpiHead()) {
@@ -303,23 +305,24 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         int iq3 = iq3Indexes[start + iq3Batch];
         WavevectorIndex iq3Idx(iq3);
 
-        // REMOVE THE FOLLOWING LINES TO RESET!
-        //allPolarData[iq3Batch] = polarData.row(iq3);
-        //allEigenVectors3[iq3Batch] = phBandStructure.getEigenvectors(iq3Idx);
-        //allV3s[iq3Batch] = phBandStructure.getGroupVelocities(iq3Idx);
-        //allQ3C[iq3Batch] = phBandStructure.getWavevector(iq3Idx); // TODO remove this test statement
+        allPolarData[iq3Batch] = polarData.row(iq3);
+        allEigenVectors3[iq3Batch] = phBandStructure.getEigenvectors(iq3Idx);
+        allV3s[iq3Batch] = phBandStructure.getGroupVelocities(iq3Idx);
+        allQ3C[iq3Batch] = phBandStructure.getWavevector(iq3Idx); // TODO remove this test statement
 
-        allQ3C[iq3Batch] = phBandStructure.getWavevector(iq3Idx); // FLIP THIS 
+        // REMOVE THE FOLLOWING LINES TO RESET!
+
+        //allQ3C[iq3Batch] = phBandStructure.getWavevector(iq3Idx); // FLIP THIS 
 
         // REMAP Q
-        Eigen::Vector3d qCrys = phBandStructure.getPoints().cartesianToCrystal(allQ3C[iq3Batch]);
-        WavevectorIndex qIdx = WavevectorIndex(phBandStructure.getPointIndex(qCrys));
-        allQ3C[iq3Batch]  = phBandStructure.getWavevector(qIdx);
+        //Eigen::Vector3d qCrys = phBandStructure.getPoints().cartesianToCrystal(allQ3C[iq3Batch]);
+        //WavevectorIndex qIdx = WavevectorIndex(phBandStructure.getPointIndex(qCrys));
+        //allQ3C[iq3Batch]  = phBandStructure.getWavevector(qIdx);
 
-        auto t5 = couplingElPhWan->phononH0->diagonalizeFromCoordinates(allQ3C[iq3Batch]); 
+        //auto t5 = couplingElPhWan->phononH0->diagonalizeFromCoordinates(allQ3C[iq3Batch]); 
 
         //allEigenVectors3[iq3Batch] = phBandStructure.getEigenvectors(iq3Idx);
-        allEigenVectors3[iq3Batch] = std::get<1>(t5);
+        //allEigenVectors3[iq3Batch] = std::get<1>(t5);
 
       }
 
@@ -456,6 +459,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
             int ibte3 = ibteIdx3.get();
             double en3 = state3Energies(ib3);
 
+            // remove small divergent phonon energies
+            //if (en3 < phononCutoff) { continue; }
+
             auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
             double temp = calcStat.temperature;
             double chemPot = calcStat.chemicalPotential;
@@ -465,8 +471,8 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
               double en2 = state2Energies(ib2);
               double en1 = state1Energies(ib1);
-              double fermi1 = elBandStructure.getParticle().getPopulation(en1,temp,chemPot);
-              double fermi2 = elBandStructure.getParticle().getPopulation(en2,temp,chemPot);
+              //double fermi1 = elBandStructure.getParticle().getPopulation(en1,temp,chemPot);
+              //double fermi2 = elBandStructure.getParticle().getPopulation(en2,temp,chemPot);
 
               // loop on temperature
                 // https://arxiv.org/pdf/1409.1268.pdf
@@ -487,6 +493,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 //    * norm / temperatures(iCalc) * pi * k1Weight;
 
                 if (smearingValues(ib1, ib2, ib3) <= 0.) { continue; }
+                // avoid overflow
+                //double denominator = (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc)) * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)));
+                //if (denominator < 1e-14) continue; 
 
                 double rate =
                     coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)
@@ -766,8 +775,8 @@ if(mpi->mpiHead()) {
 
     double x = newPhElLinewidths(iCalc,i); 
     double y = phElLinewidths->data(iCalc,i);
-    if (abs(x) < 1e-12) x = 0;
-    if (abs(y) < 1e-12) y = 0;
+    if (abs(x) < 1e-15) x = 0;
+    if (abs(y) < 1e-15) y = 0;
 
     if(x == 0 && y == 0) continue;
     //if( !( abs(abs(x/y) - 0.5) < 1e-3)) continue; 

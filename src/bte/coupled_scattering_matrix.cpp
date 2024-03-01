@@ -126,31 +126,32 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   std::vector<std::tuple<std::vector<int>, int>> qkPairIterator = allPairIterators[2];
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator = allPairIterators[3];
 
-  // add el-ph scattering -----------------------------------------
+  // add el-ph scattering ----------------------------------------------
   addElPhScattering(*this, context, inPopulations, outPopulations,
                                   switchCase, kPairIterator,
                                   fermiOccupations,
                                   outerBandStructure, outerBandStructure,
-                                  *phononH0, couplingElPh, internalDiagonal);
+                                  *phononH0, couplingElPh, linewidth);
   
-  // add charged impurity electron scattering  -------------------
+  // add charged impurity electron scattering  ------------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
                        switchCase, kPairIterator,
                        innerBandStructure, outerBandStructure, linewidth);
 */
-  // add ph-ph scattering ------------------------------------
-  addPhPhScattering(*this, context, inPopulations, outPopulations,
+
+  // add ph-ph scattering ----------------------------------------------
+ /*addPhPhScattering(*this, context, inPopulations, outPopulations,
                                   switchCase, qPairIterator,
                                   boseOccupations, boseOccupations,
                                   innerBandStructure, innerBandStructure,
                                   *phononH0, coupling3Ph, linewidth);
-
-  // Isotope scattering ---------------------------------
+*/
+  // Isotope scattering ------------------------------------------------
   if (context.getWithIsotopeScattering()) {
     addIsotopeScattering(*this, context, inPopulations, outPopulations,
                             switchCase, qPairIterator,
                             boseOccupations, boseOccupations,
-                            innerBandStructure, innerBandStructure, internalDiagonal);
+                            innerBandStructure, innerBandStructure, linewidth);
   }
 
   // TODO check boundary scattering addition 
@@ -183,12 +184,13 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   phononOnlyA2Omega();
   mpi->barrier(); // need to finish this before adding phel scattering
 
-  {
   // here we define a separate CoupledVectorBTE object -- the original
   // one had to be all reduced pre-symmetrization. We define this to
   // later add these post-symmetrization terms to the linewidths
   std::shared_ptr<CoupledVectorBTE> postSymLinewidths =
          std::make_shared<CoupledVectorBTE>(statisticsSweep, innerBandStructure, outerBandStructure, 1);
+
+  {
 
   // Add phel scattering ---------------------------------------
   // Because this has very different convergence than the standard transport,
@@ -210,19 +212,20 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // first add the el drag term 
     // TODO replace these 0 and 1s with something smarter 
     addDragTerm(*this, context, kqPairIterator, 0, electronH0,
-                         couplingElPh, innerBandStructure, outerBandStructure);
+                        couplingElPh, innerBandStructure, outerBandStructure);
     // now the ph drag term
     addDragTerm(*this, context, qkPairIterator, 1, electronH0,
-                          couplingElPh, innerBandStructure, outerBandStructure);
+                        couplingElPh, innerBandStructure, outerBandStructure);
+
+    // use drag ASR to correct the drag terms and recompute the phel linewidths 
+    //phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
+    //                              outerBandStructure,   // electron bands
+    //                              innerBandStructure);  // phonon bands 
   }
 
-  // use drag ASR to correct the dra terms and recompute the phel linewidths 
-  phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
-                                outerBandStructure,   // electron bands
-                                innerBandStructure);  // phonon bands 
 
   // Add in the phel contribution
-  // NOTE: would be nicer to use the add operatore from VectorBTE, but inheritance
+  // NOTE: would be nicer to use the add operatore from VectorBTE, but bad inheritance design
   // is causing trouble -- Jenny
   linewidth->data = linewidth->data + postSymLinewidths->data;
 
@@ -296,6 +299,20 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
 
+  // apply the spin degen factors
+  //reweightQuadrants();
+
+  // reinforce the condition that the scattering matrix is symmetric
+  // A -> ( A^T + A ) / 2
+  if ( context.getSymmetrizeMatrix() ) {
+    symmetrize();
+  }
+
+  // use the off diagonals to calculate the linewidths, 
+  // to ensure the special eigenvectors can be found/preserve conservation of momentum 
+  // that might be ruined by the delta functions 
+  reinforceLinewidths();
+
   // TODO debug the "replaceLinewidths" function and use it instead
   // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths
@@ -325,23 +342,10 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
 
-  // apply the spin degen factors
-  reweightQuadrants();
-
-  // use the off diagonals to calculate the linewidths, 
-  // to ensure the special eigenvectors can be found/preserve conservation of momentum 
-  // that might be ruined by the delta functions 
-  //reinforceLinewidths();
-
   if(mpi->mpiHead()) std::cout << "\nFinished computing the coupled scattering matrix." << std::endl;
 
   //this->outputToHDF5("coupled_matrix.hdf5");
 
-if(mpi->mpiHead()) { 
-  //std::cout << this->operator()(numElStates-10, numElStates + 10) << " " << this->operator()(numElStates+10, numElStates-10) << std::endl;
-  //  std::cout << this->operator()(numElStates-15, numPhStates-10) << " " << this->operator()(numPhStates-10,numElStates-15) << std::endl;
-
-}
 }
 
 // set,unset the scaling of omega = A/sqrt(bose1*bose1+1)/sqrt(bose2*bose2+1)
@@ -362,7 +366,8 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
 
   auto allLocalStates = theMatrix.getAllLocalStates();
   size_t numAllLocalStates = allLocalStates.size();
-#pragma omp parallel for
+
+//#pragma omp parallel for
   for (size_t iTup=0; iTup<numAllLocalStates; iTup++) {
 
     auto tup = allLocalStates[iTup];
@@ -371,8 +376,8 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
     // However, for band structure access,
     // remember that these states are in quadrant 4 for ph-self,
     // and need to be shifted back to bandstructure indices
-    int iBte1 = std::get<0>(tup);
-    int iBte2 = std::get<1>(tup);
+    size_t iBte1 = std::get<0>(tup);
+    size_t iBte2 = std::get<1>(tup);
 
     // we skip any state that's not a phonon one
     if(iBte1 < numElStates || iBte2 < numElStates) {
@@ -401,13 +406,27 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
     double term1 = particle.getPopPopPm1(en1, temp, chemPot);
     double term2 = particle.getPopPopPm1(en2, temp, chemPot);
 
-    if (iBte1 == iBte2) {
-      internalDiagonal->operator()(0, 0, iBte1) /= term1;
-    }
     theMatrix(iBte1, iBte2) /= sqrt(term1 * term2);
   }
+
+  // because the internalDiaognal is already reduced and is
+  // the same on each process, we need to apply the symmetrization
+  // term to each of the states separately
+  for(int is = numElStates; is < numStates; is++) { 
+
+    // the phonon bandstructure index
+    StateIndex isShiftPh(is - numElStates);
+    double en = innerBandStructure.getEnergy(isShiftPh);
+    double term = particle.getPopPopPm1(en, temp, chemPot);
+
+    internalDiagonal->operator()(0, 0, is) /= term;   
+  }
+
 }
 
+
+// each process will /term for some subset of the internal diagonal. 
+// however, this should be applied to all of them. 
 
 /* return irr k index from a matrix state index
  * helper function to simplify the below function */

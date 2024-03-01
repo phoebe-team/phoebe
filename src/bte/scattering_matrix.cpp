@@ -1635,6 +1635,7 @@ std::tuple<BaseBandStructure*,BaseBandStructure*> ScatteringMatrix::getStateBand
   if(context.getUseSymmetries()) {
     Error("Cannot reinforce linewidths of the scattering matrix when using symmetries.");
   }
+
   size_t is1 = iBte1.get();
   size_t is2 = iBte2.get();
 
@@ -1667,7 +1668,7 @@ void ScatteringMatrix::reinforceLinewidths() {
   if(!isMatrixOmega) { // If this matrix has not been symmetrized, this function won't work
     DeveloperError("Reinforce linewidths should not be called on an unsymmetrized matrix.");
   } 
-  if(!highMemory) return;  // if high mem, we know iCalc=1 is being used
+  if(!highMemory) return;  // must be high mem, we explicitly use iCalc=1 here
   if(context.getUseSymmetries()) return; // this is not designed for BTE syms, would need to
                                          // change the way we are indexing this
   if(context.getUseUpperTriangle()) {    // TODO this can be implemented without too much difficulty
@@ -1685,7 +1686,7 @@ void ScatteringMatrix::reinforceLinewidths() {
 
   // this only happens when we have one iCalc, and no symmetries -- VectorBTE = an array, 
   // which we use here because of some trouble with coupledVectorBTE object
-  Eigen::MatrixXd newLinewidths(internalDiagonal->data); // copy matrix which is the same as internal diag
+  Eigen::MatrixXd newLinewidths(1,numStates); // copy matrix which is the same as internal diag
   newLinewidths.setZero();
 
   // there are three cases:
@@ -1696,7 +1697,7 @@ void ScatteringMatrix::reinforceLinewidths() {
   // it has the correct coupled behavior
   double Nk = outerBandStructure.getPoints().getNumPoints();
   double Nq = innerBandStructure.getPoints().getNumPoints();
-  double Nkq = (Nk + Nq)/2.;
+  //double Nkq = (Nk + Nq)/2.;
   double spinFactor = 2.; // nonspin pol = 2
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
 
@@ -1713,6 +1714,10 @@ void ScatteringMatrix::reinforceLinewidths() {
     // these would actually be iBTE instead of iState, and we would convert
     auto ibte1 = std::get<0>(tup);
     auto ibte2 = std::get<1>(tup);
+
+    // throw out lower triangle states
+    // DOESNT WORK!
+    //if(context.getUseUpperTriangle() && ibte1 > ibte2) continue;
 
     // we are computing the diagonal using the off diagonal,
     // so these elements won't matter
@@ -1732,6 +1737,10 @@ void ScatteringMatrix::reinforceLinewidths() {
     Particle initialParticle = initialBandStructure->getParticle();
     Particle finalParticle = finalBandStructure->getParticle();
 
+    // remove the drag term contributions for now
+    //if(initialParticle.isPhonon() && finalParticle.isElectron()) continue; 
+    //if(initialParticle.isElectron() && finalParticle.isPhonon()) continue; 
+
     // shift the indices back to the ones used in bandstructures
     // these indices are for the full matrix, if the matrix is coupled,
     // we need to fold them back into the relevants quadrants in order
@@ -1746,35 +1755,35 @@ void ScatteringMatrix::reinforceLinewidths() {
     double initialChemicalPotential = (initialParticle.isPhonon()) ? 0 : chemicalPotential;
     double finalChemicalPotential = (finalParticle.isPhonon()) ? 0 : chemicalPotential;
 
-    double initialEn = initialBandStructure->getEnergy(sIdx1); // - initialChemicalPotential;
-    double finalEn = finalBandStructure->getEnergy(sIdx2); // - finalChemicalPotential;
+    double initialEn = initialBandStructure->getEnergy(sIdx1);// - initialChemicalPotential; // do not shift by mu because we use this below in the getPop function which assumes it's unshifted
+    double finalEn = finalBandStructure->getEnergy(sIdx2);// - finalChemicalPotential;
 
     // calculate population terms
     double initialFFm1 = initialParticle.getPopPopPm1(initialEn, kBT, initialChemicalPotential);
     double finalFFm1 = finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
 
+    // add in mu factors if needed now that we calculated population, which wanted the bare energies 
+    //if(initialParticle.isPhonon()) { 
+    initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential; // do not shift by mu because we use this below in the getPop function which assumes it's unshifted
+    finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;
+
     // spin degeneracy info 
     // For phonons, =  sqrt(Nkq/Nq)
     // For electrons, = sqrt((Nkq * spinFactor)/Nk)
-    double initialD = (initialParticle.isPhonon()) ? sqrt(Nkq/Nq) : sqrt((Nkq * spinFactor)/Nk);
-    double finalD = (finalParticle.isPhonon()) ? sqrt(Nkq/Nq) : sqrt((Nkq * spinFactor)/Nk) ;
+    double initialD = (initialParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk);
+    double finalD = (finalParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk);
 
     // avoid issues with nan coming from very small denominators
-    //if(abs(sqrt(initialFFm1) * initialD * initialEn) < 1e-12) continue;  
-    //if((initialParticle.isPhonon() && initialEn < 1e-2)) continue;  
-
-    //std::cout << "ibte1 ibte2 " << ibte1 << " " << ibte2 << " is1 is2 " << is1 << " " << is2 << " isPh1 isPh2 " << initialParticle.isPhonon() << " " << finalParticle.isPhonon() << std::endl;
+    if(abs(sqrt(initialFFm1) * initialD * initialEn) < 1e-15) continue;  
+    if((initialParticle.isPhonon() && initialEn < 1e-9)) continue;  
+    if((finalParticle.isPhonon() && finalEn < 1e-9)) continue;  
 
     // calculate the new linewidths 
-    newLinewidths(ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
-                                        / (sqrt(initialFFm1) * initialD * initialEn) ;
+    //double value = (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn ) /(sqrt(initialFFm1) * initialD * initialEn) ;
+    //if(ibte1 == 40) std::cout << "piece " << value << " " << theMatrix(ibte1,ibte2) << " " << sqrt(finalFFm1) << " " << finalD << " " << finalEn << " " <<  sqrt(initialFFm1) << " " <<  initialD  << " " << initialEn << " " << sqrt(initialFFm1) * initialD * initialEn << std::endl;
 
-    //if(mpi->mpiHead() && ((theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
-    //                                    / (sqrt(initialFFm1) * initialD * initialEn)) > 1.e2 ) {
-    //  std::cout << ((theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
-    //                                    / (sqrt(initialFFm1) * initialD * initialEn)) << " " << theMatrix(ibte1,ibte2) << " " << sqrt(finalFFm1) << " " << finalD << " " << finalEn << " " << sqrt(initialFFm1) << " " << initialD << " " << initialEn << std::endl; 
-    //}
-
+    newLinewidths(0,ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
+                                        / (sqrt(initialFFm1) * initialD * initialEn) ;                
   }
   loopPrint.close();
 
@@ -1783,25 +1792,49 @@ void ScatteringMatrix::reinforceLinewidths() {
 
   // TODO this is temporary, for now use the old electron linewidths instead of new ones, 
   // -- later we will remove this and reconstruct all linewidths 
-  //if(mpi->mpiHead()) std::cout << "compare " << std::endl; 
-  //for (int i = 0; i<numElStates; i++) {
-  //  newLinewidths(0,i) = internalDiagonal->operator()(0, 0, i);
-  //} 
-
-  if(mpi->mpiHead()) std::cout << "compare " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl; 
   for (int i = 0; i<numStates; i++) {
-    // zero out anything below 1e-12 so this is easier to read
-    double x = newLinewidths(0,i); 
-    double y = internalDiagonal->data(0,i);
-    if (abs(x) < 1e-12) x = 0;
-    if (abs(y) < 1e-12) y = 0;
-
-    if( abs((x - y)/x) > 1 ) 
-      std::cout << i << " " <<  x << " " << y << " " << (x - y)/x << "\n" ;
+    if(newLinewidths(0,i) <= 0) {
+      std::cout << "replacing a bad linewidth for state: " << i << " " << newLinewidths(0,i) << std::endl;
+  //    newLinewidths(0,i) = internalDiagonal->data(0, i);
+    }
   } 
 
+  if(mpi->mpiHead()) { 
+  
+    std::cout << "compare el " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl; 
+    for (int i = 0; i<numElStates; i++) {
+      // zero out anything below 1e-12 so this is easier to read
+      double x = newLinewidths(0,i); 
+      double y = internalDiagonal->data(0,i);
+      if (abs(x) < 1e-12) x = 0;
+      if (abs(y) < 1e-12) y = 0;
+
+      //if(x == 0 && y == 0) continue;
+      //if( !( abs(abs(x/y) - 0.5) < 1e-3)) continue; 
+      std::cout << i << " " << std::scientific << std::setprecision(2) <<  x << " " << y << " | " << std::fixed << std::setprecision(2) << x/y << "\n" ;
+
+    } 
+
+    //int maxPhState = numElStates+400; 
+    //if(maxPhState > numStates-numElStates) maxPhState = numStates - numElStates; 
+    std::cout << "compare ph " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl; 
+    for (int i = numElStates; i<numStates; i++) {
+      // zero out anything below 1e-12 so this is easier to read
+      double x = newLinewidths(0,i); 
+      double y = internalDiagonal->data(0,i);
+      if (abs(x) < 1e-12) x = 0;
+      if (abs(y) < 1e-12) y = 0;
+
+      //if(x == 0 && y == 0) continue;
+      std::cout << i << " " <<  std::scientific << std::setprecision(2) <<  x << " " << y << " | " << std::fixed << std::setprecision(2) << x/y << "\n" ;
+
+    }
+    std::cout << std::scientific << std::setprecision(4) << std::endl;
+
+  }
   // reinsert the linewidths in the scattering matrix
   internalDiagonal->data = newLinewidths;
+
   // TODO figure out why this function doesn't work right now
   //replaceMatrixLinewidths();
 

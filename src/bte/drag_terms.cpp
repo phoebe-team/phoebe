@@ -92,8 +92,11 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
   // TODO this should be the correct norm, but worth double checking
   double norm = 0.;
-  if (dragTermType == Del) { norm = 1. / (context.getKMesh().prod()); }
-  else { norm = 1. / (context.getQMesh().prod()) ; }
+  double spinFactor = 2.; // nonspin pol = 2
+  if (context.getHasSpinOrbit()) { spinFactor = 1.; }
+
+  if (dragTermType == Del) { norm = sqrt(spinFactor) / sqrt(context.getKMesh().prod() * context.getQMesh().prod()); }
+  else { norm = sqrt(spinFactor) / sqrt(context.getQMesh().prod() * context.getKMesh().prod()); }
 
   // TODO change this to the same in phel scattering as well
   // precompute the q-dependent part of the polar correction
@@ -407,7 +410,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
             StateIndex isQIdx(isQ);
             BteIndex bteQIdx = phononBandStructure.stateToBte(isQIdx);
             int iBteQ = bteQIdx.get();
-
+            
             // remove small divergent phonon energies
             if (enQ < phEnergyCutoff) { continue; }
 
@@ -556,6 +559,11 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   double chemPot = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
 
                   double coshKp = 1./(2. * cosh(0.5 * (enKp - chemPot) / kT)); 
+
+                  // prevent overflow errors from the denominators
+                  //if((2. * cosh(0.5 * (enKp - chemPot) / kT)) < 1e-15) continue;
+                  //if(abs(enK - chemPot) < 1e-15) continue;
+
                   //double dragRate = -1./(context.getKMesh().prod()) * 
                   //                  1./(enK - chemPot) *  
                   //                  couplingSq(ibK,ibKp,ibQ) * pi / enQ *  // 1/sqrt(omega)
@@ -575,6 +583,10 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                           coshKp  * delta * ( (enKp + enK)/2. - chemPot + enQ/2.  );     
 
                   }
+
+                  //if(iBteQ == 40-24) std::cout << "dragPiece " << dragRate << " " << 1./(enK - chemPot) << " " << couplingSq(ibK,ibKp,ibQ) << " " << pi / enQ << " " << coshKp << " " << delta << " " <<  ( (enKp + enK)/2. - chemPot + enQ/2.  ) << std::endl;
+
+
 /*
                   Eigen::Vector3d kpCrys = electronBandStructure.getPoints().cartesianToCrystal(kpCartesian);
                   Eigen::Vector3d kCrys = electronBandStructure.getPoints().cartesianToCrystal(kCartesian);
@@ -741,8 +753,8 @@ void addDragTerm2(CoupledScatteringMatrix &matrix, Context &context,
 
   // TODO this should be the correct norm, but worth double checking
   double norm = 0.;
-  if (dragTermType == Del) { norm = 1. / (context.getKMesh().prod() * context.getQMesh().prod()); }
-  else { norm = 1. / (context.getQMesh().prod() * context.getKMesh().prod()) ; }
+  if (dragTermType == Del) { norm = 1. / sqrt(context.getKMesh().prod() * context.getQMesh().prod()); }
+  else { norm = 1. / sqrt(context.getQMesh().prod() * context.getKMesh().prod()) ; }
 
   // TODO change this to the same in phel scattering as well
   // precompute the q-dependent part of the polar correction

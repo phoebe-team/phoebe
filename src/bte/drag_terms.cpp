@@ -95,11 +95,11 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
   double spinFactor = 2.; // nonspin pol = 2
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
 
-  //if (dragTermType == Del) { norm = sqrt(spinFactor) / sqrt(context.getKMesh().prod() * context.getQMesh().prod()); }
-  //else { norm = sqrt(spinFactor) / sqrt(context.getQMesh().prod() * context.getKMesh().prod()); }
+  if (dragTermType == Del) { norm = sqrt(spinFactor) / sqrt(context.getKMesh().prod() * context.getQMesh().prod()); }
+  else { norm = sqrt(spinFactor) / sqrt(context.getQMesh().prod() * context.getKMesh().prod()); }
 
-  if (dragTermType == Del) { norm = 1. / sqrt(context.getKMesh().prod() * context.getQMesh().prod()); }
-  else { norm = 1. / sqrt(context.getQMesh().prod() * context.getKMesh().prod()); }
+  //if (dragTermType == Del) { norm = 1. / sqrt(context.getKMesh().prod() * context.getQMesh().prod()); }
+  //else { norm = 1. / sqrt(context.getQMesh().prod() * context.getKMesh().prod()); }
 
   // TODO change this to the same in phel scattering as well
   // precompute the q-dependent part of the polar correction

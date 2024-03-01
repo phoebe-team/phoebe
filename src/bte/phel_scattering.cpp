@@ -82,7 +82,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // may be larger than innerNumPoints, when we use ActiveBandStructure
   // note: in the equations for this rate, because there's an integraton over k,
   // this rate is actually 1/NK (sometimes written N_eFermi).
-  double spinFactor = 1.; // nonspin pol = 2
+  double spinFactor = 2.; // nonspin pol = 2
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
   double norm = spinFactor / context.getKMeshPhEl().prod();
 

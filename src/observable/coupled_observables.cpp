@@ -611,7 +611,6 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
 
   double Nk = double(context.getKMesh().prod());
   double Nq = double(context.getQMesh().prod());
-  double Nkq = (Nk + Nq)/2.;
 
   Particle phonon = phBandStructure->getParticle();
   Particle electron = elBandStructure->getParticle();
@@ -699,7 +698,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
       // note, this function expects kBT
       sqrtPopTerm = sqrt(electron.getPopPopPm1(energy, kBT, chemPot));
 
-      ds(is) = sqrt( spinFactor * Nkq / Nk );
+      ds(is) = sqrt( spinFactor / Nk );
 
       U += sqrtPopTerm * sqrtPopTerm;
       for(int i : {0,1,2} ) {
@@ -724,7 +723,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
       q = phBandStructure->getPoints().bzToWs(q,Points::cartesianCoordinates);
       sqrtPopTerm = sqrt(phonon.getPopPopPm1(energy, kBT, 0));
 
-      ds(is) = sqrt( Nkq / Nq );
+      ds(is) = sqrt( 1 / Nq );
 
       for(int i : {0,1,2} ) {
         A(i) += q(i) * q(i) * sqrtPopTerm * sqrtPopTerm;
@@ -734,6 +733,8 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
     }
   }
   // add the normalization prefactor to U
+  // what about e^2 in U?
+  // what about hbar^2 in Gi/Ai/Mi/phi?
   U *= spinFactor / (volume * Nk * kBT);
   G *= spinFactor / (volume * Nk * kBT);
   A *= 1. / (volume * Nq * kBT);
@@ -742,12 +743,12 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   if(mpi->mpiHead()) std::cout << "test printing of U " << U << std::endl;
 
   // apply the normalization to theta_e
-  theta_e *= 1./sqrt(kBT * U * Nkq * volume);
+  theta_e *= 1./sqrt(kBT * U * volume);
   // apply normalization to theta0
-  theta0 *= 1./sqrt(kBT * T * volume * Nkq * Ctot);
+  theta0 *= 1./sqrt(kBT * T * volume * Ctot);
   // apply normalization to phi
   for(int is = 0; is < numStates; is++) {
-    for(int i : {0,1,2}) phi(i,is) *= 1./sqrt(kBT * volume * Nkq * M(i));
+    for(int i : {0,1,2}) phi(i,is) *= 1./sqrt(kBT * volume * M(i));
   }
 
   // check the norm of phi

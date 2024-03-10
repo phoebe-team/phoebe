@@ -784,6 +784,9 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   // write D to file before diagonalizing, as the scattering matrix
   // will be destroyed by scalapack
   Eigen::Matrix3d Du; Du.setZero();
+  Eigen::Matrix3d DuEl; DuEl.setZero();
+  Eigen::Matrix3d DuDrag; DuDrag.setZero();
+  Eigen::Matrix3d DuPh; DuPh.setZero();
   Eigen::Matrix3d Wjie; Wjie.setZero();
   Eigen::Matrix3d Wji0; Wji0.setZero();
   Eigen::Matrix3d elWji0; elWji0.setZero();
@@ -794,21 +797,33 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
     auto is1 = std::get<0>(tup);
     auto is2 = std::get<1>(tup);
+    double contr = 0;
     for (auto i : {0, 1, 2}) {
       for (auto j : {0, 1, 2}) {
         if(context.getUseUpperTriangle()) {
           if( i == j ) {
-            Du(i,j) += phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
+            contr = phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
           } else {
-            Du(i,j) += 2. * phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
+            contr = 2. * phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
           }
         } else {
-          Du(i,j) += phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
+          contr = phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
+        }
+        Du(i, j) += contr;
+        if ( is1 < numElStates && is2 < numElStates ) {
+          DuEl(i, j) += contr;
+        } else if ( is1 >= numElStates && is2 >= numElStates ) {
+          DuPh(i, j) += contr;
+        } else {
+          DuDrag(i, j) += contr;
         }
       }
     }
   }
   mpi->allReduceSum(&Du);
+  mpi->allReduceSum(&DuEl);
+  mpi->allReduceSum(&DuPh);
+  mpi->allReduceSum(&DuDrag);
 
   // Calculate and write to file Wji0, Wjie, Wj0i, Wjei --------------------------------
   for (int is : elBandStructure->parallelStateIterator()) {
@@ -846,6 +861,9 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
   if(isSymmetrized) {
     symmetrize(Du);
+    symmetrize(DuEl);
+    symmetrize(DuPh);
+    symmetrize(DuDrag);
     symmetrize(Wji0);
     symmetrize(elWji0);
     symmetrize(phWji0);
@@ -856,24 +874,33 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   // vector<vector> is not necessarily contiguous and MPI
   // cannot all reduce on it
   std::vector<std::vector<double>> vecDu;
+  std::vector<std::vector<double>> vecDuEl;
+  std::vector<std::vector<double>> vecDuPh;
+  std::vector<std::vector<double>> vecDuDrag;
   std::vector<std::vector<double>> vecWji0;
   std::vector<std::vector<double>> vecWji0_el;
   std::vector<std::vector<double>> vecWji0_ph;
   std::vector<std::vector<double>> vecWjie;
   for (auto i : {0, 1, 2}) {
-    std::vector<double> temp1,temp2,temp3,temp4,temp5;
+    std::vector<double> t1,t2,t3,t4,t5,t6,t7,t8;
     for (auto j : {0, 1, 2}) {
-      temp1.push_back(Du(i,j) / (energyRyToFs / twoPi));
-      temp2.push_back(Wji0(i,j) * velocityRyToSi);
-      temp3.push_back(elWji0(i,j) * velocityRyToSi);
-      temp4.push_back(phWji0(i,j) * velocityRyToSi);
-      temp5.push_back(Wjie(i,j) * velocityRyToSi);
+      t1.push_back(Du(i,j) / (energyRyToFs / twoPi));
+      t2.push_back(Wji0(i,j) * velocityRyToSi);
+      t3.push_back(elWji0(i,j) * velocityRyToSi);
+      t4.push_back(phWji0(i,j) * velocityRyToSi);
+      t5.push_back(Wjie(i,j) * velocityRyToSi);
+      t6.push_back(DuEl(i,j) / (energyRyToFs / twoPi));
+      t7.push_back(DuPh(i,j) / (energyRyToFs / twoPi));
+      t8.push_back(DuDrag(i,j) / (energyRyToFs / twoPi));
     }
-    vecDu.push_back(temp1);
-    vecWji0.push_back(temp2);
-    vecWji0_el.push_back(temp3);
-    vecWji0_ph.push_back(temp4);
-    vecWjie.push_back(temp5);
+    vecDu.push_back(t1);
+    vecWji0.push_back(t2);
+    vecWji0_el.push_back(t3);
+    vecWji0_ph.push_back(t4);
+    vecWjie.push_back(t5);
+    vecDuEl.push_back(t6);
+    vecDuPh.push_back(t7);
+    vecDuDrag.push_back(t8);
   }
 
   // this extra kBoltzmannRy is required when we calculate specific heat ...
@@ -916,6 +943,9 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     output["electronWji0"] = vecWji0_el;
     output["Wjie"] = vecWjie;
     output["Du"] = vecDu;
+    output["electronDu"] = vecDuEl;
+    output["phononDu"] = vecDuPh;
+    output["dragDu"] = vecDuDrag;
     output["temperatureUnit"] = "K";
     output["wUnit"] = "m/s";
     output["DuUnit"] = "fs^{-1}";

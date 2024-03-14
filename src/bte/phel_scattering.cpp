@@ -385,9 +385,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         auto nb2 = int(state2Energies.size());
         
         // for gpu would replace with compute OTF
-        //Eigen::VectorXd state3Energies = phBandStructure.getEnergies(iq3Idx); // iq3Idx
-        auto t5 = couplingElPhWan->phononH0->diagonalizeFromCoordinates(q3C); 
-        Eigen::VectorXd state3Energies = std::get<0>(t5);
+        Eigen::VectorXd state3Energies = phBandStructure.getEnergies(iq3Idx); // iq3Idx
+        //auto t5 = couplingElPhWan->phononH0->diagonalizeFromCoordinates(q3C); 
+        //Eigen::VectorXd state3Energies = std::get<0>(t5);
 
         // NOTE: these loops are already set up to be applicable to gpus
         // the precomputaton of the smearing values and the open mp loops could
@@ -550,8 +550,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 int iBte3Shift = ibte3;
                 if(matrix.isCoupled) {
                   // translate into the phonon-self quadrant if it's a coupled bte
-                  std::tuple<int,int> tup =
-                        matrix.shiftToCoupledIndices(ibte3, ibte3, particle, particle);
+                  std::tuple<int,int> tup = matrix.shiftToCoupledIndices(ibte3, ibte3, particle, particle);
                   iBte3Shift = std::get<0>(tup);
                 }
 
@@ -675,7 +674,7 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
       double weight  = weightNumerator / weightDenominator[iMat2Ph];
 
       // replace the matrix elements with the corrected ones
-      //matrix(iMat1, iMat2) = matrix(iMat1, iMat2) - weight * Rqs[iMat2Ph] / sqrt(f1mf);  
+      matrix(iMat1, iMat2) = matrix(iMat1, iMat2) - weight * Rqs[iMat2Ph] / sqrt(f1mf);  
 
     }
   }
@@ -782,12 +781,12 @@ if(mpi->mpiHead()) {
 
     if(x == 0 && y == 0) continue;
     //if( !( abs(abs(x/y) - 0.5) < 1e-3)) continue; 
-    std::cout <<  x << " " << y << "  " << x/y << " | "  << qPlusRemapCrys.transpose() << " " << qMinusRemapCrys.transpose() << " | " << qPlusWS.transpose() << " " << qMinusWS.transpose() << "\n" ;
+    //std::cout <<  x << " " << y << "  " << x/y << " | "  << qPlusRemapCrys.transpose() << " " << qMinusRemapCrys.transpose() << " | " << qPlusWS.transpose() << " " << qMinusWS.transpose() << "\n" ;
 
   } 
 }
   // replace the linewidth data
-  phElLinewidths->data = newPhElLinewidths; 
+  //phElLinewidths->data = newPhElLinewidths; 
 
 }
 

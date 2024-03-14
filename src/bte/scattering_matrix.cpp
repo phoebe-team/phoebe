@@ -1526,6 +1526,7 @@ std::tuple<int,int> ScatteringMatrix::shiftToCoupledIndices(
 
   int iBte1Shift = iBte1;
   int iBte2Shift = iBte2;
+
   if(isCoupled) {
     if(!p1.isPhonon() && p2.isPhonon()) { // electron-phonon drag
       iBte2Shift += numElStates;
@@ -1672,7 +1673,8 @@ void ScatteringMatrix::reinforceLinewidths() {
   if(context.getUseSymmetries()) return; // this is not designed for BTE syms, would need to
                                          // change the way we are indexing this
   if(context.getUseUpperTriangle()) {    // TODO this can be implemented without too much difficulty
-    Error("Cannot run reinforce linewidths with only upper triangle for now.");
+    Warning("Cannot run reinforce linewidths with only upper triangle for now.");
+    return; 
   };
 
   // if it's coupled, the scattering matrix has a statisticsSweep for electrons...
@@ -1688,10 +1690,6 @@ void ScatteringMatrix::reinforceLinewidths() {
   // which we use here because of some trouble with coupledVectorBTE object
   Eigen::MatrixXd newLinewidths(1,numStates); // copy matrix which is the same as internal diag
   newLinewidths.setZero();
-  Eigen::MatrixXd elSelfLinewidths(1,numStates); // copy matrix which is the same as internal diag
-  Eigen::MatrixXd elDragLinewidths(1,numStates); // copy matrix which is the same as internal diag
-  elSelfLinewidths.setZero();
-  elDragLinewidths.setZero();
 
   // there are three cases:
   // 1) initial,final bandStructure = phonon, phonon - pure phonon matrix
@@ -1721,7 +1719,7 @@ void ScatteringMatrix::reinforceLinewidths() {
 
     // throw out lower triangle states
     // DOESNT WORK!
-    //if(context.getUseUpperTriangle() && ibte1 > ibte2) continue;
+    if(context.getUseUpperTriangle() && ibte1 > ibte2) continue;
 
     // we are computing the diagonal using the off diagonal,
     // so these elements won't matter
@@ -1771,7 +1769,7 @@ void ScatteringMatrix::reinforceLinewidths() {
     //initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential; // do not shift by mu because we use this below in the getPop function which assumes it's unshifted
     //finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;
 
-    // self electronic term 
+    // self electronic term l
     if(initialParticle.isElectron() && finalParticle.isElectron()) {
       initialEn = initialChemicalPotential; // do not shift by mu because we use this below in the getPop function which assumes it's unshifted
       finalEn = finalChemicalPotential;
@@ -1791,7 +1789,11 @@ void ScatteringMatrix::reinforceLinewidths() {
     // For phonons, =  sqrt(Nkq/Nq)
     // For electrons, = sqrt((Nkq * spinFactor)/Nk)
     double initialD = (initialParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk);
-    double finalD = (finalParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk) ;
+    double finalD = (finalParticle.isPhonon()) ? sqrt(1./Nq) : sqrt(spinFactor/Nk);
+
+    if(context.getUseUpperTriangle()) { 
+      initialD *= 2.0; 
+    }
 
     // avoid issues with nan coming from very small denominators
     if(abs(sqrt(initialFFm1) * initialD * initialEn) < 1e-15) continue;  
@@ -1802,15 +1804,16 @@ void ScatteringMatrix::reinforceLinewidths() {
     newLinewidths(0,ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
                                         / (sqrt(initialFFm1) * initialD * initialEn) ;      
 
-    // calculate the new linewidths 
-    if(initialParticle.isElectron() && finalParticle.isElectron()) {
-      elSelfLinewidths(0,ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
-                                          / (sqrt(initialFFm1) * initialD * initialEn) ;  
+    if ( (ibte1 == 40 && ibte2 == 20) || (ibte2 == 40 && ibte1 == 20) ) {
+      std::cout << "sanity check electron matrix: " << theMatrix(ibte1,ibte2) << std::endl;
     }
-    if(initialParticle.isElectron() && finalParticle.isPhonon()) {
-      elDragLinewidths(0,ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
-                                          / (sqrt(initialFFm1) * initialD * initialEn) ;  
-    }                                    
+    if ( (ibte1 == 40+numElStates && ibte2 == 20) || (ibte2 == 40+numElStates && ibte1 == 20) ) {
+      std::cout << "sanity check drag matrix: " << theMatrix(ibte1,ibte2) << std::endl;
+    }
+    if ( (ibte1 == 40+numElStates && ibte2 == 20+numElStates) || (ibte2 == 40+numElStates && ibte1 == 20+numElStates) ) {
+      std::cout << "sanity check phonon matrix: " << theMatrix(ibte1,ibte2) << std::endl;
+    }
+
   }
   loopPrint.close();
 
@@ -1823,6 +1826,11 @@ void ScatteringMatrix::reinforceLinewidths() {
     if(newLinewidths(0,i) <= 0) {
       if(mpi->mpiHead()) std::cout << "replacing a bad linewidth for state: " << i << " " << newLinewidths(0,i) << std::endl;
       newLinewidths(0,i) = internalDiagonal->data(0, i);
+    }
+    if(std::isnan(internalDiagonal->data(0, i))) continue; 
+    if(std::isinf(internalDiagonal->data(0, i))) continue; 
+    if(newLinewidths(0,i) < internalDiagonal->data(0, i)) {
+        newLinewidths(0,i) = internalDiagonal->data(0, i);
     }
   } 
 

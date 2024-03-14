@@ -51,24 +51,16 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 /* In pseudocode, the below follows as: 
 
   loop over k {
-
     # Fourier transform + rotation on elph matrix elements related to k
-
  	  loop over a batch of q points {
-
  		  # set up phonon quantities for q 
-
       loop over k'+, k'- points {
-
         k' = k +/- q
-
  		    # set up electronic quantities for k'
           # calculate cosh
           # calculate K' energies 
-
         # calculate the matrix elements g(k,k',q)
  			  # sum the components to calculate contribution to D
-
  	    }
     }
   }
@@ -212,24 +204,37 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
       std::vector<Eigen::MatrixXd> allVQs(batchSize);               // phonon group velocities
       std::vector<Eigen::VectorXcd> allPolarData(batchSize);        // related to long range elph elements
 
+      // Kp, intermediate state quantities
+      // For this implementation, there's two kinds of k'
+      //    k+' = k + q, 
+      //    k-' = k - q
+      // Because both correspond to the same initial k state, 
+      // we can re-use the first fourier transform done by the cacheElph call above.
+      // Additionally, remember q is fixed by the phonon state -- only k' varies. 
+      
+      // The below loop will cover the generation of k+' and k-' ----------------------------------
+      // Here, k+' = 0, k-' = 1 
+      // TODO can we OMP this?
+      for (auto isKpMinus: {0,1}) { 
+
       Kokkos::Profiling::pushRegion("drag preprocessing loop: q states");
 
       // do prep work for all values of q in the current batch
-      #pragma omp parallel for default(none) shared(iQIndexes, batchSize, start, allQCartesian, allStateEnergiesQ, allVQs, allEigenVectorsQ, phononBandStructure)
+      #pragma omp parallel for default(none) shared(iQIndexes, batchSize, start, isKpMinus, allQCartesian, allStateEnergiesQ, allVQs, allEigenVectorsQ, phononBandStructure)
       for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
 
         // Set phonon state quantities from band structure ----------------------------------------------------
         int iQ = iQIndexes[start + iQBatch];    // index the q state within this batch
         WavevectorIndex iQIdx(iQ);        
 
-        // TODO remove this 
-        // we need to check that -q in cartesian makes the same results as -q in crystal 
-        // negative q in crystal and then convert it to cartesian 
-        //auto tempQ = phononBandStructure.getWavevector(iQIdx); // I think this is in cartesian. maybe we need to reverse this in crystal
-        //tempQ = phononBandStructure.getPoints().cartesianToCrystal(tempQ);
-        //tempQ = -1.*tempQ; 
-        //allQCartesian[iQBatch] = phononBandStructure.getPoints().crystalToCartesian(tempQ);
-        //iQIdx = WavevectorIndex(phononBandStructure.getPointIndex( allQCartesian[iQBatch] ));
+        if(isKpMinus == 1) { // kp is minus
+          // here we need -q, we have to flip the indices 
+          allQCartesian[iQBatch] = -1*allQCartesian[iQBatch];       // ph wavevector in cartesian // FLIP THIS
+          // REMAP Q
+          Eigen::Vector3d qCrys = phononBandStructure.getPoints().cartesianToCrystal(allQCartesian[iQBatch]);
+          iQIdx = WavevectorIndex(phononBandStructure.getPointIndex(qCrys));
+          //allQCartesian[iQBatch] = phononBandStructure.getWavevector(iQIdx);
+        }
 
         allQCartesian[iQBatch] = phononBandStructure.getWavevector(iQIdx);       // ph wavevector in cartesian
         allStateEnergiesQ[iQBatch] = phononBandStructure.getEnergies(iQIdx);     // ph energies
@@ -241,25 +246,10 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
       }
       Kokkos::Profiling::popRegion();
 
-      // Kp, intermediate state quantities
-      // For this implementation, there's two kinds of k'
-      //    k+' = k + q, 
-      //    k-' = k - q
-      // Because both correspond to the same initial k state, 
-      // we can re-use the first fourier transform done by the cacheElph call above.
-      // Additionally, remember q is fixed by the phonon state -- only k' varies. 
-      
-      auto phononH0 = matrix.phononH0;
-
-      // The below loop will cover the generation of k+' and k-' ----------------------------------
-      // Here, k+' = 0, k-' = 1 
-      // TODO can we OMP this?
-      for (auto isKpMinus: {0,1}) { 
-
         Kokkos::Profiling::pushRegion("drag preprocessing loop: kPrime states");
 
         // do prep work for all values of k' in this batch -------------------------- 
-        #pragma omp parallel for default(none) shared(allKpCartesian, allStateEnergiesQ, allEigenVectorsQ, phononH0, batchSize, allQCartesian, kCartesian, allPolarData, polarDataQPlus, polarDataQMinus, phononBandStructure, isKpMinus)
+        #pragma omp parallel for default(none) shared(allKpCartesian, allStateEnergiesQ, allEigenVectorsQ, batchSize, allQCartesian, kCartesian, allPolarData, polarDataQPlus, polarDataQMinus, phononBandStructure, isKpMinus)
         for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
 
           // Set up intermediate electron state wavevectors 
@@ -284,40 +274,11 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
             WavevectorIndex qIdx = WavevectorIndex(phononBandStructure.getPointIndex(qCrys));
             allQCartesian[iQBatch] = phononBandStructure.getWavevector(qIdx);
 
-          // lets refold q
-          //allQCartesian[iQBatch] = phononBandStructure.getPoints().bzToWs(allQCartesian[iQBatch],Points::cartesianCoordinates);
-    /*
-          auto qCartesianOrig = allQCartesian[iQBatch];
-          Eigen::Vector3d qCrys = phononBandStructure.getPoints().cartesianToCrystal(qCartesianOrig);
-          //qCrys += Eigen::Vector3d({0.,0,0.5});
-          WavevectorIndex qIdx = WavevectorIndex(phononBandStructure.getPointIndex(qCrys));
-          auto qCartesianNew = phononBandStructure.getWavevector(qIdx);
-          Eigen::Vector3d qCrysNew = phononBandStructure.getPoints().cartesianToCrystal(qCartesianNew);
-          //std::cout << "qOrig " << qCartesianOrig.transpose() << " | qnew " << qCartesianNew.transpose() << " | diff | " << qCrys.transpose() - qCrysNew.transpose() << std::endl;
-          allQCartesian[iQBatch] = qCartesianNew; 
-    */ 
-            auto t5 = phononH0->diagonalizeFromCoordinates(allQCartesian[iQBatch]); 
-
-            //allVQs[iQBatch] = matrix.phononH0->diagonalizeVelocityFromCoordinates(allQCartesian[iQBatch]);
-            allStateEnergiesQ[iQBatch] = std::get<0>(t5);
-            allEigenVectorsQ[iQBatch] = std::get<1>(t5); // should now be conjugate
-
             // flip k and kp, setting k1 = k-q, k2 = k, q3 = q
             kpCartesian = kCartesian + allQCartesian[iQBatch]; // k' = k - q
             kpPolarData = polarDataQMinus.row(iQBatch);   // TODO check that this is the right syntax vs the old version 
-
+    
           } 
-
-//        kpCartesian = electronBandStructure.getPoints().bzToWs(kpCartesian,Points::cartesianCoordinates);
-
-          //auto kpCartesianOrig = kpCartesian;
-          // REMAP KP
-          //Eigen::Vector3d kCrys = electronBandStructure.getPoints().cartesianToCrystal(kpCartesian);
-          //WavevectorIndex kpIdx = WavevectorIndex(electronBandStructure.getPointIndex(kCrys));
-          //mpkpCartesian = electronBandStructure.getWavevector(kpIdx);
-
-          //Eigen::Vector3d kCrysNew = electronBandStructure.getPoints().cartesianToCrystal(kpCartesian);
-          //std::cout << "kpOrig " << kpCartesianOrig.transpose() << " | kPnew " << kpCartesian.transpose() << " | diff crys | " << kCrys.transpose() << " " << kCrysNew.transpose() << std::endl;
 
           allKpCartesian[iQBatch] = kpCartesian;      // kP wavevector 
           allPolarData[iQBatch] = kpPolarData;        // long range polar data
@@ -347,9 +308,9 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
         std::vector<Eigen::MatrixXcd> allEigenVectorsKp = std::get<1>(kpElQuantities); // U_{k+q}, or U_{k-q}
         std::vector<Eigen::Tensor<std::complex<double>,3>> allVKp = std::get<2>(kpElQuantities);
 
-        for (int i = 0; i< allEigenVectorsKp.size(); i++) {
+        //for (int i = 0; i< allEigenVectorsKp.size(); i++) {
           //allEigenVectorsKp[i].setIdentity(); 
-        }
+        //}
 
         // do the remaining fourier transforms + basis rotations ----------------------------
 	      //
@@ -667,6 +628,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                       iBteKShift = std::get<1>(tup);
                     }
                   }
+
                   if (withSymmetries) {
                       Error("For now, the drag terms aren't implemented with symmetries.\n"
                           "This is because we only use them with a relaxons solver, "
@@ -778,9 +740,6 @@ void addDragTerm2(CoupledScatteringMatrix &matrix, Context &context,
   // We use k in the outer loop, as the InteractionElPhWan object is set up
   // to do the first rotation + FT over a k vector, followed by batches 
   // of qpoints for the second rotation + FT
-
-   std::cout << mpi->getRank() << " drag work " << kqPairIterator.size() << std::endl;
-
 
   for (auto pair : kqPairIterator) {
 

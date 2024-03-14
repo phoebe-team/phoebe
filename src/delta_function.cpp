@@ -57,15 +57,12 @@ double GaussianDeltaFunction::getSmearing(const double &energy,
                                           [[maybe_unused]] const Eigen::Vector3d &velocity,
                                           [[maybe_unused]] const Eigen::Vector3d &velocity2,
                                           [[maybe_unused]] const Eigen::Vector3d &velocity3) {
-  (void)velocity;
   double x = energy * inverseWidth;
   if ( x > 6. ) return 0.; // the error is < 2e-16, and prevents underflow
   return prefactor * exp(-x * x);
 }
 
-double GaussianDeltaFunction::getSmearing(const double &energy, StateIndex &is) {
-  (void)energy;
-  (void)is;
+double GaussianDeltaFunction::getSmearing([[maybe_unused]] const double &energy, [[maybe_unused]] StateIndex &is) {
   Error("GaussianDeltaFunction::getSmearing2 not implemented");
   return 1.;
 }
@@ -140,10 +137,8 @@ double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
   return exp(-x * x) / sqrtPi / sigma / erf2;
 }
 
-double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
-                                                  StateIndex &is) {
-  (void)energy;
-  (void)is;
+double AdaptiveGaussianDeltaFunction::getSmearing([[maybe_unused]] const double &energy,
+                                                  [[maybe_unused]] StateIndex &is) {
   Error("AdaptiveGaussianDeltaFunction::getSmearing2 not implemented");
   return 1.;
 }
@@ -358,12 +353,11 @@ double TetrahedronDeltaFunction::getSmearing(const double &energy,
   return weight;
 }
 
-double TetrahedronDeltaFunction::getSmearing(const double &energy,
-                                             const Eigen::Vector3d &velocity,
-                                             const Eigen::Vector3d &velocity2,
-                                             const Eigen::Vector3d &velocity3) {
+double TetrahedronDeltaFunction::getSmearing([[maybe_unused]] const double &energy,
+                                             [[maybe_unused]] const Eigen::Vector3d &velocity,
+                                             [[maybe_unused]] const Eigen::Vector3d &velocity2,
+                                             [[maybe_unused]] const Eigen::Vector3d &velocity3) {
 
-  (void)energy; (void)velocity; (void)velocity2; (void)velocity3;
   Error("TetrahedronDeltaFunction getSmearing1 not implemented");
   return 1.;
 }

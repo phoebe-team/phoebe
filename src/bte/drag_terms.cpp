@@ -536,15 +536,15 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   double dragRate = 0; 
                   if(!isKpMinus) { // g+ part 
 
-                    dragRate = norm *  
+                    dragRate = norm * 1./(enK - chemPot) *  
                           couplingSq(ibK,ibKp,ibQ) * pi / enQ *  // 1/sqrt(omega)
-                          coshKp * delta;     
+                          coshKp * delta * ( (enKp + enK)/2. - chemPot - enQ/2. );     
 
                   } else if(isKpMinus) { // g+ part 
 
-                    dragRate = -norm *  
+                    dragRate = -norm * 1./(enK - chemPot) *  
                           couplingSq(ibK,ibKp,ibQ) * pi / enQ *  // 1/sqrt(omega)
-                          coshKp * delta;     
+                          coshKp * delta * ( (enKp + enK)/2. - chemPot + enQ/2. );     
 
                   }
 /*

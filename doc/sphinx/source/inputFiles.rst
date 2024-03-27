@@ -76,7 +76,7 @@ This postprocesses the data for  Wannier interpolation or EPA calculations in Ph
   electronFourierCutoff = 4.
   epaMinEnergy = -4. eV
   epaMaxEnergy = 10. eV
-  epaNumBins = 10
+  epaNumBins = 40
   epaSmearingEnergy = 0.05 eV
 
 
@@ -150,6 +150,8 @@ Phonon BTE Solver
 * :ref:`numRelaxonsEigenvalues`
 
 * :ref:`checkNegativeRelaxons`
+
+* :ref:`enforcePositiveSemiDefinite`
 
 .. raw:: html
 
@@ -250,6 +252,7 @@ Electron BTE Solver
 
 * :ref:`checkNegativeRelaxons`
 
+* :ref:`enforcePositiveSemiDefinite`
 
 .. raw:: html
 
@@ -1009,8 +1012,24 @@ checkNegativeRelaxons
 
 * **Required:** no
 
+* **Requires:** :ref:`scatteringMatrixInMemory` = true, :ref:`solverBTE` = "relaxons","variational",or "iterative"
+
 * **Default:** `true`
 
+.. _enforcePositiveSemiDefinite:
+
+enforcePositiveSemiDefinite
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Description:** When `enforcePositiveSemiDefinite` is true, we apply a diagonal perturbation to the scattering matrix to make it positive definite. Note that that this is a bit of a band-aid -- you should check that your matrix is not too far from correct before applying this (that it has just a few small negative eigenvalues at most!).
+
+* **Format:** *bool*
+
+* **Required:** no
+
+* **Requires:** :ref:`scatteringMatrixInMemory` = true
+
+* **Default:** `false`
 
 .. _distributedElPhCoupling:
 

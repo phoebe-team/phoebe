@@ -629,6 +629,9 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "numRelaxonsEigenvalues") {
         numRelaxonsEigenvalues = parseInt(val);
       }
+      if (parameterName == "enforcePositiveSemiDefinite") {
+        enforcePositiveSemiDefinite = parseBool(val);
+      }
       if (parameterName == "checkNegativeRelaxons") {
         checkNegativeRelaxons = parseBool(val);
       }
@@ -1002,6 +1005,9 @@ void Context::printInputSummary(const std::string &fileName) {
         std::cout << "numRelaxonsEigenvalues = " << numRelaxonsEigenvalues << std::endl;
         if(numRelaxonsEigenvalues != 0) std::cout << "checkNegativeRelaxons = " << checkNegativeRelaxons << std::endl;
       }
+      if(scatteringMatrixInMemory) {
+        std::cout << "enforcePositiveSemiDefinite = " << enforcePositiveSemiDefinite << std::endl;
+      }
     }
 
       std::cout << "scatteringMatrixInMemory = " << scatteringMatrixInMemory
@@ -1350,6 +1356,9 @@ void Context::setNumRelaxonsEigenvalues(const int &x) {
 }
 
 bool Context::getCheckNegativeRelaxons() const { return checkNegativeRelaxons; }
+
+bool Context::getEnforcePositiveSemiDefinite() const { return enforcePositiveSemiDefinite; }
+void Context::setEnforcePositiveSemiDefinite(const bool &x) { enforcePositiveSemiDefinite = x; }
 
 bool Context::getUseSymmetries() const { return useSymmetries; }
 void Context::setUseSymmetries(const bool &x) { useSymmetries = x; }

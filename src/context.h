@@ -130,6 +130,8 @@ class Context {
   int numRelaxonsEigenvalues = 0;
   // toggle the check for negative relaxons eigenvalues in few eigenvalues case
   bool checkNegativeRelaxons = true;
+  // toggle the enforcement of the matrix being positive semidefinite
+  bool enforcePositiveSemiDefinite = false; 
 
   // for coupled transport
   bool useDragTerms = true;
@@ -401,6 +403,9 @@ public:
 
   bool getCheckNegativeRelaxons() const;
   bool setCheckNegativeRelaxons() const;
+
+  bool getEnforcePositiveSemiDefinite() const;
+  void setEnforcePositiveSemiDefinite(const bool &x);
 
 };
 

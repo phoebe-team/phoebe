@@ -27,8 +27,8 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
   linewidthMR = std::make_shared<VectorBTE>(statisticsSweep, outerBandStructure, 1);
 
   numStates = internalDiagonal->getNumStates();
-  numPhStates = int(innerBandStructure.irrStateIterator().size());
-  numElStates = int(outerBandStructure.irrStateIterator().size());
+  numPhStates = int(innerBandStructure.getNumStates());
+  numElStates = int(outerBandStructure.getNumStates()); 
   isCoupled = true;
   // TODO this is only actually true after we call phononOnlyA2Omega at the bottom of the scattering
   // process addition section.
@@ -140,12 +140,12 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 */
 
   // add ph-ph scattering ----------------------------------------------
- /*addPhPhScattering(*this, context, inPopulations, outPopulations,
+  addPhPhScattering(*this, context, inPopulations, outPopulations,
                                   switchCase, qPairIterator,
                                   boseOccupations, boseOccupations,
                                   innerBandStructure, innerBandStructure,
                                   *phononH0, coupling3Ph, linewidth);
-*/
+
   // Isotope scattering ------------------------------------------------
   if (context.getWithIsotopeScattering()) {
     addIsotopeScattering(*this, context, inPopulations, outPopulations,
@@ -213,6 +213,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // TODO replace these 0 and 1s with something smarter 
     addDragTerm(*this, context, kqPairIterator, 0, electronH0,
                         couplingElPh, innerBandStructure, outerBandStructure);
+                    
     // now the ph drag term
     addDragTerm(*this, context, qkPairIterator, 1, electronH0,
                         couplingElPh, innerBandStructure, outerBandStructure);
@@ -222,7 +223,6 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     //                              outerBandStructure,   // electron bands
     //                              innerBandStructure);  // phonon bands 
   }
-
 
   // Add in the phel contribution
   // NOTE: would be nicer to use the add operatore from VectorBTE, but bad inheritance design
@@ -312,6 +312,10 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // to ensure the special eigenvectors can be found/preserve conservation of momentum 
   // that might be ruined by the delta functions 
   reinforceLinewidths();
+
+  if(context.getEnforcePositiveSemiDefinite()) {
+    theMatrix.enforcePositiveSemiDefinite(); 
+  }
 
   // TODO debug the "replaceLinewidths" function and use it instead
   // we place the linewidths back in the diagonal of the scattering matrix

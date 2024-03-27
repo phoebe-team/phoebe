@@ -816,26 +816,29 @@ template <typename T>
 void ParallelMatrix<T>::enforcePositiveSemiDefinite() { 
 
   if(rows() != cols()) {
-    DeveloperError("Can only enforce PSD on a non-square matrix."); 
+    DeveloperError("Can only enforce PSD on a square matrix."); 
   }
 
   // first, we need to grab the inverse sqrt of the diagonal of the matrix
   // we could do this by passing in the diagonal, which in the case of 
   // the scattering matrix is already stored in the linewidths vector
-  std::vector<T> sqrtDiagonal(rows()); 
+  std::vector<T> invSqrtDiagonal(numRows_); 
+  std::vector<T> diagonal(numRows_); 
   for(auto matEl : getAllLocalStates()) {
 
     // get matrix row and col indices
     size_t iMat1 = std::get<0>(matEl);
     size_t iMat2 = std::get<1>(matEl);   
     if(iMat1 != iMat2) continue; 
+
     if(this->operator()(iMat1,iMat2) <= 1.e-16) continue; // avoid divide 1/~0
-    sqrtDiagonal[iMat1] = sqrt(1./this->operator()(iMat1,iMat2));
+    invSqrtDiagonal[iMat1] = sqrt(1./this->operator()(iMat1,iMat2));
+    diagonal[iMat1] = this->operator()(iMat1,iMat2);
 
   }
 
   // Now we make a container for a new matrix, G, with the same size as this one
-  ParallelMatrix<double> G(numRows_, numCols_, 0, 0,
+  ParallelMatrix<T> G(numRows_, numCols_, 0, 0,
                               numBlocksRows_, numBlocksCols_, blacsContext_);
 
   // we construct G by performing D^-1/2 * C * D^-1/2 (where D are matrices)
@@ -846,7 +849,7 @@ void ParallelMatrix<T>::enforcePositiveSemiDefinite() {
     size_t iMat1 = std::get<0>(matEl);
     size_t iMat2 = std::get<1>(matEl);   
 
-    G(iMat1,iMat2) = sqrtDiagonal[iMat1] * this->operator()(iMat1,iMat2) * sqrtDiagonal[iMat2];
+    G(iMat1,iMat2) = invSqrtDiagonal[iMat1] * this->operator()(iMat1,iMat2) * invSqrtDiagonal[iMat2];
 
   }
 
@@ -872,7 +875,7 @@ void ParallelMatrix<T>::enforcePositiveSemiDefinite() {
     size_t iMat2 = std::get<1>(matEl);  
     if(iMat1 != iMat2) continue; // we only fix the diagonal 
 
-    this->operator()(iMat1,iMat2) = this->operator()(iMat1,iMat2) + lowestEigenvalue * sqrtDiagonal[iMat1]; 
+    this->operator()(iMat1,iMat2) = this->operator()(iMat1,iMat2) + 1.05*lowestEigenvalue * diagonal[iMat1]; 
 
   }
 }

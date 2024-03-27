@@ -267,6 +267,10 @@ class ParallelMatrix {
   */
   void symmetrize();
 
+  /** A function to fix up a matrix with a bit of noise to be positive semi-definite
+  */
+  void enforcePositiveSemiDefinite();
+
 };
 
 template <typename T>
@@ -515,9 +519,9 @@ int ParallelMatrix<T>::size() const {
 }
 
 // Get/set element
-
 template <typename T>
 T& ParallelMatrix<T>::operator()(const int &row, const int &col) {
+  if(row > numRows_ || col > numCols_) Error("Tried to fill a PMatrix state out of bounds: " + std::to_string(row) + " " + std::to_string(col));
   int localIndex = global2Local(row, col);
   if (localIndex == -1) {
     dummyZero = 0.;
@@ -805,6 +809,73 @@ void ParallelMatrix<T>::outputToHDF5(const std::string &outFileName,
   #endif
 }
 
+
+/* generic function to enforce positive semi def */
+
+template <typename T>
+void ParallelMatrix<T>::enforcePositiveSemiDefinite() { 
+
+  if(rows() != cols()) {
+    DeveloperError("Can only enforce PSD on a non-square matrix."); 
+  }
+
+  // first, we need to grab the inverse sqrt of the diagonal of the matrix
+  // we could do this by passing in the diagonal, which in the case of 
+  // the scattering matrix is already stored in the linewidths vector
+  std::vector<T> sqrtDiagonal(rows()); 
+  for(auto matEl : getAllLocalStates()) {
+
+    // get matrix row and col indices
+    size_t iMat1 = std::get<0>(matEl);
+    size_t iMat2 = std::get<1>(matEl);   
+    if(iMat1 != iMat2) continue; 
+    if(this->operator()(iMat1,iMat2) <= 1.e-16) continue; // avoid divide 1/~0
+    sqrtDiagonal[iMat1] = sqrt(1./this->operator()(iMat1,iMat2));
+
+  }
+
+  // Now we make a container for a new matrix, G, with the same size as this one
+  ParallelMatrix<double> G(numRows_, numCols_, 0, 0,
+                              numBlocksRows_, numBlocksCols_, blacsContext_);
+
+  // we construct G by performing D^-1/2 * C * D^-1/2 (where D are matrices)
+  // with the diagonal elements set to sqrt(diagonal) of this matrix
+  for(auto matEl : getAllLocalStates()) {
+
+    // get matrix row and col indices
+    size_t iMat1 = std::get<0>(matEl);
+    size_t iMat2 = std::get<1>(matEl);   
+
+    G(iMat1,iMat2) = sqrtDiagonal[iMat1] * this->operator()(iMat1,iMat2) * sqrtDiagonal[iMat2];
+
+  }
+
+  // Diagonalize G and store it's most negative eigenvalue 
+  auto diagResult = G.diagonalize(); 
+  T lowestEigenvalue = std::get<0>(diagResult)[0]; // zeroth element is the most negative
+
+  if(lowestEigenvalue >= 0) return; // all eigenvalues are positive, no need to correct 
+
+  if(mpi->mpiHead()) {
+    std::cout << "Correcting scattering matrix for loweset eigenvalue " 
+    << lowestEigenvalue << std::endl;
+  }
+
+  // we need the abs of this below, no sense in repeating it in the loop
+  lowestEigenvalue = abs(lowestEigenvalue); // unsure if this would work on a complex matrix 
+
+  // finally use this result to correct the real matrix 
+  for(auto matEl : getAllLocalStates()) {
+
+    // get matrix row and col indices
+    size_t iMat1 = std::get<0>(matEl);
+    size_t iMat2 = std::get<1>(matEl);  
+    if(iMat1 != iMat2) continue; // we only fix the diagonal 
+
+    this->operator()(iMat1,iMat2) = this->operator()(iMat1,iMat2) + lowestEigenvalue * sqrtDiagonal[iMat1]; 
+
+  }
+}
 
 #endif  // include safeguard
 

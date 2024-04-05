@@ -18,6 +18,7 @@ ElScatteringMatrix::ElScatteringMatrix(Context &context_,
 
   isMatrixOmega = true;
   highMemory = context.getScatteringMatrixInMemory();
+  numElStates = numStates; // just in case
 }
 
 void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
@@ -96,6 +97,12 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     mpi->allReduceSum(&linewidthMR->data);
   }
 
+  // reinforce the condition that the scattering matrix is symmetric
+  // A -> ( A^T + A ) / 2
+  if ( context.getSymmetrizeMatrix() && context.getScatteringMatrixInMemory()) {
+    symmetrize();
+  }
+
   // Average over degenerate eigenstates.
   // we turn it off for now and leave the code if needed in the future
   // TODO   ^^ do we?
@@ -103,6 +110,11 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     degeneracyAveragingLinewidths(linewidth);
     degeneracyAveragingLinewidths(linewidthMR);
   }
+
+  // use the off diagonals to calculate the linewidths, 
+  // to ensure the special eigenvectors can be found/preserve conservation of momentum 
+  // that might be ruined by the delta functions 
+  reinforceLinewidths();
 
  // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths

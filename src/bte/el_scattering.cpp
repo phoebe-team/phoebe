@@ -47,7 +47,10 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
 
   bool withSymmetries = context.getUseSymmetries();
   int numCalculations = statisticsSweep.getNumCalculations();
-  double norm = 1. / context.getKMesh().prod(); // we sum over q here, but the two meshes are the same
+
+  double spinFactor = 2.; // nonspin pol = 2
+  if (context.getHasSpinOrbit()) { spinFactor = 1.; }
+  double norm = spinFactor / context.getKMesh().prod(); // we sum over q here, but the two meshes are the same
 
   LoopPrint loopPrint("computing el-ph contribution to the scattering matrix",
                                         "k-points", int(kPairIterator.size()));
@@ -243,9 +246,10 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                 double rate =
                     coupling(ib1, ib2, ib3) * ((fermi2 + bose3) * delta1
                        + (1. - fermi2 + bose3) * delta2) * norm / en3 * pi;
+                       
                 // compute the extra 1-cosTheta term needed for MRTA
-		double cosTheta = 1. - (v1s.row(ib1).dot(v2s.row(ib2)) 
-					/ (v1s.row(ib1).norm() * v2s.row(ib2).norm())); 
+                double cosTheta = 1. - (v1s.row(ib1).dot(v2s.row(ib2)) 
+                      / (v1s.row(ib1).norm() * v2s.row(ib2).norm())); 
                 double rateMR = rate * cosTheta;
 
                 double rateOffDiagonal = -
@@ -269,6 +273,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                         if (matrix.theMatrix.indicesAreLocal(iMat1, iMat2)) {
                           if (i == 0 && j == 0) {
                             linewidth->operator()(iCalc, 0, iBte1) += rate;
+
                             matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
                           }
                           if (is1 != is2Irr) {
@@ -284,8 +289,9 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                     // this isn't really necessary
                     if (matrix.theMatrix.indicesAreLocal(iBte1, iBte2)) {
                       linewidth->operator()(iCalc, 0, iBte1) += rate;
+
                       matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
-		      matrix.theMatrix(iBte1, iBte2) += rateOffDiagonal;
+		                  matrix.theMatrix(iBte1, iBte2) += rateOffDiagonal;
 
                       // if we're not symmetrizing the matrix, and we have
                       // dropped down to only using the upper triangle of the matrix, we must fill
@@ -294,7 +300,6 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                         linewidth->operator()(iCalc, 0, iBte2) += rate;
                         matrix.linewidthMR->operator()(iCalc, 0, iBte2) += rateMR;
 		      }
-
                     }
                   }
                 } else if (switchCase == 1) {
@@ -407,7 +412,7 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
       Eigen::MatrixXd v2s = innerBandStructure.getGroupVelocities(ik2Idx);
       int nb2 = int(state2Energies.size());
 
-      Eigen::Vector3d qC = k2C - k1C; // TODO make sure this is an ok way to get Q
+      Eigen::Vector3d qC = k2C - k1C;   // TODO make sure this is an ok way to get Q
                                         // maybe it should be folded into the BZ or something
 
       auto t3 = innerBandStructure.getRotationToIrreducible(k2C, Points::cartesianCoordinates);
@@ -530,7 +535,7 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
 
             } else { // case of linewidth construction
               linewidth->operator()(iCalc, 0, iBte1) += rate;
-	      matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
+	            matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
             }
           }
         }

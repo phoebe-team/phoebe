@@ -51,7 +51,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
   if (hasDielectric) { // prebuild terms useful for long range corrections
 
     // TODO this is important for 3d materials, though I'm not sure about 2D ones
-    //dielectricMatrix = dielectricMatrix * 0.5;
+    //dielectricMatrix = dielectricMatrix * 2.;
 
     double cutoff = gMax * 4.;
 
@@ -192,6 +192,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
         bravaisVectors_h(iR, i) = bravaisVectors(i, iR);
       }
     }
+
     Kokkos::deep_copy(atomicMasses_d, atomicMasses_h);
     Kokkos::deep_copy(bravaisVectors_d, bravaisVectors_h);
     Kokkos::deep_copy(weights_d, weights_h);
@@ -486,7 +487,6 @@ Eigen::Tensor<double, 5> PhononH0::wsInit(const Eigen::MatrixXd &unitCell,
           }
         }
       }
-
       if (abs(total_weight - qCoarseGrid(0) * qCoarseGrid(1) * qCoarseGrid(2)) > 1.0e-8) {
         Error("DeveloperError: wrong total_weight, weight: "
                 + std::to_string(total_weight) + " qMeshProd: " + std::to_string(qCoarseGrid.prod()) );
@@ -748,6 +748,7 @@ void PhononH0::reorderDynamicalMatrix(const Eigen::Matrix3d& directUnitCell,
 
               for (int j : {0, 1, 2}) {
                 for (int i : {0, 1, 2}) {
+                  // convert to a single iR vector index 
                   mat2R(i, j, na, nb, iR) +=
                       forceConstants(i, j, m1, m2, m3, na, nb);
                 }
@@ -759,7 +760,6 @@ void PhononH0::reorderDynamicalMatrix(const Eigen::Matrix3d& directUnitCell,
       }
     }
   }
-
   // wsCache.resize(0, 0, 0, 0, 0);
   // forceConstants.resize(0, 0, 0, 0, 0, 0, 0);
   Kokkos::Profiling::popRegion();
@@ -768,7 +768,7 @@ void PhononH0::reorderDynamicalMatrix(const Eigen::Matrix3d& directUnitCell,
 void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                               const Eigen::VectorXd &q) {
   // calculates the dynamical matrix at q from the (short-range part of the)
-  // force constants21, by doing the Fourier transform of the force constants
+  // force constants, by doing the Fourier transform of the force constants
 
   Kokkos::Profiling::pushRegion("phononH0.shortRangeTerm");
 
@@ -777,9 +777,6 @@ void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
     Eigen::Vector3d r = bravaisVectors.col(iR);
     double arg = q.dot(r);
     phases[iR] = exp(-complexI * arg); // {cos(arg), -sin(arg)};
-    //printf("old = %.16e %.16e\n", phases[iR].real(), phases[iR].imag());
-    //for(int i = 0; i < 3; i++)
-    //  printf("old = %.16e\n", r[i]);
   }
 
   for (int iR = 0; iR < numBravaisVectors; iR++) {
@@ -794,20 +791,12 @@ void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
       }
     }
   }
-    //for (int nb = 0; nb < numAtoms; nb++) {
-    //  for (int na = 0; na < numAtoms; na++) {
-    //    for (int j : {0, 1, 2}) {
-    //      for (int i : {0, 1, 2}) {
-    //        printf("old = %.16e %.16e\n", dyn(i,j,na,nb).real(), dyn(i,j,na,nb).imag());
-    //      }
-    //    }
-    //  }
-    //}
   Kokkos::Profiling::popRegion();
 }
 
 std::tuple<Eigen::VectorXd, Eigen::MatrixXcd>
 PhononH0::dynDiagonalize(Eigen::Tensor<std::complex<double>, 4> &dyn) {
+
   // diagonalise the dynamical matrix
   // On input:  speciesMasses = masses, in amu
   // On output: w2 = energies, z = displacements
@@ -815,7 +804,6 @@ PhononH0::dynDiagonalize(Eigen::Tensor<std::complex<double>, 4> &dyn) {
   Kokkos::Profiling::pushRegion("PhononH0::dynDiagonalize");
 
   // fill the two-indices dynamical matrix
-
   Eigen::MatrixXcd dyn2Tmp(numBands, numBands);
   for (int jat = 0; jat < numAtoms; jat++) {
     for (int iat = 0; iat < numAtoms; iat++) {
@@ -828,13 +816,11 @@ PhononH0::dynDiagonalize(Eigen::Tensor<std::complex<double>, 4> &dyn) {
   }
 
   // impose hermiticity
-
   Eigen::MatrixXcd dyn2(numBands, numBands);
   dyn2 = dyn2Tmp + dyn2Tmp.adjoint();
   dyn2 *= 0.5;
 
   //  divide by the square root of masses
-
   for (int jat = 0; jat < numAtoms; jat++) {
     int jType = atomicSpecies(jat);
     for (int j : {0, 1, 2}) {
@@ -847,12 +833,6 @@ PhononH0::dynDiagonalize(Eigen::Tensor<std::complex<double>, 4> &dyn) {
       }
     }
   }
-  //for(int i = 0; i < 3*numAtoms; i++){
-  //  for(int j = 0; j < 3*numAtoms; j++){
-  //    auto x = dyn2(i,j);
-  //    printf("old = %.16e %.16e\n", x.real(), x.imag());
-  //  }
-  //}
 
   Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> eigenSolver(dyn2);
   Eigen::VectorXd w2 = eigenSolver.eigenvalues();
@@ -864,17 +844,9 @@ PhononH0::dynDiagonalize(Eigen::Tensor<std::complex<double>, 4> &dyn) {
     } else {
       energies(i) = sqrt(w2(i));
     }
-    //printf("old = %.16e\n", energies(i));
   }
   Eigen::MatrixXcd eigenvectors = eigenSolver.eigenvectors();
-  //eigenvectors = 3*dyn2; // TODO: undo
 
-  //for(int i = 0; i < 3*numAtoms; i++){
-  //  for(int j = 0; j < 3*numAtoms; j++){
-  //    auto x = eigenvectors(i,j);
-  //    printf("old = %.16e %.16e\n", x.real(), x.imag());
-  //  }
-  //}
   Kokkos::Profiling::popRegion();
   return std::make_tuple(energies, eigenvectors);
 }
@@ -895,19 +867,11 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
   velocity.setZero();
 
   bool withMassScaling = false;
-    //for(int i = 0; i < 3; i++){
-    //  printf("old = %.16e\n", coordinates(i));
-    //}
 
   // get the eigenvectors and the energies of the q-point
   auto tup = diagonalizeFromCoordinates(coordinates, withMassScaling);
   auto energies = std::get<0>(tup);
   auto eigenvectors = std::get<1>(tup);
-
-  //for(int i = 0; i < numBands; i++) printf("old = %.16e\n", energies(i));
-  //for(int i = 0; i < numBands; i++)
-  //  for(int j = 0; j < numBands; j++)
-  //    printf("old = %.16e %.16e\n", eigenvectors(i,j).real(), eigenvectors(i,j).imag());
 
   // now we compute the velocity operator, diagonalizing the expectation
   // value of the derivative of the dynamical matrix.
@@ -920,10 +884,6 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
     qPlus(i) += deltaQ;
     qMinus(i) -= deltaQ;
 
-    //for(int i = 0; i < 3; i++){
-    //  printf("old = %.16e %.16e\n", qPlus(i), qMinus(i));
-    //}
-
     // diagonalize the dynamical matrix at q+ and q-
     auto tup2 = diagonalizeFromCoordinates(qPlus, withMassScaling);
     auto enPlus = std::get<0>(tup2);
@@ -931,14 +891,6 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
     auto tup1 = diagonalizeFromCoordinates(qMinus, withMassScaling);
     auto enMinus = std::get<0>(tup1);
     auto eigMinus = std::get<1>(tup1);
-    //for(int i = 0; i < numBands; i++) printf("old = %.16e\n", enPlus(i));
-    //for(int i = 0; i < numBands; i++) printf("old = %.16e\n", enMinus(i));
-    //for(int i = 0; i < numBands; i++)
-    //  for(int j = 0; j < numBands; j++)
-    //    printf("old = %.16e %.16e\n", eigPlus(i,j).real(), eigPlus(i,j).imag());
-    //for(int i = 0; i < numBands; i++)
-    //  for(int j = 0; j < numBands; j++)
-    //    printf("old = %.16e %.16e\n", eigMinus(i,j).real(), eigMinus(i,j).imag());
 
     // build diagonal matrices with frequencies
     Eigen::MatrixXd enPlusMat(numBands, numBands);
@@ -959,36 +911,16 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
     Eigen::MatrixXcd der(numBands, numBands);
     der = (sqrtDPlus - sqrtDMinus) / (2. * deltaQ);
 
-    //for(int i = 0; i < numBands; i++){
-    //  for(int j = 0; j < numBands; j++){
-    //    auto x = der(i,j);
-    //    printf("old = %.16e %.16e\n", x.real(), x.imag());
-    //  }
-    //}
-    //for(int i = 0; i < numBands; i++){
-    //  for(int j = 0; j < numBands; j++){
-    //    auto x = sqrtDPlus(i,j);
-    //    printf("old = %.16e %.16e\n", x.real(), x.imag());
-    //  }
-    //}
-    //for(int i = 0; i < numBands; i++){
-    //  for(int j = 0; j < numBands; j++){
-    //    auto x = sqrtDMinus(i,j);
-    //    printf("old = %.16e %.16e\n", x.real(), x.imag());
-    //  }
-    //}
-
     // and to be safe, we reimpose hermiticity
     der = 0.5 * (der + der.adjoint());
 
     // now we rotate in the basis of the eigenvectors at q.
     der = eigenvectors.adjoint() * der * eigenvectors;
 
+    // copy to output
     for (int ib2 = 0; ib2 < numBands; ib2++) {
       for (int ib1 = 0; ib1 < numBands; ib1++) {
         velocity(ib1, ib2, i) = der(ib1, ib2);
-        //auto x = velocity(ib1,ib2,i);
-        //printf("old = %.16e %.16e\n", x.real(), x.imag());
       }
     }
   }
@@ -1051,14 +983,6 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
   if (coordinates.norm() < 1.0e-6) {
     velocity.setZero();
   }
-  //for(int i = 0; i < 3; i++){
-  //  for (int ib2 = 0; ib2 < numBands; ib2++) {
-  //    for (int ib1 = 0; ib1 < numBands; ib1++) {
-  //      auto x = velocity(ib1,ib2,i);
-  //      printf("old = %.16e %.16e\n", x.real(), x.imag());
-  //    }
-  //  }
-  //}
   Kokkos::Profiling::popRegion();
   return velocity;
 }

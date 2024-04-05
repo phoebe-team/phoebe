@@ -380,13 +380,13 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
         numElBands * numElBands * numPhBands * numPhBravaisVectors;
     std::vector<int> irEBunchSizes;
 
-    // determine the # of eBVs to be written by this process.
+    // determine the # of eBVs to be read by this process.
     // the bunchSizes vector tells us how many BVs each process will read
     int numEBVs = int(mpi->divideWorkIter(totalNumElBravaisVectors, comm).back() + 1 -
            mpi->divideWorkIter(totalNumElBravaisVectors, comm)[0]);
 
-    // loop over eBVs and add them to the current write bunch until
-    // we reach the maximum writable size
+    // loop over eBVs and add them to the current bunch until
+    // we reach the maximum read size
     int irEBunchSize = 0;
     for (int irE = 0; irE < numEBVs; irE++) {
       irEBunchSize++;

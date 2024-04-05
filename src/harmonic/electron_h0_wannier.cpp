@@ -18,25 +18,28 @@ ElectronH0Wannier::ElectronH0Wannier(
   vectorsDegeneracies = vectorsDegeneracies_;
 
   if (h0R.dimension(1) != h0R.dimension(2)) {
-    Error("WannierH0(): h0R should have dimensions (R,bands,bands)");
+    DeveloperError("WannierH0(): h0R should have dimensions (R,bands,bands)");
   }
   if (h0R.dimension(0) != bravaisVectors.cols()) {
-    Error("WannierH0(): h0R and bravaisVectors not aligned");
+    DeveloperError("WannierH0(): h0R and bravaisVectors not aligned");
   }
   if (vectorsDegeneracies.size() != bravaisVectors.cols()) {
-    Error("WannierH0(): degeneracies not aligned with vectors");
+    DeveloperError("WannierH0(): degeneracies not aligned with vectors");
   }
 
   if ((rMatrix.dimension(1) != h0R.dimension(0)) ||
       (rMatrix.dimension(2) != h0R.dimension(1)) ||
       (rMatrix.dimension(3) != h0R.dimension(2))) {
-    Error("WannierH0(): h0R and rMatrix should be aligned");
+    DeveloperError("WannierH0(): h0R and rMatrix should be aligned");
   }
 
   if (rMatrix.dimension(0) != 3) {
-    Error("WannierH0(): rMatrix should be a vector");
+    DeveloperError("WannierH0(): rMatrix should be a vector");
   }
 
+  // TODO if we want to use shifted vectors, we should here apply equation 22 of
+  // the WannierBerri manuscript to H(R). This is a smarter way to do this. 
+  
   numWannier = int(h0R.dimension(1));
   numVectors = int(vectorsDegeneracies.size());
 

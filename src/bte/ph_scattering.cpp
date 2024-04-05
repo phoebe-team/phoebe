@@ -41,6 +41,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
 
   // setup smearing using phonon band structure
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, innerBandStructure);
+
   if ( // innerBandStructure != outerBandStructure &&
      smearing->getType() == DeltaFunction::tetrahedron) {
     Error("Developer error: Tetrahedron smearing for transport untested and thus blocked");
@@ -620,10 +621,6 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
     int numAtoms = crystal.getNumAtoms();
     massVariance = crystal.getAtomicIsotopeCouplings();
     Eigen::VectorXd masses = crystal.getAtomicMasses();
-
-    std::cout.precision(5);
-    if(mpi->mpiHead()) std::cout << "massVariance " << massVariance << " " << 0.0000738723 << std::endl; 
-    if(mpi->mpiHead()) std::cout << "masses " << masses.transpose() << std::endl;
 
     if (masses.size() != massVariance.size() || masses.size() != numAtoms) {
       Error("Developer error: Problem setting up mass variance: incosistent sizes");

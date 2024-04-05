@@ -1820,8 +1820,7 @@ void ScatteringMatrix::reinforceLinewidths() {
   // sum the element contributions from all processes
   mpi->allReduceSum(&newLinewidths);
 
-  // TODO this is temporary, for now use the old electron linewidths instead of new ones, 
-  // -- later we will remove this and reconstruct all linewidths 
+  // TODO this is temporary, for now use the old electron linewidths instead of new ones if one is wrong  
   for (int i = 0; i<numStates; i++) {
     if(newLinewidths(0,i) <= 0) {
       if(mpi->mpiHead()) std::cout << "replacing a bad linewidth for state: " << i << " " << newLinewidths(0,i) << std::endl;
@@ -1836,8 +1835,8 @@ void ScatteringMatrix::reinforceLinewidths() {
 
   if(mpi->mpiHead()) { 
   
-    std::cout << "compare el " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl; 
-    for (int i = 0; i<numElStates; i++) {
+    std::cout << "compare first 100 el states " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl; 
+    for (int i = 0; i<100; i++) {
       // zero out anything below 1e-12 so this is easier to read
       double x = newLinewidths(0,i); 
       double y = internalDiagonal->data(0,i);
@@ -1850,10 +1849,10 @@ void ScatteringMatrix::reinforceLinewidths() {
 
     } 
 
-    //int maxPhState = numElStates+400; 
-    //if(maxPhState > numStates-numElStates) maxPhState = numStates - numElStates; 
+    int maxPhState = numElStates+100; 
+    if(maxPhState > numStates-numElStates) maxPhState = numStates - numElStates; 
     std::cout << "compare ph " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl; 
-    for (int i = numElStates; i<numStates; i++) {
+    for (int i = numElStates; i<maxPhState; i++) {
       // zero out anything below 1e-12 so this is easier to read
       double x = newLinewidths(0,i); 
       double y = internalDiagonal->data(0,i);

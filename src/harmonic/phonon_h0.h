@@ -147,6 +147,7 @@ class PhononH0 : public HarmonicHamiltonian {
    * call of the kokkosBatched functions.
    */
   int estimateBatchSize(const bool& withVelocity) override;
+
 protected:
   /** Impose the acoustic sum rule on force constants and Born charges
    * @param sumRule: name of the sum rule to be used
@@ -178,9 +179,12 @@ protected:
   // uncomment this to activate it
   bool longRange2d = false;
 
+  // the R vectors on the WS cell used in the Fourier transform
   int numBravaisVectors = 0;
   Eigen::MatrixXd bravaisVectors;
   Eigen::VectorXd weights;
+
+  // container to store the D(R) matrix/the harmonic force constants 
   Eigen::Tensor<double,5> mat2R;
 
   Eigen::MatrixXd gVectors;
@@ -216,18 +220,23 @@ protected:
 
   /** Adds the long range correction to the dynamical matrix due to dipole-ion
    * interaction.
+   * @param dyn : a container to which the short-range part of the dynamical matrix is added
+   * @param q : the phonon wavevector at which to calculate this part of the dyn mat 
    */
   void addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                         const Eigen::VectorXd &q);
 
-  /** This part computes the slow-range part of the dynamical matrix, which is
+  /** This part computes the short-range part of the dynamical matrix, which is
    * the Fourier transform of the force constants.
+   * @param dyn : a container to which the short-range part of the dynamical matrix is added
+   * @param q : the phonon wavevector at which to calculate this part of the dyn mat 
    */
   void shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                       const Eigen::VectorXd &q);
 
   /** dynDiagonalize diagonalizes the dynamical matrix and returns eigenvalues and
    * eigenvectors.
+   * @param dyn : dynamical matrix to be diagonalized 
    */
   std::tuple<Eigen::VectorXd, Eigen::MatrixXcd> dynDiagonalize(
       Eigen::Tensor<std::complex<double>, 4> &dyn);

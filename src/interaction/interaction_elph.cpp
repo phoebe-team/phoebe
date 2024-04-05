@@ -6,7 +6,7 @@
 #include <Kokkos_ScatterView.hpp>
 #endif
 
-// default constructor
+// constructor
 InteractionElPhWan::InteractionElPhWan(
     Crystal &crystal_,
     const Eigen::Tensor<std::complex<double>, 5> &couplingWannier_,
@@ -36,8 +36,9 @@ InteractionElPhWan::InteractionElPhWan(
   elBravaisVectorsDegeneracies = elBravaisVectorsDegeneracies_;
   phBravaisVectors = phBravaisVectors_; 
   phBravaisVectorsDegeneracies = phBravaisVectorsDegeneracies_;
-  cachedK1.setZero();
+  cachedK1.setConstant(-1000);
   couplingWannier = couplingWannier_;
+
 
   // in the first call to this function, we must copy the el-ph tensor
   // from the CPU to the accelerator
@@ -49,7 +50,7 @@ InteractionElPhWan::InteractionElPhWan(
     Kokkos::realloc(phBravaisVectors_k, numPhBravaisVectors, 3);
 
     // note that Eigen has left layout while kokkos has right layout
-    HostComplexView5D couplingWannier_h((Kokkos::complex<double> *) couplingWannier_.data(),
+    HostComplexView5D couplingWannier_h((Kokkos::complex<double> *) couplingWannier_.data(), 
                                         numElBravaisVectors, numPhBravaisVectors,
                                         numPhBands, numElBands, numElBands);
     HostDoubleView1D elBravaisVectorsDegeneracies_h((double *) elBravaisVectorsDegeneracies_.data(), numElBravaisVectors);
@@ -141,7 +142,7 @@ Eigen::Tensor<std::complex<double>, 3> InteractionElPhWan::getPolarCorrection(
 // over q at the start of the scattering rate calculation/
 Eigen::MatrixXcd InteractionElPhWan::precomputeQDependentPolar(
                                              BaseBandStructure &phBandStructure,
-					     const bool useMinusQ) {
+					                          const bool useMinusQ) {
 
   if(!phBandStructure.getParticle().isPhonon()) {
     Error("Developer error: cannot use electron bands to "
@@ -877,8 +878,6 @@ void InteractionElPhWan::oldCalcCouplingSquared(
   int numWannier = numElBands;
   int nb1 = eigvec1.cols();
 
-  std::cout << "eigenvec1 size " << eigvec1.rows() << " " << eigvec1.cols() << " " << numWannier << " " << nb1 << std::endl;
-
   int numLoops = eigvecs2.size();
   cacheCoupling.resize(0);
   cacheCoupling.resize(numLoops);
@@ -893,8 +892,7 @@ void InteractionElPhWan::oldCalcCouplingSquared(
     std::vector<std::complex<double>> phases(numElBravaisVectors);
     for (int irE = 0; irE < numElBravaisVectors; irE++) {
       double arg = k1C.dot(elBravaisVectors.col(irE));
-      phases[irE] =
-          exp(complexI * arg) / double(elBravaisVectorsDegeneracies(irE));
+      phases[irE] = exp(complexI * arg) / double(elBravaisVectorsDegeneracies(irE));
     }
     for (int irE = 0; irE < numElBravaisVectors; irE++) {
       for (int irP = 0; irP < numPhBravaisVectors; irP++) {

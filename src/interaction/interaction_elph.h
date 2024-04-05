@@ -44,7 +44,7 @@ class InteractionElPhWan {
   DoubleView1D elBravaisVectorsDegeneracies_k;
   std::vector<ComplexView4D::HostMirror> elPhCached_hs;
 
-  // TODO TEMPORARY
+  // TODO TEMPORARY, for old interpolation method
   Eigen::MatrixXd elBravaisVectors;
   Eigen::VectorXd elBravaisVectorsDegeneracies;
   Eigen::MatrixXd phBravaisVectors;

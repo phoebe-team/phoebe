@@ -136,8 +136,9 @@ void ElPhQeToPhoebeApp::testPhononTransform(
     const Eigen::Tensor<std::complex<double>, 3> &phEigenvectors,
     const Eigen::MatrixXd &phBravaisVectors,
     const Eigen::VectorXd &phDegeneracies, const Eigen::MatrixXd &phEnergies) {
+
   /** Like the test above, we
-   * 1) FT to Wannier representation.
+   * 1) FT to real space phonon basis representation.
    *    Since these are force constants, they should be real.
    * 2) FT back to Bloch space and check that we find the same results.
    *
@@ -147,7 +148,7 @@ void ElPhQeToPhoebeApp::testPhononTransform(
 
   int numPhBands = int(phononH0.getNumBands());
 
-  // Bloch To Wannier transform
+  // Bloch To real space transform
 
   auto atomicPositions = crystal.getAtomicPositions();
   int numAtoms = int(atomicPositions.rows());
@@ -174,7 +175,7 @@ void ElPhQeToPhoebeApp::testPhononTransform(
     }
   }
 
-  // FT to Wannier representation
+  // FT to real representation
 
   Eigen::Tensor<std::complex<double>, 5> h0R(
       numAtoms * numAtoms * phBravaisVectors.size(), numAtoms, numAtoms, 3, 3);
@@ -283,7 +284,7 @@ void ElPhQeToPhoebeApp::testPhononTransform(
 
     // diagonalize it, using the matrices from phononH0
     auto dq = u.adjoint() * hWK * u;
-    (void) dq;
+    //(void) dq;
     // check I found again the same eigenvalues
     for (int ib = 0; ib < numPhBands; ib++) {
       assert(abs(std::sqrt(dq(ib, ib).real()) - phEnergies(ib, iq)) < 1.0e-6);
@@ -864,7 +865,7 @@ void ElPhQeToPhoebeApp::writeWannierCoupling(
   writeElPhCouplingNoHDF5(context, gWannier, numFilledWannier, numSpin,
                           numModes, numWannier, phDegeneracies,
                           elDegeneracies, phBravaisVectors,
-                          elBravaisVectors, qMesh, constkMesh);
+                          elBravaisVectors, qMesh, kMesh);
 #endif
 
   if (mpi->mpiHead()) {

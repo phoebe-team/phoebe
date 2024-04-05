@@ -313,10 +313,6 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // that might be ruined by the delta functions 
   reinforceLinewidths();
 
-  if(context.getEnforcePositiveSemiDefinite()) {
-    theMatrix.enforcePositiveSemiDefinite(); 
-  }
-
   // TODO debug the "replaceLinewidths" function and use it instead
   // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths
@@ -349,6 +345,10 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   if(mpi->mpiHead()) std::cout << "\nFinished computing the coupled scattering matrix." << std::endl;
 
   //this->outputToHDF5("coupled_matrix.hdf5");
+
+  if(context.getEnforcePositiveSemiDefinite()) {
+    theMatrix.enforcePositiveSemiDefinite(); 
+  }
 
 }
 

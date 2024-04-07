@@ -805,7 +805,7 @@ std::pair<Eigen::Tensor<double, 3>,
   Kokkos::Profiling::pushRegion("parseWSVecFromWannier90");
 
   if (fileName.empty()) {
-    Error("Must provide the Wannier90 WsVec file name");
+    DeveloperError("parseWSVecFromWannier90 called with an empty filename.");
   }
 
   std::string line;
@@ -815,7 +815,7 @@ std::pair<Eigen::Tensor<double, 3>,
   std::ifstream infile(fileName);
 
   if (not infile.is_open()) {
-    Error("Wannier WsVec file not found");
+    Error("Wannier WsVec file not found at " + fileName);
   }
 
   //  First line contains the title and date, and the information whether
@@ -875,7 +875,7 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
 
   Kokkos::Profiling::pushRegion("parseElHarmonicWannier (QE)");
 
-  //  Here we read the XML file of quantum espresso.
+  //  Here we read the _tb.dat file from Wannier90
 
   std::string fileName = context.getElectronH0Name();
 
@@ -890,7 +890,7 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
   std::ifstream infile(fileName);
 
   if (not infile.is_open()) {
-    Error("Wannier H0 file not found");
+    Error("Wannier H0 file not found at " + fileName);
   }
 
   //  First line contains the title and date

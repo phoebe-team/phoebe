@@ -16,6 +16,14 @@
  */
 class ElectronH0Wannier : public HarmonicHamiltonian {
  public:
+
+ /** Constructor for the electronic Hamiltonian in the Wannier case. 
+  * @param directUnitCell_: the real space unit cell of the crystal in Bohr
+  * @param bravaisVectors_: the R vectors for the Fourier transform
+  * @param vectorsDegeneracies_: the weights of the R vectors for the Fourier transform
+  * @param h0R_: the Wannier Hamiltonian in real space 
+  * @param rMatrix_:  
+ */
   ElectronH0Wannier(
       const Eigen::Matrix3d &directUnitCell_,
       const Eigen::Matrix<double, 3, Eigen::Dynamic> &bravaisVectors_,

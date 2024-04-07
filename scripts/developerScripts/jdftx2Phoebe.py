@@ -18,10 +18,7 @@ import sys
 #phDegeneracies           Dataset {1957, 1}
 #qMesh                    Dataset {3, 1}
 
-#seedname = sys.argv[1]
-#print("Trying to convert JDFTx files of the prefix " + seedname + " to Phoebe.")
-
-hf = h5py.File('jdftx.elph.phoebe.h5', 'w')
+hf = h5py.File('jdftx.elph.phoebe.hdf5', 'w')
 hf.create_dataset("dftCode",data="JDFTx")
 
 # Read kpoints information and chemical potential, nelec, spin, etc from JDFTx
@@ -47,6 +44,7 @@ Wwannier = Wwannier.reshape((nCells,nBands,nBands)).swapaxes(1,2)
 Hreduced = np.fromfile("wannier.mlwfH").reshape((kfoldProd,nBands,nBands)).swapaxes(1,2)
 iReduced = np.dot(np.mod(cellMap, kfold[None,:]), kStride)
 Hwannier = Wwannier * Hreduced[iReduced]
+Hwannier = Hwannier.astype(complex)
 
 # save the Wannier hamiltonian + R vectors and weights to HDF5 for Phoebe 
 # Note: cell weights are one because they were applied above when Hwannier was expanded 
@@ -63,8 +61,8 @@ Hwannier = Wwannier * Hreduced[iReduced]
 cellMap = np.loadtxt("wannier.mlwfCellMap")[:,3:6].astype(float)
 
 hf.create_dataset('elBravaisVectors', data=cellMap.T)
-hf.create_dataset('elDegeneracies', data=np.ones(nCells)) 
-hf.create_dataset('kMesh', data=kfold) 
+hf.create_dataset('elDegeneracies', data=np.ones(nCells).reshape(nCells,1)) 
+hf.create_dataset('kMesh', data=kfold.reshape(3,1)) 
 hf.create_dataset('numElBands', data=nBands)  
 hf.create_dataset('numSpin', data=nSpin)  
 hf.create_dataset('numElectrons', data=nElec) 
@@ -106,18 +104,19 @@ HePhWannier = cellWeightsEph[:,None,:,:,None] * cellWeightsEph[None,:,:,None,:] 
 cellMapEph = np.loadtxt('wannier.mlwfCellMapPh', usecols=[3,4,5]).astype(float)
 
 # write the elph information 
-hf.create_dataset('elphDegeneracies', data=np.ones(nCellsEph))
+hf.create_dataset('elphDegeneracies', data=np.ones(nCellsEph).reshape(nCellsEph,1))
 hf.create_dataset('elphBravaisVectors', data=cellMapEph.T)
-hf.create_dataset("fileFormat",data=1)  # TODO check that this is right 
-hf.create_dataset('gWannier', data=HePhWannier.flatten()*2.)  # convert Ha->Ry
+hf.create_dataset("fileFormat",data=1)  # TODO check that this is right
+HePhWannier = HePhWannier.flatten()*2.  # convert Ha->Ry
+hf.create_dataset('gWannier', data=HePhWannier.reshape(1,HePhWannier.shape[0]))
 
 # write some phonon related information 
 # reload this in cartesian coords to write it easily
 cellMapPh = np.loadtxt('totalE.phononCellMap', usecols=[3,4,5]).astype(float)
 
 hf.create_dataset('phBravaisVectors', data=cellMapPh.T)
-hf.create_dataset('phDegeneracies', data=np.ones(nCellsPh))
-hf.create_dataset('qMesh', data=phononSup)
+hf.create_dataset('phDegeneracies', data=np.ones(nCellsPh).reshape(nCellsPh,1))
+hf.create_dataset('qMesh', data=phononSup.reshape(3,1))
 hf.create_dataset('numPhModes', data=nModes)
 
 hf.close()

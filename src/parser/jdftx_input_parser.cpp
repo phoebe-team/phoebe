@@ -219,10 +219,18 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   // ========================================================================
 
   // set up containers to read data into 
+
+  // here, we do something weird -- if SOC is used, JDFTx's wannier files become 
+  // complex rather than real. Depending on spinFac, we change how this is read in 
   std::vector<std::vector<std::vector<std::complex<double>>>> HWannier;
+
   Eigen::MatrixXd cellMap;
   Eigen::Vector3i kMesh; 
-  int nCells, nWannier, nBands, nElectrons, spinFactor; 
+  int nCells = 0;
+  int nWannier = 0;
+  int nBands = 0; 
+  int nElectrons = 0; 
+  int spinFactor = 2;
   double chemicalPotential;
 
   #ifdef HDF5_AVAIL
@@ -258,8 +266,6 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
     nCells = HWannier.size(); 
     nWannier = HWannier[0].size(); 
 
-    std::cout << "nCells nWannier " << nCells << " " << nWannier << std::endl;
-
     // Sanity check data that has been read in 
     if(int(cellMap.cols()) != nCells) {
       Error("Somehow, the number of R vectors in your JDFTx elWannier cell map does\n"
@@ -284,8 +290,8 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   // (the position matrix elements in the Wannier basis) from JDFTx. However, 
   // the function that uses this is never called, so we just send this as 
   // zeros to the constructor
-  Eigen::Tensor<std::complex<double>, 4> rMatrix(3, nCells, nWannier, nWannier);
-  rMatrix.setZero();
+  //Eigen::Tensor<std::complex<double>, 4> rMatrix(3, nCells, nWannier, nWannier);
+  //rMatrix.setZero();
 
   // copy the HWannier into an Eigen tensor for the ElectronWannierH0 constructor
   Eigen::Tensor<std::complex<double>, 3> h0R(nCells, nWannier, nWannier);
@@ -307,7 +313,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   // we set them to one 
   Eigen::VectorXd cellWeights(nCells); cellWeights.setConstant(1.);
 
-  ElectronH0Wannier electronH0(directUnitCell, cellMap, cellWeights, h0R, rMatrix);
+  ElectronH0Wannier electronH0(directUnitCell, cellMap, cellWeights, h0R);
 
   if (mpi->mpiHead()) {
     std::cout << "Successfully parsed JDFTx electronic Hamiltonian files.\n" << std::endl;

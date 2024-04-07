@@ -1017,7 +1017,7 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
   // note: for Wannier90, lattice vectors are the rows of the matrix
 
   ElectronH0Wannier electronH0(directUnitCell, bravaisVectors,
-                               simpleVectorsDegeneracies, h0R, rMatrix);
+                               simpleVectorsDegeneracies, h0R, &rMatrix);
 
   std::string wsVecFileName = context.getWsVecFileName();
   if (!wsVecFileName.empty()) {

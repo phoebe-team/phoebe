@@ -11,10 +11,10 @@
 #include "utilities.h"
 
 PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
-                   const Eigen::Tensor<double, 3> &bornCharges_,
-                   Eigen::Tensor<double, 7> &forceConstants_,
-                   const std::string &sumRule)
-    : particle(Particle::phonon) {
+                   Eigen::Tensor<double, 5> &forceConstants_,
+                   Eigen::Vector3i& qCoarseGrid_, 
+                   const Eigen::MatrixXd& bravaisVectors_, const Eigen::VectorXd& weights_)
+    : crystal(crystal), particle(Particle::phonon) {
   // in this section, we save as class properties a few variables
   // that are needed for the diagonalization of phonon frequencies
 
@@ -27,26 +27,21 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
   speciesMasses = crystal.getSpeciesMasses();
   atomicPositions = crystal.getAtomicPositions();
   dielectricMatrix = dielectricMatrix_;
-  bornCharges = bornCharges_;
+  bornCharges = crystal.getBornEffectiveCharges();
 
   if (dielectricMatrix.sum() > 0.) {
     hasDielectric = true; // defaulted to false in *.h file
   }
 
-  qCoarseGrid(0) = int(forceConstants_.dimension(2));
-  qCoarseGrid(1) = int(forceConstants_.dimension(3));
-  qCoarseGrid(2) = int(forceConstants_.dimension(4));
-
   numAtoms = crystal.getNumAtoms();
   numBands = numAtoms * 3;
   dimensionality = crystal.getDimensionality();
 
-  // now, I initialize an auxiliary set of vectors that are needed
-  // for the diagonalization, which are precomputed once and for all.
-
-  setAcousticSumRule(sumRule, forceConstants_);
-
-  reorderDynamicalMatrix(directUnitCell, forceConstants_);
+  bravaisVectors = bravaisVectors_;
+  weights = weights_;
+  numBravaisVectors = bravaisVectors.cols();
+  qCoarseGrid = qCoarseGrid_;
+  mat2R = forceConstants_;
 
   if (hasDielectric) { // prebuild terms useful for long range corrections
 
@@ -197,6 +192,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
     Kokkos::deep_copy(bravaisVectors_d, bravaisVectors_h);
     Kokkos::deep_copy(weights_d, weights_h);
     Kokkos::deep_copy(mat2R_d, mat2R_h);
+
     if (hasDielectric) {
       Kokkos::resize(longRangeCorrection1_d, 3, 3, numAtoms);
       Kokkos::resize(gVectors_d, numG, 3);
@@ -245,7 +241,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
 
 // copy constructor
 PhononH0::PhononH0(const PhononH0 &that)
-    : particle(that.particle), hasDielectric(that.hasDielectric),
+    : crystal(that.crystal), particle(that.particle), hasDielectric(that.hasDielectric),
       numAtoms(that.numAtoms), numBands(that.numBands),
       volumeUnitCell(that.volumeUnitCell), atomicSpecies(that.atomicSpecies),
       speciesMasses(that.speciesMasses), atomicPositions(that.atomicPositions),
@@ -264,13 +260,14 @@ PhononH0::PhononH0(const PhononH0 &that)
       bravaisVectors_d(that.bravaisVectors_d),
       weights_d(that.weights_d),
       mat2R_d(that.mat2R_d) {
-  double memory = getDeviceMemoryUsage();
-  kokkosDeviceMemory->addDeviceMemoryUsage(memory);
+      double memory = getDeviceMemoryUsage();
+      kokkosDeviceMemory->addDeviceMemoryUsage(memory);
 }
 
 // copy assignment
 PhononH0 &PhononH0::operator=(const PhononH0 &that) {
   if (this != &that) {
+    crystal = that.crystal;
     particle = that.particle;
     hasDielectric = that.hasDielectric;
     numAtoms = that.numAtoms;
@@ -418,116 +415,6 @@ FullBandStructure PhononH0::cpuPopulate(Points &points, bool &withVelocities,
   return fullBandStructure;
 }
 
-Eigen::Tensor<double, 5> PhononH0::wsInit(const Eigen::MatrixXd &unitCell,
-                                          const Eigen::Matrix3d &directUnitCell,
-                                          const int& nr1Big,
-                                          const int& nr2Big,
-                                          const int& nr3Big) {
-  const int numMax = 2;
-  int index = 0;
-  const int numMaxRWS = 200;
-
-  Eigen::MatrixXd tmpResult(3, numMaxRWS);
-
-  for (int ir = -numMax; ir <= numMax; ir++) {
-    for (int jr = -numMax; jr <= numMax; jr++) {
-      for (int kr = -numMax; kr <= numMax; kr++) {
-        for (int i : {0, 1, 2}) {
-          tmpResult(i, index) =
-              unitCell(i, 0) * ir + unitCell(i, 1) * jr + unitCell(i, 2) * kr;
-        }
-
-        if (tmpResult.col(index).squaredNorm() > 1.0e-6) {
-          index += 1;
-        }
-        if (index > numMaxRWS) {
-          Error("WSInit > numMaxRWS");
-        }
-      }
-    }
-  }
-  int numRWS = index;
-  Eigen::MatrixXd rws(3, numRWS);
-  for (int i = 0; i < numRWS; i++) {
-    rws.col(i) = tmpResult.col(i);
-  }
-
-  // now, I also prepare the wsCache, which is used to accelerate
-  // the shortRange() calculation
-
-  Eigen::Tensor<double, 5> wsCache(2 * nr3Big + 1, 2 * nr2Big + 1,
-                                   2 * nr1Big + 1, numAtoms, numAtoms);
-  wsCache.setZero();
-
-  for (int na = 0; na < numAtoms; na++) {
-    for (int nb = 0; nb < numAtoms; nb++) {
-      double total_weight = 0.;
-
-      // sum over r vectors in the super cell - very safe range!
-
-      for (int n1 = -nr1Big; n1 <= nr1Big; n1++) {
-        int n1ForCache = n1 + nr1Big;
-        for (int n2 = -nr2Big; n2 <= nr2Big; n2++) {
-          int n2ForCache = n2 + nr2Big;
-          for (int n3 = -nr3Big; n3 <= nr3Big; n3++) {
-            int n3ForCache = n3 + nr3Big;
-
-            Eigen::Vector3d r_ws;
-            for (int i : {0, 1, 2}) {
-              // note that this cell is different from above
-              r_ws(i) = double(n1) * directUnitCell(i, 0) +
-                        double(n2) * directUnitCell(i, 1) +
-                        double(n3) * directUnitCell(i, 2);
-              r_ws(i) += atomicPositions(na, i) - atomicPositions(nb, i);
-            }
-
-            double x = wsWeight(r_ws, rws);
-            wsCache(n3ForCache, n2ForCache, n1ForCache, nb, na) = x;
-            total_weight += x;
-          }
-        }
-      }
-      if (abs(total_weight - qCoarseGrid(0) * qCoarseGrid(1) * qCoarseGrid(2)) > 1.0e-8) {
-        Error("DeveloperError: wrong total_weight, weight: "
-                + std::to_string(total_weight) + " qMeshProd: " + std::to_string(qCoarseGrid.prod()) );
-      }
-    }
-  }
-  return wsCache;
-}
-
-double PhononH0::wsWeight(const Eigen::VectorXd &r, const Eigen::MatrixXd &rws) {
-  // wsWeight() assigns this weight:
-  // - if a point is inside the Wigner-Seitz cell:    weight=1
-  // - if a point is outside the WS cell:             weight=0
-  // - if a point q is on the border of the WS cell, it finds the number N
-  //   of translationally equivalent point q+G  (where G is a lattice vector)
-  //   that are also on the border of the cell. Then: weight = 1/N
-  //
-  // I.e. if a point is on the surface of the WS cell of a cubic lattice
-  // it will have weight 1/2; on the vertex of the WS it would be 1/8;
-  // the K point of an hexagonal lattice has weight 1/3 and so on.
-
-  // rws: contains the list of nearest neighbor atoms
-  // r: the position of the reference point
-  // rws.cols(): number of nearest neighbors
-
-  int numREq = 1;
-
-  for (int ir = 0; ir < rws.cols(); ir++) {
-    double rrt = r.dot(rws.col(ir));
-    double ck = rrt - rws.col(ir).squaredNorm() / 2.;
-    if (ck > 1.0e-5) {
-      return 0.;
-    }
-    if (abs(ck) <= 1.0e-5) {
-      numREq += 1;
-    }
-  }
-  double x = 1. / (double)numREq;
-  return x;
-}
-
 void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                                 const Eigen::VectorXd &q) {
   // this subroutine is the analogous of rgd_blk in QE
@@ -663,107 +550,6 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
   Kokkos::Profiling::popRegion();
 }
 
-void PhononH0::reorderDynamicalMatrix(const Eigen::Matrix3d& directUnitCell,
-                                      const Eigen::Tensor<double, 7>& forceConstants) {
-
-  Kokkos::Profiling::pushRegion("PhononH0::reorderDynamicalMatrix");
-
-  // this part can actually be expensive to execute, so we compute it once
-  // at the beginning
-
-  Eigen::MatrixXd directUnitCellSup(3, 3);
-  directUnitCellSup.col(0) = directUnitCell.col(0) * qCoarseGrid(0);
-  directUnitCellSup.col(1) = directUnitCell.col(1) * qCoarseGrid(1);
-  directUnitCellSup.col(2) = directUnitCell.col(2) * qCoarseGrid(2);
-
-  int nr1Big = 2 * qCoarseGrid(0);
-  int nr2Big = 2 * qCoarseGrid(1);
-  int nr3Big = 2 * qCoarseGrid(2);
-
-  // start by generating the weights for the Fourier transform
-  auto wsCache = wsInit(directUnitCellSup, directUnitCell, nr1Big, nr2Big, nr3Big);
-
-  // we compute the total number of bravais lattice vectors
-
-  numBravaisVectors = 0;
-  for (int n3 = -nr3Big; n3 <= nr3Big; n3++) {
-    int n3ForCache = n3 + nr3Big;
-    for (int n2 = -nr2Big; n2 <= nr2Big; n2++) {
-      int n2ForCache = n2 + nr2Big;
-      for (int n1 = -nr1Big; n1 <= nr1Big; n1++) {
-        int n1ForCache = n1 + nr1Big;
-        for (int nb = 0; nb < numAtoms; nb++) {
-          for (int na = 0; na < numAtoms; na++) {
-            if (wsCache(n3ForCache, n2ForCache, n1ForCache, nb, na) > 0.) {
-              numBravaisVectors += 1;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  // next, we reorder the dynamical matrix along the bravais lattice vectors
-
-  bravaisVectors = Eigen::MatrixXd::Zero(3, numBravaisVectors);
-  weights = Eigen::VectorXd::Zero(numBravaisVectors);
-  mat2R.resize(3, 3, numAtoms, numAtoms, numBravaisVectors);
-  mat2R.setZero();
-
-  int iR = 0;
-  for (int n3 = -nr3Big; n3 <= nr3Big; n3++) {
-    int n3ForCache = n3 + nr3Big;
-    for (int n2 = -nr2Big; n2 <= nr2Big; n2++) {
-      int n2ForCache = n2 + nr2Big;
-      for (int n1 = -nr1Big; n1 <= nr1Big; n1++) {
-        int n1ForCache = n1 + nr1Big;
-        for (int nb = 0; nb < numAtoms; nb++) {
-          for (int na = 0; na < numAtoms; na++) {
-            double weight = wsCache(n3ForCache, n2ForCache, n1ForCache, nb, na);
-            if (weight > 0.) {
-              weights(iR) = weight;
-
-              Eigen::Vector3d r;
-              for (int i : {0, 1, 2}) {
-                r(i) = n1 * directUnitCell(i, 0) + n2 * directUnitCell(i, 1) +
-                       n3 * directUnitCell(i, 2);
-              }
-              bravaisVectors.col(iR) = r;
-
-              int m1 = mod((n1 + 1), qCoarseGrid(0));
-              if (m1 <= 0) {
-                m1 += qCoarseGrid(0);
-              }
-              int m2 = mod((n2 + 1), qCoarseGrid(1));
-              if (m2 <= 0) {
-                m2 += qCoarseGrid(1);
-              }
-              int m3 = mod((n3 + 1), qCoarseGrid(2));
-              if (m3 <= 0) {
-                m3 += qCoarseGrid(2);
-              }
-              m1 += -1;
-              m2 += -1;
-              m3 += -1;
-
-              for (int j : {0, 1, 2}) {
-                for (int i : {0, 1, 2}) {
-                  // convert to a single iR vector index 
-                  mat2R(i, j, na, nb, iR) +=
-                      forceConstants(i, j, m1, m2, m3, na, nb);
-                }
-              }
-              iR += 1;
-            }
-          }
-        }
-      }
-    }
-  }
-  // wsCache.resize(0, 0, 0, 0, 0);
-  // forceConstants.resize(0, 0, 0, 0, 0, 0, 0);
-  Kokkos::Profiling::popRegion();
-}
 
 void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                               const Eigen::VectorXd &q) {

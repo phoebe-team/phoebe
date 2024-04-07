@@ -24,7 +24,7 @@ std::tuple<Crystal, PhononH0> Parser::parsePhHarmonic(Context &context) {
   else {
     Error("Unrecognised FC2 format!\n"
     "-- to use QE, supply a file with a .fc extension\n"
-    "-- to use JDFTx, supply a file with the .phononHsub extension\n"
+    "-- to use JDFTx, supply a file with the .phononOmegaSq extension\n"
     "-- to use phonopy, set the phonopyDispFileName input variable and supply a .hdf5 file\n");
   }
 }

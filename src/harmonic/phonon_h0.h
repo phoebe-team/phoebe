@@ -29,9 +29,10 @@ class PhononH0 : public HarmonicHamiltonian {
    * size is (meshX, meshY, meshZ, 3, 3, numAtoms, numAtoms)
    */
   PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
-           const Eigen::Tensor<double, 3> &bornCharges_,
-           Eigen::Tensor<double, 7> &forceConstants_,
-           const std::string &sumRule);
+           Eigen::Tensor<double, 5> &forceConstants_,
+           Eigen::Vector3i& qCoarseGrid, 
+           const Eigen::MatrixXd& bravaisVectors_, 
+           const Eigen::VectorXd& weights_);
 
   /** Copy constructor
    */
@@ -149,21 +150,11 @@ class PhononH0 : public HarmonicHamiltonian {
   int estimateBatchSize(const bool& withVelocity) override;
 
 protected:
-  /** Impose the acoustic sum rule on force constants and Born charges
-   * @param sumRule: name of the sum rule to be used
-   * Currently supported values are akin to those from Quantum ESPRESSO
-   * i.e. "simple" (for a rescaling of the diagonal elements) or "crystal"
-   * (to find the closest matrix which satisfies the sum rule)
-   */
-  void setAcousticSumRule(const std::string &sumRule,
-                          Eigen::Tensor<double, 7>& forceConstants);
-
-  void reorderDynamicalMatrix(const Eigen::Matrix3d& directUnitCell,
-                              const Eigen::Tensor<double, 7>& forceConstants);
 
   Particle particle;
 
   bool hasDielectric = false;
+  Crystal& crystal;
   int numAtoms;
   int numBands;
   double volumeUnitCell;
@@ -213,10 +204,6 @@ protected:
                                   const int& nr2Big,
                                   const int& nr3Big);
 
-  /** wsWeight computes the `weights`, i.e. the number of symmetry-equivalent
-   * Bravais lattice vectors, that are used in the phonon Fourier transform.
-   */
-  static double wsWeight(const Eigen::VectorXd &r, const Eigen::MatrixXd &rws);
 
   /** Adds the long range correction to the dynamical matrix due to dipole-ion
    * interaction.
@@ -241,11 +228,6 @@ protected:
   std::tuple<Eigen::VectorXd, Eigen::MatrixXcd> dynDiagonalize(
       Eigen::Tensor<std::complex<double>, 4> &dyn);
 
-  /** Auxiliary methods for sum rule on Born charges
-   */
-  void sp_zeu(Eigen::Tensor<double, 3> &zeu_u, Eigen::Tensor<double, 3> &zeu_v,
-              double &scalar) const;
-
   /** Checks the size of Device-allocated views
    *
    * @return size occupied by Kokkos views, in bytes.
@@ -253,6 +235,42 @@ protected:
   double getDeviceMemoryUsage();
 
 };
+
+// utility functions which are related but not necessarily connected to the class
+
+/** Impose the acoustic sum rule on force constants and Born charges
+ * @param sumRule: name of the sum rule to be used
+ * @param crystal: crystal associated with the force constants 
+ * @param qCoarseGrid: q grid of the phonon calculation 
+ * @param forceConstants: force constants to be ASR'd
+ * Currently supported values are akin to those from Quantum ESPRESSO
+ * i.e. "simple" (for a rescaling of the diagonal elements) or "crystal"
+ * (to find the closest matrix which satisfies the sum rule)
+ */
+void setAcousticSumRule(const std::string &sumRule, Crystal& crystal, 
+                        const Eigen::Vector3i& qCoarseGrid,
+                        Eigen::Tensor<double, 7>& forceConstants);
+
+/** If we read a set of second order force constants which did not come with the corresponding
+ * R vectors, we need to generate the R vectors and weights, the 
+ * reorder these force constants into the format FC2(3,3,iAtom,jAtom,iR)
+ * @param crystal: the crystal associated with the force constants
+ * @param forceConstants: the force constants in the format 3,3,iRx,iRy,iRz,iAtom,jAtom
+ * @param qCoarseGrid: the q grid from which the force constants were generated
+ * @return: a tuple containing: 
+ *          1) the matrix of force constants in the format 3,3,iAtom,jAtom,iR
+ *          2) the list of R vectors 
+ *          3) the weights of these R vectors 
+*/
+std::tuple<Eigen::Tensor<double, 5>,Eigen::MatrixXd,Eigen::VectorXd> 
+          reorderHarmonicForceConstants(Crystal& crystal,
+                                const Eigen::Tensor<double, 7>& forceConstants,
+                                Eigen::Vector3i& qCoarseGrid);
+
+  /** wsWeight computes the `weights`, i.e. the number of symmetry-equivalent
+   * Bravais lattice vectors, that are used in the phonon Fourier transform.
+   */
+double wsWeight(const Eigen::VectorXd &r, const Eigen::MatrixXd &rws); 
 
 #endif
 

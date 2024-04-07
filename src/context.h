@@ -21,6 +21,7 @@ class Context {
 
   std::string electronH0Name;
   std::string wannier90Prefix;
+  std::string jdftxDirectory;
   std::string quantumEspressoPrefix;
   std::string elPhInterpolation;
 
@@ -196,8 +197,13 @@ public:
 
   std::string getWannier90Prefix();
   void setWannier90Prefix(const std::string &x);
+
   std::string getQuantumEspressoPrefix();
   void setQuantumEspressoPrefix(const std::string &x);
+
+  std::string getJDFTxDirectory();
+  void setJDFTxDirectory(const std::string &x);
+
   std::string getElPhInterpolation();
 
   double getEpaSmearingEnergy() const;

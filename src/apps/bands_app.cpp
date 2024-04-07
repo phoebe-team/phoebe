@@ -272,9 +272,11 @@ void ElectronWannierBandsApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getDeltaPath(), "deltaPath");
 
   std::string crystalMsg = "crystal structure";
-  throwErrorIfUnset(context.getInputAtomicPositions(), crystalMsg);
-  throwErrorIfUnset(context.getInputSpeciesNames(), crystalMsg);
-  throwErrorIfUnset(context.getInputAtomicSpecies(), crystalMsg);
+  if(context.getJDFTxDirectory().empty()) { // Wannier90 doesn't give us this, user must set it
+    throwErrorIfUnset(context.getInputAtomicPositions(), crystalMsg);
+    throwErrorIfUnset(context.getInputSpeciesNames(), crystalMsg);
+    throwErrorIfUnset(context.getInputAtomicSpecies(), crystalMsg);
+  }
 }
 
 void ElectronFourierBandsApp::checkRequirements(Context &context) {

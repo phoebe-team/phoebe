@@ -7,11 +7,11 @@
 #include "phonon_h0.h"
 #include <string>
 
-/** Class used to parse the raw data from quantum Espresso / Wannier90
- * TODO: consider moving these methods to the harmonic classes.
+/** Class used to parse the raw data from JDFTx
  */
 class JDFTxParser {
 public:
+
   /** parsing of force constants.
    * @param context: the object containing the user input.
    * @return Crystal: crystal is the object describing the crystal structure.
@@ -41,8 +41,13 @@ public:
    * electronic Hamiltonian in the Wannier representation, and capable of
    * interpolating the band structure on a fine grid of k-points.
    */
-  static std::tuple<Crystal, ElectronH0Wannier>
-  parseElHarmonicWannier(Context &context, Crystal *inCrystal = nullptr);
+  static std::tuple<Crystal, ElectronH0Wannier> 
+        parseElHarmonicWannier(Context &context, Crystal *inCrystal = nullptr);
+
+  /**
+   * Function to parse crystal structure from either totalE.out or phonon.out
+  */
+  static Crystal parseCrystal(Context& context); 
 
 };
 

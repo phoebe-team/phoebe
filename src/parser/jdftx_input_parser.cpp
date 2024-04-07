@@ -14,95 +14,57 @@
 #include "jdftx_input_parser.h"
 #include "utilities.h"
 
+#ifdef HDF5_AVAIL
+#include <highfive/H5Easy.hpp>
+#endif
+
 std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   //  Here we read the dynamical matrix of inter-atomic force constants
   //	in real space.
 
   // TODO we need to fix this before publishing 
-  std::string directory = "/mnt/ceph/users/jcoulter/4.Cu/9.jdftx/";
+  std::string directory = context.getJDFTxDirectory();
+
+  // parse the crystal structure from totalE.out 
+  // ========================================================================
+  Crystal crystal = parseCrystal(context);
+  int numAtoms = crystal.getNumAtoms();
+  auto directUnitCell = crystal.getDirectUnitCell();
+  auto atomicSpecies = crystal.getAtomicSpecies();
+  auto speciesMasses = crystal.getSpeciesMasses();
+
+  // Here there is no born charge data, so we set this to zero 
+  // TODO This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor)
+  Eigen::Matrix3d dielectricMatrix;
+  dielectricMatrix.setZero();
+
+  // read in phonon supercell from phonon.out
+  // ========================================================================
 
   std::string fileName = directory + "phonon.out";
-  if (fileName.empty())
-    Error("phonon.out file not found in " + directory);
-
-  std::string line;
-  std::vector<std::string> lineSplit;
 
   // open input file
   std::ifstream infile(fileName);
 
-  if (not infile.is_open())
-    Error("totalE.out file not found");
+  if (fileName.empty() || !infile.is_open()) {
+    Error("phonon.out file not found in " + directory);
+  }
   if (mpi->mpiHead())
     std::cout << "Reading in " + fileName + "." << std::endl;
 
-  // read in direct unit cell from totalE.out
-  // ========================================================================
-  Eigen::Matrix3d directUnitCell;
+  std::string line;
+  std::vector<std::string> lineSplit;
 
-  // we don't know # of atoms ahead of time
-  std::vector<std::vector<double>> tempPositions;
-  std::vector<int> tempSpecies;
-  std::vector<std::string> speciesNames;
-
-  bool unitCellFound = false;
-  Eigen::Vector3i qCoarseGrid; qCoarseGrid.setZero();
+  Eigen::Vector3i qCoarseGrid; 
 
   while (std::getline(infile, line)) {
-    // check for lattice vectors
-    if (line.find("---------- Initializing the Grid ----------")
-        != std::string::npos && !unitCellFound) {
-      unitCellFound = true; // make sure we only read first instance
-      // skip a line, then read in lattice vectors
-      std::getline(infile,line);
-      // read in lattice vectors
-      for(int i = 0; i < 3; i++) {
-        std::getline(infile,line);
-        auto lv = split(line, ' ');
-        for (int j = 0; j < 3; j++) {
-          directUnitCell(i,j) = std::stod(lv[j+1]);
-        }
-      }
-    }
+
     // get the phonon supercell size
     if(line.find("supercell") != std::string::npos && line.find("\\") != std::string::npos) {
-
       auto mesh = split(line, ' ');
-      std::cout << line << std::endl;
       qCoarseGrid[0] = std::stoi(mesh[1]);
       qCoarseGrid[1] = std::stoi(mesh[2]);
       qCoarseGrid[2] = std::stoi(mesh[3]);
-    }
-
-    // check if the line contains ionic positions
-    if (line.find("initial-state ") != std::string::npos) {
-      // next lines contain ion positions in lattice coords
-      // and atomic species
-      while(std::getline(infile,line)) {
-        // if ion is not in the line, we have all the lines now
-        std::cout << line << std::endl;
-
-        if(line.find("ion ") == std::string::npos)
-          break;
-
-        // otherwise, extract the positions
-        auto pos = split(line, ' ');
-        // if the unique species is not in this list, add it
-        if (std::find(speciesNames.begin(), speciesNames.end(), pos[1]) ==
-            speciesNames.end()) {
-          speciesNames.push_back(pos[1]);
-        }
-        // add the atomic position and species type # for this
-        // position to the list
-        // save the atom number of this species
-        tempSpecies.push_back(std::find(speciesNames.begin(),
-              speciesNames.end(), pos[1]) - speciesNames.begin());
-
-        // save position
-        std::vector<double> temp;
-        for(int j = 0; j < 3; j++) temp.push_back(std::stod(pos[j+2]));
-        tempPositions.push_back(temp);
-      }
     }
   }
   infile.close();
@@ -111,51 +73,17 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
           + std::to_string(qCoarseGrid(1)) + " " + std::to_string(qCoarseGrid(2)));
   }
 
-  // ready final data structures
-  int numElements = speciesNames.size();
-  int numAtoms = tempPositions.size();
-
-  Eigen::VectorXd speciesMasses(numElements);
-  Eigen::MatrixXd atomicPositions(numAtoms, 3);
-  Eigen::VectorXi atomicSpecies(numAtoms);
-
-  PeriodicTable periodicTable;
-  for (int i = 0; i < numElements; i++)
-    speciesMasses[i] = periodicTable.getMass(speciesNames[i]) * massAmuToRy;
-
-  // convert unit cell positions to cartesian, in bohr
-  for (int i = 0; i < numAtoms; i++) {
-    // copy into Eigen structure
-    atomicSpecies(i) = tempSpecies[i];
-    // convert to cartesian
-    Eigen::Vector3d temp(tempPositions[i][0], tempPositions[i][1],
-                         tempPositions[i][2]);
-    Eigen::Vector3d temp2 =
-        directUnitCell.transpose() * temp; // lattice already in Bohr
-    atomicPositions(i, 0) = temp2(0);
-    atomicPositions(i, 1) = temp2(1);
-    atomicPositions(i, 2) = temp2(2);
-  }
-
-  // Read if hasDielectric -- for now, let's just assume no. However, 
-  // there should be some way to supply this information. 
-  Eigen::Matrix3d dielectricMatrix;
-  dielectricMatrix.setZero();
-  Eigen::Tensor<double, 3> bornCharges(numAtoms, 3, 3);
-  bornCharges.setZero();
-
   // Read in the cellMap/R vector file
   // =============================================================
-  fileName = directory + "totalE.phononCellMap";
-  if (fileName.empty()) {
-    Error("Must provide a cellMap file name");
-  }
 
-  // open the file
+  fileName = directory + "totalE.phononCellMap";
+
+    // open the file
   infile.open(fileName);
-  if(!infile.is_open()) {
+  if (fileName.empty() || !infile.is_open()) {
     Error("*.phononCellMap file not found in " + directory);
   }
+
   if (mpi->mpiHead())
     std::cout << "Reading in " + fileName + "." << std::endl;
 
@@ -247,13 +175,8 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
     }
   }
 
-  // Now we do postprocessing
-  Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses, bornCharges);
-  crystal.print();
-
   if (mpi->mpiHead()) {
-    std::cout << "Successfully parsed harmonic JDFTx files.\n" << std::endl;
+    std::cout << "Successfully parsed harmonic phonon JDFTx files.\n" << std::endl;
   }
 
   Eigen::VectorXd cellWeights(nCells);
@@ -269,5 +192,247 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
     Warning("The phonon force constants from JDFTx already have a sum rule applied.\n"
       "Therefore, the sum rule chosen from input will be ignored.");
   }
+  if(atomicSpecies.size() > 1) { 
+    Warning("You have a material which has more than one species, and therefore may be polar."
+    "Currently, we are not set up to parse the effective charges and dielectric matrix from JDFTx --"
+    "however this should be possible, so let us know if you need this capability.");
+  }
   return {crystal, dynamicalMatrix};
+}
+
+std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
+                                                      Context &context, 
+                                                      [[maybe_unused]] Crystal *inCrystal) {
+
+  // the directory where jdftx inputs live 
+  std::string directory = context.getJDFTxDirectory();
+
+  // parse the crystal structure from totalE.out 
+  // ========================================================================
+  Crystal crystal = parseCrystal(context);
+  int numAtoms = crystal.getNumAtoms();
+  auto directUnitCell = crystal.getDirectUnitCell();
+  auto atomicSpecies = crystal.getAtomicSpecies();
+  auto atomicPositions = crystal.getAtomicPositions();
+
+  // load in the data written to jdftx.elph.phoebe.hdf5 by the conversion script
+  // ========================================================================
+
+  // set up containers to read data into 
+  std::vector<std::vector<std::vector<std::complex<double>>>> HWannier;
+  Eigen::MatrixXd cellMap;
+  Eigen::Vector3i kMesh; 
+  int nCells, nWannier, nBands, nElectrons, spinFactor; 
+  double chemicalPotential;
+
+  #ifdef HDF5_AVAIL
+
+  std::string fileName = directory + "jdftx.elph.phoebe.hdf5";
+  if (fileName.empty()) {
+    Error("Check your path, jdftx.elph.phoebe.hdf5 not found at " + fileName);
+  }
+  if (mpi->mpiHead())
+    std::cout << "Reading in " + fileName + "." << std::endl;
+
+  try {
+
+    // Open the hdf5 file
+    HighFive::File file(fileName, HighFive::File::ReadOnly);
+
+    // Set up hdf5 datasets
+    HighFive::DataSet dHwannier = file.getDataSet("/wannierHamiltonian");
+    HighFive::DataSet dCellMap = file.getDataSet("/elBravaisVectors");
+    HighFive::DataSet dkMesh = file.getDataSet("/kMesh");
+    HighFive::DataSet dnElec = file.getDataSet("/numElectrons");
+    HighFive::DataSet dnBands = file.getDataSet("/numElBands");
+    HighFive::DataSet dnSpin = file.getDataSet("/numSpin");
+
+    // read in the data 
+    dHwannier.read(HWannier);
+    dCellMap.read(cellMap);
+    dkMesh.read(kMesh);
+    dnElec.read(nElectrons);
+    dnBands.read(nBands);
+    dnSpin.read(spinFactor);
+
+    nCells = HWannier.size(); 
+    nWannier = HWannier[0].size(); 
+
+    std::cout << "nCells nWannier " << nCells << " " << nWannier << std::endl;
+
+    // Sanity check data that has been read in 
+    if(int(cellMap.cols()) != nCells) {
+      Error("Somehow, the number of R vectors in your JDFTx elWannier cell map does\n"
+          "not match your wannier.mlwfH file!");
+    }
+    if(cellMap.rows() != 3) { Error("JDFTx el cellMap does not have correct first dimension."); }
+
+  } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
+    Error("Issue found while reading jdftx.elph.phoebe.hdf5. Make sure it exists at " + fileName +
+          "\n and is not open by some other persisting processes.");
+  }
+
+  #else
+    Error("To use JDFTx input for Wannier Hamiltonian, you must build the code with HDF5.");
+  #endif
+
+  // close out the function and return everything 
+  // ========================================================================
+
+  // For now, we do not have access to this information 
+  // (the position matrix elements in the Wannier basis) from JDFTx. However, 
+  // the function that uses this is never called, so we just send this as 
+  // zeros to the constructor
+  Eigen::Tensor<std::complex<double>, 4> rMatrix(3, nCells, nWannier, nWannier);
+  rMatrix.setZero();
+
+  // copy the HWannier into an Eigen tensor for the ElectronWannierH0 constructor
+  Eigen::Tensor<std::complex<double>, 3> h0R(nCells, nWannier, nWannier);
+  for(int iCell = 0; iCell < nCells; iCell++) {
+    for(int iw1 = 0; iw1 < nWannier; iw1++) {
+      for(int iw2 = 0; iw2 < nWannier; iw2++) {
+        h0R(iCell,iw1,iw2) = HWannier[iCell][iw1][iw2]; 
+      }
+    }
+  }
+
+  // Here there is no born charge data, so we set this to zero 
+  // This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor)
+  Eigen::Matrix3d dielectricMatrix = Eigen::Matrix3d::Zero();
+  Eigen::Tensor<double, 3> bornCharges(int(atomicPositions.rows()), 3, 3);
+  bornCharges.setZero();
+
+  // for JDFTx, cell weights already are applied to HWannier, therefore, 
+  // we set them to one 
+  Eigen::VectorXd cellWeights(nCells); cellWeights.setConstant(1.);
+
+  ElectronH0Wannier electronH0(directUnitCell, cellMap, cellWeights, h0R, rMatrix);
+
+  if (mpi->mpiHead()) {
+    std::cout << "Successfully parsed JDFTx electronic Hamiltonian files.\n" << std::endl;
+  }
+
+  Kokkos::Profiling::popRegion();
+  return std::make_tuple(crystal, electronH0);
+}
+
+/* Helper function to read crystal class information  */
+Crystal JDFTxParser::parseCrystal(Context& context) {
+
+  // TODO we need to fix this before publishing 
+  std::string directory = context.getJDFTxDirectory();
+  std::string fileName = directory + "totalE.out";
+
+  // open input file
+  std::ifstream infile(fileName);
+
+  if (fileName.empty() || !infile.is_open()) {
+    Error("totalE.out file not found at " + directory);
+  }
+  if (mpi->mpiHead())
+    std::cout << "Reading in " + fileName + "." << std::endl;
+
+  std::string line;
+  std::vector<std::string> lineSplit;
+
+  // read in direct unit cell from totalE.out
+  // ========================================================================
+  Eigen::Matrix3d directUnitCell;
+
+  // we don't know # of atoms ahead of time
+  std::vector<std::vector<double>> tempPositions;
+  std::vector<int> tempSpecies;
+  std::vector<std::string> speciesNames;
+  bool unitCellFound = false;
+
+  while (std::getline(infile, line)) {
+    // check for lattice vectors
+    if (line.find("---------- Initializing the Grid ----------")
+        != std::string::npos && !unitCellFound) {
+      unitCellFound = true; // make sure we only read first instance
+      // skip a line, then read in lattice vectors
+      std::getline(infile,line);
+      // read in lattice vectors
+      for(int i = 0; i < 3; i++) {
+        std::getline(infile,line);
+        auto lv = split(line, ' ');
+        for (int j = 0; j < 3; j++) {
+          directUnitCell(i,j) = std::stod(lv[j+1]);
+        }
+      }
+    }
+
+    // check if the line contains ionic positions
+    if (line.find("forces-output-coords") != std::string::npos) {
+      // next lines contain ion positions in lattice coords
+      // and atomic species
+      while(std::getline(infile,line)) {
+
+        std::cout << line << std::endl;
+
+        // if ion is not in the line, we have all the lines now
+        if(line.find("ion ") == std::string::npos)
+          break;
+
+        // otherwise, extract the positions
+        auto pos = split(line, ' ');
+        // if the unique species is not in this list, add it
+        if (std::find(speciesNames.begin(), speciesNames.end(), pos[1]) ==
+            speciesNames.end()) {
+          speciesNames.push_back(pos[1]);
+        }
+        // add the atomic position and species type # for this
+        // position to the list
+        // save the atom number of this species
+        tempSpecies.push_back(std::find(speciesNames.begin(),
+              speciesNames.end(), pos[1]) - speciesNames.begin());
+
+        // save position
+        std::vector<double> temp;
+        for(int j = 0; j < 3; j++) temp.push_back(std::stod(pos[j+2]));
+        tempPositions.push_back(temp);
+      }
+    }
+  }
+  infile.close();
+
+  // ready final data structures
+  int numElements = speciesNames.size();
+  int numAtoms = tempPositions.size();
+
+  Eigen::VectorXd speciesMasses(numElements);
+  Eigen::MatrixXd atomicPositions(numAtoms, 3);
+  Eigen::VectorXi atomicSpecies(numAtoms);
+
+  PeriodicTable periodicTable;
+  for (int i = 0; i < numElements; i++)
+    speciesMasses[i] = periodicTable.getMass(speciesNames[i]) * massAmuToRy;
+
+  // convert unit cell positions to cartesian, in bohr
+  for (int i = 0; i < numAtoms; i++) {
+    // copy into Eigen structure
+    atomicSpecies(i) = tempSpecies[i];
+    // convert to cartesian
+    Eigen::Vector3d temp(tempPositions[i][0], tempPositions[i][1],
+                         tempPositions[i][2]);
+    Eigen::Vector3d temp2 =
+        directUnitCell.transpose() * temp; // lattice already in Bohr
+    atomicPositions(i, 0) = temp2(0);
+    atomicPositions(i, 1) = temp2(1);
+    atomicPositions(i, 2) = temp2(2);
+  }
+
+  // Here there is no born charge data, so we set this to zero 
+  // This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor) 
+  Eigen::Tensor<double, 3> bornCharges(numAtoms, 3, 3);
+  bornCharges.setZero();
+
+  // Now we do postprocessing
+  Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
+                  speciesNames, speciesMasses, bornCharges);
+  crystal.print();
+
+  return crystal; 
+
 }

@@ -19,11 +19,11 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   //	in real space.
 
   // TODO we need to fix this before publishing 
-  std::string directory = "/mnt/ceph/users/jcoulter/11.Si-hydro/1.jdftx/";
+  std::string directory = "/mnt/ceph/users/jcoulter/4.Cu/9.jdftx/";
 
   std::string fileName = directory + "phonon.out";
   if (fileName.empty())
-    Error("Must provide a totalE.out file name");
+    Error("phonon.out file not found in " + directory);
 
   std::string line;
   std::vector<std::string> lineSplit;
@@ -46,7 +46,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   std::vector<std::string> speciesNames;
 
   bool unitCellFound = false;
-  Eigen::Vector3i qCoarseGrid;
+  Eigen::Vector3i qCoarseGrid; qCoarseGrid.setZero();
 
   while (std::getline(infile, line)) {
     // check for lattice vectors
@@ -65,10 +65,10 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
       }
     }
     // get the phonon supercell size
-    if(line.find("supercell") != std::string::npos
-        && line.find("\\") != std::string::npos) {
+    if(line.find("supercell") != std::string::npos && line.find("\\") != std::string::npos) {
 
       auto mesh = split(line, ' ');
+      std::cout << line << std::endl;
       qCoarseGrid[0] = std::stoi(mesh[1]);
       qCoarseGrid[1] = std::stoi(mesh[2]);
       qCoarseGrid[2] = std::stoi(mesh[3]);
@@ -78,7 +78,6 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
     if (line.find("initial-state ") != std::string::npos) {
       // next lines contain ion positions in lattice coords
       // and atomic species
-      std::cout << "found forces-output-coords " << line << std::endl;
       while(std::getline(infile,line)) {
         // if ion is not in the line, we have all the lines now
         std::cout << line << std::endl;
@@ -107,6 +106,10 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
     }
   }
   infile.close();
+  if (qCoarseGrid(0) <= 0 || qCoarseGrid(1) <= 0 || qCoarseGrid(2) <= 0) {
+    Error("Found a invalid coarse q grid: " + std::to_string(qCoarseGrid(0)) + " " 
+          + std::to_string(qCoarseGrid(1)) + " " + std::to_string(qCoarseGrid(2)));
+  }
 
   // ready final data structures
   int numElements = speciesNames.size();
@@ -118,9 +121,8 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
 
   PeriodicTable periodicTable;
   for (int i = 0; i < numElements; i++)
-  {  speciesMasses[i] = periodicTable.getMass(speciesNames[i]);
-     std::cout << "mass atom " << i << " " << speciesMasses[i] << std::endl;
-  }
+    speciesMasses[i] = periodicTable.getMass(speciesNames[i]) * massAmuToRy;
+
   // convert unit cell positions to cartesian, in bohr
   for (int i = 0; i < numAtoms; i++) {
     // copy into Eigen structure
@@ -152,7 +154,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   // open the file
   infile.open(fileName);
   if(!infile.is_open()) {
-    Error("*.phononCellMap file not found in " + directory + ".");
+    Error("*.phononCellMap file not found in " + directory);
   }
   if (mpi->mpiHead())
     std::cout << "Reading in " + fileName + "." << std::endl;
@@ -179,19 +181,15 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
 
   // check that the file exists 
   fileName = directory + "totalE.phononOmegaSq";
-  if (fileName.empty()) {
-    Error("*.phononOmegaSq not found at " + fileName);
-  }
-
   // open input file
   infile.open(fileName, std::ios::in | std::ios::binary);
 
-  if (not infile.is_open()) {
-    Error("D2 file not found");
+  if (fileName.empty() || !infile.is_open()) {
+    Error("*.phononOmegaSq not found at " + fileName);
   }
+
   if (mpi->mpiHead())
     std::cout << "Reading in " + fileName + "." << std::endl;
-
 
   // the size of the totalE.phononOmegaSq file is
   // ncells * nModes * nModes, which we know.
@@ -200,88 +198,76 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   if(!infile.read((char*)buffer.data(), size*sizeof(double))) {
     Error("Problem found when reading in phononOmegaSq file!");
   }
+  infile.close();
 
   // reshape the force constants to match the expected phoebe format 
-  auto mapped_t = Eigen::TensorMap<Eigen::Tensor<double, 7>>(&buffer[0], 
-                                          3, 3, 
-                                          qCoarseGrid[0], qCoarseGrid[1], qCoarseGrid[2], 
-                                          numAtoms, numAtoms);
-  // force constants matrix 
-  Eigen::Tensor<double, 7> forceConstants = mapped_t;
+  // first we read it in as JDFTx expects it, then below, we swap the dimension
+  // arguments and teh numAtoms arguments for use in PhononH0
+  auto mapped_t = Eigen::TensorMap<Eigen::Tensor<double,5>>(&buffer[0],
+                                          numAtoms, 3, numAtoms, 3, nCells);
 
-  std::cout << std::scientific;
-  int counter = 0;
+  // force constants matrix 
+  Eigen::Tensor<double,5> forceConstantsInitial = mapped_t;
+  Eigen::array<int, 5> shuffling({1, 3, 0, 2, 4}); 
+  Eigen::Tensor<double,5> forceConstants = forceConstantsInitial.shuffle(shuffling);
+
+  // JDFTx uses hartree, so here we must convert to Ry
+  // Additionally, there is a second factor of 2 which accounts for the 
+  // factor of 2 difference in mass between Rydberg and Hartree atomic units
+  // the JDFTx force constants already include the atomic masses
+  forceConstants = forceConstants * 2. * 2.; 
+
+  Eigen::MatrixXd bravaisVectors(3,nCells); 
+  // convert cell map to cartesian coordinates 
   for(int iR = 0; iR<nCells; iR++) {
 
     // use cellMap to get R vector indices
     std::vector<int> Rcrys = cellMap[iR];
 
-    // index this cell to the position in the supercell
-    //int m1 = mod((Rcrys[0] + 1), qCoarseGrid(0));
-    //if (m1 <= 0) m1 += qCoarseGrid(0);
-
-    //int m2 = mod((Rcrys[1] + 1), qCoarseGrid(1));
-    //if (m2 <= 0) m2 += qCoarseGrid(1);
-
-    //int m3 = mod((Rcrys[2] + 1), qCoarseGrid(2));
-    //if (m3 <= 0) m3 += qCoarseGrid(2);
-
-    //m1 += -1; m2 += -1; m3 += -1;
-
     // convert from crystal coordinate indices to cartesian coordinates
     // to match Phoebe conventions 
-    Eigen::Vector3d Rcart = Rcrys[0] * directUnitCell.row(0) + Rcrys[1] * directUnitCell.row(1) +  iRcrysR[2] * directUnitCell.row(2);
-    //std::cout << "icell conversion " << iR[0] << iR[1] << iR[2] << " " << m1 << " " << m2 << " " << m3 << std::endl;
-    //std::cout << "iR vs R " << iR[0] << " " << iR[1] << " " << iR[2] << "  " << R[0] << " " << R[1] << " " << R[2] << std::endl;
+    Eigen::Vector3d Rcart = Rcrys[0] * directUnitCell.row(0) + Rcrys[1] * directUnitCell.row(1) +  Rcrys[2] * directUnitCell.row(2);
+    bravaisVectors(0,iR) = Rcart(0); 
+    bravaisVectors(1,iR) = Rcart(1); 
+    bravaisVectors(2,iR) = Rcart(2); 
 
-    // loop over nMode1
-    // I think this should go nAtom1x, nAtom1y..
-    for(int ia1 = 0; ia1<numAtoms; ia1++) {
-      for(int ic1 = 0; ic1<3; ic1++) {
+    for(int ia = 0; ia<numAtoms; ia++) {
+      for(int ja = 0; ja<numAtoms; ja++) {
+        for (int i : {0, 1, 2}) {
+          for (int j : {0, 1, 2}) {
 
-        // loop over nMode2
-        for(int ia2 = 0; ia2<numAtoms; ia2++) {
-          for(int ic2 = 0; ic2<3; ic2++) {
-/*
-           // need to discard these buffer elements, too
-           if(iR[0] < 0 || iR[1] < 0 || iR[2] < 0) {
-              // lets try only the positive quadrant
-              counter++;
-            }
-           else {
-            int m1 = iR[0];
-            int m2 = iR[1];
-            int m3 = iR[2];
-*/
-            // units are in hartree/bohr^2, convert to Ry/bohr^2
-            forceConstants(ic1,ic2,m1,m2,m3,ia1,ia2) = buffer[counter]*2.;
-            counter++;
-            //std::cout << forceConstants(ic1,ic2,m1,m2,m3,ia1,ia2) << " ";
-//           }
-
+            // the JDFTx force constants also already include the atomic masses, 
+            // and are in fact C/sqrt(M_i * M_j)
+            int iSpecies = atomicSpecies(ia);
+            int jSpecies = atomicSpecies(ja);
+            forceConstants(i,j,ia,ja,iR) = forceConstants(i,j,ia,ja,iR) * sqrt(speciesMasses(iSpecies) * speciesMasses(jSpecies));
           }
         }
-        //std::cout << std::endl;
       }
     }
-    //std::cout << std::endl;
   }
-  infile.close();
 
   // Now we do postprocessing
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses);
+                  speciesNames, speciesMasses, bornCharges);
   crystal.print();
 
-  if (qCoarseGrid(0) <= 0 || qCoarseGrid(1) <= 0 || qCoarseGrid(2) <= 0) {
-    Error("qCoarseGrid smaller than zero");
-  }
   if (mpi->mpiHead()) {
     std::cout << "Successfully parsed harmonic JDFTx files.\n" << std::endl;
   }
 
-  PhononH0 dynamicalMatrix(crystal, dielectricMatrix, bornCharges,
-                           forceConstants, context.getSumRuleFC2());
+  Eigen::VectorXd cellWeights(nCells);
+  cellWeights.setConstant(1.);
 
+  PhononH0 dynamicalMatrix(crystal, dielectricMatrix, 
+                           forceConstants, qCoarseGrid, 
+                           bravaisVectors, cellWeights);
+
+  // no need to apply a sum rule, as the JDFTx matrix elements have already
+  // had one applied internally
+  if(context.getSumRuleFC2() != "none") {
+    Warning("The phonon force constants from JDFTx already have a sum rule applied.\n"
+      "Therefore, the sum rule chosen from input will be ignored.");
+  }
   return {crystal, dynamicalMatrix};
 }

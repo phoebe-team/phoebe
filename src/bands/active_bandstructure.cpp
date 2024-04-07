@@ -1249,13 +1249,14 @@ void ActiveBandStructure::symmetrize(Context &context,
   auto atomicSpecies = lowSymCrystal.getAtomicSpecies();
   auto speciesNames = lowSymCrystal.getSpeciesNames();
   auto speciesMasses = lowSymCrystal.getSpeciesMasses();
+  auto bornCharges = lowSymCrystal.getBornEffectiveCharges();
 
   // temporarily set symmetries = true, then turn off after this.
   bool useSymmetries = context.getUseSymmetries();
   context.setUseSymmetries(true);
 
   Crystal highSymCrystal(context, directCell, atomicPositions,
-                         atomicSpecies, speciesNames, speciesMasses);
+                         atomicSpecies, speciesNames, speciesMasses, bornCharges);
   Points highSymPoints = points;
   highSymPoints.swapCrystal(highSymCrystal);
 
@@ -1384,13 +1385,14 @@ void ActiveBandStructure::enforceBandNumSymmetry(
   auto atomicSpecies = lowSymCrystal.getAtomicSpecies();
   auto speciesNames = lowSymCrystal.getSpeciesNames();
   auto speciesMasses = lowSymCrystal.getSpeciesMasses();
+  auto bornCharges = lowSymCrystal.getBornEffectiveCharges();
 
   // temporarily set symmetries = true, then turn off after this.
   bool useSymmetries = context.getUseSymmetries();
   context.setUseSymmetries(true);
 
   Crystal highSymCrystal(context, directCell, atomicPositions,
-                         atomicSpecies, speciesNames, speciesMasses);
+                         atomicSpecies, speciesNames, speciesMasses, bornCharges);
   Points highSymPoints = points;
   highSymPoints.swapCrystal(highSymCrystal);
 

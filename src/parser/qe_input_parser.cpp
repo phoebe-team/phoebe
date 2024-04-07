@@ -491,10 +491,13 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
   //	Now we parse the coarse q grid
   std::getline(infile, line);
   lineSplit = split(line, ' ');
-  Eigen::VectorXi qCoarseGrid(3);
+  Eigen::Vector3i qCoarseGrid(3);
   qCoarseGrid(0) = std::stoi(lineSplit[0]);
   qCoarseGrid(1) = std::stoi(lineSplit[1]);
   qCoarseGrid(2) = std::stoi(lineSplit[2]);
+  if (qCoarseGrid(0) <= 0 || qCoarseGrid(1) <= 0 || qCoarseGrid(2) <= 0) {
+    Error("qCoarseGrid smaller than zero");
+  }
 
   Eigen::Tensor<double, 7> forceConstants(3, 3, qCoarseGrid[0], qCoarseGrid[1],
                                           qCoarseGrid[2], numAtoms, numAtoms);
@@ -524,21 +527,27 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
   infile.close();
 
   // Now we do postprocessing
-
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses);
+                  speciesNames, speciesMasses, bornCharges);
   crystal.print();
 
-  if (qCoarseGrid(0) <= 0 || qCoarseGrid(1) <= 0 || qCoarseGrid(2) <= 0) {
-    Error("qCoarseGrid smaller than zero");
-  }
   if (mpi->mpiHead()) {
-    std::cout << "Successfully parsed harmonic QE files.\n"
+    std::cout << "Successfully parsed harmonic QE phonon files.\n"
               << std::endl;
   }
 
-  PhononH0 dynamicalMatrix(crystal, dielectricMatrix, bornCharges,
-                           forceConstants, context.getSumRuleFC2());
+  // apply the appropriate ASR to the force constants 
+  setAcousticSumRule(context.getSumRuleFC2(), crystal, qCoarseGrid, forceConstants);
+
+  // from phonopy we don't have the cell weights, so here we generate the 
+  // R vectors and weights, and then reorder the force constants to match them
+  auto tup = reorderHarmonicForceConstants(crystal, forceConstants, qCoarseGrid);
+  Eigen::Tensor<double,5> matFC2 = std::get<0>(tup);
+  Eigen::MatrixXd bravaisVectors = std::get<1>(tup);
+  Eigen::VectorXd weights = std::get<2>(tup);
+
+  PhononH0 dynamicalMatrix(crystal, dielectricMatrix, 
+                           matFC2, qCoarseGrid, bravaisVectors, weights);
 
   Kokkos::Profiling::popRegion();
   return std::make_tuple(crystal, dynamicalMatrix);
@@ -619,7 +628,6 @@ QEParser::parseElHarmonicFourier(Context &context) {
   }
 
   // we read the unit cell
-
   Eigen::Matrix3d directUnitCell;
   Eigen::Vector3d thisValues;
   pugi::xml_node cell = atomicStructure.child("cell");
@@ -673,10 +681,14 @@ QEParser::parseElHarmonicFourier(Context &context) {
     // Error("Grid found in QE:XML, should have used full kPoints grid");
   }
 
-  // Initialize the crystal class
+  // here we don't parse born data, but we could also add this if needed for some reason. 
+  Eigen::Matrix3d dielectricMatrix = Eigen::Matrix3d::Zero();
+  Eigen::Tensor<double, 3> bornCharges(numAtoms, 3, 3);
+  bornCharges.setZero();
 
+  // Initialize the crystal class
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses);
+                  speciesNames, speciesMasses, bornCharges);
   crystal.print();
 
   // initialize reciprocal lattice cell
@@ -1031,9 +1043,15 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
       speciesMasses[i] = periodicTable.getMass(speciesName);
       i += 1;
     }
+    
+    // here there is no born charge data, so we set this to zero 
+    Eigen::Matrix3d dielectricMatrix = Eigen::Matrix3d::Zero();
+    Eigen::Tensor<double, 3> bornCharges(int(atomicPositions.rows()), 3, 3);
+    bornCharges.setZero();
 
+    // Initialize the crystal class
     Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                    speciesNames, speciesMasses);
+                    speciesNames, speciesMasses, bornCharges);
     crystal.print();
     Kokkos::Profiling::popRegion();
     return std::make_tuple(crystal, electronH0);

@@ -24,7 +24,8 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
                  Eigen::MatrixXd &atomicPositions_,
                  Eigen::VectorXi &atomicSpecies_,
                  std::vector<std::string> &speciesNames_,
-                 Eigen::VectorXd &speciesMasses_) {
+                 Eigen::VectorXd &speciesMasses_,
+                 Eigen::Tensor<double, 3>& bornCharges_) {
 
   setDirectUnitCell(directUnitCell_); // sets both direct and reciprocal
   volumeUnitCell = calcVolume(directUnitCell);
@@ -49,6 +50,7 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
   atomicPositions = atomicPositions_;
   speciesMasses = speciesMasses_;
   speciesNames = speciesNames_;
+  bornCharges = bornCharges_;
 
   numAtoms = int(atomicPositions.rows());
   numSpecies = int(speciesNames.size());
@@ -306,7 +308,9 @@ const Eigen::Matrix3d &Crystal::getReciprocalUnitCell() {
   return reciprocalUnitCell;
 }
 
-const int &Crystal::getNumAtoms() const { return numAtoms; }
+const int &Crystal::getNumAtoms() { return numAtoms; }
+
+const Eigen::Tensor<double, 3> Crystal::getBornEffectiveCharges() { return bornCharges; }
 
 double Crystal::getVolumeUnitCell(int dimensionality_) {
   double volume;

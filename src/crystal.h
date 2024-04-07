@@ -46,6 +46,7 @@ protected:
   std::vector<std::string> atomicNames;    // size (numAtoms)
   Eigen::VectorXd atomicMasses;            // size (numAtoms)
   Eigen::VectorXd atomicIsotopeCouplings;  // size (numAtoms)
+  Eigen::Tensor<double, 3> bornCharges;    // size (numAtoms,3,3)
 
   // vectors running over the number of species
   std::vector<std::string> speciesNames;   // size (numSpecies)
@@ -74,7 +75,7 @@ public:
   Crystal(Context &context, Eigen::Matrix3d &directUnitCell_, Eigen::MatrixXd &atomicPositions_,
           Eigen::VectorXi &atomicSpecies_,
           std::vector<std::string> &speciesNames_,
-          Eigen::VectorXd &speciesMasses_);
+          Eigen::VectorXd &speciesMasses_, Eigen::Tensor<double, 3>& bornCharges_);
 
   /** Empty constructor.
    */
@@ -107,7 +108,12 @@ public:
   /** get the number of atoms in the unit cell
    *
    */
-  const int &getNumAtoms() const;
+  const int &getNumAtoms();
+
+  /** Return the born effective charges for the crystal object. 
+   * 
+  */
+  const Eigen::Tensor<double, 3> getBornEffectiveCharges();
 
   /** get the volume of the crystal unit cell in Bohr^3
    * @param dimensionality: returns the volume of the unit cell on a reduced

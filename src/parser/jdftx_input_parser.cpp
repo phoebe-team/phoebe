@@ -210,9 +210,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   // parse the crystal structure from totalE.out 
   // ========================================================================
   Crystal crystal = parseCrystal(context);
-  int numAtoms = crystal.getNumAtoms();
   auto directUnitCell = crystal.getDirectUnitCell();
-  auto atomicSpecies = crystal.getAtomicSpecies();
   auto atomicPositions = crystal.getAtomicPositions();
 
   // load in the data written to jdftx.elph.phoebe.hdf5 by the conversion script
@@ -222,16 +220,16 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
 
   // here, we do something weird -- if SOC is used, JDFTx's wannier files become 
   // complex rather than real. Depending on spinFac, we change how this is read in 
+  // We read these into vectors because if read into Eigen, things become flipped 
   std::vector<std::vector<std::vector<std::complex<double>>>> HWannier;
-
-  Eigen::MatrixXd cellMap;
+  std::vector<std::vector<double>> cellMap;
   Eigen::Vector3i kMesh; 
   int nCells = 0;
   int nWannier = 0;
   int nBands = 0; 
   int nElectrons = 0; 
   int spinFactor = 2;
-  double chemicalPotential;
+  double fermiLevel;
 
   #ifdef HDF5_AVAIL
 
@@ -254,6 +252,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
     HighFive::DataSet dnElec = file.getDataSet("/numElectrons");
     HighFive::DataSet dnBands = file.getDataSet("/numElBands");
     HighFive::DataSet dnSpin = file.getDataSet("/numSpin");
+    HighFive::DataSet dmu = file.getDataSet("/chemicalPotential");
 
     // read in the data 
     dHwannier.read(HWannier);
@@ -262,16 +261,17 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
     dnElec.read(nElectrons);
     dnBands.read(nBands);
     dnSpin.read(spinFactor);
+    dmu.read(fermiLevel);
 
     nCells = HWannier.size(); 
     nWannier = HWannier[0].size(); 
 
     // Sanity check data that has been read in 
-    if(int(cellMap.cols()) != nCells) {
+    if(int(cellMap[0].size()) != nCells) {
       Error("Somehow, the number of R vectors in your JDFTx elWannier cell map does\n"
           "not match your wannier.mlwfH file!");
     }
-    if(cellMap.rows() != 3) { Error("JDFTx el cellMap does not have correct first dimension."); }
+    if(cellMap.size() != 3) { Error("JDFTx el cellMap does not have correct first dimension."); }
 
   } catch (std::exception &error) {
     if(mpi->mpiHead()) std::cout << error.what() << std::endl;
@@ -293,27 +293,36 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   //Eigen::Tensor<std::complex<double>, 4> rMatrix(3, nCells, nWannier, nWannier);
   //rMatrix.setZero();
 
-  // copy the HWannier into an Eigen tensor for the ElectronWannierH0 constructor
+  context.setHasSpinOrbit(spinFactor);
+  if (spinFactor == 1) { // the case of spin orbit
+    nElectrons /= 2.;
+  }
+  context.setNumOccupiedStates(nElectrons);
+
+  // if the user didn't set the Fermi level, we do it here.
+  if (std::isnan(context.getFermiLevel()))
+    context.setFermiLevel(fermiLevel);
+
+  // copy the HWannier and cell Map into Eigen containers for the ElectronWannierH0 constructor
+  Eigen::MatrixXd cellMapReformat(3,nCells);
   Eigen::Tensor<std::complex<double>, 3> h0R(nCells, nWannier, nWannier);
+
   for(int iCell = 0; iCell < nCells; iCell++) {
     for(int iw1 = 0; iw1 < nWannier; iw1++) {
       for(int iw2 = 0; iw2 < nWannier; iw2++) {
         h0R(iCell,iw1,iw2) = HWannier[iCell][iw1][iw2]; 
       }
     }
+    cellMapReformat(0,iCell) = cellMap[0][iCell];
+    cellMapReformat(1,iCell) = cellMap[1][iCell];
+    cellMapReformat(2,iCell) = cellMap[2][iCell];
   }
-
-  // Here there is no born charge data, so we set this to zero 
-  // This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor)
-  Eigen::Matrix3d dielectricMatrix = Eigen::Matrix3d::Zero();
-  Eigen::Tensor<double, 3> bornCharges(int(atomicPositions.rows()), 3, 3);
-  bornCharges.setZero();
 
   // for JDFTx, cell weights already are applied to HWannier, therefore, 
   // we set them to one 
   Eigen::VectorXd cellWeights(nCells); cellWeights.setConstant(1.);
 
-  ElectronH0Wannier electronH0(directUnitCell, cellMap, cellWeights, h0R);
+  ElectronH0Wannier electronH0(directUnitCell, cellMapReformat, cellWeights, h0R);
 
   if (mpi->mpiHead()) {
     std::cout << "Successfully parsed JDFTx electronic Hamiltonian files.\n" << std::endl;
@@ -356,6 +365,7 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
     // check for lattice vectors
     if (line.find("---------- Initializing the Grid ----------")
         != std::string::npos && !unitCellFound) {
+
       unitCellFound = true; // make sure we only read first instance
       // skip a line, then read in lattice vectors
       std::getline(infile,line);
@@ -374,8 +384,6 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
       // next lines contain ion positions in lattice coords
       // and atomic species
       while(std::getline(infile,line)) {
-
-        std::cout << line << std::endl;
 
         // if ion is not in the line, we have all the lines now
         if(line.find("ion ") == std::string::npos)

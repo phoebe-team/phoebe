@@ -19,14 +19,15 @@ import sys
 #qMesh                    Dataset {3, 1}
 
 hf = h5py.File('jdftx.elph.phoebe.hdf5', 'w')
-hf.create_dataset("dftCode",data="JDFTx")
+phaseConvention = 1
+hf.create_dataset('phaseConvention',data=phaseConvention)
 
 # Read kpoints information and chemical potential, nelec, spin, etc from JDFTx
 for line in open('totalE.out'):
     if line.startswith('\tFillingsUpdate:'):
         mu = float(line.split()[2])
     if line.startswith('nElectrons:'):
-        nElec = int(float(line.split()[1]))
+        nElec = int(line.split()[1].split('.')[0])
     if line.startswith('spintype'):
         if(line.split()[1] == 'no-spin'): nSpin = 2
         else: nSpin = 1
@@ -48,14 +49,6 @@ Hwannier = Hwannier.astype(complex)
 
 # save the Wannier hamiltonian + R vectors and weights to HDF5 for Phoebe 
 # Note: cell weights are one because they were applied above when Hwannier was expanded 
-
-# To be written: 
-# elBravaisVectors         Dataset {3, 1957}
-# elDegeneracies           Dataset {1957, 1}
-# kMesh                    Dataset {3, 1}
-# numElBands               Dataset {SCALAR}
-# numElectrons             Dataset {SCALAR}
-# numSpin                  Dataset {SCALAR}
 
 # Phoebe expects these in cartesian coordinates (Bohr)
 cellMap = np.loadtxt("wannier.mlwfCellMap")[:,3:6].astype(float)
@@ -105,9 +98,10 @@ cellMapEph = np.loadtxt('wannier.mlwfCellMapPh', usecols=[3,4,5]).astype(float)
 
 # write the elph information 
 hf.create_dataset('elphDegeneracies', data=np.ones(nCellsEph).reshape(nCellsEph,1))
-hf.create_dataset('elphBravaisVectors', data=cellMapEph.T)
-hf.create_dataset("fileFormat",data=1)  # TODO check that this is right
+hf.create_dataset('elphBravaisVectors', data=cellMapEph.reshape(3,-1))  # reshaping this way thrwarts a problem with Eigen and row/col major
+hf.create_dataset("fileFormat",data=1)  # this tells Phoebe to read in all the data at once rather than in chunks 
 HePhWannier = HePhWannier.flatten()*2.  # convert Ha->Ry
+HePhWannier = HePhWannier.astype(complex)
 hf.create_dataset('gWannier', data=HePhWannier.reshape(1,HePhWannier.shape[0]))
 
 # write some phonon related information 

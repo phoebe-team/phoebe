@@ -444,7 +444,7 @@ VectorBTE PhononTransportApp::getPhononElectronLinewidth(Context& context, Cryst
     // load the elph coupling
     // Note: this file contains the number of electrons
     // which is needed to understand where to place the fermi level
-    auto couplingElPh = InteractionElPhWan::parse(context, crystalPh, &phononH0);
+    auto couplingElPh = InteractionElPhWan::parse(context, crystalPh, phononH0);
 
     // TODO unsure if we should allow this variable to be set by the user in place of
     // the standard kmesh, to be consistent with other uses.

@@ -60,7 +60,7 @@ void CoupledTransportApp::run(Context &context) {
 
   // read in electron-phonon coupling ---------------------------------
   // TODO does this also checks that the crystal is the same one read in for ph FC2?
-  InteractionElPhWan couplingElPh = InteractionElPhWan::parse(context, crystal, &phononH0);
+  InteractionElPhWan couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
 
   // Set up phonon bandstructure information ---------------------------------------------
   if (mpi->mpiHead()) {

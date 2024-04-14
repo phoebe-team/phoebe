@@ -371,7 +371,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
       // Generate couplings for fixed k1, all k2s and all Q3Cs
       couplingElPhWan->calcCouplingSquared(eigenVector1, allEigenVectors2,
-                                          allEigenVectors3, allQ3C, allPolarData);
+                                          allEigenVectors3, allQ3C, k1C, allPolarData);
 
       // do postprocessing loop with batch of couplings to calculate the scattering rates
       for (int iq3Batch = 0; iq3Batch < batch_size; iq3Batch++) {

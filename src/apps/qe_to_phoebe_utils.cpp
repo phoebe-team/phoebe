@@ -316,7 +316,7 @@ void ElPhQeToPhoebeApp::testBackTransform(
   context.setElphFileName(context.getQuantumEspressoPrefix() + ".phoebe.elph.dat");
 #endif
 
-  auto couplingElPh = InteractionElPhWan::parse(context, crystal, &phononH0);
+  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
 
   for (int ik1 = 0; ik1 < numKPoints; ik1++) {
     Eigen::Vector3d k1C =
@@ -354,7 +354,7 @@ void ElPhQeToPhoebeApp::testBackTransform(
       polarData.push_back(polar);
 
       couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2,
-                                       eigenVectors3, q3Cs, polarData);
+                                       eigenVectors3, q3Cs, k1C, polarData);
       auto coupling2 = couplingElPh.getCouplingSquared(0);
 
       double sum1 = 0.;
@@ -852,20 +852,20 @@ void ElPhQeToPhoebeApp::writeWannierCoupling(
 
   if (context.getHdf5ElPhFileFormat()==1) {
     writeElPhCouplingHDF5v1(context, gWannier, numFilledWannier, numSpin,
-                               numModes, numWannier, phDegeneracies,
-                               elDegeneracies, phBravaisVectors,
-                               elBravaisVectors, qMesh, kMesh);
+                              numModes, numWannier, phDegeneracies,
+                              elDegeneracies, phBravaisVectors,
+                              elBravaisVectors, qMesh, kMesh);
   } else {
     writeElPhCouplingHDF5v2(context, gWannier, numFilledWannier, numSpin,
-                               numModes, numWannier, phDegeneracies,
-                               elDegeneracies, phBravaisVectors,
-                               elBravaisVectors, qMesh, kMesh);
+                              numModes, numWannier, phDegeneracies,
+                              elDegeneracies, phBravaisVectors,
+                              elBravaisVectors, qMesh, kMesh);
   }
 #else
   writeElPhCouplingNoHDF5(context, gWannier, numFilledWannier, numSpin,
-                          numModes, numWannier, phDegeneracies,
-                          elDegeneracies, phBravaisVectors,
-                          elBravaisVectors, qMesh, kMesh);
+                              numModes, numWannier, phDegeneracies,
+                              elDegeneracies, phBravaisVectors,
+                              elBravaisVectors, qMesh, kMesh);
 #endif
 
   if (mpi->mpiHead()) {

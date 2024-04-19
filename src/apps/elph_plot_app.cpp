@@ -14,13 +14,6 @@
 
 void ElPhCouplingPlotApp::run(Context &context) {
 
-// NOTE: this appears to work now	
-//  if(mpi->hasPools()) {
-//    Error("Cannot currently run el-ph coupling plot app with\n"
-//        "MPI pool size (-ps) greater than 1. Please run without pools\n"
-//        "or let the developers know you need this feature.");
-// }
-
   // load ph files
   auto t2 = Parser::parsePhHarmonic(context);
   auto crystal = std::get<0>(t2);
@@ -34,7 +27,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
   // load the el-ph coupling
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
-  auto couplingElPh = InteractionElPhWan::parse(context, crystal, &phononH0);
+  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
 
   Eigen::Vector3i mesh;
   if (context.getG2PlotStyle() == "qFixed") {
@@ -250,7 +243,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
     // calculate the elph coupling squared
     couplingElPh.cacheElPh(eigenVector1, k1C);  // fourier transform + rotation by k
-    couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, q3Cs, polarData);   // fourier transform + rotation by k' and q
+    couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, q3Cs, k1C, polarData);   // fourier transform + rotation by k' and q
     //couplingElPh.oldCalcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, k1C, k2Cs, q3Cs);   // fourier transform + rotation by k' and q
     auto couplingSq = couplingElPh.getCouplingSquared(0);  // access the stored matrix elements, which are for the given triplet. Object has bands |g(m,m',nu)|^2
 

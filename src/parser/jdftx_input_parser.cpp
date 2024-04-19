@@ -130,7 +130,8 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
 
   // reshape the force constants to match the expected phoebe format 
   // first we read it in as JDFTx expects it, then below, we swap the dimension
-  // arguments and teh numAtoms arguments for use in PhononH0
+  // arguments and the numAtoms arguments for use in PhononH0
+  // Phoebe uses numAtoms, numAtoms, 3, 3 
   auto mapped_t = Eigen::TensorMap<Eigen::Tensor<double,5>>(&buffer[0],
                                           numAtoms, 3, numAtoms, 3, nCells);
 
@@ -142,7 +143,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   // JDFTx uses hartree, so here we must convert to Ry
   // Additionally, there is a second factor of 2 which accounts for the 
   // factor of 2 difference in mass between Rydberg and Hartree atomic units
-  // the JDFTx force constants already include the atomic masses
+  // the JDFTx force constants alreadyx include the atomic masses
   forceConstants = forceConstants * 2. * 2.; 
 
   Eigen::MatrixXd bravaisVectors(3,nCells); 
@@ -150,14 +151,15 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   for(int iR = 0; iR<nCells; iR++) {
 
     // use cellMap to get R vector indices
-    std::vector<int> Rcrys = cellMap[iR];
+    Eigen::Vector3i Rcrys = {cellMap[iR][0],cellMap[iR][1],cellMap[iR][2]};
 
     // convert from crystal coordinate indices to cartesian coordinates
     // to match Phoebe conventions 
-    Eigen::Vector3d Rcart = Rcrys[0] * directUnitCell.row(0) + Rcrys[1] * directUnitCell.row(1) +  Rcrys[2] * directUnitCell.row(2);
-    bravaisVectors(0,iR) = Rcart(0); 
-    bravaisVectors(1,iR) = Rcart(1); 
-    bravaisVectors(2,iR) = Rcart(2); 
+    Eigen::Vector3d Rcart = Rcrys[0] * directUnitCell.col(0) + Rcrys[1] * directUnitCell.col(1) +  Rcrys[2] * directUnitCell.col(2);
+    bravaisVectors(0,iR) = -Rcart(0); 
+    bravaisVectors(1,iR) = -Rcart(1); 
+    bravaisVectors(2,iR) = -Rcart(2); 
+
 
     for(int ia = 0; ia<numAtoms; ia++) {
       for(int ja = 0; ja<numAtoms; ja++) {
@@ -172,7 +174,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
           }
         }
       }
-    }
+    } 
   }
 
   if (mpi->mpiHead()) {
@@ -183,7 +185,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   cellWeights.setConstant(1.);
 
   PhononH0 dynamicalMatrix(crystal, dielectricMatrix, 
-                           forceConstants, qCoarseGrid, 
+                           forceConstants, qCoarseGrid,
                            bravaisVectors, cellWeights);
 
   // no need to apply a sum rule, as the JDFTx matrix elements have already
@@ -192,9 +194,9 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
     Warning("The phonon force constants from JDFTx already have a sum rule applied.\n"
       "Therefore, the sum rule chosen from input will be ignored.");
   }
-  if(atomicSpecies.size() > 1) { 
-    Warning("You have a material which has more than one species, and therefore may be polar."
-    "Currently, we are not set up to parse the effective charges and dielectric matrix from JDFTx --"
+  if(speciesMasses.size() > 1) { 
+    Warning("You have a material which has more than one species, and therefore may be polar.\n"
+    "Currently, we are not set up to parse the effective charges and dielectric matrix from JDFTx --\n"
     "however this should be possible, so let us know if you need this capability.");
   }
   return {crystal, dynamicalMatrix};
@@ -293,9 +295,11 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   //Eigen::Tensor<std::complex<double>, 4> rMatrix(3, nCells, nWannier, nWannier);
   //rMatrix.setZero();
 
-  context.setHasSpinOrbit(spinFactor);
-  if (spinFactor == 1) { // the case of spin orbit
-    nElectrons /= 2.;
+  bool spinOrbit = false; 
+  if(spinFactor == 1) spinOrbit = true; 
+  context.setHasSpinOrbit(spinOrbit);
+  if (!spinOrbit) { // the case of spin orbit
+    nElectrons /= 2;
   }
   context.setNumOccupiedStates(nElectrons);
 
@@ -423,6 +427,10 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
   for (int i = 0; i < numElements; i++)
     speciesMasses[i] = periodicTable.getMass(speciesNames[i]) * massAmuToRy;
 
+  speciesMasses.setConstant(1.);
+
+  directUnitCell.transposeInPlace();
+
   // convert unit cell positions to cartesian, in bohr
   for (int i = 0; i < numAtoms; i++) {
     // copy into Eigen structure
@@ -436,6 +444,9 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
     atomicPositions(i, 1) = temp2(1);
     atomicPositions(i, 2) = temp2(2);
   }
+
+  // unit cell of JDFTx is transposed wrt QE/VASP definition
+  //directUnitCell.transposeInPlace();
 
   // Here there is no born charge data, so we set this to zero 
   // This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor) 

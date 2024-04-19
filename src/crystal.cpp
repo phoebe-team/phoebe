@@ -31,19 +31,19 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
   volumeUnitCell = calcVolume(directUnitCell);
 
   if (volumeUnitCell <= 0.) {
-    Error("Unexpected non positive volume");
+    Error("Crystal somehow has a zero or negative unit cell volume.");
   }
 
   dimensionality = context.getDimensionality();
 
   if (atomicSpecies_.size() != atomicPositions_.rows()) {
-    Error("atomic species and positions are not aligned");
+    Error("Atomic species and positions are not aligned.");
   }
   if (atomicPositions_.cols() != 3) {
-    Error("atomic positions need three coordinates");
+    Error("Atomic positions need three coordinates.");
   }
   if ((int)speciesMasses_.size() != (int)speciesNames_.size()) {
-    Error("species masses and names are not aligned");
+    Error("Species masses and names are not aligned.");
   }
 
   atomicSpecies = atomicSpecies_;

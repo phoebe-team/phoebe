@@ -10,11 +10,10 @@ ElScatteringMatrix::ElScatteringMatrix(Context &context_,
                                        StatisticsSweep &statisticsSweep_,
                                        BaseBandStructure &innerBandStructure_,
                                        BaseBandStructure &outerBandStructure_,
-                                       PhononH0 &h0_,
-                                       InteractionElPhWan *couplingElPhWan_)
+                                       PhononH0 &h0_)
     : ScatteringMatrix(context_, statisticsSweep_, innerBandStructure_, outerBandStructure_),
      BaseElScatteringMatrix(context_, statisticsSweep_, innerBandStructure_, outerBandStructure_),
-      couplingElPhWan(couplingElPhWan_), phononH0(h0_) {
+       phononH0(h0_) {
 
   isMatrixOmega = true;
   highMemory = context.getScatteringMatrixInMemory();
@@ -66,11 +65,21 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // add scattering contributions ---------------------------------------
   // add elph scattering
   // TODO are we sure this should get two Fermi's and not have one of them be a Bose?
+
+  { // let the interaction elph go out of scope after this, it takes a lot of memory
+
+  // load the elph coupling
+  // Note: this file contains the number of electrons
+  // which is needed to understand where to place the fermi level
+  Crystal crystal = innerBandStructure.getPoints().getCrystal(); 
+  InteractionElPhWan couplingElPh = 
+      InteractionElPhWan::parse(context, crystal, phononH0);
+
   addElPhScattering(*this, context, inPopulations, outPopulations, switchCase,
                                   kPairIterator, innerFermi, //outerFermi,
                                   innerBandStructure, outerBandStructure, phononH0,
-                                  couplingElPhWan, linewidth);
-
+                                  &couplingElPh, linewidth);
+  }
   // add charged impurity electron scattering  -------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
                        switchCase, kPairIterator,
@@ -114,7 +123,7 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // use the off diagonals to calculate the linewidths, 
   // to ensure the special eigenvectors can be found/preserve conservation of momentum 
   // that might be ruined by the delta functions 
-  reinforceLinewidths();
+  //reinforceLinewidths();
 
  // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths

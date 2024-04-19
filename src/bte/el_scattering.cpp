@@ -139,7 +139,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
       Kokkos::Profiling::popRegion();
 
       couplingElPhWan->calcCouplingSquared(eigenVector1, allEigenVectors2,
-                                           allEigenVectors3, allQ3C, allPolarData);
+                                           allEigenVectors3, allQ3C, k1C, allPolarData);
 
       Kokkos::Profiling::pushRegion("symmetrize coupling");
 #pragma omp parallel for

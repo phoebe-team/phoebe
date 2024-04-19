@@ -11,7 +11,7 @@ const double phEnergyCutoff = 0.001 / ryToCmm1; // discard states with small ome
 
 void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
-                  const int dragTermType, // 0 for el (kn, qs), 1 for ph drag (qs,kn)
+                  const int& dragTermType, // 0 for el (kn, qs), 1 for ph drag (qs,kn)
                   ElectronH0Wannier *electronH0,
                   InteractionElPhWan *couplingElPhWan,
                   BaseBandStructure &phononBandStructure, // phonon
@@ -279,7 +279,6 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
             kpPolarData = polarDataQMinus.row(iQBatch);   // TODO check that this is the right syntax vs the old version 
     
           } 
-
           allKpCartesian[iQBatch] = kpCartesian;      // kP wavevector 
           allPolarData[iQBatch] = kpPolarData;        // long range polar data
 
@@ -327,7 +326,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
         // remember: k+' = 0, k-' = 1
         bool useMinusQ = false; //bool(isKpMinus); 
         couplingElPhWan->calcCouplingSquared(eigenVectorK, allEigenVectorsKp, allEigenVectorsQ, 
-					                                   allQCartesian, allPolarData, useMinusQ);
+					                                   allQCartesian, kCartesian, allPolarData, useMinusQ);
 
         // symmetrize the coupling matrix elements for improved numerical stability 
         Kokkos::Profiling::pushRegion("symmetrize drag coupling");
@@ -979,7 +978,7 @@ void addDragTerm2(CoupledScatteringMatrix &matrix, Context &context,
 }*/
         //couplingElPhWan->oldCalcCouplingSquared(eigenVectorK, allEigenVectorsKp, allEigenVectorsQ, kCartesian, allKpCartesian, allQCartesian);
         couplingElPhWan->cacheElPh(eigenVectorK,kCartesian);
-        couplingElPhWan->calcCouplingSquared(eigenVectorK, allEigenVectorsKp, allEigenVectorsQ, allQCartesian, allPolarData);
+        couplingElPhWan->calcCouplingSquared(eigenVectorK, allEigenVectorsKp, allEigenVectorsQ, allQCartesian, kCartesian, allPolarData);
 
         // sum over q internally now
         for (auto iQBatch : {0,1} ) { 

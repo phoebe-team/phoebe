@@ -166,7 +166,7 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
 
   friend void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
-                  int dragTermType,
+                  const int& dragTermType,
                   ElectronH0Wannier* electronH0,
                   InteractionElPhWan *couplingElPhWan,
                   BaseBandStructure &innerBandStructure,

@@ -43,7 +43,7 @@ std::tuple<Crystal, ElectronH0Wannier> Parser::parseElHarmonicWannier(
   // from qe we expect a seedname. file
   if(!context.getWannier90Prefix().empty()) {
     if(mpi->mpiHead()) std::cout << "\nParsing Wannier Hamiltonian from QE." << std::endl;
-  return QEParser::parseElHarmonicWannier(context, inCrystal);
+    return QEParser::parseElHarmonicWannier(context, inCrystal);
   }
   // the jdftx filename is seedname.mlwfH
   else if(!context.getJDFTxDirectory().empty()) {
@@ -52,7 +52,7 @@ std::tuple<Crystal, ElectronH0Wannier> Parser::parseElHarmonicWannier(
   } else {
     Error("Unrecognised Wannier Hamiltonian format!\n"
     "-- to use Wannier90, supply a file with a *_tb.dat extension\n"
-    "-- to use JDFTx, supply a file with the .mlwfH extension\n");
+    "-- to use JDFTx, the jdftx.elph.phoebe.hdf5 file\n");
     return QEParser::parseElHarmonicWannier(context,inCrystal); // this isn't ever reached, just silences warnings
   }
 }

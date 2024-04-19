@@ -17,7 +17,7 @@ const int Dph = 1;
 // TODO change this to a coupled scattering matrix
 void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
-                  int dragTermType,
+                  const int& dragTermType,
                   ElectronH0Wannier* electronH0,
                   InteractionElPhWan *couplingElPhWan,
                   BaseBandStructure &innerBandStructure, // phonon

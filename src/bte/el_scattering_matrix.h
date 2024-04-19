@@ -26,13 +26,11 @@ public:
    * path
    * @param h0: phonon hamiltonian used to compute phonon energies and
    * eigenvectors.
-   * @param couplingElPhWan_: object with the electron-phonon coupling.
    */
   ElScatteringMatrix(Context &context_, StatisticsSweep &statisticsSweep_,
                      BaseBandStructure &innerBandStructure_,
-                     BaseBandStructure &outerBandStructure_, PhononH0 &h0,
-                     InteractionElPhWan *couplingElPhWan_ = nullptr);
-
+                     BaseBandStructure &outerBandStructure_, PhononH0 &h0);
+                     
   /** Function to return the momentum relaxation times specifically */
   VectorBTE getSingleModeMRTimes();
 
@@ -72,12 +70,13 @@ protected:
                        std::shared_ptr<VectorBTE> linewidth);
 
   friend void addDragTerm(BaseElScatteringMatrix &matrix, Context &context,
-                  std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
-                  int dragTermType,
-                  ElectronH0Wannier* electronH0,
-                  InteractionElPhWan *couplingElPhWan,
-                  BaseBandStructure &innerBandStructure,
-                  BaseBandStructure &outerBandStructure, std::shared_ptr<VectorBTE> linewidth);
+                      std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
+                      const int& dragTermType,
+                      ElectronH0Wannier* electronH0,
+                      InteractionElPhWan *couplingElPhWan,
+                      BaseBandStructure &innerBandStructure,
+                      BaseBandStructure &outerBandStructure, 
+                      std::shared_ptr<VectorBTE> linewidth);
 
   friend void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &context,
                        std::vector<VectorBTE> &inPopulations,

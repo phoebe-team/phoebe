@@ -8,7 +8,7 @@
 // specific parse function for the case where there is no
 // HDF5 available
 InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
-                               PhononH0 *phononH0_) {
+                               PhononH0& phononH0_) {
 
   std::string fileName = context.getElphFileName();
 
@@ -150,19 +150,26 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
   mpi->bcast(&phBravaisVectorsDegeneracies_);
   mpi->bcast(&couplingWannier_, mpi->interPoolComm);
 
+  // there is no JDFTx parsing option for this function, so we will always have 
+  // phase convention 0, in which we use Re and Rp
+  int phaseConvention_ = 0; 
+
   InteractionElPhWan output(crystal, couplingWannier_, elBravaisVectors_,
                             elBravaisVectorsDegeneracies_, phBravaisVectors_,
-                            phBravaisVectorsDegeneracies_, phononH0_);
+                            phBravaisVectorsDegeneracies_, phaseConvention_, phononH0_);
   return output;
 }
 
 #ifdef HDF5_AVAIL
 
 std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
-    Eigen::VectorXd, Eigen::VectorXd> parseHeaderHDF5(Context &context) {
+    Eigen::VectorXd, Eigen::VectorXd, int> parseHeaderHDF5(Context &context) {
+
   std::string fileName = context.getElphFileName();
 
-  int numElectrons, numSpin;
+  // Here, phase convention corresponds to using 
+  // g(Re,Rp) (phase convention = 1) or g(Re',Re) (phase convention = 2)
+  int numElectrons, numSpin, phaseConvention; 
   int numElBands, numElBravaisVectors, totalNumElBravaisVectors, numPhBands, numPhBravaisVectors;
   // suppress initialization warning
   numElBravaisVectors = 0; totalNumElBravaisVectors = 0; numPhBravaisVectors = 0;
@@ -195,20 +202,39 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
         dnElBands.read(numElBands);
         dnModes.read(numPhBands);
 
+        HighFive::DataSet dPhaseConvention = file.getDataSet("/phaseConvention");
+        dPhaseConvention.read(phaseConvention);
+
+        std::string datasetPhBravaisVectors = "/phBravaisVectors";
+        std::string datasetPhDegeneracies = "/phDegeneracies";
+        std::string datasetElBravaisVectors = "/elBravaisVectors";
+        std::string datasetElDegeneracies = "/elDegeneracies";
+
+        // if this is a jdftx elph file, we need to read in elphBravaisVectors
+        // here, instead of el and ph bravais vectors, we just have one set of R 
+        // vectors saved under elphBravaisVectors 
+        if(phaseConvention == 1) { 
+          datasetPhBravaisVectors = "/elphBravaisVectors";
+          datasetPhDegeneracies = "/elphDegeneracies";
+          datasetElBravaisVectors = "/elphBravaisVectors";
+          datasetElDegeneracies = "/elphDegeneracies";
+        }
+
         // read phonon bravais lattice vectors and degeneracies
-        HighFive::DataSet dphbravais = file.getDataSet("/phBravaisVectors");
-        HighFive::DataSet dphDegeneracies = file.getDataSet("/phDegeneracies");
+        HighFive::DataSet dphbravais = file.getDataSet(datasetPhBravaisVectors);
+        HighFive::DataSet dphDegeneracies = file.getDataSet(datasetPhDegeneracies);
         dphbravais.read(phBravaisVectors_);
         dphDegeneracies.read(phBravaisVectorsDegeneracies_);
         numPhBravaisVectors = int(phBravaisVectors_.cols());
 
         // read electron Bravais lattice vectors and degeneracies
-        HighFive::DataSet delDegeneracies = file.getDataSet("/elDegeneracies");
+        HighFive::DataSet delDegeneracies = file.getDataSet(datasetElDegeneracies);
         delDegeneracies.read(elBravaisVectorsDegeneracies_);
         totalNumElBravaisVectors = int(elBravaisVectorsDegeneracies_.size());
         numElBravaisVectors = int(elBravaisVectorsDegeneracies_.size());
-        HighFive::DataSet delbravais = file.getDataSet("/elBravaisVectors");
+        HighFive::DataSet delbravais = file.getDataSet(datasetElBravaisVectors);
         delbravais.read(elBravaisVectors_);
+
         // redistribute in case of pools are present
         if (mpi->getSize(mpi->intraPoolComm) > 1) {
           localElVectors = mpi->divideWorkIter(totalNumElBravaisVectors, mpi->intraPoolComm);
@@ -236,15 +262,16 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     mpi->bcast(&numElBravaisVectors, mpi->interPoolComm);
     mpi->bcast(&totalNumElBravaisVectors, mpi->interPoolComm);
     mpi->bcast(&numElBravaisVectors, mpi->interPoolComm);
+    mpi->bcast(&phaseConvention);
 
-    if (numSpin == 2) {
-      Error("Spin is not currently supported");
+    // phase convention 2 is used by JDFTx, which supports spin
+    if (numSpin == 2 and phaseConvention == 0) {
+      Error("Spin is not currently supported when using QE.");
     }
     context.setNumOccupiedStates(numElectrons);
 
     if (!mpi->mpiHeadPool()) {// head already allocated these
-      localElVectors = mpi->divideWorkIter(totalNumElBravaisVectors,
-                                           mpi->intraPoolComm);
+      localElVectors = mpi->divideWorkIter(totalNumElBravaisVectors, mpi->intraPoolComm);
       phBravaisVectors_.resize(3, numPhBravaisVectors);
       phBravaisVectorsDegeneracies_.resize(numPhBravaisVectors);
       elBravaisVectors_.resize(3, numElBravaisVectors);
@@ -262,12 +289,13 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
 
   return std::make_tuple(numElBands, numPhBands, totalNumElBravaisVectors, elBravaisVectors_,
           phBravaisVectors_, localElVectors, elBravaisVectorsDegeneracies_,
-          phBravaisVectorsDegeneracies_);
+          phBravaisVectorsDegeneracies_, phaseConvention);
 }
 
 // specific parse function for the case where parallel HDF5 is available
 InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
-                               PhononH0 *phononH0_) {
+                               PhononH0& phononH0_) {
+
   Kokkos::Profiling::pushRegion("parseHDF5V1");
 
   std::string fileName = context.getElphFileName();
@@ -283,6 +311,7 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
   Eigen::VectorXd phBravaisVectorsDegeneracies_ = std::get<7>(t);
   int numElBravaisVectors = elBravaisVectorsDegeneracies_.size();
   int numPhBravaisVectors = phBravaisVectorsDegeneracies_.size();
+  int phaseConvention = std::get<8>(t);
 
   Eigen::Tensor<std::complex<double>, 5> couplingWannier_;
 
@@ -516,19 +545,28 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
     Error("Issue reading elph Wannier representation from hdf5.");
   }
 
+  //Eigen::array<int, 5> shuffling({1, 0, 2, 4, 3}); 
+  //couplingWannier_ = couplingWannier_.shuffle(shuffling);
+  //std::cout << std::scientific << std::endl;
+
+  //for(int i = 0; i<numPhBands; i++) { 
+  //  std::cout << " coupling wannier " << couplingWannier_(3,7,i,63,1) << std::endl;
+  //}
+  //couplingWannier_.setConstant(1.);
+
   Kokkos::Profiling::pushRegion("Interaction constructor");
   InteractionElPhWan output(crystal, couplingWannier_, elBravaisVectors_,
                             elBravaisVectorsDegeneracies_, phBravaisVectors_,
-                            phBravaisVectorsDegeneracies_, phononH0_);
+                            phBravaisVectorsDegeneracies_, phaseConvention, phononH0_);
   Kokkos::Profiling::popRegion();
   Kokkos::Profiling::popRegion();
   return output;
+
 }
 
-
 // specific parse function for the case where parallel HDF5 is available
-InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal,
-                               PhononH0 *phononH0_) {
+InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal, PhononH0 &phononH0_) {
+
   std::string fileName = context.getElphFileName();
 
   auto t = parseHeaderHDF5(context);
@@ -541,6 +579,10 @@ InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal,
   Eigen::VectorXd phBravaisVectorsDegeneracies_ = std::get<7>(t);
   int numElBravaisVectors = elBravaisVectorsDegeneracies_.size();
   int numPhBravaisVectors = phBravaisVectorsDegeneracies_.size();
+  int phaseConvention = std::get<8>(t);
+  if(phaseConvention == 1) { 
+    DeveloperError("There is no phaseConvention=1 possibility for parseHDF5 version 2!"); 
+  }
 
   Eigen::Tensor<std::complex<double>, 5> couplingWannier_;
 
@@ -628,14 +670,14 @@ InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal,
 
   InteractionElPhWan output(crystal, couplingWannier_, elBravaisVectors_,
                             elBravaisVectorsDegeneracies_, phBravaisVectors_,
-                            phBravaisVectorsDegeneracies_, phononH0_);
+                            phBravaisVectorsDegeneracies_, phaseConvention, phononH0_);
   return output;
 }
 
 
 // specific parse function for the case where parallel HDF5 is available
 InteractionElPhWan parseHDF5(Context &context, Crystal &crystal,
-                             PhononH0 *phononH0_) {
+                             PhononH0 &phononH0_) {
   // check for existence of file
   std::string fileName = context.getElphFileName();
   {
@@ -681,7 +723,7 @@ InteractionElPhWan parseHDF5(Context &context, Crystal &crystal,
 
 // General parse function
 InteractionElPhWan InteractionElPhWan::parse(Context &context, Crystal &crystal,
-                                             PhononH0 *phononH0_) {
+                                             PhononH0& phononH0_) {
   if (mpi->mpiHead()) {
     std::cout << "\n";
     std::cout << "Started parsing of el-ph interaction." << std::endl;

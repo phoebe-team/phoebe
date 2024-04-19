@@ -29,26 +29,27 @@
 // TODO: add flag to let user decide whether to use or not polar corrections
 class InteractionElPhWan {
 
-  Crystal &crystal;
-  //PhononH0 *phononH0 = nullptr;
-  int numPhBands, numElBands, numElBravaisVectors, numPhBravaisVectors;
+  Crystal crystal;
+  PhononH0 phononH0;
+  int numPhBands, numElBands, numWsR1Vectors, numWsR2Vectors;
   std::vector<Eigen::Tensor<double, 3>> cacheCoupling;
   bool usePolarCorrection = false;
+  const int phaseConvention; 
 
   // kokkos objects for GPU accelerated elph coupling
   ComplexView4D elPhCached;
   ComplexView5D couplingWannier_k;
-  DoubleView2D phBravaisVectors_k;
-  DoubleView1D phBravaisVectorsDegeneracies_k;
-  DoubleView2D elBravaisVectors_k;
-  DoubleView1D elBravaisVectorsDegeneracies_k;
+  DoubleView2D wsR2Vectors_k;
+  DoubleView1D wsR2VectorsDegeneracies_k;
+  DoubleView2D wsR1Vectors_k;
+  DoubleView1D wsR1VectorsDegeneracies_k;
   std::vector<ComplexView4D::HostMirror> elPhCached_hs;
 
   // TODO TEMPORARY, for old interpolation method
-  Eigen::MatrixXd elBravaisVectors;
-  Eigen::VectorXd elBravaisVectorsDegeneracies;
-  Eigen::MatrixXd phBravaisVectors;
-  Eigen::VectorXd phBravaisVectorsDegeneracies;
+  Eigen::MatrixXd wsR1Vectors;
+  Eigen::VectorXd wsR1VectorsDegeneracies;
+  Eigen::MatrixXd wsR2Vectors;
+  Eigen::VectorXd wsR2VectorsDegeneracies;
   Eigen::Tensor<std::complex<double>, 4> elPhCached_old;
   Eigen::Vector3d cachedK1;
   Eigen::Tensor<std::complex<double>, 5> couplingWannier;
@@ -57,28 +58,7 @@ class InteractionElPhWan {
   std::vector<MPI_Request> mpi_requests;
 #endif
 
-  /** Add polar correction to the electron-phonon coupling.
-   * @param q3: phonon wavevector, in cartesian coordinates
-   * @param ev1: eigenvector (rotation matrix U) at k
-   * @param ev2: eigenvector (rotation matrix U) at k'
-   * @param ev3: phonon eigenvector at q = k'-k
-   * @return g^L: the long-range (Frohlich) component of the el-ph interaction,
-   * as a tensor of shape (nb1,nb2,numPhBands)
-   */
-  Eigen::Tensor<std::complex<double>, 3>
-  getPolarCorrection(const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev1,
-                     const Eigen::MatrixXcd &ev2, const Eigen::MatrixXcd &ev3);
-
-  /** Estimate the memory in bytes, occupied by the kokkos Views containing
-   * the coupling tensor to be interpolated.
-   *
-   * @return a memory estimate in bytes
-   */
-  double getDeviceMemoryUsage();
-
 public:
-
-  PhononH0 *phononH0 = nullptr;
 
   /** Main constructor
    * @param crystal_: object describing the crystal unit cell.
@@ -89,40 +69,42 @@ public:
    * electronic Bravais Lattice vectors. Built such that the iw2 Wannier
    * functions are set in the origin (k2 doesn't contribute to the Fourier
    * transform).
-   * @param elBravaisVectors_: list of Bravais lattice vectors used in the
+   * @param wsR1Vectors_: list of Bravais lattice vectors used in the
    * electronic Fourier transform of the coupling.
-   * @param elBravaisVectorsWeights_: weights (degeneracies) of the
+   * @param wsR1VectorsWeights_: weights (degeneracies) of the
    * lattice vectors used in the electronic Fourier transform of the coupling.
-   * @param phBravaisVectors_: list of Bravais lattice vectors used in the
+   * @param wsR2Vectors_: list of Bravais lattice vectors used in the
    * phonon Fourier transform of the coupling.
-   * @param phBravaisVectorsWeights_: weights (degeneracies) of the
+   * @param wsR2VectorsWeights_: weights (degeneracies) of the
    * lattice vectors used in the phonon Fourier transform of the coupling.
-   * @param phononH0_: pointer to the phonon dynamical matrix object. Used for
+   * @param phaseConvention_: whether to use g(Re,Rp) = convention = 0 or 
+   * g(Re,Re') = convention = 1, as used by JDFTx
+   * @param phononH0_: the phonon dynamical matrix object. Used for
    * adding the polar interaction.
    */
   InteractionElPhWan(
-      Crystal &crystal_,
-      const Eigen::Tensor<std::complex<double>, 5> &couplingWannier_,
-      const Eigen::MatrixXd &elBravaisVectors_,
-      const Eigen::VectorXd &elBravaisVectorsDegeneracies_,
-      const Eigen::MatrixXd &phBravaisVectors_,
-      const Eigen::VectorXd &phBravaisVectorsDegeneracies_,
-      PhononH0 *phononH0_ = nullptr);
+    const Crystal& crystal_,
+    const Eigen::Tensor<std::complex<double>, 5> &couplingWannier_,
+    const Eigen::MatrixXd &wsR1Vectors_,
+    const Eigen::VectorXd &wsR1VectorsDegeneracies_,
+    const Eigen::MatrixXd &wsR2Vectors_,
+    const Eigen::VectorXd &wsR2VectorsDegeneracies_, 
+    const int& phaseConvention, const PhononH0& phononH0_); 
 
   /** Almost empty constructor.
    * Used to fake the existence of a coupling with the constant relaxation time
    * approximation.
    * @param crystal_: a Crystal object
    */
-  InteractionElPhWan(Crystal &crystal_);
+  //InteractionElPhWan(Crystal &crystal_);
 
   /** Copy constructor
    */
-  InteractionElPhWan(const InteractionElPhWan &that);
+  //InteractionElPhWan(const InteractionElPhWan &that);
 
   /** Assignment operator
    */
-  InteractionElPhWan &operator=(const InteractionElPhWan &that);
+  //InteractionElPhWan &operator=(const InteractionElPhWan &that);
 
   /** Destructor
    */
@@ -155,6 +137,8 @@ public:
    * @param phEigvecs: phonon eigenvectors, in matrix form, for a bunch of
    * wavevectors q3
    * @param q3s: list of phonon wavevectors.
+   * @param k1C: the electron wavevector last used by cacheElPh (only used when phaseConvention)
+   * = 1, as here we need to reconstruct k2
    * @param useMinusQ: boolean to tell us if we should negate q (and related quantities)
    *                   this results in a conjugation of the ph eigenvector, e(-q) = e(q)^*
    *                   This can be useful if you want to do g(k,-q)
@@ -164,6 +148,7 @@ public:
       const std::vector<Eigen::MatrixXcd> &eigvecs2,
       const std::vector<Eigen::MatrixXcd> &eigvecs3,
       const std::vector<Eigen::Vector3d> &q3Cs,
+      const Eigen::Vector3d &k1C,
       const std::vector<Eigen::VectorXcd> &polarData, 
       const bool useMinusQ = false);
 
@@ -202,10 +187,29 @@ public:
    * @return intElPh: an instance of InteractionElPh.
    */
   static InteractionElPhWan parse(Context &context, Crystal &crystal,
-                                  PhononH0 *phononH0_ = nullptr);
+                                  PhononH0& phononH0_);
 
 
   // Helper functions --------------------------------
+
+  /** Add polar correction to the electron-phonon coupling.
+   * @param q3: phonon wavevector, in cartesian coordinates
+   * @param ev1: eigenvector (rotation matrix U) at k
+   * @param ev2: eigenvector (rotation matrix U) at k'
+   * @param ev3: phonon eigenvector at q = k'-k
+   * @return g^L: the long-range (Frohlich) component of the el-ph interaction,
+   * as a tensor of shape (nb1,nb2,numPhBands)
+   */
+  Eigen::Tensor<std::complex<double>, 3>
+  getPolarCorrection(const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev1,
+                     const Eigen::MatrixXcd &ev2, const Eigen::MatrixXcd &ev3);
+
+  /** Estimate the memory in bytes, occupied by the kokkos Views containing
+   * the coupling tensor to be interpolated.
+   *
+   * @return a memory estimate in bytes
+   */
+  double getDeviceMemoryUsage();
 
   /** Auxiliary function to return the shape of the electron-phonon tensor
    * @return (numWannier,numWannier,numPhModes,numElVectors,numPhVectors)
@@ -265,7 +269,7 @@ public:
   * 	This can be useful if you want to do g(k,-q)
   * @return polarData: the q-dependent part of the polar correction
   */
-  Eigen::MatrixXcd precomputeQDependentPolar(BaseBandStructure &phBandStructure, 
+  Eigen::MatrixXcd precomputeQDependentPolar(BaseBandStructure &phBandStructure,
 		  			     const bool useMinusQ = false);
 
 };

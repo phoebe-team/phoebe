@@ -405,8 +405,13 @@ void writeHeaderHDF5(
           "/numElectrons", HighFive::DataSpace::From(numFilledWannier));
       HighFive::DataSet dnSpin = file.createDataSet<int>(
           "/numSpin", HighFive::DataSpace::From(numSpin));
+      // if we write this with QE, it's the Giustino phase convention, which we deem phaseConv = 0
+      int phaseConvention = 0; 
+      HighFive::DataSet dphaseConvention = file.createDataSet<int>(
+          "/phaseConvention", HighFive::DataSpace::From(phaseConvention)); 
       dnElectrons.write(numFilledWannier);// # of occupied wannier functions
       dnSpin.write(numSpin);
+      dphaseConvention.write(phaseConvention);
 
       HighFive::DataSet dnElBands = file.createDataSet<int>(
           "/numElBands", HighFive::DataSpace::From(numWannier));

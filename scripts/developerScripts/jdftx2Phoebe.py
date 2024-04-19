@@ -22,6 +22,11 @@ hf = h5py.File('jdftx.elph.phoebe.hdf5', 'w')
 phaseConvention = 1
 hf.create_dataset('phaseConvention',data=phaseConvention)
 
+R = np.zeros((3,3))
+iLine = 0
+refLine = -10
+Rdone = False
+
 # Read kpoints information and chemical potential, nelec, spin, etc from JDFTx
 for line in open('totalE.out'):
     if line.startswith('\tFillingsUpdate:'):
@@ -33,11 +38,22 @@ for line in open('totalE.out'):
         else: nSpin = 1
     if line.startswith('kpoint-folding'):
         kfold = np.array([int(tok) for tok in line.split()[1:4]])
+    if line.find('Initializing the Grid') >= 0:
+            refLine = iLine
+    if not Rdone:
+            rowNum = iLine - (refLine+2)
+            if rowNum>=0 and rowNum<3:
+                    R[rowNum,:] = [ float(x) for x in line.split()[1:-1] ]
+            if rowNum==3:
+                    Rdone = True
+    iLine += 1
+
 kfoldProd = np.prod(kfold)
 kStride = np.array([kfold[1]*kfold[2], kfold[2], 1])
 
 # Read the MLWF cell map, weights and Hamiltonian ------------------
 cellMap = np.loadtxt("wannier.mlwfCellMap")[:,0:3].astype(int)
+
 Wwannier = np.fromfile("wannier.mlwfCellWeights")
 nCells = cellMap.shape[0]
 nBands = int(np.sqrt(Wwannier.shape[0] / nCells))
@@ -47,18 +63,21 @@ iReduced = np.dot(np.mod(cellMap, kfold[None,:]), kStride)
 Hwannier = Wwannier * Hreduced[iReduced]
 Hwannier = Hwannier.astype(complex)
 
-# save the Wannier hamiltonian + R vectors and weights to HDF5 for Phoebe 
-# Note: cell weights are one because they were applied above when Hwannier was expanded 
+# save the Wannier hamiltonian + R vectors and weights to HDF5 for Phoebe
+# Note: cell weights are one because they were applied above when Hwannier was expanded
 
 # Phoebe expects these in cartesian coordinates (Bohr)
-cellMap = np.loadtxt("wannier.mlwfCellMap")[:,3:6].astype(float)
+#cellMap = np.loadtxt("wannier.mlwfCellMap")[:,3:6].astype(float)
+# convert the cell map to cartesian coordinates -- these will be different than the ones
+# printed in the cell map file, as those are in R, and in Phoebe we will use R.T
+cellMap = np.einsum("yx,Rx->Ry",-1*R.T,cellMap)
 
 hf.create_dataset('elBravaisVectors', data=cellMap.T)
-hf.create_dataset('elDegeneracies', data=np.ones(nCells).reshape(nCells,1)) 
-hf.create_dataset('kMesh', data=kfold.reshape(3,1)) 
-hf.create_dataset('numElBands', data=nBands)  
-hf.create_dataset('numSpin', data=nSpin)  
-hf.create_dataset('numElectrons', data=nElec) 
+hf.create_dataset('elDegeneracies', data=np.ones(nCells).reshape(nCells,1))
+hf.create_dataset('kMesh', data=kfold.reshape(3,1))
+hf.create_dataset('numElBands', data=nBands)
+hf.create_dataset('numSpin', data=nSpin)
+hf.create_dataset('numElectrons', data=nElec)
 # in addition to regular Phoebe quantities, we will also read this from HDF5
 hf.create_dataset('chemicalPotential', data=mu*2.)  # convert to Ry
 hf.create_dataset('wannierHamiltonian', data=Hwannier*2.) # convert to Ry
@@ -76,8 +95,8 @@ for line in open('phonon.out'):
 prodPhononSup = np.prod(phononSup)
 phononSupStride = np.array([phononSup[1]*phononSup[2], phononSup[2], 1])
 
-# to make use of the generic function in Phoebe for reading elph matrix elements,  
-# we also write some phonon information to the file 
+# to make use of the generic function in Phoebe for reading elph matrix elements,
+# we also write some phonon information to the file
 cellMapPh = np.loadtxt('totalE.phononCellMap', usecols=[0,1,2]).astype(int)
 nCellsPh = cellMapPh.shape[0]
 omegaSqR = np.fromfile('totalE.phononOmegaSq')  # just a list of numbers
@@ -94,19 +113,32 @@ HePhReduced = np.fromfile('wannier.mlwfHePh').reshape((prodPhononSup,prodPhononS
 HePhWannier = cellWeightsEph[:,None,:,:,None] * cellWeightsEph[None,:,:,None,:] * HePhReduced[iReducedEph][:,iReducedEph]
 
 # reload this in cartesian coords to write it easily
-cellMapEph = np.loadtxt('wannier.mlwfCellMapPh', usecols=[3,4,5]).astype(float)
+cellMapEph = np.loadtxt('wannier.mlwfCellMapPh', usecols=[0,1,2]).astype(int)
+# convert the cell map to cartesian coordinates -- these will be different than the ones
+# printed in the cell map file, as those are in R, and in Phoebe we will use R.T
+cellMapEph = np.einsum("yx,Rx->Ry",R.T,cellMapEph)
 
-# write the elph information 
+# write the elph information
 hf.create_dataset('elphDegeneracies', data=np.ones(nCellsEph).reshape(nCellsEph,1))
 hf.create_dataset('elphBravaisVectors', data=cellMapEph.reshape(3,-1))  # reshaping this way thrwarts a problem with Eigen and row/col major
-hf.create_dataset("fileFormat",data=1)  # this tells Phoebe to read in all the data at once rather than in chunks 
-HePhWannier = HePhWannier.flatten()*2.  # convert Ha->Ry
+hf.create_dataset("fileFormat", data=1)  # this tells Phoebe to read in all the data at once rather than in chunks
+
+# transpose along the nAtoms,3 block to account for phoebe's expectation that the dynamical matrix will be
+# in the order nAtom, nAtom, 3, 3 rather than nAtom, 3, nAtom, 3 -- this is due to a row/col major ordering dilemma
+# basically, we need this block when flattened to have the ordering 1x 2x 3x 1y 2y 3y 1z 2z 3z
+# instead of the common 1x 1y 1 z 2x 2y 2z...
+HePhWannier = HePhWannier.reshape(HePhWannier.shape[0],HePhWannier.shape[1],nAtoms,3,HePhWannier.shape[3],HePhWannier.shape[4])
+HePhWannier = np.einsum('RraxWw -> RrxaWw',HePhWannier)
+HePhWannier = HePhWannier.flatten(order='C')*2.  # convert Ha->Ry
 HePhWannier = HePhWannier.astype(complex)
 hf.create_dataset('gWannier', data=HePhWannier.reshape(1,HePhWannier.shape[0]))
 
-# write some phonon related information 
+# write some phonon related information
 # reload this in cartesian coords to write it easily
-cellMapPh = np.loadtxt('totalE.phononCellMap', usecols=[3,4,5]).astype(float)
+cellMapPh = np.loadtxt('totalE.phononCellMap', usecols=[0,1,2]).astype(int)
+# convert the cell map to cartesian coordinates -- these will be different than the ones
+# printed in the cell map file, as those are in R, and in Phoebe we will use R.T
+cellMapPh = np.einsum("yx,Rx->Ry",R.T,cellMapPh)
 
 hf.create_dataset('phBravaisVectors', data=cellMapPh.T)
 hf.create_dataset('phDegeneracies', data=np.ones(nCellsPh).reshape(nCellsPh,1))

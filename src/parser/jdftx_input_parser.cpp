@@ -446,7 +446,7 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
   }
 
   // unit cell of JDFTx is transposed wrt QE/VASP definition
-  //directUnitCell.transposeInPlace();
+  directUnitCell.transposeInPlace();
 
   // Here there is no born charge data, so we set this to zero 
   // This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor) 

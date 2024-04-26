@@ -67,10 +67,9 @@ Hwannier = Hwannier.astype(complex)
 # Note: cell weights are one because they were applied above when Hwannier was expanded
 
 # Phoebe expects these in cartesian coordinates (Bohr)
-#cellMap = np.loadtxt("wannier.mlwfCellMap")[:,3:6].astype(float)
-# convert the cell map to cartesian coordinates -- these will be different than the ones
-# printed in the cell map file, as those are in R, and in Phoebe we will use R.T
-cellMap = np.einsum("yx,Rx->Ry",-1*R.T,cellMap)
+# Additionally, JDFTx uses a phase convention which expects a H(0,R) while phoebe expects
+# H(R,0) -- we account for this by adding a -1 to the phase below.
+cellMap = np.einsum("xy,Rx->Ry",-1*R.T,cellMap)
 
 hf.create_dataset('elBravaisVectors', data=cellMap.T)
 hf.create_dataset('elDegeneracies', data=np.ones(nCells).reshape(nCells,1))
@@ -114,9 +113,8 @@ HePhWannier = cellWeightsEph[:,None,:,:,None] * cellWeightsEph[None,:,:,None,:] 
 
 # reload this in cartesian coords to write it easily
 cellMapEph = np.loadtxt('wannier.mlwfCellMapPh', usecols=[0,1,2]).astype(int)
-# convert the cell map to cartesian coordinates -- these will be different than the ones
-# printed in the cell map file, as those are in R, and in Phoebe we will use R.T
-cellMapEph = np.einsum("yx,Rx->Ry",R.T,cellMapEph)
+# convert the cell map to cartesian coordinates
+cellMapEph = np.einsum("xy,Rx->Ry",R.T,cellMapEph)
 
 # write the elph information
 hf.create_dataset('elphDegeneracies', data=np.ones(nCellsEph).reshape(nCellsEph,1))
@@ -136,9 +134,8 @@ hf.create_dataset('gWannier', data=HePhWannier.reshape(1,HePhWannier.shape[0]))
 # write some phonon related information
 # reload this in cartesian coords to write it easily
 cellMapPh = np.loadtxt('totalE.phononCellMap', usecols=[0,1,2]).astype(int)
-# convert the cell map to cartesian coordinates -- these will be different than the ones
-# printed in the cell map file, as those are in R, and in Phoebe we will use R.T
-cellMapPh = np.einsum("yx,Rx->Ry",R.T,cellMapPh)
+# convert the cell map to cartesian coordinates
+cellMapPh = np.einsum("xy,Rx->Ry",R.T,cellMapPh)
 
 hf.create_dataset('phBravaisVectors', data=cellMapPh.T)
 hf.create_dataset('phDegeneracies', data=np.ones(nCellsPh).reshape(nCellsPh,1))

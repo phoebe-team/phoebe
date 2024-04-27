@@ -202,8 +202,14 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
         dnElBands.read(numElBands);
         dnModes.read(numPhBands);
 
-        HighFive::DataSet dPhaseConvention = file.getDataSet("/phaseConvention");
-        dPhaseConvention.read(phaseConvention);
+        // if phaseConvention not in the file, it's a typical QE file and phaseConv = 0
+        // if it's set, this is a jdftx file and it should be set to zero 
+        try {
+          HighFive::DataSet dPhaseConvention = file.getDataSet("/phaseConvention");
+          dPhaseConvention.read(phaseConvention);
+        } catch (std::exception &error) {
+          phaseConvention = 0;
+        }
 
         std::string datasetPhBravaisVectors = "/phBravaisVectors";
         std::string datasetPhDegeneracies = "/phDegeneracies";

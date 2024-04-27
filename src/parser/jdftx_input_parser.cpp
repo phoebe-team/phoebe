@@ -38,129 +38,71 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   Eigen::Matrix3d dielectricMatrix;
   dielectricMatrix.setZero();
 
-  // read in phonon supercell from phonon.out
+  // load in the data written to jdftx.elph.phoebe.hdf5 by the conversion script
   // ========================================================================
 
-  std::string fileName = directory + "phonon.out";
-
-  // open input file
-  std::ifstream infile(fileName);
-
-  if (fileName.empty() || !infile.is_open()) {
-    Error("phonon.out file not found in " + directory);
-  }
-  if (mpi->mpiHead())
-    std::cout << "Reading in " + fileName + "." << std::endl;
-
-  std::string line;
-  std::vector<std::string> lineSplit;
-
-  Eigen::Vector3i qCoarseGrid; 
-
-  while (std::getline(infile, line)) {
-
-    // get the phonon supercell size
-    if(line.find("supercell") != std::string::npos && line.find("\\") != std::string::npos) {
-      auto mesh = split(line, ' ');
-      qCoarseGrid[0] = std::stoi(mesh[1]);
-      qCoarseGrid[1] = std::stoi(mesh[2]);
-      qCoarseGrid[2] = std::stoi(mesh[3]);
-    }
-  }
-  infile.close();
-  if (qCoarseGrid(0) <= 0 || qCoarseGrid(1) <= 0 || qCoarseGrid(2) <= 0) {
-    Error("Found a invalid coarse q grid: " + std::to_string(qCoarseGrid(0)) + " " 
-          + std::to_string(qCoarseGrid(1)) + " " + std::to_string(qCoarseGrid(2)));
-  }
-
-  // Read in the cellMap/R vector file
-  // =============================================================
-
-  fileName = directory + "totalE.phononCellMap";
-
-    // open the file
-  infile.open(fileName);
-  if (fileName.empty() || !infile.is_open()) {
-    Error("*.phononCellMap file not found in " + directory);
-  }
-
-  if (mpi->mpiHead())
-    std::cout << "Reading in " + fileName + "." << std::endl;
-
+  // set up containers to read data into 
+  std::vector<std::vector<std::vector<std::vector<std::vector<double>>>>> FC2s; // nCells, nAtoms, 3, nAtoms, 3
+  std::vector<std::vector<double>> cellMap;
+  Eigen::Vector3i qMesh; 
   int nCells = 0;
-  std::vector<std::vector<int>> cellMap;
-  int temp1, temp2, temp3, cellMap1, cellMap2, cellMap3;
+  int nModes = 0; 
 
-  // read in the three numbers for each cell
-  std::getline(infile,line); // there's one header line
-  while( !infile.eof() ) {
-    std::getline(infile, line);
-    if(infile.eof()) break;
-    std::istringstream iss(line);
-    iss >> cellMap1 >> cellMap2 >> cellMap3 >> temp1 >> temp2 >> temp3;
-    std::vector<int> temp{cellMap1,cellMap2,cellMap3};
-    cellMap.push_back(temp);
-    nCells++;
+  #ifdef HDF5_AVAIL
+
+  std::string fileName = directory + "jdftx.elph.phoebe.hdf5";
+  if (fileName.empty()) {
+    Error("Check your path, jdftx.elph.phoebe.hdf5 not found at " + fileName);
   }
-  infile.close();
-
-  // read in dynamical matrix file
-  // ========================================================================
-
-  // check that the file exists 
-  fileName = directory + "totalE.phononOmegaSq";
-  // open input file
-  infile.open(fileName, std::ios::in | std::ios::binary);
-
-  if (fileName.empty() || !infile.is_open()) {
-    Error("*.phononOmegaSq not found at " + fileName);
-  }
-
   if (mpi->mpiHead())
     std::cout << "Reading in " + fileName + "." << std::endl;
 
-  // the size of the totalE.phononOmegaSq file is
-  // ncells * nModes * nModes, which we know.
-  size_t size = nCells * 3 * 3 * numAtoms * numAtoms;
-  std::vector<double> buffer(size);
-  if(!infile.read((char*)buffer.data(), size*sizeof(double))) {
-    Error("Problem found when reading in phononOmegaSq file!");
+  try {
+
+    // Open the hdf5 file
+    HighFive::File file(fileName, HighFive::File::ReadOnly);
+
+    // Set up hdf5 datasets
+    HighFive::DataSet dforceContants = file.getDataSet("/forceConstants");
+    HighFive::DataSet dCellMap = file.getDataSet("/phBravaisVectors");
+    HighFive::DataSet dqMesh = file.getDataSet("/qMesh");
+    HighFive::DataSet dnModes = file.getDataSet("/numPhModes");
+
+    // read in the data 
+    dforceContants.read(FC2s);
+    dCellMap.read(cellMap);
+    dqMesh.read(qMesh);
+    dnModes.read(nModes);
+
+    nCells = FC2s.size(); 
+
+    // Sanity check data that has been read in 
+    if(int(cellMap[0].size()) != nCells) {
+      Error("Somehow, the number of R vectors in your JDFTx ph cell map does\n"
+          "not match your force constant file dimensions! Check the input JDFTx files.");
+    }
+    if(cellMap.size() != 3) { Error("JDFTx ph cellMap does not have correct first dimension."); }
+
+  } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
+    Error("Issue found while reading jdftx.elph.phoebe.hdf5. Make sure it exists at " + fileName +
+          "\n and is not open by some other persisting processes.");
   }
-  infile.close();
 
-  // reshape the force constants to match the expected phoebe format 
-  // first we read it in as JDFTx expects it, then below, we swap the dimension
-  // arguments and the numAtoms arguments for use in PhononH0
-  // Phoebe uses numAtoms, numAtoms, 3, 3 
-  auto mapped_t = Eigen::TensorMap<Eigen::Tensor<double,5>>(&buffer[0],
-                                          numAtoms, 3, numAtoms, 3, nCells);
+  #else
+    Error("To use JDFTx input for phonon force constants, you must build the code with HDF5.");
+  #endif
 
-  // force constants matrix 
-  Eigen::Tensor<double,5> forceConstantsInitial = mapped_t;
-  Eigen::array<int, 5> shuffling({1, 3, 0, 2, 4}); 
-  Eigen::Tensor<double,5> forceConstants = forceConstantsInitial.shuffle(shuffling);
+  if (mpi->mpiHead()) {
+    std::cout << "Successfully parsed harmonic phonon JDFTx files.\n" << std::endl;
+  }
 
-  // JDFTx uses hartree, so here we must convert to Ry
-  // Additionally, there is a second factor of 2 which accounts for the 
-  // factor of 2 difference in mass between Rydberg and Hartree atomic units
-  // the JDFTx force constants alreadyx include the atomic masses
-  forceConstants = forceConstants * 2. * 2.; 
+  // reformat to eigen containers needed by phononH0
+  Eigen::MatrixXd cellMapReformat(3,nCells);
+  Eigen::Tensor<double,5> forceConstants(3, 3, numAtoms, numAtoms, nCells);
 
-  Eigen::MatrixXd bravaisVectors(3,nCells); 
-  // convert cell map to cartesian coordinates 
+  // multiply the force constants by the species masses 
   for(int iR = 0; iR<nCells; iR++) {
-
-    // use cellMap to get R vector indices
-    Eigen::Vector3i Rcrys = {cellMap[iR][0],cellMap[iR][1],cellMap[iR][2]};
-
-    // convert from crystal coordinate indices to cartesian coordinates
-    // to match Phoebe conventions 
-    Eigen::Vector3d Rcart = Rcrys[0] * directUnitCell.col(0) + Rcrys[1] * directUnitCell.col(1) +  Rcrys[2] * directUnitCell.col(2);
-    bravaisVectors(0,iR) = -Rcart(0); 
-    bravaisVectors(1,iR) = -Rcart(1); 
-    bravaisVectors(2,iR) = -Rcart(2); 
-
-
     for(int ia = 0; ia<numAtoms; ia++) {
       for(int ja = 0; ja<numAtoms; ja++) {
         for (int i : {0, 1, 2}) {
@@ -170,23 +112,22 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
             // and are in fact C/sqrt(M_i * M_j)
             int iSpecies = atomicSpecies(ia);
             int jSpecies = atomicSpecies(ja);
-            forceConstants(i,j,ia,ja,iR) = forceConstants(i,j,ia,ja,iR) * sqrt(speciesMasses(iSpecies) * speciesMasses(jSpecies));
+            forceConstants(i,j,ia,ja,iR) = FC2s[iR][i][ia][j][ja] * sqrt(speciesMasses(iSpecies) * speciesMasses(jSpecies));
           }
         }
       }
     } 
-  }
-
-  if (mpi->mpiHead()) {
-    std::cout << "Successfully parsed harmonic phonon JDFTx files.\n" << std::endl;
+    cellMapReformat(0,iR) = cellMap[0][iR];
+    cellMapReformat(1,iR) = cellMap[1][iR];
+    cellMapReformat(2,iR) = cellMap[2][iR];
   }
 
   Eigen::VectorXd cellWeights(nCells);
   cellWeights.setConstant(1.);
 
   PhononH0 dynamicalMatrix(crystal, dielectricMatrix, 
-                           forceConstants, qCoarseGrid,
-                           bravaisVectors, cellWeights);
+                           forceConstants, qMesh,
+                           cellMapReformat, cellWeights);
 
   // no need to apply a sum rule, as the JDFTx matrix elements have already
   // had one applied internally
@@ -219,10 +160,6 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   // ========================================================================
 
   // set up containers to read data into 
-
-  // here, we do something weird -- if SOC is used, JDFTx's wannier files become 
-  // complex rather than real. Depending on spinFac, we change how this is read in 
-  // We read these into vectors because if read into Eigen, things become flipped 
   std::vector<std::vector<std::vector<std::complex<double>>>> HWannier;
   std::vector<std::vector<double>> cellMap;
   Eigen::Vector3i kMesh; 

@@ -100,7 +100,6 @@ cellMapPh = np.loadtxt('totalE.phononCellMap', usecols=[0,1,2]).astype(int)
 nCellsPh = cellMapPh.shape[0]
 omegaSqR = np.fromfile('totalE.phononOmegaSq')  # just a list of numbers
 nModes = int(np.sqrt(omegaSqR.shape[0] // nCellsPh))
-omegaSqR = omegaSqR.reshape((nCellsPh, nModes, nModes)).swapaxes(1,2)
 
 # --- Read e-ph cell weights:
 nAtoms = nModes // 3
@@ -132,15 +131,20 @@ HePhWannier = HePhWannier.astype(complex)
 hf.create_dataset('gWannier', data=HePhWannier.reshape(1,HePhWannier.shape[0]))
 
 # write some phonon related information
-# reload this in cartesian coords to write it easily
-cellMapPh = np.loadtxt('totalE.phononCellMap', usecols=[0,1,2]).astype(int)
 # convert the cell map to cartesian coordinates
-cellMapPh = np.einsum("xy,Rx->Ry",R.T,cellMapPh)
+cellMapPh = np.einsum("xy,Rx->Ry",-1*R.T,cellMapPh)
 
 hf.create_dataset('phBravaisVectors', data=cellMapPh.T)
 hf.create_dataset('phDegeneracies', data=np.ones(nCellsPh).reshape(nCellsPh,1))
 hf.create_dataset('qMesh', data=phononSup.reshape(3,1))
 hf.create_dataset('numPhModes', data=nModes)
+# these contain the atomic species masses, therefore we need to convert an extra factor of 2
+# we also need to reorder them to match phoebe's expectation
+omegaSqR = np.fromfile('totalE.phononOmegaSq')  # just a list of numbers
+nModes = int(np.sqrt(omegaSqR.shape[0] // nCellsPh))
+omegaSqR = omegaSqR.reshape((nCellsPh, nModes, nModes)).swapaxes(1,2)
+omegaSqR = omegaSqR.reshape((nCellsPh,nAtoms,3,nAtoms,3))
+hf.create_dataset('forceConstants', data=omegaSqR*2.*2.) # convert to Ry
 
 hf.close()
 

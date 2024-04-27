@@ -21,7 +21,7 @@ class Context {
 
   std::string electronH0Name;
   std::string wannier90Prefix;
-  std::string jdftxDirectory;
+  std::string jdftxScfOutFile;
   std::string quantumEspressoPrefix;
   std::string elPhInterpolation;
 
@@ -201,8 +201,8 @@ public:
   std::string getQuantumEspressoPrefix();
   void setQuantumEspressoPrefix(const std::string &x);
 
-  std::string getJDFTxDirectory();
-  void setJDFTxDirectory(const std::string &x);
+  std::string getJDFTxScfOutFile();
+  void setJDFTxScfOutFile(const std::string &x);
 
   std::string getElPhInterpolation();
 

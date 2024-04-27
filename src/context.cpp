@@ -468,8 +468,8 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "wannier90Prefix") {
         wannier90Prefix = parseString(val);
       }
-      if (parameterName == "JDFTxDirectory") {
-        jdftxDirectory = parseString(val);
+      if (parameterName == "JDFTxScfOutFile") {
+        jdftxScfOutFile = parseString(val);
       }
       if (parameterName == "quantumEspressoPrefix") {
         quantumEspressoPrefix = parseString(val);
@@ -861,8 +861,8 @@ void Context::printInputSummary(const std::string &fileName) {
         std::cout << "elPhInterpolation = " << elPhInterpolation << std::endl;
       if (!wannier90Prefix.empty())
         std::cout << "wannier90Prefix = " << wannier90Prefix << std::endl;
-      if (!jdftxDirectory.empty())
-        std::cout << "JDFTxDirectory = " << jdftxDirectory << std::endl;
+      if (!jdftxScfOutFile.empty())
+        std::cout << "JDFTxScfOutFile = " << jdftxScfOutFile << std::endl;
       if (!quantumEspressoPrefix.empty())
         std::cout << "quantumEspressoPrefix = " << quantumEspressoPrefix
                   << std::endl;
@@ -1208,8 +1208,8 @@ void Context::setElectronH0Name(const std::string &x) { electronH0Name = x; }
 std::string Context::getWannier90Prefix() { return wannier90Prefix; }
 void Context::setWannier90Prefix(const std::string &x) { wannier90Prefix = x; }
 
-std::string Context::getJDFTxDirectory() { return jdftxDirectory; }
-void Context::setJDFTxDirectory(const std::string &x) { jdftxDirectory = x; }
+std::string Context::getJDFTxScfOutFile() { return jdftxScfOutFile; }
+void Context::setJDFTxScfOutFile(const std::string &x) { jdftxScfOutFile = x; }
 
 std::string Context::getQuantumEspressoPrefix() {
   return quantumEspressoPrefix;

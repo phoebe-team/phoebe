@@ -23,7 +23,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   //	in real space.
 
   // TODO we need to fix this before publishing 
-  std::string directory = context.getJDFTxDirectory();
+  std::string directory = context.getJDFTxScfOutFile();
 
   // parse the crystal structure from totalE.out 
   // ========================================================================
@@ -148,7 +148,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
                                                       [[maybe_unused]] Crystal *inCrystal) {
 
   // the directory where jdftx inputs live 
-  std::string directory = context.getJDFTxDirectory();
+  std::string directory = context.getJDFTxScfOutFile();
 
   // parse the crystal structure from totalE.out 
   // ========================================================================
@@ -277,7 +277,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
 Crystal JDFTxParser::parseCrystal(Context& context) {
 
   // TODO we need to fix this before publishing 
-  std::string directory = context.getJDFTxDirectory();
+  std::string directory = context.getJDFTxScfOutFile();
   std::string fileName = directory + "totalE.out";
 
   // open input file

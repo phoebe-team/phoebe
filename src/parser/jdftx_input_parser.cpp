@@ -358,23 +358,17 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
   for (int i = 0; i < numElements; i++)
     speciesMasses[i] = periodicTable.getMass(speciesNames[i]) * massAmuToRy;
 
-  // TODO remove three transposes here!
-  directUnitCell.transposeInPlace();
-
   // convert unit cell positions to cartesian, in bohr
   for (int i = 0; i < numAtoms; i++) {
     // copy into Eigen structure
     atomicSpecies(i) = tempSpecies[i];
     // convert to cartesian
     Eigen::Vector3d temp(tempPositions[i][0], tempPositions[i][1], tempPositions[i][2]);
-    Eigen::Vector3d temp2 = directUnitCell.transpose() * temp; // lattice already in Bohr
+    Eigen::Vector3d temp2 = directUnitCell * temp; // lattice already in Bohr
     atomicPositions(i, 0) = temp2(0);
     atomicPositions(i, 1) = temp2(1);
     atomicPositions(i, 2) = temp2(2);
   }
-
-  // unit cell of JDFTx is transposed wrt QE/VASP definition
-  directUnitCell.transposeInPlace();
 
   // Here there is no born charge data, so we set this to zero 
   // This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor) 

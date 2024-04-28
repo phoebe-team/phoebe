@@ -22,8 +22,7 @@ numBands1 = bandRange1[1] - bandRange1[0] + 1
 numBands2 = bandRange2[1] - bandRange2[0] + 1
 numBandsPh = bandRangePh[1] - bandRangePh[0] + 1
 
-couplingMat = np.array(f["elphCouplingMat"])
+couplingMat = np.array(f["elphCouplingMat"]) # coupling elements squared in eV^2
 couplingMat= np.reshape(couplingMat, (numPointsPairs, numBands1, numBands2, numBandsPh))
-# switch indices to make it print nicely in dimension pointsPairs, phononModes, Bands1, Bands2
-couplingMat = np.einsum("kEeP->kPEe",couplingMat)
+
 

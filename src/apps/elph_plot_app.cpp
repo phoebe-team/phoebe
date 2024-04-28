@@ -148,8 +148,10 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
   // Compute the coupling --------------------------------------------------
   std::vector<double> allGs;
-  // push back all the state 2 energies 
-  std::vector<double> energiesK2C; 
+  // push back all the state energies 
+  std::vector<std::vector<double>> energiesK1; 
+  std::vector<std::vector<double>> energiesK2; 
+  std::vector<std::vector<double>> energiesQ3; 
 
   // distribute over k,q pairs
   int numPairs = pointsPairs.size();
@@ -205,7 +207,6 @@ void ElPhCouplingPlotApp::run(Context &context) {
     //Eigen::Vector3d k1C = k2C - q3C; //k = k' - q --> k+q = k'
     //q3C = -1.*thisPair.second;
 
-    //std::cout << k1C.transpose() << " " << k2C.transpose() << " " << q3C.transpose() << std::endl;
 
     // need to get the eigenvectors at these three wavevectors
     auto t3 = electronH0.diagonalizeFromCoordinates(k1C);
@@ -217,24 +218,51 @@ void ElPhCouplingPlotApp::run(Context &context) {
     auto en2 = std::get<0>(t4);
     auto eigenVector2 = std::get<1>(t4);
 
+    //eigenVector1.setIdentity();
+    //eigenVector2.setIdentity();
+
     std::vector<Eigen::MatrixXcd> eigenVectors2;
     eigenVectors2.push_back(eigenVector2);
     std::vector<Eigen::Vector3d> k2Cs;
     k2Cs.push_back(k2C);
-
-    for (int ib2 = g2PlotEl2Bands.first; ib2 <= g2PlotEl2Bands.second; ib2++) {
-      energiesK2C.push_back(en2[ib2]);
-    }
 
     // phonon eigenvectors    
     auto t5 = phononH0.diagonalizeFromCoordinates(q3C); 
     auto en3 = std::get<0>(t5);
     auto eigenVector3 = std::get<1>(t5); 
 
+    //eigenVector3.setIdentity();
+
+    std::cout << eigenVector1 << std::setprecision(4) << std::endl;
+    std::cout << en1.transpose() << std::endl;
+
+    std::cout << eigenVector2 << std::endl;
+    std::cout << en2.transpose() << std::endl;
+
+    std::cout << eigenVector3 << std::endl;
+    std::cout << en3.transpose() << std::endl;
+
     std::vector<Eigen::MatrixXcd> eigenVectors3;
     eigenVectors3.push_back(eigenVector3);
     std::vector<Eigen::Vector3d> q3Cs;
     q3Cs.push_back(q3C); 
+
+    // prepare to store energies 
+    std::vector<double> tempEn1; 
+    std::vector<double> tempEn2;
+    std::vector<double> tempEn3;
+    for (int ib1 = g2PlotEl1Bands.first; ib1 <= g2PlotEl1Bands.second; ib1++) {
+      tempEn1.push_back(en1[ib1]);
+    }
+    for (int ib2 = g2PlotEl2Bands.first; ib2 <= g2PlotEl2Bands.second; ib2++) {
+      tempEn2.push_back(en2[ib2]);
+    }
+    for (int ib3 = g2PlotPhBands.first; ib3 <= g2PlotPhBands.second; ib3++) {
+      tempEn2.push_back(en3[ib3]);
+    }
+    energiesK1.push_back(tempEn1);
+    energiesK2.push_back(tempEn2);
+    energiesQ3.push_back(tempEn3);
 
     // calculate polar correction
     std::vector<Eigen::VectorXcd> polarData;
@@ -244,7 +272,6 @@ void ElPhCouplingPlotApp::run(Context &context) {
     // calculate the elph coupling squared
     couplingElPh.cacheElPh(eigenVector1, k1C);  // fourier transform + rotation by k
     couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, q3Cs, k1C, polarData);   // fourier transform + rotation by k' and q
-    //couplingElPh.oldCalcCouplingSquared(eigenVector1, eigenVectors2, eigenVectors3, k1C, k2Cs, q3Cs);   // fourier transform + rotation by k' and q
     auto couplingSq = couplingElPh.getCouplingSquared(0);  // access the stored matrix elements, which are for the given triplet. Object has bands |g(m,m',nu)|^2
 
     // the coupling object is coupling at a given set of k,q, for a range of bands
@@ -252,7 +279,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
     for (int ib1 = g2PlotEl1Bands.first; ib1 <= g2PlotEl1Bands.second; ib1++) {
       for (int ib2 = g2PlotEl2Bands.first; ib2 <= g2PlotEl2Bands.second; ib2++) {
         for (int ib3 = g2PlotPhBands.first; ib3 <= g2PlotPhBands.second; ib3++) {
-          allGs.push_back(couplingSq(ib1, ib2, ib3));
+          allGs.push_back(couplingSq(ib1, ib2, ib3) * energyRyToEv * energyRyToEv);
 
           if(ib1 == 2  && ib2 == 2 && ib3 == 2) {
             //std::cout << std::setprecision(8) << "b1 b2 nu " << ib1-1 << " " << ib2-1 << " " << ib3-1 << " g enK enKp omega " << couplingSq(ib1-1, ib2-1, ib3-1) << " " << en1[ib1-1] << " " << en2[ib2-1] << " " << en3[ib3-1] << std::endl; //<< " " << coshDataKp << " " << deltaWeight << std::endl;
@@ -378,34 +405,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
     }
     #endif
     // now we write a few other pieces of smaller information using only mpiHead
-/*
-    std::vector<double> collectedEn2s;
-    if(mpi->mpiHead()) collectedEn2s.resize(numPairs * (g2PlotEl2Bands.second - g2PlotEl2Bands.first + 1));
-      
-      std::vector<int> workDivisionHeads(mpi->getSize());
-      int offset = pairParallelIter[0]*(g2PlotEl2Bands.second - g2PlotEl2Bands.first + 1); 
-      mpi->allGather(&offset, &workDivisionHeads);
-      std::vector<int> workDivs(mpi->getSize());
-      int wd = energiesK2C.size();
-      mpi->allGather(&wd, &workDivs);
 
-  std::cout << "work divs " << std::endl;
-  for(auto wd : workDivs) {
-    std::cout << wd << std::endl;
-  }
-  std::cout << "work divs " << std::endl;
-  for(auto wd : workDivisionHeads) {
-    std::cout << wd << std::endl;
-  }
-
-    mpi->allGatherv(&collectedEn2s, &energiesK2C, &workDivs, &workDivisionHeads);
-
-    std::cout << collectedEn2s.size() << " " <<  energiesK2C.size() << " " << workDivs[mpi->getRank()] << std::endl;
-
-    for(auto enKC2 : collectedEn2s) { 
-      std::cout << enKC2 << std::endl;
-    }
-*/
     if (mpi->mpiHead()) {
 
       HighFive::File file(outFileName, HighFive::File::ReadWrite);
@@ -444,8 +444,12 @@ void ElPhCouplingPlotApp::run(Context &context) {
       temp.push_back(g2PlotPhBands.second);
       file.createDataSet("/phModeRange", temp);
 
-      // TODO write to file 
-      file.createDataSet("/en2s", energiesK2C);
+      // write energies to file
+      file.createDataSet("/elEnergies1", energiesK1);
+      file.createDataSet("/elEnergies2", energiesK2);
+      file.createDataSet("/phEnergies", energiesQ3);
+      std::string energyUnit = "eV";
+      file.createDataSet("/energyUnit", energyUnit);
 
     }
   } catch (std::exception &error) {

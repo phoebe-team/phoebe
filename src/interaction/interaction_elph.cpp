@@ -554,7 +554,8 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
         Kokkos::complex<double> tmp(0., 0.);
         for (int nu = 0; nu < numPhBands; nu++) {
           tmp += g3(iq, nu, ib1, iw2) * eigvecs3_k(iq, nu2, nu);
-            //if((nu == 3 && nu2 == 6) && ib1 == 1 && iw2 ==2) std::cout << "ib1 nu nu2 iw2 Uq " << ib1 << " " << nu << " " << nu2 << " " << iw2 << " " << eigvecs3_k(iq, nu2, nu) << " " << g3(iq, nu, ib1, iw2) << std::endl;
+          //if((nu == 3 && nu2 == 6) && if(ib1 == 4 && iw2 ==3) 
+          if(ib1 == 4 && iw2 ==3 && nu2 == 8) std::cout << "ib1 nu nu2 iw2 Uq " << ib1 << " " << nu << " " << nu2 << " " << iw2 << " " << eigvecs3_k(iq, nu2, nu) << " " << g3(iq, nu, ib1, iw2) << std::endl;
         }
         g4(iq, nu2, ib1, iw2) = tmp;
       });
@@ -568,7 +569,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
         Kokkos::complex<double> tmp(0., 0.);
         for (int iw2 = 0; iw2 < numWannier; iw2++) {
           tmp += eigvecs2Dagger_k(ik, iw2, ib2) * g4(ik, nu, ib1, iw2);
-            //if(ib1 == 2 && nu == 3) std::cout << "ib1 nu iw2 ib2 Uk " << ib1 << " " << nu << " " << iw2 << " " << ib2 << " " << eigvecs2Dagger_k(ik, ib2, iw2) << " " << g4(ik, nu, ib1, iw2) << std::endl;
+            //std::cout << "ib1 nu iw2 ib2 Uk " << ib1 << " " << nu << " " << iw2 << " " << ib2 << " " << eigvecs2Dagger_k(ik, ib2, iw2) << " " << g4(ik, nu, ib1, iw2) << std::endl;
         }
         gFinal(ik, nu, ib1, ib2) = tmp;
       });
@@ -593,6 +594,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
         // notice the flip of 1 and 2 indices is intentional
         // coupling is |<k+q,ib2 | dV_nu | k,ib1>|^2
         auto tmp = gFinal(ik, nu, ib1, ib2);
+        //std::cout << "nu ib1 ib2 " << nu << " " << ib1 << " " << ib2 << " " << gFinal(ik, nu, ib1, ib2) << std::endl;
         coupling_k(ik, nu, ib2, ib1) =
             tmp.real() * tmp.real() + tmp.imag() * tmp.imag();
       });

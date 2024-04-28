@@ -26,7 +26,7 @@ class PhononH0 : public HarmonicHamiltonian {
    * @param bornCharges: real tensor of size (numAtoms,3,3) with the Born
    * effective charges
    * @param forceConstants: a tensor of doubles with the force constants
-   * size is (meshX, meshY, meshZ, 3, 3, numAtoms, numAtoms)
+   * size is (iR, 3, 3, numAtoms, numAtoms)
    */
   PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
            Eigen::Tensor<double, 5> &forceConstants_,

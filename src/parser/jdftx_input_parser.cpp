@@ -22,9 +22,6 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   //  Here we read the dynamical matrix of inter-atomic force constants
   //	in real space.
 
-  // TODO we need to fix this before publishing 
-  std::string directory = context.getJDFTxScfOutFile();
-
   // parse the crystal structure from totalE.out 
   // ========================================================================
   Crystal crystal = parseCrystal(context);
@@ -50,7 +47,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
 
   #ifdef HDF5_AVAIL
 
-  std::string fileName = directory + "jdftx.elph.phoebe.hdf5";
+  std::string fileName = context.getPhFC2FileName();
   if (fileName.empty()) {
     Error("Check your path, jdftx.elph.phoebe.hdf5 not found at " + fileName);
   }
@@ -112,7 +109,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
             // and are in fact C/sqrt(M_i * M_j)
             int iSpecies = atomicSpecies(ia);
             int jSpecies = atomicSpecies(ja);
-            forceConstants(i,j,ia,ja,iR) = FC2s[iR][i][ia][j][ja] * sqrt(speciesMasses(iSpecies) * speciesMasses(jSpecies));
+            forceConstants(i,j,ia,ja,iR) = FC2s[iR][ia][i][ja][j] * sqrt(speciesMasses(iSpecies) * speciesMasses(jSpecies));  
           }
         }
       }
@@ -147,9 +144,6 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
                                                       Context &context, 
                                                       [[maybe_unused]] Crystal *inCrystal) {
 
-  // the directory where jdftx inputs live 
-  std::string directory = context.getJDFTxScfOutFile();
-
   // parse the crystal structure from totalE.out 
   // ========================================================================
   Crystal crystal = parseCrystal(context);
@@ -172,7 +166,8 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
 
   #ifdef HDF5_AVAIL
 
-  std::string fileName = directory + "jdftx.elph.phoebe.hdf5";
+  // the path to wannier jdftx file 
+  std::string fileName = context.getElectronH0Name();
   if (fileName.empty()) {
     Error("Check your path, jdftx.elph.phoebe.hdf5 not found at " + fileName);
   }
@@ -277,14 +272,13 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
 Crystal JDFTxParser::parseCrystal(Context& context) {
 
   // TODO we need to fix this before publishing 
-  std::string directory = context.getJDFTxScfOutFile();
-  std::string fileName = directory + "totalE.out";
+  std::string fileName = context.getJDFTxScfOutFile();
 
   // open input file
   std::ifstream infile(fileName);
 
   if (fileName.empty() || !infile.is_open()) {
-    Error("totalE.out file not found at " + directory);
+    Error("totalE.out file not found at " + fileName);
   }
   if (mpi->mpiHead())
     std::cout << "Reading in " + fileName + "." << std::endl;
@@ -364,8 +358,7 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
   for (int i = 0; i < numElements; i++)
     speciesMasses[i] = periodicTable.getMass(speciesNames[i]) * massAmuToRy;
 
-  speciesMasses.setConstant(1.);
-
+  // TODO remove three transposes here!
   directUnitCell.transposeInPlace();
 
   // convert unit cell positions to cartesian, in bohr
@@ -373,10 +366,8 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
     // copy into Eigen structure
     atomicSpecies(i) = tempSpecies[i];
     // convert to cartesian
-    Eigen::Vector3d temp(tempPositions[i][0], tempPositions[i][1],
-                         tempPositions[i][2]);
-    Eigen::Vector3d temp2 =
-        directUnitCell.transpose() * temp; // lattice already in Bohr
+    Eigen::Vector3d temp(tempPositions[i][0], tempPositions[i][1], tempPositions[i][2]);
+    Eigen::Vector3d temp2 = directUnitCell.transpose() * temp; // lattice already in Bohr
     atomicPositions(i, 0) = temp2(0);
     atomicPositions(i, 1) = temp2(1);
     atomicPositions(i, 2) = temp2(2);

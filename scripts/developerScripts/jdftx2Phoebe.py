@@ -40,8 +40,8 @@ for line in open('totalE.out'):
     if line.startswith('nElectrons:'):
         nElec = int(line.split()[1].split('.')[0])
     if line.startswith('spintype'):
-        if(line.split()[1] == 'no-spin'): nSpin = 2
-        else: nSpin = 1
+        if(line.split()[1] == 'no-spin'): nSpin = 1
+        else: nSpin = 2
     if line.startswith("ion ") and collectIons:
         ionName = line.split()[1]
         masses.append(periodicTable[ionName][1])
@@ -92,6 +92,9 @@ hf.create_dataset('numElectrons', data=nElec)
 # in addition to regular Phoebe quantities, we will also read this from HDF5
 hf.create_dataset('chemicalPotential', data=mu*2.)  # convert to Ry
 hf.create_dataset('wannierHamiltonian', data=Hwannier*2.) # convert to Ry
+
+print(nElec)
+print(mu*27.21)
 
 # Read the elph cell map, weights and matrix elements ------------------
 cellMapEph = np.loadtxt('wannier.mlwfCellMapPh', usecols=[0,1,2]).astype(int)

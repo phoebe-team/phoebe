@@ -121,11 +121,13 @@ void CoupledCoefficients::calcFromRelaxons(
   elV0.setZero(); elVe.setZero();
   phV0.setZero(); phVe.setZero();
   V0.setZero(); Ve.setZero();
+  
   // phi related overlaps
   Eigen::Tensor<double, 3> elVphi(numRelaxons, 3, 3); // V_a(phi)^j = < theta | v^j | phi >
   Eigen::Tensor<double, 3> phVphi(numRelaxons, 3, 3);
+  Eigen::Tensor<double, 3> dragVphi(numRelaxons, 3, 3);
   Eigen::Tensor<double, 3> Vphi(numRelaxons, 3, 3);
-  elVphi.setZero(); phVphi.setZero(); Vphi.setZero();
+  dragVphi.setZero(); elVphi.setZero(); phVphi.setZero(); Vphi.setZero();
 
   // sum over the alpha and v states that this process owns
   for (auto tup : eigenvectors.getAllLocalStates()) {
@@ -154,6 +156,7 @@ void CoupledCoefficients::calcFromRelaxons(
       for (auto j : {0, 1, 2}) {
         elV0(gamma, j) += eigenvectors(is,gamma) * v(j) * theta0(is);
         elVe(gamma, j) += eigenvectors(is,gamma) * v(j) * theta_e(is);
+
         // for viscosity, we have to skip the special eigenvectors
         if(gamma != alpha0 || gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
@@ -161,13 +164,12 @@ void CoupledCoefficients::calcFromRelaxons(
           }
         }
       }
-
     } else { // phonon states
 
       isIdx = StateIndex(is-numElStates);
       v = phBandStructure->getGroupVelocity(isIdx);
       double energy = phBandStructure->getEnergy(isIdx);
-      if (energy < 0.001 / ryToCmm1) { continue; }
+      if (energy < phEnergyCutoff) { continue; }
 
       for (auto j : {0, 1, 2}) {
         phV0(gamma, j) += eigenvectors(is,gamma) * v(j) * theta0(is);
@@ -218,11 +220,8 @@ void CoupledCoefficients::calcFromRelaxons(
 
     if(eigenvalues(gamma) <= 0) continue; // should not be counted
 
-    // TODO these should be traded for dimensionality!
-    for (auto i : {0, 1, 2}) {
-      for(auto j : {0, 1, 2} ) {
-
-        // TODO change Drag contribution -> elSelf, phSelf, and elph cross terms
+    for (int i = 0; i<dimensionality; i++) {
+      for (int j = 0; j<dimensionality; j++) {
 
         // NOTE: all terms are affected by drag, and an uncoupled calculation must be run to determine the effect of drag
 
@@ -248,16 +247,17 @@ void CoupledCoefficients::calcFromRelaxons(
         // viscosities
         if(gamma != alpha0 || gamma != alpha_e) { // important -- including theta_0 or theta_e will lead to a wrong answer!
 
-	  double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * 1./eigenvalues(gamma);
-	  double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1) * 1./eigenvalues(gamma);
+          double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * 1./eigenvalues(gamma);
+          double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1) * 1./eigenvalues(gamma);
           iiiiContrib[gamma] += (xxxx + yyyy)/2.;
 
           for(auto k : {0, 1, 2}) {
             for(auto l : {0, 1, 2}) {
-              phViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * phVphi(gamma,i,j) * phVphi(gamma,l,k) * 1./eigenvalues(gamma);
-              elViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * elVphi(gamma,i,j) * elVphi(gamma,l,k) * 1./eigenvalues(gamma);
-              dragViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * (elVphi(gamma,i,j) * phVphi(gamma,l,k)
-                                                                   + phVphi(gamma,i,j) * elVphi(gamma,l,k)) * 1./eigenvalues(gamma);
+              phViscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * phVphi(gamma,i,j) * phVphi(gamma,l,k) * 1./eigenvalues(gamma);
+              elViscosity(0,i,j,k,l) += sqrt(G(i) * G(k)) * elVphi(gamma,i,j) * elVphi(gamma,l,k) * 1./eigenvalues(gamma);
+              dragViscosity(0,i,j,k,l) += sqrt(A(i) * G(k)) * phVphi(gamma,i,j) * elVphi(gamma,l,k) * 1./eigenvalues(gamma); 
+                                                                 //(elVphi(gamma,i,j) * phVphi(gamma,l,k)
+                                                                 // + phVphi(gamma,i,j) * elVphi(gamma,l,k)) * 1./eigenvalues(gamma);
               totalViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * 1./eigenvalues(gamma);
             }
           }
@@ -644,7 +644,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
 
       double energy = phBandStructure->getEnergy(phIdx);
       // Discard ph states with negative energies
-      if (energy < 0.001 / ryToCmm1) { continue; }
+      if (energy < phEnergyCutoff) { continue; }
       Cph += phonon.getPopPopPm1(energy, kBT, 0) * energy * energy;
 
     }
@@ -676,7 +676,10 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   theta_e = Eigen::VectorXd::Zero(numStates);
 
   // phi -- the three momentum conservation eigenvectors
-  //     phi = sqrt(1/(kbT*volume*Nkq*M)) * g-1 * ds * hbar * wavevector;
+  //     phi = sqrt(1/(kbT*volume*Nkq*M)) * g-1 * ds * hbar * wavevector
+  // first part will be el momentum vectors, second half ph
+  //     phi_el = sqrt(1/(kbT*volume*Nk*G)) * b-1 * D * hbar * k
+  //     phi_ph = sqrt(1/(kbT*volume*Nq*A)) * b-1 * hbar * q
   phi = Eigen::MatrixXd::Zero(3, numStates);
 
   // spin degen vector
@@ -715,9 +718,8 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
       StateIndex phIdx(iPhState);
 
       double energy = phBandStructure->getEnergy(phIdx);
-      // TODO phononCutoff should be standardized across the code
       // Discard ph states with negative energies
-      if (energy < 0.001 / ryToCmm1) { continue; }
+      if (energy < phEnergyCutoff) { continue; }
       // this is in cartesian coords
       Eigen::Vector3d q = phBandStructure->getWavevector(phIdx);
       q = phBandStructure->getPoints().bzToWs(q,Points::cartesianCoordinates);
@@ -738,9 +740,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   U *= spinFactor / (volume * Nk * kBT);
   G *= spinFactor / (volume * Nk * kBT);
   A *= 1. / (volume * Nq * kBT);
-  M = G + A;
-
-  if(mpi->mpiHead()) std::cout << "test printing of U " << U << std::endl;
+  //M = G + A;
 
   // apply the normalization to theta_e
   theta_e *= 1./sqrt(kBT * U * volume);
@@ -748,7 +748,13 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   theta0 *= 1./sqrt(kBT * T * volume * Ctot);
   // apply normalization to phi
   for(int is = 0; is < numStates; is++) {
-    for(int i : {0,1,2}) phi(i,is) *= 1./sqrt(kBT * volume * M(i));
+    for(int i : {0,1,2}) {
+      if(is < numElStates) { // electrons
+        phi(i,is) *= 1./sqrt(kBT * volume * G(i));
+      } else { // phonons
+        phi(i,is) *= 1./sqrt(kBT * volume * A(i));
+      }
+    }
   }
 
   // check the norm of phi
@@ -787,6 +793,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   Eigen::Matrix3d DuEl; DuEl.setZero();
   Eigen::Matrix3d DuDrag; DuDrag.setZero();
   Eigen::Matrix3d DuPh; DuPh.setZero();
+
   Eigen::Matrix3d Wjie; Wjie.setZero();
   Eigen::Matrix3d Wji0; Wji0.setZero();
   Eigen::Matrix3d elWji0; elWji0.setZero();
@@ -797,25 +804,33 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
     auto is1 = std::get<0>(tup);
     auto is2 = std::get<1>(tup);
-    double contr = 0;
+
+    // if only the uppper half is filled, 
+    // we count the diagonal of the scattering matrix once, and the off diagonals twice
+    // as one of them will be zero 
+    double upperTriangleFactor = 1.;
+    if(context.getUseUpperTriangle() && (is1 != is2)) {
+      upperTriangleFactor = 2.; 
+    } 
+
     for (auto i : {0, 1, 2}) {
       for (auto j : {0, 1, 2}) {
-        if(context.getUseUpperTriangle()) {
-          if( i == j ) {
-            contr = phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
-          } else {
-            contr = 2. * phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
-          }
-        } else {
-          contr = phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
-        }
-        Du(i, j) += contr;
+
+        double duContribution = phi(i,is1) * coupledScatteringMatrix(is1,is2) * phi(j,is2);
+
+        // always add the contribution to the total Du value
+        Du(i, j) += upperTriangleFactor * duContribution;
+
+        // electron only quadrant case
         if ( is1 < numElStates && is2 < numElStates ) {
-          DuEl(i, j) += contr;
+          DuEl(i, j) += upperTriangleFactor * duContribution;
+        // phonon only quadrant case
         } else if ( is1 >= numElStates && is2 >= numElStates ) {
-          DuPh(i, j) += contr;
-        } else {
-          DuDrag(i, j) += contr;
+          DuPh(i, j) += upperTriangleFactor * duContribution;
+        // drag term contribution (never has upper triangle factor, only in 1 quadrant)
+        // use the upper quandrant, (el,ph) as this is always filled because it's in the upper triangle
+        } else if ( is1 < numElStates && is2 >= numElStates) {
+          DuDrag(i, j) += duContribution;
         }
       }
     }
@@ -842,13 +857,13 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     auto isIdx = StateIndex(is);
     double en = phBandStructure->getEnergy(isIdx);
     // discard acoustic phonon modes
-    if (en < 0.001 / ryToCmm1) { continue; }
+    if (en < phEnergyCutoff) { continue; }
     auto v = phBandStructure->getGroupVelocity(isIdx);
     for (auto j : {0, 1, 2}) {
       for (auto i : {0, 1, 2}) {
         // note: phi and theta here are elStates long, so we need to shift the state
         // index to account for the fact that we summed over the electronic part above
-        // calculate qunatities for the real-space solve
+        // calculate quantities for the real-space solver
         Wji0(j,i) += phi(i,is+numElStates) * v(j) * theta0(is+numElStates);
         phWji0(j,i) += phi(i,is+numElStates) * v(j) * theta0(is+numElStates);
         Wjie(j,i) += phi(i,is+numElStates) * v(j) * theta_e(is+numElStates);
@@ -859,6 +874,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   mpi->allReduceSum(&phWji0);
   mpi->allReduceSum(&elWji0);
 
+  // TODO we're going to block band structure sym here, 
+  // but we may still want to call this... 
   if(isSymmetrized) {
     symmetrize(Du);
     symmetrize(DuEl);

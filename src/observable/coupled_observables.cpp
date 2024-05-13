@@ -65,11 +65,11 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
   phViscosity = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
   elViscosity = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
   dragViscosity = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
-  totalViscosity = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
+  //totalViscosity = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
   phViscosity.setZero();
   elViscosity.setZero();
   dragViscosity.setZero();
-  totalViscosity.setZero();
+  //totalViscosity.setZero();
 
 }
 
@@ -158,7 +158,7 @@ void CoupledCoefficients::calcFromRelaxons(
         elVe(gamma, j) += eigenvectors(is,gamma) * v(j) * theta_e(is);
 
         // for viscosity, we have to skip the special eigenvectors
-        if(gamma != alpha0 || gamma != alpha_e) {
+        if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
             elVphi(gamma, i, j) += eigenvectors(is,gamma) * v(j) * phi(i, is);
           }
@@ -176,7 +176,7 @@ void CoupledCoefficients::calcFromRelaxons(
         phVe(gamma, j) += eigenvectors(is,gamma) * v(j) * theta_e(is);
 
         // for viscosity, we have to skip the special eigenvectors
-        if(gamma != alpha0 || gamma != alpha_e) {
+        if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
             phVphi(gamma, i, j) += eigenvectors(is,gamma) * v(j) * phi(i, is);
           }
@@ -188,7 +188,7 @@ void CoupledCoefficients::calcFromRelaxons(
       V0(gamma, j) += eigenvectors(is,gamma) * v(j) * theta0(is);
       Ve(gamma, j) += eigenvectors(is,gamma) * v(j) * theta_e(is);
       for(auto i : {0, 1, 2}) {
-        if(gamma != alpha0 || gamma != alpha_e) {
+        if(gamma != alpha0 && gamma != alpha_e) {
           Vphi(gamma, i, j) += eigenvectors(is,gamma) * v(j) * phi(i, is);
         }
       }
@@ -245,7 +245,7 @@ void CoupledCoefficients::calcFromRelaxons(
         kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * 1./eigenvalues(gamma);
 
         // viscosities
-        if(gamma != alpha0 || gamma != alpha_e) { // important -- including theta_0 or theta_e will lead to a wrong answer!
+        if(gamma != alpha0 && gamma != alpha_e) { // important -- including theta_0 or theta_e will lead to a wrong answer!
 
           double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * 1./eigenvalues(gamma);
           double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1) * 1./eigenvalues(gamma);
@@ -258,7 +258,7 @@ void CoupledCoefficients::calcFromRelaxons(
               dragViscosity(0,i,j,k,l) += sqrt(A(i) * G(k)) * phVphi(gamma,i,j) * elVphi(gamma,l,k) * 1./eigenvalues(gamma); 
                                                                  //(elVphi(gamma,i,j) * phVphi(gamma,l,k)
                                                                  // + phVphi(gamma,i,j) * elVphi(gamma,l,k)) * 1./eigenvalues(gamma);
-              totalViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * 1./eigenvalues(gamma);
+             //totalViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * 1./eigenvalues(gamma);
             }
           }
         }
@@ -370,8 +370,8 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
         append, statisticsSweep, dimensionality);
   outputViscosityToJSON("coupled_relaxons_viscosity.json", "dragViscosity", dragViscosity,
         append, statisticsSweep, dimensionality);
-  outputViscosityToJSON("coupled_relaxons_viscosity.json", "totalViscosity", totalViscosity,
-        append, statisticsSweep, dimensionality);
+  //outputViscosityToJSON("coupled_relaxons_viscosity.json", "totalViscosity", totalViscosity,
+  //      append, statisticsSweep, dimensionality);
 
   // output the transport coefficients
   int numCalculations = statisticsSweep.getNumCalculations();
@@ -716,27 +716,29 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
 
       int iPhState = is-numElStates;
       StateIndex phIdx(iPhState);
-
       double energy = phBandStructure->getEnergy(phIdx);
+
       // Discard ph states with negative energies
       if (energy < phEnergyCutoff) { continue; }
+
       // this is in cartesian coords
       Eigen::Vector3d q = phBandStructure->getWavevector(phIdx);
       q = phBandStructure->getPoints().bzToWs(q,Points::cartesianCoordinates);
       sqrtPopTerm = sqrt(phonon.getPopPopPm1(energy, kBT, 0));
 
-      ds(is) = sqrt( 1 / Nq );
+      ds(is) = sqrt( 1. / Nq );
 
+    //Eigen::Vector3d contrib; contrib.setZero();  
       for(int i : {0,1,2} ) {
+        //contrib(i) += q(i) * q(i) * sqrtPopTerm * sqrtPopTerm;; 
         A(i) += q(i) * q(i) * sqrtPopTerm * sqrtPopTerm;
         phi(i, is) = sqrtPopTerm * ds(is) * q(i);
       }
       theta0(is) = sqrtPopTerm * energy * ds(is);
     }
   }
+  
   // add the normalization prefactor to U
-  // what about e^2 in U?
-  // what about hbar^2 in Gi/Ai/Mi/phi?
   U *= spinFactor / (volume * Nk * kBT);
   G *= spinFactor / (volume * Nk * kBT);
   A *= 1. / (volume * Nq * kBT);

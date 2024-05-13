@@ -69,4 +69,7 @@ const double elConductivityAuToSi = electronSi * electronSi / hBarSi / bohrRadiu
 const double mobilityAuToSi = electronSi / hBarSi * bohrRadiusSi * bohrRadiusSi;
 const double thermopowerAuToSi = kBoltzmannRy / electronSi * rydbergSi;
 
+// cutoffs 
+const double phEnergyCutoff = 0.1 / ryToCmm1; // in Cmm1
+
 #endif

@@ -228,11 +228,11 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   //rMatrix.setZero();
 
   bool spinOrbit = false; 
-  if(spinFactor == 1) spinOrbit = true; 
+  if(spinFactor == 2) spinOrbit = true; 
   context.setHasSpinOrbit(spinOrbit);
-  if (!spinOrbit) { // the case of spin orbit
-    nElectrons /= 2;
-  }
+  //if (!spinOrbit) { // the case of spin orbit
+  //  nElectrons /= 2;  // apparently this is unneeded and problematic
+  //}
   context.setNumOccupiedStates(nElectrons);
 
   // if the user didn't set the Fermi level, we do it here.
@@ -264,7 +264,6 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
     std::cout << "Successfully parsed JDFTx electronic Hamiltonian files.\n" << std::endl;
   }
 
-  Kokkos::Profiling::popRegion();
   return std::make_tuple(crystal, electronH0);
 }
 

@@ -236,7 +236,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
     double mem = getDeviceMemoryUsage();
     kokkosDeviceMemory->addDeviceMemoryUsage(mem);
   }
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end ph h0 constrcutor
 }
 
 // copy constructor
@@ -547,7 +547,7 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
       }
     }
   }
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end long range
 }
 
 
@@ -577,7 +577,7 @@ void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
       }
     }
   }
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion();  // short range term 
 }
 
 std::tuple<Eigen::VectorXd, Eigen::MatrixXcd>
@@ -633,7 +633,7 @@ PhononH0::dynDiagonalize(Eigen::Tensor<std::complex<double>, 4> &dyn) {
   }
   Eigen::MatrixXcd eigenvectors = eigenSolver.eigenvectors();
 
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end of dyn diag
   return std::make_tuple(energies, eigenvectors);
 }
 
@@ -769,7 +769,7 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
   if (coordinates.norm() < 1.0e-6) {
     velocity.setZero();
   }
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // diagonalizeVelocityFromCoordinates
   return velocity;
 }
 

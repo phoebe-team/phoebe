@@ -130,13 +130,13 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
   // and stored ready to use here
 
   // calculate the first part of w^j_i,alpha
-  Eigen::Tensor<double, 3> tmpDriftEigvecs(3, 3, numStates);
+  Eigen::Tensor<double, 3> tmpDriftEigvecs(dimensionality, dimensionality, numStates);
   tmpDriftEigvecs.setZero();
   for (int is : bandStructure.parallelStateIterator()) {
     auto isIdx = StateIndex(is);
     auto v = bandStructure.getGroupVelocity(isIdx);
-    for (int i : {0, 1, 2}) {
-      for (int j : {0, 1, 2}) {
+    for (int i = 0; i < dimensionality; i++) {
+      for (int j = 0; j < dimensionality; j++) {
         tmpDriftEigvecs(i, j, is) = phi(j, is) * v(i);
       }
     }
@@ -144,10 +144,10 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
   mpi->allReduceSum(&tmpDriftEigvecs);
 
   // now we're calculating w
-  Eigen::Tensor<double, 3> w(3, 3, numStates);
+  Eigen::Tensor<double, 3> w(dimensionality, dimensionality, numStates);
   w.setZero();
-  for (auto i : {0, 1, 2}) {
-    for (auto j : {0, 1, 2}) {
+  for (int i = 0; i < dimensionality; i++) {
+    for (int j = 0; j < dimensionality; j++) {
       // drift eigenvectors * v -- only have phonon state indices
       // and cartesian directions
       Eigen::VectorXd x(numStates);

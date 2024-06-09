@@ -33,11 +33,12 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
   StatisticsSweep &statisticsSweep = matrix.statisticsSweep;
 
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, innerBandStructure);
-   if ( // innerBandStructure != outerBandStructure &&
-       smearing->getType() == DeltaFunction::tetrahedron) {
-     Error("Developer error: Tetrahedron smearing for transport untested and thus blocked");
-     // May work for linewidths. Although this should be double-checked
-   }
+  if (smearing->getType() == DeltaFunction::tetrahedron) {
+    Error("Tetrahedron method not supported by electron scattering. It will not work properly with a\n"
+          "filtering window, and we will almost always need to use this for electrons.");
+    // that's because it doesn't work with the window the way it's implemented,
+    // and we will almost always have a window for electrons
+  }
 
   // generate the intermediate points to be summed over
   HelperElScattering pointHelper(innerBandStructure, outerBandStructure,
@@ -244,10 +245,10 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                 double rate =
                     coupling(ib1, ib2, ib3) * ((fermi2 + bose3) * delta1
                        + (1. - fermi2 + bose3) * delta2) * norm / en3 * pi;
-                       
+
                 // compute the extra 1-cosTheta term needed for MRTA
-                double cosTheta = 1. - (v1s.row(ib1).dot(v2s.row(ib2)) 
-                      / (v1s.row(ib1).norm() * v2s.row(ib2).norm())); 
+                double cosTheta = 1. - (v1s.row(ib1).dot(v2s.row(ib2))
+                      / (v1s.row(ib1).norm() * v2s.row(ib2).norm()));
                 double rateMR = rate * cosTheta;
 
                 double rateOffDiagonal = -

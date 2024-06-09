@@ -85,6 +85,15 @@ Plots lifetimes vs energy. Example usage::
 
 See note above under ``tau_path.py`` for more info about calcIndex (the 0 at the end).
 
+epa_tau.py
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Plots lifetimes vs energy from an EPA calculation. Example usage::
+
+  python epa_tau.py epa_relaxation_times.json 0
+
+See note above under ``tau_path.py`` for more info about calcIndex (the 0 at the end).
+
 tau_bandResolved.py
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 

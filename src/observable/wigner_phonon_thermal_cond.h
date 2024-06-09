@@ -61,6 +61,9 @@ public:
 protected:
   VectorBTE &smaRelTimes;
   Eigen::Tensor<double, 3> wignerCorrection;
+  // unit information for writing to files
+  std::string thCondUnits; 
+  double thCondConversion; 
 };
 
 #endif

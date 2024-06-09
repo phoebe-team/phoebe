@@ -30,8 +30,8 @@ class PhononH0 : public HarmonicHamiltonian {
    */
   PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
            Eigen::Tensor<double, 5> &forceConstants_,
-           Eigen::Vector3i& qCoarseGrid, 
-           const Eigen::MatrixXd& bravaisVectors_, 
+           Eigen::Vector3i& qCoarseGrid,
+           const Eigen::MatrixXd& bravaisVectors_,
            const Eigen::VectorXd& weights_);
 
   /** Copy constructor
@@ -149,9 +149,16 @@ class PhononH0 : public HarmonicHamiltonian {
    */
   int estimateBatchSize(const bool& withVelocity) override;
 
+  /** Helper function to print the dynamical matrix file to HDF5, for developer testing purposes.
+   * @param qCrys: a 3d eigen vector in crystal coordinates of the phonon wavevector.
+   * @param points: the points object with with q belongs to. Here, used only to convert q to cartesian internally.
+  */
+  void printDynToHDF5(Eigen::Vector3d& qCrys);
+
 protected:
 
   Particle particle;
+  Crystal &crystal;
 
   bool hasDielectric = false;
   Crystal& crystal;
@@ -175,7 +182,7 @@ protected:
   Eigen::MatrixXd bravaisVectors;
   Eigen::VectorXd weights;
 
-  // container to store the D(R) matrix/the harmonic force constants 
+  // container to store the D(R) matrix/the harmonic force constants
   Eigen::Tensor<double,5> mat2R;
 
   Eigen::MatrixXd gVectors;
@@ -208,7 +215,7 @@ protected:
   /** Adds the long range correction to the dynamical matrix due to dipole-ion
    * interaction.
    * @param dyn : a container to which the short-range part of the dynamical matrix is added
-   * @param q : the phonon wavevector at which to calculate this part of the dyn mat 
+   * @param q : the phonon wavevector at which to calculate this part of the dyn mat, cartesian coords
    */
   void addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                         const Eigen::VectorXd &q);
@@ -216,14 +223,14 @@ protected:
   /** This part computes the short-range part of the dynamical matrix, which is
    * the Fourier transform of the force constants.
    * @param dyn : a container to which the short-range part of the dynamical matrix is added
-   * @param q : the phonon wavevector at which to calculate this part of the dyn mat 
+   * @param q : the phonon wavevector at which to calculate this part of the dyn mat, cartesian coords
    */
   void shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                       const Eigen::VectorXd &q);
 
   /** dynDiagonalize diagonalizes the dynamical matrix and returns eigenvalues and
    * eigenvectors.
-   * @param dyn : dynamical matrix to be diagonalized 
+   * @param dyn: the dynamical matrix in the shape 3,3,natoms,natoms
    */
   std::tuple<Eigen::VectorXd, Eigen::MatrixXcd> dynDiagonalize(
       Eigen::Tensor<std::complex<double>, 4> &dyn);
@@ -240,29 +247,29 @@ protected:
 
 /** Impose the acoustic sum rule on force constants and Born charges
  * @param sumRule: name of the sum rule to be used
- * @param crystal: crystal associated with the force constants 
- * @param qCoarseGrid: q grid of the phonon calculation 
+ * @param crystal: crystal associated with the force constants
+ * @param qCoarseGrid: q grid of the phonon calculation
  * @param forceConstants: force constants to be ASR'd
  * Currently supported values are akin to those from Quantum ESPRESSO
  * i.e. "simple" (for a rescaling of the diagonal elements) or "crystal"
  * (to find the closest matrix which satisfies the sum rule)
  */
-void setAcousticSumRule(const std::string &sumRule, Crystal& crystal, 
+void setAcousticSumRule(const std::string &sumRule, Crystal& crystal,
                         const Eigen::Vector3i& qCoarseGrid,
                         Eigen::Tensor<double, 7>& forceConstants);
 
 /** If we read a set of second order force constants which did not come with the corresponding
- * R vectors, we need to generate the R vectors and weights, the 
+ * R vectors, we need to generate the R vectors and weights, the
  * reorder these force constants into the format FC2(3,3,iAtom,jAtom,iR)
  * @param crystal: the crystal associated with the force constants
  * @param forceConstants: the force constants in the format 3,3,iRx,iRy,iRz,iAtom,jAtom
  * @param qCoarseGrid: the q grid from which the force constants were generated
- * @return: a tuple containing: 
+ * @return: a tuple containing:
  *          1) the matrix of force constants in the format 3,3,iAtom,jAtom,iR
- *          2) the list of R vectors 
- *          3) the weights of these R vectors 
+ *          2) the list of R vectors
+ *          3) the weights of these R vectors
 */
-std::tuple<Eigen::Tensor<double, 5>,Eigen::MatrixXd,Eigen::VectorXd> 
+std::tuple<Eigen::Tensor<double, 5>,Eigen::MatrixXd,Eigen::VectorXd>
           reorderHarmonicForceConstants(Crystal& crystal,
                                 const Eigen::Tensor<double, 7>& forceConstants,
                                 Eigen::Vector3i& qCoarseGrid);
@@ -270,7 +277,7 @@ std::tuple<Eigen::Tensor<double, 5>,Eigen::MatrixXd,Eigen::VectorXd>
   /** wsWeight computes the `weights`, i.e. the number of symmetry-equivalent
    * Bravais lattice vectors, that are used in the phonon Fourier transform.
    */
-double wsWeight(const Eigen::VectorXd &r, const Eigen::MatrixXd &rws); 
+double wsWeight(const Eigen::VectorXd &r, const Eigen::MatrixXd &rws);
 
 #endif
 

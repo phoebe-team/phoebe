@@ -440,8 +440,7 @@ void ElectronWannierTransportApp::runVariationalMethod(
     auto outF = scatteringMatrix.dot(inF);
     VectorBTE az2E = outF[0];
     VectorBTE az2T = outF[1];
-    transportCoefficients.calcVariational(az2E, az2T, zNewE, zNewT, bE, bT,
-                                          preconditioning);
+    transportCoefficients.calcVariational(az2E, az2T, zNewE, zNewT, bE, bT, preconditioning);
     transportCoefficients.print(iter);
     elCond = transportCoefficients.getElectricalConductivity();
     thCond = transportCoefficients.getThermalConductivity();
@@ -449,7 +448,7 @@ void ElectronWannierTransportApp::runVariationalMethod(
     // decide whether to exit or run the next iteration
     double deltaE = findMaxRelativeDifference(elCond, elCondOld);
     double deltaT = findMaxRelativeDifference(thCond, thCondOld);
-    if ((deltaE < threshold) && (deltaT < threshold)) {
+    if ((deltaE < threshold) && (deltaT < threshold) && iter > 2) {
       // recompute our final guess for transport coefficients
       transportCoefficients.calcFromSymmetricPopulation(zNewE, zNewT);
       break;

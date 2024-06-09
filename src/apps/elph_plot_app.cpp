@@ -35,10 +35,10 @@ void ElPhCouplingPlotApp::run(Context &context) {
   } else if (context.getG2PlotStyle() == "kFixed") {
     mesh = context.getQMesh();
   } else if (context.getG2PlotStyle() == "allToAll") {
-    if(context.getKMesh() != context.getQMesh()) { 
+    if(context.getKMesh() != context.getQMesh()) {
       Error("Elph plotting app currently only works with kMesh = qMesh for allToAll calculations.");
     }
-    mesh = context.getKMesh(); 
+    mesh = context.getKMesh();
   } else {
     Error("Elph plotting app found an incorrect input to couplingPlotStyle.");
   }
@@ -58,7 +58,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
   std::vector<std::pair<Eigen::Vector3d, Eigen::Vector3d>> pointsPairs;
   /*
   std::pair<Eigen::Vector3d, Eigen::Vector3d> thisPair;
-  Eigen::Vector3d crys1 = {64./178.,34./85.,3./54.}; 
+  Eigen::Vector3d crys1 = {64./178.,34./85.,3./54.};
   Eigen::Vector3d crys2 = {12./52.,95./38.,11./44.};
 
   Eigen::Vector3d cart1 = points.crystalToCartesian(crys1);
@@ -77,14 +77,14 @@ void ElPhCouplingPlotApp::run(Context &context) {
     // create a list of (k,q) pairs, where k is on a path/mesh and q is fixed
     if (context.getG2PlotStyle() == "qFixed") {
       thisPair.first = thisPoint; // set the k point
-      thisPair.second = points.crystalToCartesian(context.getG2PlotFixedPoint()); // fixed q point 
+      thisPair.second = points.crystalToCartesian(context.getG2PlotFixedPoint()); // fixed q point
       pointsPairs.push_back(thisPair);
 
     }
     // create a list of (k,q) pairs, where k is fixed and q is on the path
     else if (context.getG2PlotStyle() == "kFixed") {
       thisPair.first = points.crystalToCartesian(context.getG2PlotFixedPoint());
-      thisPair.second = thisPoint; // set the q point 
+      thisPair.second = thisPoint; // set the q point
       pointsPairs.push_back(thisPair);
     }
     else { // if neither point is fixed, it's all to all
@@ -101,8 +101,8 @@ void ElPhCouplingPlotApp::run(Context &context) {
   std::pair<int, int> g2PlotEl2Bands = context.getG2PlotEl2Bands();
   std::pair<int, int> g2PlotPhBands = context.getG2PlotPhBands();
 
-  // warn users if they have selected a bad band range 
-  if( g2PlotEl1Bands.second > electronH0.getNumBands() ) { 
+  // warn users if they have selected a bad band range
+  if( g2PlotEl1Bands.second > electronH0.getNumBands() ) {
     Warning("The first band range exceeds the possible number of bands. Setting to max # of bands.");
   }
   if( g2PlotEl2Bands.second > electronH0.getNumBands() ) {
@@ -113,65 +113,65 @@ void ElPhCouplingPlotApp::run(Context &context) {
   }
 
   // if not supplied, set first band index is already 0
-  // set the max number of bands to the higher end of the ranges 
-  if(g2PlotEl1Bands.second <= 0 || g2PlotEl1Bands.second >= electronH0.getNumBands()) { 
-    g2PlotEl1Bands.second = electronH0.getNumBands() - 1; 
-  } 
+  // set the max number of bands to the higher end of the ranges
+  if(g2PlotEl1Bands.second <= 0 || g2PlotEl1Bands.second >= electronH0.getNumBands()) {
+    g2PlotEl1Bands.second = electronH0.getNumBands() - 1;
+  }
   if(g2PlotEl2Bands.second <= 0 || g2PlotEl2Bands.second >= electronH0.getNumBands()) {
-    g2PlotEl2Bands.second = electronH0.getNumBands() - 1; 
-  } 
-  if(g2PlotPhBands.second <= 0 || g2PlotPhBands.second >= phononH0.getNumBands()) { 
-    g2PlotPhBands.second = phononH0.getNumBands() - 1; // minus 1 to account for index from 0 
-  } 
+    g2PlotEl2Bands.second = electronH0.getNumBands() - 1;
+  }
+  if(g2PlotPhBands.second <= 0 || g2PlotPhBands.second >= phononH0.getNumBands()) {
+    g2PlotPhBands.second = phononH0.getNumBands() - 1; // minus 1 to account for index from 0
+  }
 
-  // check lower bounds 
-  if(g2PlotPhBands.first < 0 || g2PlotEl1Bands.first < 0 || g2PlotEl2Bands.first < 0) { 
+  // check lower bounds
+  if(g2PlotPhBands.first < 0 || g2PlotEl1Bands.first < 0 || g2PlotEl2Bands.first < 0) {
     Warning("One of your band range has an index below zero. Setting band range to index from first band.");
   }
 
-  // check that the first index is minimum of zero 
+  // check that the first index is minimum of zero
   if(g2PlotEl1Bands.first < 0)  { g2PlotEl1Bands.first = 0; }
   if(g2PlotEl2Bands.first < 0) { g2PlotEl2Bands.first = 0; }
   if(g2PlotPhBands.first < 0)  { g2PlotPhBands.first = 0;  }
 
-  // check if lower band is less than higher band 
-  if(g2PlotPhBands.first > g2PlotPhBands.second || g2PlotEl1Bands.first > g2PlotEl1Bands.second 
+  // check if lower band is less than higher band
+  if(g2PlotPhBands.first > g2PlotPhBands.second || g2PlotEl1Bands.first > g2PlotEl1Bands.second
 		  				|| g2PlotEl2Bands.first > g2PlotEl2Bands.second ) {
-    Error("One of your band range index2 - index1 < 0. Check the band ranges."); 
+    Error("One of your band range index2 - index1 < 0. Check the band ranges.");
   }
 
-  if(mpi->mpiHead()) { 
+  if(mpi->mpiHead()) {
 	  std::cout << "Coupling to be calculated with (inclusive) band ranges: el1 [" << g2PlotEl1Bands.first << " "
-	 	<< g2PlotEl1Bands.second << "] el2 [" << g2PlotEl2Bands.first << " " <<  g2PlotEl2Bands.second 
-	        << "] ph [" <<  g2PlotPhBands.first << " " <<  g2PlotPhBands.second << "]" << std::endl; 
-  }   
+	 	<< g2PlotEl1Bands.second << "] el2 [" << g2PlotEl2Bands.first << " " <<  g2PlotEl2Bands.second
+	        << "] ph [" <<  g2PlotPhBands.first << " " <<  g2PlotPhBands.second << "]" << std::endl;
+  }
 
   // Compute the coupling --------------------------------------------------
   std::vector<double> allGs;
-  // push back all the state energies 
-  std::vector<std::vector<double>> energiesK1; 
-  std::vector<std::vector<double>> energiesK2; 
-  std::vector<std::vector<double>> energiesQ3; 
+  // push back all the state energies
+  std::vector<std::vector<double>> energiesK1;
+  std::vector<std::vector<double>> energiesK2;
+  std::vector<std::vector<double>> energiesQ3;
 
   // distribute over k,q pairs
   int numPairs = pointsPairs.size();
   std::vector<size_t> pairParallelIter = mpi->divideWorkIter(numPairs);
 
-  // If mpi pools are used and each process does not have the same 
+  // If mpi pools are used and each process does not have the same
   // amount of work, the code can hang waiting for couplingElph to return.
-  // In the worse case, some processes will have one less item. 
-  // We check if this process's work value is less than the max value across 
-  // processes, and if so, append a -1 index. 
-  size_t max = pairParallelIter.size(); 
-  mpi->allReduceMax(&max); 
+  // In the worse case, some processes will have one less item.
+  // We check if this process's work value is less than the max value across
+  // processes, and if so, append a -1 index.
+  size_t max = pairParallelIter.size();
+  mpi->allReduceMax(&max);
   if(pairParallelIter.size() < max) {
     Eigen::Vector3d kCartesian = Eigen::Vector3d::Zero();
     int numWannier = couplingElPh.getCouplingDimensions()(4);
     Eigen::MatrixXcd eigenVectorK = Eigen::MatrixXcd::Zero(numWannier, 1);
     couplingElPh.cacheElPh(eigenVectorK, kCartesian);
-  } 
+  }
 
-  // we calculate the coupling for each pair, flatten it, and append
+  // we calculate the coupling for each pair, flatten it, and append  --------------
   // it to allGs. Then at the end, we write this chunk to HDF5.
 
   if(mpi->mpiHead())
@@ -187,19 +187,19 @@ void ElPhCouplingPlotApp::run(Context &context) {
     //Eigen::Vector3d k1C = {0.18, 0.18, 0};
     //Eigen::Vector3d k2C = {0.32, 0.32, 0};
     //Eigen::Vector3d q3C = {0.14,0.14,0};
-    //Eigen::Vector3d k2C = k1C + q3C; 
-    
+    //Eigen::Vector3d k2C = k1C + q3C;
+
     //Eigen::Vector3d k2C = {0.04, 0.04, 0};
 
-    //|g(k,k'=k+q,+q)|^2 = 
+    //|g(k,k'=k+q,+q)|^2 =
     Eigen::Vector3d k1C = thisPair.first;
     Eigen::Vector3d q3C = thisPair.second;
-    Eigen::Vector3d k2C = k1C + q3C; // TODO change this relation to minus 
+    Eigen::Vector3d k2C = k1C + q3C; // TODO change this relation to minus
 
     // |g(k+q, k'= k, -q)|^2
     //Eigen::Vector3d k2C = thisPair.first;
     //Eigen::Vector3d q3C = -1.*thisPair.second;
-    ///Eigen::Vector3d k1C = k2C - q3C; //k = k' - q 
+    ///Eigen::Vector3d k1C = k2C - q3C; //k = k' - q
     //q3C = thisPair.second;
 
     //Eigen::Vector3d k2C = thisPair.first;
@@ -226,10 +226,10 @@ void ElPhCouplingPlotApp::run(Context &context) {
     std::vector<Eigen::Vector3d> k2Cs;
     k2Cs.push_back(k2C);
 
-    // phonon eigenvectors    
-    auto t5 = phononH0.diagonalizeFromCoordinates(q3C); 
+    // phonon eigenvectors
+    auto t5 = phononH0.diagonalizeFromCoordinates(q3C);
     auto en3 = std::get<0>(t5);
-    auto eigenVector3 = std::get<1>(t5); 
+    auto eigenVector3 = std::get<1>(t5);
 
     //eigenVector3.setIdentity();
 
@@ -245,10 +245,10 @@ void ElPhCouplingPlotApp::run(Context &context) {
     std::vector<Eigen::MatrixXcd> eigenVectors3;
     eigenVectors3.push_back(eigenVector3);
     std::vector<Eigen::Vector3d> q3Cs;
-    q3Cs.push_back(q3C); 
+    q3Cs.push_back(q3C);
 
-    // prepare to store energies 
-    std::vector<double> tempEn1; 
+    // prepare to store energies
+    std::vector<double> tempEn1;
     std::vector<double> tempEn2;
     std::vector<double> tempEn3;
     for (int ib1 = g2PlotEl1Bands.first; ib1 <= g2PlotEl1Bands.second; ib1++) {
@@ -475,7 +475,7 @@ void ElPhCouplingPlotApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getPhFC2FileName(), "phFC2FileName");
   if(context.getG2PlotStyle() == "pointsPath") {
     throwErrorIfUnset(context.getPathExtrema(), "points path extrema");
-  } 
+  }
   if(context.getG2PlotStyle() == "pointsMesh" && context.getG2PlotStyle() == "qFixed") {
     throwErrorIfUnset(context.getKMesh(), "kMesh");
   }

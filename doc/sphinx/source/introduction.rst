@@ -3,7 +3,7 @@ Introduction
 
 Phoebe is a software for the ab-initio prediction of transport properties, such as electron-phonon limited conductivity and phonon thermal conductivity.
 
-Currently, we support integration with the ab-initio software suite Quantum ESPRESSO for electron-phonon properties and anharmonic force constants through ShengBTE. Phoebe also accepts anharmonic force constants from Phono3py, which interfaces with most mainstream DFT packages. Support for more coming soon.
+Currently, we support integration with the ab-initio software suite Quantum ESPRESSO for electron-phonon properties and anharmonic force constants through ShengBTE and Phono3py. 
 
 Additionally, Phoebe is written in C++ and designed for use on modern HPC infrastructures through hybrid MPI/OpenMP parallelization, distributed memory computation via ScaLAPACK, and support for GPU acceleration using Kokkos.
 
@@ -20,17 +20,19 @@ J. Phys. Mater. 5 035003. (2022).
 
 * Electron-phonon limited electronic transport coefficients, including the electrical conductivity, Seebeck coefficient, and electronic thermal conductivity
 
-* Lattice thermal conductivity, including effects from 3-phonon scattering, phonon-isotope and phonon-boundary scattering
+* Lattice thermal conductivity, including contributions from 3-phonon, phonon-isotope, phonon-electron, and phonon-boundary scattering
 
-* Electron-phonon scattering through Wannier interpolation, or EPA approximation
+* BTE solutions by RTA, iterative, variational, and relaxon solvers
 
-* Calculation of electron and phonon lifetimes (linewidths)
+* Electron-phonon transport via Wannier interpolation or EPA approximation
+
+* Wigner transport equation correction for electrons and phonons 
+
+* Calculation of electron and phonon lifetimes/linewidths (including projected onto a band path)
 
 * Electron and phonon viscosities
 
-* Plots of electronic band structure and phonon dispersion relations
-
-* Plots of electron or phonon density of states
+* Plots of electron band structures/phonon dispersion, electron and phonon density of states
 
 This documentation contains a brief description of the formalism used to compute these quantities. We expect that the user is already familiar with ab-initio codes and with the fundamentals of solid state physics. A good introduction to the topic is the book "Electrons and Phonons: The Theory of Transport Phenomena in Solids" by Ziman. In the theory section, we add references to contemporary literature for the latest method/algorithm developments.
 

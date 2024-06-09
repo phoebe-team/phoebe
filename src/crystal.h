@@ -177,6 +177,18 @@ public:
 
   const Eigen::VectorXd &getAtomicIsotopeCouplings();
 
+  /** Change of basis method to convert crystal wavevector to cartesian coordinates. 
+   * @param point: a point in crystal coordinates
+   * @return the point in cartesian coordiantes
+   * */
+  Eigen::Vector3d crystalToCartesian(const Eigen::Vector3d &point);
+
+  /** Change of basis method to convert crystal wavevector to cartesian coordinates. 
+   * @param point: a point in cartesian coordinates
+   * @return the point in crystal coordiantes
+   * */
+  Eigen::Vector3d cartesianToCrystal(const Eigen::Vector3d &point);
+
   /** Build the list of Bravais lattice vectors (real space) that live within
    * the Wigner Seitz zone of a super cell
    * which is grid(0) x grid(1) x grid(2) bigger than the unitCell.

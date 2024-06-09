@@ -642,3 +642,13 @@ Crystal::buildWignerSeitzVectorsWithShift(const Eigen::Vector3i &grid,
   }
   return std::make_tuple(bravaisVectors, degeneracies);
 }
+
+// change of basis methods
+Eigen::Vector3d Crystal::crystalToCartesian(const Eigen::Vector3d &point) {
+  return getReciprocalUnitCell() * point;
+}
+
+Eigen::Vector3d Crystal::cartesianToCrystal(const Eigen::Vector3d &point) {
+  Eigen::Vector3d p = getReciprocalUnitCell().inverse() * point;
+  return p;
+}

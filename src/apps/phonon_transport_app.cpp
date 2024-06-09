@@ -258,6 +258,9 @@ void PhononTransportApp::run(Context &context) {
       std::cout << "Starting variational BTE solver\n" << std::endl;
     }
 
+    // NOTE this is currently un-preconditioned! We should update the algorithm as here
+    // See numerical recipies: the minimal residual algorithm, 2.7 Sparse Linear Systems, pg 89
+
     // note: each iteration should take approximately twice as long as
     // the iterative method above (in the way it's written here.
 

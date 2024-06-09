@@ -53,10 +53,6 @@ public:
    */
   virtual void calcFromCanonicalPopulation(VectorBTE &f);
 
-  /** Compute the ballistic thermal condutivity for phonons 
-   * and write it to file. */
-  virtual void calcBallisticConductivity();
-
   /** Compute the thermal conductivity using a variational estimator
    * See Eq. 26 of https://link.aps.org/doi/10.1103/PhysRevB.88.045430
    * @param af: the product of the scattering matrix A with the canonical
@@ -101,6 +97,10 @@ public:
 protected:
   int whichType() override;
   BaseBandStructure &bandStructure;
+  // unit information for writing to files
+  std::string thCondUnits;
+  double thCondConversion;
+
 };
 
 #endif

@@ -59,6 +59,7 @@ class Context {
   bool hasSpinOrbit = false;
 
   int dimensionality = 3;
+  double thickness = 1.; // material thickness or cross area for lower dimensions
 
   double dosMinEnergy = std::numeric_limits<double>::quiet_NaN();
   double dosMaxEnergy = std::numeric_limits<double>::quiet_NaN();
@@ -82,8 +83,7 @@ class Context {
   Eigen::VectorXd customIsotopeCouplings;
   Eigen::VectorXd customMasses;
 
-  // add RTA boundary scattering in phonon scattering matrix
-  // boundary length for isotope scattering
+  // add RTA boundary scattering in scattering matrix
   double boundaryLength = std::numeric_limits<double>::quiet_NaN();
 
   std::string elphFileName;
@@ -135,7 +135,7 @@ class Context {
   // toggle the check for negative relaxons eigenvalues in few eigenvalues case
   bool checkNegativeRelaxons = true;
   // toggle the enforcement of the matrix being positive semidefinite
-  bool enforcePositiveSemiDefinite = false; 
+  bool enforcePositiveSemiDefinite = false;
 
   // for coupled transport
   bool useDragTerms = true;
@@ -144,20 +144,6 @@ class Context {
   std::string wsVecFileName;
 
 public:
-
-  /** Reads the user-provided input file and saves the input parameters
-   * @param fileName: path to the input file
-   */
-  void setupFromInput(const std::string &fileName);
-
-  /** Prints the user-provided input variables to output, including default values.
-   * @param fileName: path to the input file, just to print where input came from.
-   */
-  void printInputSummary(const std::string &fileName);
-
-  /** Reinforce that all variables dependent on each other are correct
-   */
-  void checkDependentVariables(); 
 
   // Setter and getter for all the variables above ----------------
 
@@ -311,6 +297,8 @@ public:
 
   int getDimensionality() const;
 
+  double getThickness() const;
+
   double getDosMinEnergy() const;
 
   double getDosMaxEnergy() const;
@@ -393,6 +381,21 @@ public:
   double getEpaEnergyRange() const;
   double getEpaEnergyStep() const;
   double getEFermiRange() const;
+
+  /** Reads the user-provided input file and saves the input parameters
+   * @param fileName: path to the input file
+   */
+  void setupFromInput(const std::string &fileName);
+
+  /** Prints the user-provided input variables to output, including default values.
+   * @param fileName: path to the input file, just to print where input came from.
+   */
+  void printInputSummary(const std::string &fileName);
+
+  /** Sanity checks the input variables to make sure they agree.
+   * TODO: This function should be replaced with a better system in the future.
+  */
+  void inputSanityCheck();
 
   Eigen::VectorXi getCoreElectrons();
   void setCoreElectrons(const Eigen::VectorXi &x);

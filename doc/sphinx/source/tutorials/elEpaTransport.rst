@@ -229,7 +229,7 @@ To do this, let's have a look at the input file ``qeToPhoebeEPA.in``::
   electronFourierCutoff = 4.
   epaMinEnergy = -4. eV
   epaMaxEnergy = 10. eV
-  epaNumBins = 10
+  epaNumBins = 40
   epaSmearingEnergy = 0.05 eV
 
 The parameters in this input file are as follows:
@@ -278,6 +278,7 @@ Below is an example input file for computing electronic transport properties::
 
   appName = "transportEpa"
 
+  useSymmetries = true
   electronH0Name = "qe-elph/out/silicon.xml",
   epaFileName = "qe-elph/silicon.phoebe.epa.dat"
 
@@ -292,6 +293,8 @@ Below is an example input file for computing electronic transport properties::
 The parameters used here are:
 
 * :ref:`appName` = `"transportEPA"`: selects the app for computing electronic transport properties with EPA.
+
+* :ref:`useSymmetries`: whether or not to use symmetries of the crystal structure in the calculation. 
 
 * :ref:`electronH0Name`: points to the Quantum-ESPRESSO ``*.xml`` file created by ``pw.x``, which contains the electronic single-particle energies.
 
@@ -340,16 +343,14 @@ You can learn more about how to post-process these files at :ref:`postprocessing
 
 **Files which are always output for this calculation:**
 
-* ``electron_bands.json``: contains the electron band energies used in the calculation.
-
-* ``electron_dos.json``: contains the electron density of states used in the calculation.
+* ``epa_dos.json``: contains the electron density of states used in the calculation.
 
 * ``epa_onsager_coefficients.json``: contains the electronic transport coefficients from EPA.
 
 * ``epa_relaxation_times.json``: contains the EPA relaxation times at each energy bin value.
 
 
-To understand how to parse these files in more detail, take a look at the scripts described by the :ref:`postprocessing` page. In particular, if you want to plot lifetimes vs. energy, look at ``tau.py``. If you want to plot the transport coefficients vs. doping or temperature, check out ``transport_coefficients.py``.
+To understand how to parse these files in more detail, take a look at the scripts described by the :ref:`postprocessing` page. In particular, if you want to plot lifetimes vs. energy, look at ``epa_tau.py``. If you want to plot the transport coefficients vs. doping or temperature, check out ``transport_coefficients.py``.
 
 .. note::
    It's a good idea to also use bands.py to plot the band structure. Fourier interpolation of the band structure can be a source of error -- you may need to go to higher k-point meshes to get a reasonable interpolation of the band structure. Check the bands at this stage to make sure they are similar to the true DFT bands -- otherwise, your results could be problematic!

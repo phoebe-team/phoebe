@@ -22,4 +22,14 @@ public:
   void checkRequirements(Context &context) override;
 };
 
+/**
+ * Helper function to output dos to a json file
+ * @param energies: list of energies to write to file 
+ * @param dos: list of dos values to write to file 
+ * @param particle: electron or phonon particle object 
+ * @param outFileName: name of the dos .json file 
+ */
+void outputDOSToJSON(std::vector<double> energies, std::vector<double> dos,
+          Particle& particle, const std::string &outFileName);
+
 #endif

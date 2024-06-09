@@ -41,6 +41,7 @@ void PhononBandsApp::run(Context &context) {
   if (mpi->mpiHead()) {
     std::cout << "Finishing phonon bands calculation" << std::endl;
   }
+
 }
 
 /* --------------------- ElectronWannierBandsApp --------------------- */
@@ -154,9 +155,9 @@ void outputBandsToJSON(FullBandStructure &fullBandStructure, Context &context,
     auto pathLabels = context.getPathLabels();
     // check if this point is one of the high sym points,
     // and if it is, save the index
-    if (coord[0] == extremaCoordinates[extremaCount][0] &&
-        coord[1] == extremaCoordinates[extremaCount][1] &&
-        coord[2] == extremaCoordinates[extremaCount][2]) {
+    if ( abs(coord[0] - extremaCoordinates[extremaCount][0]) < 1e-8 &&
+        abs(coord[1] - extremaCoordinates[extremaCount][1]) < 1e-8 &&
+        abs(coord[2] - extremaCoordinates[extremaCount][2]) < 1e-8 ) {
 
       pathLabelIndices.push_back(ik);
       // if the next extrema is the same as this one, add the index

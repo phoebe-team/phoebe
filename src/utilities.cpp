@@ -79,9 +79,11 @@ std::tuple<double, double> memoryUsage() {
 
 double findMaxRelativeDifference(const Eigen::Tensor<double,3> &x,
                                  const Eigen::Tensor<double,3> &xRef) {
+
   if (!(x.dimensions() == xRef.dimensions())) {
-    Error("Can't compare inconsistent tensors");
+    Error("Developer error: Can't compare inconsistent tensors");
   }
+  
   Eigen::Tensor<double, 3> diff = ((x - xRef) / xRef).abs();
   double maxDiff = 1.e20;
   for (int i = 0; i < diff.dimension(0); i++) {
@@ -94,7 +96,7 @@ double findMaxRelativeDifference(const Eigen::Tensor<double,3> &x,
     }
   }
   if (maxDiff == 1.e20) {
-    Error("wrong bounds in findMaxRelativeDifference");
+    Error("Developer error: Wrong bounds in findMaxRelativeDifference.");
   }
   return maxDiff;
 }

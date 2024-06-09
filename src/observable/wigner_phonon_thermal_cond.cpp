@@ -1,22 +1,33 @@
 #include "wigner_phonon_thermal_cond.h"
-
 #include <iomanip>
-
 #include "constants.h"
 
 WignerPhononThermalConductivity::WignerPhononThermalConductivity(
     Context &context_, StatisticsSweep &statisticsSweep_, Crystal &crystal_,
     BaseBandStructure &bandStructure_, VectorBTE &relaxationTimes)
-    : PhononThermalConductivity(context_, statisticsSweep_, crystal_,
-                                bandStructure_),
+    : PhononThermalConductivity(context_, statisticsSweep_, crystal_, bandStructure_),
       smaRelTimes(relaxationTimes) {
 
-  wignerCorrection =
-      Eigen::Tensor<double, 3>(numCalculations, dimensionality, dimensionality);
+  wignerCorrection = Eigen::Tensor<double, 3>(numCalculations, dimensionality, dimensionality);
   wignerCorrection.setZero();
 
   auto particle = bandStructure.getParticle();
   int dimensionality = crystal.getDimensionality();
+
+    // set up units for writing to file
+  thCondUnits = "W /(m K)";
+  if (dimensionality == 3) {
+    thCondConversion = thConductivityAuToSi; 
+  } else if (dimensionality == 2) {
+    // multiply by the height of the cell / thickness of the cell to convert 3D -> 2D.  
+    // Because the unit cell volume is already reduced for dimensionality, 
+    // we only need to divide by thickness. 
+    //double height = crystal.getDirectUnitCell()(2,2);
+    thCondConversion = thConductivityAuToSi * (1. / context.getThickness()); 
+  } else {
+    Warning("1D conductivity should be manually adjusted for the cross-section of the material.");
+    thCondConversion = thConductivityAuToSi; 
+  }
 
   Eigen::VectorXd norm(numCalculations);
   for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
@@ -136,20 +147,10 @@ void WignerPhononThermalConductivity::calcFromRelaxons(
 
 void WignerPhononThermalConductivity::print() {
 
-  if (!mpi->mpiHead())
-    return; // debugging now
-
-  std::string units;
-  if (dimensionality == 1) {
-    units = "W m / K";
-  } else if (dimensionality == 2) {
-    units = "W / K";
-  } else {
-    units = "W / m / K";
-  }
+  if (!mpi->mpiHead()) return; 
 
   std::cout << "\n";
-  std::cout << "Wigner Thermal Conductivity (" << units << ")\n";
+  std::cout << "Wigner Thermal Conductivity (" << thCondUnits << ")\n";
 
   for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
     auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
@@ -163,7 +164,7 @@ void WignerPhononThermalConductivity::print() {
       std::cout << "  " << std::scientific;
       for (int j = 0; j < dimensionality; j++) {
         std::cout << " " << std::setw(13) << std::right;
-        std::cout << tensordxd(iCalc, i, j) * thConductivityAuToSi;
+        std::cout << tensordxd(iCalc, i, j) * thCondConversion;
       }
       std::cout << "\n";
     }

@@ -614,6 +614,15 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "smearingWidth") {
         smearingWidth = parseDoubleWithUnits(val);
       }
+      if (parameterName == "phSmearingWidth") {
+        phSmearingWidth = parseDoubleWithUnits(val);
+      }
+      if (parameterName == "elSmearingWidth") {
+        elSmearingWidth = parseDoubleWithUnits(val);
+      }
+      //if (parameterName == "dragSmearingWidth") {
+      //  dragSmearingWidth = parseDoubleWithUnits(val);
+      //}
       if (parameterName == "adaptiveSmearingPrefactor") {
         adaptiveSmearingPrefactor = parseDouble(val);
       }
@@ -984,6 +993,15 @@ void Context::printInputSummary(const std::string &fileName) {
     if (!std::isnan(smearingWidth))
       std::cout << "smearingWidth = " << smearingWidth * energyRyToEv << " eV"
                 << std::endl;
+    if (!std::isnan(elSmearingWidth))
+      std::cout << "elSmearingWidth = " << elSmearingWidth * energyRyToEv << " eV"
+                << std::endl;
+    if (!std::isnan(phSmearingWidth))
+      std::cout << "phSmearingWidth = " << phSmearingWidth * energyRyToEv << " eV"
+                << std::endl;
+    //if (!std::isnan(dragSmearingWidth))
+    //  std::cout << "dragSmearingWidth = " << dragSmearingWidth * energyRyToEv << " eV"
+    //            << std::endl;
     if (!std::isnan(adaptiveSmearingPrefactor))
       std::cout << "adaptiveSmearingPrefactor = " << adaptiveSmearingPrefactor 
                 << std::endl;
@@ -1319,8 +1337,17 @@ bool Context::getHasSpinOrbit() const { return hasSpinOrbit; }
 void Context::setHasSpinOrbit(const bool &x) { hasSpinOrbit = x; }
 
 int Context::getSmearingMethod() const { return smearingMethod; }
+
 double Context::getSmearingWidth() const { return smearingWidth; }
+double Context::getElSmearingWidth() const { return elSmearingWidth; }
+double Context::getPhSmearingWidth() const { return phSmearingWidth; }
+//double Context::getDragSmearingWidth() const { return dragSmearingWidth; }
+
 void Context::setSmearingWidth(const double &x) { smearingWidth = x; }
+void Context::setElSmearingWidth(const double &x) { elSmearingWidth = x; }
+void Context::setPhSmearingWidth(const double &x) { phSmearingWidth = x; }
+//void Context::setDragSmearingWidth(const double &x) { dragSmearingWidth = x; }
+
 double Context::getAdaptiveSmearingPrefactor() const { return adaptiveSmearingPrefactor; }
 void Context::setAdaptiveSmearingPrefactor(const double &x) { adaptiveSmearingPrefactor = x; }
 

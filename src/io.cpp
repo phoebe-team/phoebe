@@ -198,7 +198,7 @@ void IO::goodbye(Context &context) {
 }
 
 LoopPrint::LoopPrint(const std::string &task_, const std::string &step_,
-                     const int &numSteps_) {
+                     const size_t &numSteps_) {
   if (!mpi->mpiHead())
     return;
 
@@ -218,7 +218,7 @@ LoopPrint::LoopPrint(const std::string &task_, const std::string &step_,
 
   std::cout << "\n";
   std::cout << "Started " << task << " with ~" << numSteps << " " << step
-            << " per/MPI process." << std::endl;
+            << " per MPI process." << std::endl;
 
   stepDigits = int(log10(numSteps)) + 1; // number of digits in numSteps
 }

@@ -132,7 +132,7 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
   mpi->bcast(&numPhBravaisVectors);
 
   if (numSpin == 2) {
-    Error("Spin is not currently supported");
+    Error("Spin-polarized and spin-non-colinear calculations are not currently supported.");
   }
   context.setNumOccupiedStates(numElectrons);
 
@@ -150,9 +150,9 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
   mpi->bcast(&phBravaisVectorsDegeneracies_);
   mpi->bcast(&couplingWannier_, mpi->interPoolComm);
 
-  // there is no JDFTx parsing option for this function, so we will always have 
+  // there is no JDFTx parsing option for this function, so we will always have
   // phase convention 0, in which we use Re and Rp
-  int phaseConvention_ = 0; 
+  int phaseConvention_ = 0;
 
   InteractionElPhWan output(crystal, couplingWannier_, elBravaisVectors_,
                             elBravaisVectorsDegeneracies_, phBravaisVectors_,
@@ -167,9 +167,9 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
 
   std::string fileName = context.getElphFileName();
 
-  // Here, phase convention corresponds to using 
+  // Here, phase convention corresponds to using
   // g(Re,Rp) (phase convention = 1) or g(Re',Re) (phase convention = 2)
-  int numElectrons, numSpin, phaseConvention; 
+  int numElectrons, numSpin, phaseConvention;
   int numElBands, numElBravaisVectors, totalNumElBravaisVectors, numPhBands, numPhBravaisVectors;
   // suppress initialization warning
   numElBravaisVectors = 0; totalNumElBravaisVectors = 0; numPhBravaisVectors = 0;
@@ -203,7 +203,7 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
         dnModes.read(numPhBands);
 
         // if phaseConvention not in the file, it's a typical QE file and phaseConv = 0
-        // if it's set, this is a jdftx file and it should be set to zero 
+        // if it's set, this is a jdftx file and it should be set to zero
         try {
           HighFive::DataSet dPhaseConvention = file.getDataSet("/phaseConvention");
           dPhaseConvention.read(phaseConvention);
@@ -217,9 +217,9 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
         std::string datasetElDegeneracies = "/elDegeneracies";
 
         // if this is a jdftx elph file, we need to read in elphBravaisVectors
-        // here, instead of el and ph bravais vectors, we just have one set of R 
-        // vectors saved under elphBravaisVectors 
-        if(phaseConvention == 1) { 
+        // here, instead of el and ph bravais vectors, we just have one set of R
+        // vectors saved under elphBravaisVectors
+        if(phaseConvention == 1) {
           datasetPhBravaisVectors = "/elphBravaisVectors";
           datasetPhDegeneracies = "/elphDegeneracies";
           datasetElBravaisVectors = "/elphBravaisVectors";
@@ -271,8 +271,12 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     mpi->bcast(&phaseConvention);
 
     // phase convention 2 is used by JDFTx, which supports spin
-    if (numSpin == 2 and phaseConvention == 0) {
+    if (numSpin == 2 && phaseConvention == 0) {
       Error("Spin is not currently supported when using QE.");
+    } else if (numSpin == 2 && phaseConvention == 1) { // this is spin polarized JDFTx
+      Warning("Spin-polarized JDFTx calculations should be closely monitored, as they are not well tested!");
+      bool spinOrbit = true;
+      context.setHasSpinOrbit(spinOrbit);
     }
     context.setNumOccupiedStates(numElectrons);
 
@@ -551,20 +555,21 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
     Error("Issue reading elph Wannier representation from hdf5.");
   }
 
-  //Eigen::array<int, 5> shuffling({1, 0, 2, 4, 3}); 
+  //Eigen::array<int, 5> shuffling({1, 0, 2, 4, 3});
   //couplingWannier_ = couplingWannier_.shuffle(shuffling);
   //std::cout << std::scientific << std::endl;
 
-  //for(int i = 0; i<numPhBands; i++) { 
+  //for(int i = 0; i<numPhBands; i++) {
   //  std::cout << " coupling wannier " << couplingWannier_(3,7,i,63,1) << std::endl;
   //}
   //couplingWannier_.setConstant(1.);
+
+  Kokkos::Profiling::popRegion();
 
   Kokkos::Profiling::pushRegion("Interaction constructor");
   InteractionElPhWan output(crystal, couplingWannier_, elBravaisVectors_,
                             elBravaisVectorsDegeneracies_, phBravaisVectors_,
                             phBravaisVectorsDegeneracies_, phaseConvention, phononH0_);
-  Kokkos::Profiling::popRegion();
   Kokkos::Profiling::popRegion();
   return output;
 
@@ -586,8 +591,8 @@ InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal, PhononH0 &pho
   int numElBravaisVectors = elBravaisVectorsDegeneracies_.size();
   int numPhBravaisVectors = phBravaisVectorsDegeneracies_.size();
   int phaseConvention = std::get<8>(t);
-  if(phaseConvention == 1) { 
-    DeveloperError("There is no phaseConvention=1 possibility for parseHDF5 version 2!"); 
+  if(phaseConvention == 1) {
+    DeveloperError("There is no phaseConvention=1 possibility for parseHDF5 version 2!");
   }
 
   Eigen::Tensor<std::complex<double>, 5> couplingWannier_;

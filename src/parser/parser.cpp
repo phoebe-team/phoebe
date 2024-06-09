@@ -11,12 +11,23 @@ std::tuple<Crystal, PhononH0> Parser::parsePhHarmonic(Context &context) {
     if(mpi->mpiHead()) std::cout << "Parsing FC2s from QE." << std::endl;
     return QEParser::parsePhHarmonic(context);
   }
+  // TODO we should simplify this parsing, it's very confusing to trigger the right 
+  // parser if one wants to use JDFTx elph and phonopy FC3
+  else if(!context.getJDFTxScfOutFile().empty() && !context.getPhonopyDispFileName().empty()) {
+    if(fc2FileName.find("jdftx") != std::string::npos) {
+      if(mpi->mpiHead()) std::cout << "Parsing FC2s from JDFTx." << std::endl;
+        return JDFTxParser::parsePhHarmonic(context);
+    } else {
+      if(mpi->mpiHead()) std::cout << "Parsing FC2s from Phonopy." << std::endl;
+        return PhonopyParser::parsePhHarmonic(context);
+    }
+  }
   // the jdftx filename should point to totalE.out
   else if(!context.getJDFTxScfOutFile().empty()) {
     if(mpi->mpiHead()) std::cout << "Parsing FC2s from JDFTx." << std::endl;
     return JDFTxParser::parsePhHarmonic(context);
   }
-  // otherwise try to parse as a QE 
+  // otherwise try to parse as phonopy format 
   else if (!context.getPhonopyDispFileName().empty()) {
     if(mpi->mpiHead()) std::cout << "Parsing FC2s from Phonopy." << std::endl;
     return PhonopyParser::parsePhHarmonic(context);
@@ -41,7 +52,7 @@ std::tuple<Crystal, ElectronH0Wannier> Parser::parseElHarmonicWannier(
   // try to use set file to determine which file we have
 
   // from qe we expect a seedname. file
-  if(!context.getWannier90Prefix().empty()) {
+  if(!context.getWannier90Prefix().empty() || context.getElectronH0Name().find("_tb.dat") != std::string::npos) {
     if(mpi->mpiHead()) std::cout << "\nParsing Wannier Hamiltonian from QE." << std::endl;
     return QEParser::parseElHarmonicWannier(context, inCrystal);
   }

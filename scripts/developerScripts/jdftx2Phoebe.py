@@ -33,6 +33,9 @@ Rdone = False
 collectIons = False
 masses = []
 
+# NOTE: YOU MUST MANUALLY CHANGE THIS VALUE TO THE NUMBER OF EXCLUDED BANDS!
+excludeBands = 16
+
 # Read kpoints information and chemical potential, nelec, spin, etc from JDFTx
 for line in open('totalE.out'):
     if line.startswith('\tFillingsUpdate:'):
@@ -88,7 +91,7 @@ hf.create_dataset('elDegeneracies', data=np.ones(nCells).reshape(nCells,1))
 hf.create_dataset('kMesh', data=kfold.reshape(3,1))
 hf.create_dataset('numElBands', data=nBands)
 hf.create_dataset('numSpin', data=nSpin)
-hf.create_dataset('numElectrons', data=nElec)
+hf.create_dataset('numElectrons', data=nElec - excludeBands)
 # in addition to regular Phoebe quantities, we will also read this from HDF5
 hf.create_dataset('chemicalPotential', data=mu*2.)  # convert to Ry
 hf.create_dataset('wannierHamiltonian', data=Hwannier*2.) # convert to Ry

@@ -34,7 +34,7 @@ class InteractionElPhWan {
   int numPhBands, numElBands, numWsR1Vectors, numWsR2Vectors;
   std::vector<Eigen::Tensor<double, 3>> cacheCoupling;
   bool usePolarCorrection = false;
-  const int phaseConvention; 
+  const int phaseConvention;
 
   // kokkos objects for GPU accelerated elph coupling
   ComplexView4D elPhCached;
@@ -77,7 +77,7 @@ public:
    * phonon Fourier transform of the coupling.
    * @param wsR2VectorsWeights_: weights (degeneracies) of the
    * lattice vectors used in the phonon Fourier transform of the coupling.
-   * @param phaseConvention_: whether to use g(Re,Rp) = convention = 0 or 
+   * @param phaseConvention_: whether to use g(Re,Rp) = convention = 0 or
    * g(Re,Re') = convention = 1, as used by JDFTx
    * @param phononH0_: the phonon dynamical matrix object. Used for
    * adding the polar interaction.
@@ -88,8 +88,10 @@ public:
     const Eigen::MatrixXd &wsR1Vectors_,
     const Eigen::VectorXd &wsR1VectorsDegeneracies_,
     const Eigen::MatrixXd &wsR2Vectors_,
-    const Eigen::VectorXd &wsR2VectorsDegeneracies_, 
-    const int& phaseConvention, const PhononH0& phononH0_); 
+    const Eigen::VectorXd &wsR2VectorsDegeneracies_,
+    const int& phaseConvention, const PhononH0& phononH0_);
+
+    void resetK1(); // just resets the first transform for a new cycle
 
   /** Almost empty constructor.
    * Used to fake the existence of a coupling with the constant relaxation time
@@ -139,9 +141,6 @@ public:
    * @param q3s: list of phonon wavevectors.
    * @param k1C: the electron wavevector last used by cacheElPh (only used when phaseConvention)
    * = 1, as here we need to reconstruct k2
-   * @param useMinusQ: boolean to tell us if we should negate q (and related quantities)
-   *                   this results in a conjugation of the ph eigenvector, e(-q) = e(q)^*
-   *                   This can be useful if you want to do g(k,-q)
    */
   void calcCouplingSquared(
       const Eigen::MatrixXcd &eigvec1,
@@ -149,9 +148,7 @@ public:
       const std::vector<Eigen::MatrixXcd> &eigvecs3,
       const std::vector<Eigen::Vector3d> &q3Cs,
       const Eigen::Vector3d &k1C,
-      const std::vector<Eigen::VectorXcd> &polarData, 
-      const bool useMinusQ = false);
-
+      const std::vector<Eigen::VectorXcd> &polarData);
 
   void oldCalcCouplingSquared(
     const Eigen::MatrixXcd &eigvec1,
@@ -226,7 +223,7 @@ public:
 
   // Internal polar correction functions --------------------------------
 
-  // TODO these functions need full documentation 
+  // TODO these functions need full documentation
 
   // functions to help with the calculation of the polar correction
   // as described in doi:10.1103/physRevLett.115.176401, Eq. 4
@@ -252,7 +249,7 @@ public:
 
   // Sets up a call to polarCorrectionPart1Static for the calculation of V_L
   // during wannier interpolation of the matrix elements
-  // TODO this function is also public because of elph coupling app. 
+  // TODO this function is also public because of elph coupling app.
   // seems like it should be private
   Eigen::VectorXcd polarCorrectionPart1(
         const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev3);
@@ -262,11 +259,9 @@ public:
   static Eigen::Tensor<std::complex<double>, 3> polarCorrectionPart2(
         const Eigen::MatrixXcd &ev1, const Eigen::MatrixXcd &ev2, const Eigen::VectorXcd &x);
 
-  /** precompute the q-dependent part of the polar correction 
+  /** precompute the q-dependent part of the polar correction
   * @param phbandstructure: the bandstructure object containing all q-points
   *     for which this precomputation should occur
-  * @param useMinusQ: this variable triggers -q rather than q to be used in this function
-  * 	This can be useful if you want to do g(k,-q)
   * @return polarData: the q-dependent part of the polar correction
   */
   Eigen::MatrixXcd precomputeQDependentPolar(BaseBandStructure &phBandStructure,

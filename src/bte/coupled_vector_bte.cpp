@@ -48,8 +48,7 @@ CoupledVectorBTE::CoupledVectorBTE(StatisticsSweep &statisticsSweep_,
   for (int is : phBandStructure.irrStateIterator()) {
     auto isIdx = StateIndex(is);
     double en = phBandStructure.getEnergy(isIdx);
-    // TODO standardize this number!
-    if (en < 0.1 / ryToCmm1) { // cutoff at 0.1 cm^-1
+    if (en < phEnergyCutoff) { // cutoff at 0.1 cm^-1
       int iBte = phBandStructure.stateToBte(isIdx).get();
       excludeIndices.push_back(iBte);
     }

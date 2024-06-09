@@ -18,8 +18,6 @@
 //       scattering matrix on the in vector, returning outVec = sMatrix*vector
 // only linewidth is passed: we compute only the linewidths
 
-const double phEnergyCutoff = 5 / ryToCmm1; // discard states with small ph energies
-
 void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                        std::vector<VectorBTE> &inPopulations,
                        std::vector<VectorBTE> &outPopulations,

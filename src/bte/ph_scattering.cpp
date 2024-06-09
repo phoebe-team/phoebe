@@ -12,9 +12,6 @@
 //       scattering matrix on the in vector, returning outVec = sMatrix*vector
 // only linewidth is passed: we compute only the linewidths
 
-// auxiliary variable for deciding how to apply low energy cutoff
-const double phEnergyCutoff = 0.001 / ryToCmm1; // discard states with small
-
 // TODO check to see how we can simplify this function
 
 // function to add phph scattering to a scattering matrix

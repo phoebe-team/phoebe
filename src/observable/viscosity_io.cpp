@@ -98,7 +98,7 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
   theta_e = Eigen::VectorXd::Zero(numStates);
 
   // phi -- the three momentum conservation eigenvectors
-  //     phi = sqrt(1/(kbT*volume*Nkq*M)) * g-1 * ds * hbar * wavevector;
+  //     phi = sqrt(1/(kbT*volume*Npts*M)) * g-1 * ds * hbar * wavevector;
   phi = Eigen::MatrixXd::Zero(3, numStates);
 
   // spin degen vector
@@ -115,7 +115,7 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
     ds(is) = sqrt(spinFactor);
     auto isIdx = StateIndex(is);
     double en = bandStructure.getEnergy(isIdx);
-    if(particle.isPhonon() && en < 0.001 / ryToCmm1) { continue; }
+    if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
     double pop = particle.getPopPopPm1(en, kBT, chemPot);
 
     theta0(is) = sqrt(pop) * (en - chemPot) * ds(is);
@@ -148,12 +148,16 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
     auto isIdx = StateIndex(is);
     auto en = bandStructure.getEnergy(isIdx);
 
-    if(particle.isPhonon() && en < 0.001 / ryToCmm1) { continue; }
+    if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
+
     double pop = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
     auto q = bandStructure.getWavevector(isIdx);
     q = bandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
+
+    Eigen::Vector3d contrib; contrib.setZero();  
     for (int iDim = 0; iDim < dimensionality; iDim++) {
       A(iDim) += pop * q(iDim) * q(iDim);
+      contrib(iDim) += pop * q(iDim) * q(iDim);
     }
   }
   mpi->allReduceSum(&A);
@@ -165,7 +169,7 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
 
     auto isIdx = StateIndex(is);
     auto en = bandStructure.getEnergy(isIdx);
-    if(particle.isPhonon() && en < 0.001 / ryToCmm1) { continue; }
+    if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
 
     double pop = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
     auto q = bandStructure.getWavevector(isIdx);
@@ -200,8 +204,8 @@ void printViscosity(std::string& viscosityName, Eigen::Tensor<double, 5>& viscos
 
   int numCalculations = statisticsSweep.getNumCalculations();
 
-  if(numCalculations > 50) {
-    std::cout << "\nBecause there are more than 50 calculations in this run,\n"
+  if(numCalculations > 20) {
+    std::cout << "\nBecause there are more than 20 calculations in this run,\n"
             << "the transport tensors will not be printed to output, but can\n"
             << "still be found in the corresponding output json file.\n"
             << std::endl;
@@ -303,7 +307,6 @@ void outputViscosityToJSON(const std::string& outFileName, const std::string& vi
   o.close();
 }
 
-
 // TODO we need to fix the dimensionality to work for
 // low dim materials in all the coefficients!
 void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
@@ -356,7 +359,7 @@ void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
     auto isIdx = StateIndex(is);
     double en = bandStructure.getEnergy(isIdx);
     // discard acoustic phonon modes
-    if (isPhonon && en < 0.001 / ryToCmm1) { continue; }
+    if (isPhonon && en < phEnergyCutoff) { continue; }
     auto v = bandStructure.getGroupVelocity(isIdx);
     for (auto j : {0, 1, 2}) {
       for (auto i : {0, 1, 2}) {

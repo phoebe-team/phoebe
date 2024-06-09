@@ -87,7 +87,7 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
   Kokkos::Profiling::pushRegion("calcViscosityFromRelaxons");
 
   if (numCalculations > 1) {
-    Error("Developer error: Relaxons electron viscosity cannot be calculated for more than one T.");
+    Error("Developer error: Relaxons electron viscosity cannot be calculated for more than one T or mu value.");
   }
 
   // NOTE: view phonon viscosity for notes about which equations are calculated here.
@@ -107,7 +107,7 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
   auto particle = bandStructure.getParticle();
   int numRelaxons = eigenvalues.size();
   double Nk = context.getKMesh().prod();
-  int numStates = bandStructure.getNumStates();
+  size_t numStates = bandStructure.getNumStates();
 
   int iCalc = 0; // set to zero because of relaxons
   auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
@@ -118,30 +118,45 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
   // and save the indices that need to be skipped
   relaxonEigenvectorsCheck(eigenvectors, numRelaxons);
 
+  size_t states = eigenvectors.size();
+  LoopPrint loopPrint("Transforming relaxon populations","relaxons", eigenvectors.getAllLocalStates().size()); 
+
   // transform from the relaxon population basis to the electron population ------------
   Eigen::Tensor<double, 3> fRelaxons(3, 3, numStates);
   fRelaxons.setZero();
+
+  // TODO the problem is this is a nonstandard all reduce!
+  #pragma omp parallel for default(none) shared(bandStructure,particle,kBT,chemPot,alpha0, alpha_e, numRelaxons,eigenvalues,eigenvectors, loopPrint,fRelaxons)
   for (auto tup0 : eigenvectors.getAllLocalStates()) {
+
+    loopPrint.update();
 
     int is = std::get<0>(tup0);
     int alpha = std::get<1>(tup0);
     if (eigenvalues(alpha) <= 0. || alpha >= numRelaxons) { continue; }
     if (alpha == alpha0 || alpha == alpha_e) continue; // skip the energy eigenvector
 
+    // TODO this should be replaced somehow, it's super slow!
     StateIndex isIdx(is);
     Eigen::Vector3d kPt = bandStructure.getWavevector(isIdx);
     kPt = bandStructure.getPoints().bzToWs(kPt,Points::cartesianCoordinates);
+   
     Eigen::Vector3d vel = bandStructure.getGroupVelocity(isIdx);
     double en = bandStructure.getEnergy(isIdx);
-    double pop = particle.getPopPopPm1(en, kBT, chemPot);
+    double sqrtPop = sqrt(particle.getPopPopPm1(en, kBT, chemPot));
+
     // true sets a sqrt term
     for (int k = 0; k < dimensionality; k++) {
       for (int l = 0; l < dimensionality; l++) {
-        fRelaxons(k, l, alpha) += kPt(k) * vel(l) * sqrt(pop) / kBT /
+        #pragma omp critical 
+        {
+        fRelaxons(k, l, alpha) += kPt(k) * vel(l) * sqrtPop / kBT /
                                   eigenvalues(alpha) * eigenvectors(is, alpha);
+        }
       }
     }
   }
+  loopPrint.close();
   mpi->allReduceSum(&fRelaxons);
 
   // transform from relaxon to electron populations

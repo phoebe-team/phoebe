@@ -3,8 +3,6 @@
 
 #include "electron_h0_wannier.h"
 #include "phonon_h0.h"
-#include "interaction_3ph.h"
-#include "interaction_elph.h"
 #include "base_el_scattering_matrix.h"
 #include "base_ph_scattering_matrix.h"
 #include "coupled_vector_bte.h"
@@ -48,8 +46,6 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
  CoupledScatteringMatrix(Context &context_, StatisticsSweep &statisticsSweep_,
                     BaseBandStructure &innerBandStructure_,
                     BaseBandStructure &outerBandStructure_,
-                    Interaction3Ph *coupling3Ph_ = nullptr,
-                    InteractionElPhWan *couplingElPh_ = nullptr,
                     ElectronH0Wannier *electronH0_ = nullptr,
                     PhononH0 *phononH0_ = nullptr);
 
@@ -67,9 +63,6 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
   BaseBandStructure* getElBandStructure();
 
  protected:
-
-  Interaction3Ph *coupling3Ph;
-  InteractionElPhWan *couplingElPh;
 
   ElectronH0Wannier *electronH0;
   PhononH0 *phononH0;
@@ -176,17 +169,7 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
                   Context& context,
                   std::shared_ptr<CoupledVectorBTE> phElLinewidths,
                   BaseBandStructure& elBandStructure,
-                  BaseBandStructure& phBandStructure);
-				
-// TODO change this to a coupled scattering matrix
-friend void addDragTerm2(CoupledScatteringMatrix &matrix, Context &context,
-                  std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
-                  int dragTermType,
-                  ElectronH0Wannier* electronH0,
-                  InteractionElPhWan *couplingElPhWan,
-                  BaseBandStructure &innerBandStructure, // phonon
-                  BaseBandStructure &outerBandStructure); // electron
-
+                  BaseBandStructure& phBandStructure);				
 };
 
 #endif

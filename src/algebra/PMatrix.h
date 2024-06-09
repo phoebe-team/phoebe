@@ -48,7 +48,7 @@ class ParallelMatrix {
   int numCols_ = 0;
   int numLocalRows_ = 0;
   int numLocalCols_ = 0;
-  int numLocalElements_ = 0;
+  size_t numLocalElements_ = 0;
 
   // BLACS variables
   // numBlocksRows/Cols -- the number of units we divide nrows/ncols into
@@ -166,7 +166,7 @@ class ParallelMatrix {
   int localCols() const;
   /** Find global number of matrix elements
    */
-  int size() const;
+  size_t size() const;
 
   /** Get and set operator.
    * Returns the stored value if the matrix element (row,col) is stored in
@@ -332,7 +332,7 @@ ParallelMatrix<T>::ParallelMatrix(const int& numRows, const int& numCols,
   assert(mat != nullptr);
 
   // fill the matrix with zeroes
-  for (int i = 0; i < numLocalElements_; ++i) *(mat + i) = 0.;
+  for (size_t i = 0; i < numLocalElements_; ++i) *(mat + i) = 0.;
 
   // Create descriptor for block cyclic distribution of matrix
   int info;  // error code
@@ -380,7 +380,7 @@ ParallelMatrix<T>::ParallelMatrix(const ParallelMatrix<T>& that) {
   mat = new T[numLocalElements_];
   // Memory could not be allocated, end program
   assert(mat != nullptr);
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     mat[i] = that.mat[i];
   }
 }
@@ -514,8 +514,9 @@ int ParallelMatrix<T>::localCols() const {
 }
 
 template <typename T>
-int ParallelMatrix<T>::size() const {
-  return cols() * rows();
+size_t ParallelMatrix<T>::size() const {
+  size_t size = size_t(cols()) * size_t(rows());
+  return size;
 }
 
 // Get/set element
@@ -619,7 +620,7 @@ int ParallelMatrix<T>::global2Local(const int& row, const int& col) const {
 template <typename T>
 std::vector<std::tuple<int, int>> ParallelMatrix<T>::getAllLocalStates() {
   std::vector<std::tuple<int, int>> x;
-  for (int k = 0; k < numLocalElements_; k++) {
+  for (size_t k = 0; k < numLocalElements_; k++) {
     std::tuple<int, int> t = local2Global(k);  // bloch indices
     x.push_back(t);
   }
@@ -650,7 +651,7 @@ std::vector<int> ParallelMatrix<T>::getAllLocalCols() {
 
 template <typename T>
 ParallelMatrix<T>& ParallelMatrix<T>::operator*=(const T& that) {
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(mat + i) *= that;
   }
   return *this;
@@ -658,7 +659,7 @@ ParallelMatrix<T>& ParallelMatrix<T>::operator*=(const T& that) {
 
 template <typename T>
 ParallelMatrix<T>& ParallelMatrix<T>::operator/=(const T& that) {
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(mat + i) /= that;
   }
   return *this;
@@ -669,7 +670,7 @@ ParallelMatrix<T>& ParallelMatrix<T>::operator+=(const ParallelMatrix<T>& that) 
   if(numRows_ != that.rows() || numCols_ != that.cols()) {
     Error("Cannot adds matrices of different sizes.");
   }
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(mat + i) += *(that.mat + i);
   }
   return *this;
@@ -680,7 +681,7 @@ ParallelMatrix<T>& ParallelMatrix<T>::operator-=(const ParallelMatrix<T>& that) 
   if(numRows_ != that.rows() || numCols_ != that.cols()) {
     Error("Cannot subtract matrices of different sizes.");
   }
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(mat + i) -= *(that.mat + i);
   }
   return *this;
@@ -691,7 +692,7 @@ void ParallelMatrix<T>::eye() {
   if (numRows_ != numCols_) {
     Error("Cannot build an identity matrix with non-square matrix");
   }
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(mat + i) = 0.;
   }
   for (int i = 0; i < numRows_; i++) {
@@ -701,7 +702,7 @@ void ParallelMatrix<T>::eye() {
 
 template <typename T>
 void ParallelMatrix<T>::zeros() {
-  for (int i = 0; i < numLocalElements_; ++i) *(mat + i) = 0.;
+  for (size_t i = 0; i < numLocalElements_; ++i) *(mat + i) = 0.;
 }
 
 template <typename T>
@@ -718,7 +719,7 @@ template <typename T>
 T ParallelMatrix<T>::dot(const ParallelMatrix<T>& that) {
   T scalar = dummyConstZero;
   T scalarOut = dummyConstZero;
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     scalar += (*(mat + i)) * (*(that.mat + i));
   }
   mpi->allReduceSum(&scalar, &scalarOut);
@@ -728,7 +729,7 @@ T ParallelMatrix<T>::dot(const ParallelMatrix<T>& that) {
 template <typename T>
 ParallelMatrix<T> ParallelMatrix<T>::operator-() const {
   ParallelMatrix<T> result = *this;
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(result.mat + i) = -*(result.mat + i);
   }
   return result;

@@ -3,7 +3,6 @@
 #include "context.h"
 #include "drift.h"
 #include "exceptions.h"
-#include "ifc3_parser.h"
 #include "coupled_observables.h"
 #include "parser.h"
 #include "coupled_scattering_matrix.h"
@@ -18,7 +17,7 @@ void CoupledTransportApp::run(Context &context) {
   // Here we set these booleans based on if their relevant files are set
   // If elph files are available, we automatically calculate both phel and elph
 
-  //bool useElElInteraction = !context.getElElFileName().empty(); // not implemented
+  //bool useElElInteraction = !context.getElElFileName().empty(); // not implemented yet
   bool useElPhInteraction = !context.getElphFileName().empty();
   bool usePhPhInteraction = !context.getPhFC3FileName().empty();
 
@@ -45,39 +44,27 @@ void CoupledTransportApp::run(Context &context) {
   auto electronH0 = std::get<1>(t1);
   // TODO maybe add a check that these crystals are the same
 
-  // TODO if we are struggling here for memory, we will want to add elph or phph contributions one
-  // at a time, and subsequently release the relevant interaction objects from memory to free space
-  // This shouldn't be too hard -- instead of calling builder, we should be able to structure
-  // things so it's possible to add contribution separately
-
-  // read in phonon-phonon coupling -------------------------------------
-  // TODO does this also checks that the crystal is the same one read in for ph FC2?\
-  Interaction3Ph coupling3Ph(crystal) = 
-  Interaction3Ph coupling3Ph = IFC3Parser::parse(context, crystal);
-  //if(usePhPhInteraction) {
-  //  coupling3Ph = IFC3Parser::parse(context, crystal);
- // }
-
-  // read in electron-phonon coupling ---------------------------------
-  // TODO does this also checks that the crystal is the same one read in for ph FC2?
-  InteractionElPhWan couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
-
   // Set up phonon bandstructure information ---------------------------------------------
   if (mpi->mpiHead()) {
     std::cout << "\nComputing phonon band structure." << std::endl;
   }
+
+  auto popLimitTemp = context.getWindowPopulationLimit();
+  context.setWindowPopulationLimit(1e-4); // TODO testing statement
 
   Points qPoints(crystal, context.getQMesh());
   auto tup1 = ActiveBandStructure::builder(context, phononH0, qPoints);
   auto phBandStructure = std::get<0>(tup1);
   auto phStatisticsSweep = std::get<1>(tup1);
 
+  context.setWindowPopulationLimit(popLimitTemp); // TODO testing statement
+
   // print some info about state number reduction
   if (mpi->mpiHead()) {
     if(phBandStructure.hasWindow() != 0) {
-        std::cout << "Window selection reduced phonon band structure from "
-                << qPoints.getNumPoints() * phononH0.getNumBands() << " to "
-                << phBandStructure.getNumStates() << " states."  << std::endl;
+      std::cout << "Window selection reduced phonon band structure from "
+              << qPoints.getNumPoints() * phononH0.getNumBands() << " to "
+              << phBandStructure.getNumStates() << " states."  << std::endl;
     }
     if(context.getUseSymmetries()) {
       std::cout << "Symmetries reduced phonon band structure from "
@@ -106,9 +93,9 @@ void CoupledTransportApp::run(Context &context) {
   // print some info about how window and symmetries have reduced el bands
   if (mpi->mpiHead()) {
     if(elBandStructure.hasWindow() != 0) {
-        std::cout << "Window selection reduced electronic band structure from "
-                << kPoints.getNumPoints() * electronH0.getNumBands() << " to "
-                << elBandStructure.getNumStates() << " states."  << std::endl;
+      std::cout << "Window selection reduced electronic band structure from "
+        << kPoints.getNumPoints() * electronH0.getNumBands() << " to "
+        << elBandStructure.getNumStates() << " states."  << std::endl;
     }
     if(context.getUseSymmetries()) {
       std::cout << "Symmetries reduced electronic band structure from "
@@ -117,40 +104,14 @@ void CoupledTransportApp::run(Context &context) {
     }
     std::cout << "Done computing electronic band structure.\n" << std::endl;
   }
-/*
-  if(mpi->mpiHead()) {
-    std::cout << "Checking for Cartesian wraparound issues." << std::endl;
-    int pointsCount = 0;
-    for (int is : elBandStructure.irrPointsIterator()) {
-      auto isIdx = WavevectorIndex(is);
-      auto q = elBandStructure.getWavevector(isIdx);
-      q = elBandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
-      Eigen::Vector3d qminus = -1*q;
-      qminus = elBandStructure.getPoints().cartesianToCrystal(qminus);
-      int qmidx = elBandStructure.getPoints().getIndex(qminus);
-      if(qmidx == -1) {
-        std::cout << is << " point " << q.transpose() << " not found." << std::endl;
-        continue;
-      } 
-      Eigen::Vector3d qminusLookup = elBandStructure.getPoints().getPointCoordinates(qmidx,Points::cartesianCoordinates);
-      qminusLookup = elBandStructure.getPoints().bzToWs(qminusLookup,Points::cartesianCoordinates);
-      if(abs((q+qminusLookup).norm()) > 1e-8) {
-        pointsCount++;
-        //std::cout << "Points in Cartesian: " << q.transpose() << " | " << qminusLookup.transpose() << " | " << (q+qminusLookup).norm() << std::endl;
-        //q = elBandStructure.getPoints().cartesianToCrystal(q);
-        //if(abs((q+qminusLookup).norm()) > 1e-8) std::cout << "points crystal " << q.transpose() << " | " << qminus.transpose() << " | " << (q+qminus).norm() << std::endl;
-      }
-    }
-    if(pointsCount != 0) std::cout << "Found " << pointsCount << " points that do not wraparound properly.\n" << std::endl;
-  }
-*/
+
   // Construct the full C matrix
   // the dimensions of this matrix are (numElStates + numPhStates, numElStates + numPhStates)
   // we provide the el stat sweep because we need the one that has information about the
   // electronic chemical potential (the ph one just has mu = 0)
   CoupledScatteringMatrix scatteringMatrix(context, elStatisticsSweep,
                                         phBandStructure, elBandStructure,
-                                        &coupling3Ph, &couplingElPh,
+                                        //&coupling3Ph, &couplingElPh,
                                         &electronH0, &phononH0);
   scatteringMatrix.setup();   // adds in all the scattering rates
 
@@ -185,15 +146,15 @@ void CoupledTransportApp::run(Context &context) {
           "temperature/chemical potential is allowed in a run");
   }
 
-  if (context.getScatteringMatrixInMemory() && !context.getUseSymmetries()) {
-    if (doVariational || doRelaxons || doIterative) {
-      if ( context.getSymmetrizeMatrix() ) {
+  //if (context.getScatteringMatrixInMemory() && !context.getUseSymmetries()) {
+  //  if (doVariational || doRelaxons || doIterative) {
+  //    if ( context.getSymmetrizeMatrix() ) {
         // reinforce the condition that the scattering matrix is symmetric
         // A -> ( A^T + A ) / 2
-        scatteringMatrix.symmetrize();
-      }
-    }
-  }
+  //      scatteringMatrix.symmetrize();
+  //    }
+  //  }
+  //}
   //scatteringMatrix.outputToHDF5("coupledMatrix.hdf5");
 
 

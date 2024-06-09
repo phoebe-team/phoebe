@@ -120,6 +120,8 @@ StatisticsSweep::StatisticsSweep(Context &context,
         mpi->allReduceSum(&occupiedStates);
       }
     } else {
+
+      // TODO we would need to change this for a spin pol calculation !
       occupiedStates /= spinFactor;
 
       // initial guess for chemical potential will be Ef

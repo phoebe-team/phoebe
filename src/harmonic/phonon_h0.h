@@ -161,7 +161,6 @@ protected:
   Crystal &crystal;
 
   bool hasDielectric = false;
-  Crystal& crystal;
   int numAtoms;
   int numBands;
   double volumeUnitCell;

@@ -16,7 +16,7 @@ ScatteringMatrix::ScatteringMatrix(Context &context_,
                                    BaseBandStructure &outerBandStructure_)
     : context(context_), statisticsSweep(statisticsSweep_),
       innerBandStructure(innerBandStructure_),
-      outerBandStructure(outerBandStructure_)  {
+      outerBandStructure(outerBandStructure_)   {
 
   internalDiagonal = std::make_shared<VectorBTE>(statisticsSweep, outerBandStructure, 1);
 
@@ -72,6 +72,7 @@ ScatteringMatrix::ScatteringMatrix(Context &context_,
         "Be aware that U and N separation is only currently implemented in the RTA case.");
     }
   }
+}
 
 void ScatteringMatrix::setup() {
 

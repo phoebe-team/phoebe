@@ -133,7 +133,7 @@ FullBandStructure ElectronH0Fourier::populate(Points &fullPoints,
                               fullBandStructure.getNumStates());
 
   // this is mpi parallel in wavevector indices
-  std::vector<int> kIndices = fullBandStructure.getWavevectorIndices();
+  std::vector<int> kIndices = fullBandStructure.getLocalWavevectorIndices();
   for (size_t i = 0; i<kIndices.size(); i++) {
 
     loopPrint.update();

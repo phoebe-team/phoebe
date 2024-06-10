@@ -685,6 +685,8 @@ QEParser::parseElHarmonicFourier(Context &context) {
 
   // here we don't parse born data, but we could also add this if needed for some reason.
   Eigen::Matrix3d dielectricMatrix = Eigen::Matrix3d::Zero();
+  Eigen::Tensor<double, 3> bornCharges(numAtoms, 3, 3);
+  bornCharges.setZero();
 
   // Initialize the crystal class
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,

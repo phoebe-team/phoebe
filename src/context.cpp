@@ -804,7 +804,7 @@ void Context::setupFromInput(const std::string &fileName) {
     lineCounter += 1;
   }
   // check dependent input variables
-  checkDependentVariables();
+  inputSanityCheck();
 }
 
 void Context::inputSanityCheck() {

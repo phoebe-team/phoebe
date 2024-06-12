@@ -847,7 +847,7 @@ StridedComplexView3D ElectronH0Wannier::kokkosBatchedBuildBlochHamiltonian(
                 arg += cartesianCoordinates(iK, i) * vectorsShifts_d(i, iDeg, iw1, iw2, iR);
               }
               Kokkos::complex<double> phase = exp(complexI * arg)
-                  / vectorsDegeneracies_d(iR) * degeneracyShifts_d(iw1, iw2, iR);
+                  / ( vectorsDegeneracies_d(iR) * degeneracyShifts_d(iw1, iw2, iR) );
               tmp += h0R_d(iw1, iw2, iR) * phase;
             }
           }

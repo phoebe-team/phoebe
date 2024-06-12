@@ -812,6 +812,16 @@ void Context::inputSanityCheck() {
   // this shouldn't be used if we're symmetrizing
   if(getSymmetrizeMatrix()) useUpperTriangle = false;
 
+  // check that coupled trasport app is only run with commensurate meshes
+  if(getAppName().compare("coupledTransport") == 0 ) {
+    if(useSymmetries) {
+      Error("Coupled transport app cannot be run with symmetries.");
+    }
+    if( kMesh(0)%qMesh(0) != 0 || kMesh(1)%qMesh(1) != 0 || kMesh(2)%qMesh(2) != 0 ) {
+      Error("For coupled relaxons solution, k and q meshes must be commensurate!");
+    }
+  }
+
   // disallow symmetries when relaxons are used
   for (const std::string &s : solverBTE) {
     if (s.compare("variational") == 0 || s.compare("relaxons") == 0) {

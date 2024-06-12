@@ -235,8 +235,6 @@ void CoupledCoefficients::calcFromRelaxons(
           sigmaContrib(gamma,i,j) += U * Ve(gamma,i) * Ve(gamma,j) * 1./eigenvalues(gamma);
           sigmaSContrib(gamma,i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j) * 1./eigenvalues(gamma);
           kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * 1./eigenvalues(gamma);
-
-          //continue; // should not be counted
         }
       }
     }
@@ -246,20 +244,24 @@ void CoupledCoefficients::calcFromRelaxons(
     for (int i = 0; i<dimensionality; i++) {
       for (int j = 0; j<dimensionality; j++) {
 
-        // NOTE: all terms are affected by drag, and an uncoupled calculation must be run to determine the effect of drag
+        // NOTE: remove energy and charge eigenvectors
+        if(gamma == alpha0 || gamma == alpha_e) continue; 
 
         // sigma
         sigmaLocal(i,j) += U * elVe(gamma,i) * elVe(gamma,j) * tau;
         totalSigmaLocal(i,j) += U * Ve(gamma,i) * Ve(gamma,j) * tau;
         sigmaContrib(gamma,i,j) += U * Ve(gamma,i) * Ve(gamma,j) * tau;
+
         // sigmaS
         selfSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * elV0(gamma,j) * tau;
         dragSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * phV0(gamma,j) * tau;
         totalSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j) * tau;
         sigmaSContrib(gamma,i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j) * tau;
+
         // alpha
         alphaEl(0,i,j) += sqrt(Ctot * U * T) * elV0(gamma,i) * elVe(gamma,j) * tau;
         alphaPh(0,i,j) += sqrt(Ctot * U * T) * phV0(gamma,i) * elVe(gamma,j) * tau;
+
         // thermal conductivity
         kappaEl(0,i,j) += Ctot / kBoltzmannRy * tau * (elV0(gamma,i) * elV0(gamma,j));
         kappaPh(0,i,j) += Ctot / kBoltzmannRy * tau * (phV0(gamma,i) * phV0(gamma,j));
@@ -268,21 +270,18 @@ void CoupledCoefficients::calcFromRelaxons(
         kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * tau;
 
         // viscosities
-        if(gamma != alpha0 && gamma != alpha_e) { // important -- including theta_0 or theta_e will lead to a wrong answer!
+        double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * tau;
+        double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1) * tau;
+        iiiiContrib[gamma] += (xxxx + yyyy)/2.;
 
-          double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * tau;
-          double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1) * tau;
-          iiiiContrib[gamma] += (xxxx + yyyy)/2.;
-
-          for(auto k : {0, 1, 2}) {
-            for(auto l : {0, 1, 2}) {
-              phViscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * phVphi(gamma,i,j) * phVphi(gamma,l,k) * tau;
-              elViscosity(0,i,j,k,l) += sqrt(G(i) * G(k)) * elVphi(gamma,i,j) * elVphi(gamma,l,k) * tau;
-              dragViscosity(0,i,j,k,l) += sqrt(A(i) * G(k)) * phVphi(gamma,i,j) * elVphi(gamma,l,k) * tau; 
-                                                                 //(elVphi(gamma,i,j) * phVphi(gamma,l,k)
-                                                                 // + phVphi(gamma,i,j) * elVphi(gamma,l,k)) * 1./eigenvalues(gamma);
-             //totalViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * 1./eigenvalues(gamma);
-            }
+        for(auto k : {0, 1, 2}) {
+          for(auto l : {0, 1, 2}) {
+            phViscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * phVphi(gamma,i,j) * phVphi(gamma,l,k) * tau;
+            elViscosity(0,i,j,k,l) += sqrt(G(i) * G(k)) * elVphi(gamma,i,j) * elVphi(gamma,l,k) * tau;
+            dragViscosity(0,i,j,k,l) += sqrt(A(i) * G(k)) * phVphi(gamma,i,j) * elVphi(gamma,l,k) * tau; 
+                                                                //(elVphi(gamma,i,j) * phVphi(gamma,l,k)
+                                                                // + phVphi(gamma,i,j) * elVphi(gamma,l,k)) * 1./eigenvalues(gamma);
+            //totalViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * 1./eigenvalues(gamma);
           }
         }
       }

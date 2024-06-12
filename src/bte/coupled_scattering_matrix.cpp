@@ -239,6 +239,16 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
       addDragTerm(*this, context, kqPairIterator, 0, electronH0,
                           &couplingElPh, innerBandStructure, outerBandStructure);
                       
+    }
+    if(context.getUseDragTerms()) { 
+
+      // read this in here but let it go out of scope afterwards, as it takes a lot of memory
+      // TODO why do I need to read this in thrice? 
+      // Try commenting out the OMP line in copy of eigenvectors, and also the k reset 
+      InteractionElPhWan couplingElPh = 
+          InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
+          // TODO convert all the couplingElPh* function arguments to references
+
       // now the ph drag term
       addDragTerm(*this, context, qkPairIterator, 1, electronH0,
                           &couplingElPh, innerBandStructure, outerBandStructure);
@@ -336,7 +346,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // use the off diagonals to calculate the linewidths, 
   // to ensure the special eigenvectors can be found/preserve conservation of momentum 
   // that might be ruined by the delta functions 
-  //reinforceLinewidths();
+  reinforceLinewidths();
 
   // TODO debug the "replaceLinewidths" function and use it instead
   // we place the linewidths back in the diagonal of the scattering matrix

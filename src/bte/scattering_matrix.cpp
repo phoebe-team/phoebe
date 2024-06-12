@@ -1769,8 +1769,8 @@ void ScatteringMatrix::reinforceLinewidths() {
     double finalFFm1 = finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
 
     // add in mu factors if needed now that we calculated population, which wanted the bare energies
-    initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential;
-    finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;
+    //initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential;
+    //finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;
 
     // self electronic term l
     if(initialParticle.isElectron() && finalParticle.isElectron()) {

@@ -45,11 +45,6 @@ GaussianDeltaFunction::GaussianDeltaFunction(BaseBandStructure& bandStructure, C
     smearingWidth = context.getElSmearingWidth();
   } 
 
-  // in the coupled case we need two
-  //if (context.getAppName().find("coupled") != std::string::npos && 
- 	//	  	bandStructure.getParticle().isPhonon()) {
-  //  smearingWidth = smearingWidth * 1.;  
-  //}
   if(mpi->mpiHead()) {
     std::setprecision(9);
     std::cout << "\nGaussian smearing width is " << smearingWidth * 13.6057039763 << " eV." << std::endl;

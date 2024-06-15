@@ -56,7 +56,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
   StatisticsSweep &statisticsSweep = matrix.statisticsSweep;
 
-  // becaues the summation is a BZ integral over kpoints, we use the electronic mesh for smearing
+  // the summation is a BZ integral over kpoints, we use the electronic mesh for smearing
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, electronBandStructure);
 
   if (smearing->getType() == DeltaFunction::tetrahedron) {
@@ -137,8 +137,6 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
     int nbK = int(stateEnergiesK.size());
     Eigen::MatrixXd vKs = electronBandStructure.getGroupVelocities(ikIdx);
     Eigen::MatrixXcd eigenVectorK = electronBandStructure.getEigenvectors(ikIdx);
-
-    //eigenVectorK.setIdentity();
 
     // pre compute the cosh term
     Eigen::MatrixXd coshDataK(nbK, numCalculations);
@@ -298,21 +296,10 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
         batchSize = revisedBatchSize;
 
-        if(allEigenVectorsKp.size() != allEigenVectorsQ.size() ) std::cout << allEigenVectorsKp.size() << " " << allEigenVectorsQ.size() << " " << allQCartesian.size() << std::endl;
-
         // do the remaining fourier transforms + basis rotations ----------------------------
 	      //
         // after this call, the couplingElPhWan object contains the coupling for
         // this batch of points, and therefore is indexed by iQBatch
-        //
-        // Depending on which kP this is, we calculate either:
-	      //    - for k'+ -> g(k,k+q,q)
-        //    - for k'- -> g(k,k-q,-q)
-        // We do this because |g(k,k-q,-q)|^2 = |g(k,k-q,q)|^2,
-        // but simply changing q -> -q makes the changes to interaction elph a bit simpler.
-        // Note: we must switch q->-q as well as U_{k+q} -> U_{k-q},
-        // see notes by Michele.
-        // remember: k+' = 0, k-' = 1
         couplingElPhWan->calcCouplingSquared(eigenVectorK, allEigenVectorsKp, allEigenVectorsQ,
 					                                   allQCartesian, kCartesian, allPolarData);
 

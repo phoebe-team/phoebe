@@ -432,6 +432,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
 
 #pragma omp parallel for default(none) shared(eigvecs3_h, eigvecs2Dagger_h, nb2s_h, q3Cs_h, q3Cs_k, q3Cs, k1C, numLoops, numWannier, numPhBands, eigvecs2Dagger_k, eigvecs3_k, eigvecs2, eigvecs3, phaseConvention)
     for (int ik = 0; ik < numLoops; ik++) {
+
       for (int i = 0; i < numWannier; i++) {
         for (int j = 0; j < nb2s_h(ik); j++) {
           eigvecs2Dagger_h(ik, i, j) = std::conj(eigvecs2[ik](i, j));
@@ -483,9 +484,6 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
           arg += q3Cs_k(iq, j) * wsR2Vectors_k(irP, j);
         }
         phases(iq, irP) = exp(complexI * arg) / wsR2VectorsDegeneracies_k(irP);
-        //std::cout << " phase 2 " << irP << " " << phases(iq,irP) << " " << arg << " k2 " << q3Cs_k(iq,0) << " " << q3Cs_k(iq,0) << " " << q3Cs_k(iq,0) << " R " << wsR2Vectors_k(irP,0) << " " << wsR2Vectors_k(irP,1) << " " << wsR2Vectors_k(irP,2) << std::endl;
-        //      std::cout << " phases " << irE << " " << phases[irE] << " " << arg << " k " << k1C.transpose() << " R " << wsR1Vectors.col(irE).transpose() << std::endl;
-
      });
    Kokkos::fence();
 

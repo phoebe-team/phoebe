@@ -104,7 +104,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         << " of max/min electronic mu values." << std::endl;
   }
   Eigen::Vector2d range = {-1.5*maxPhEnergy,1.5*maxPhEnergy};
-  //context.setWindowEnergyLimit(range); // TODO undo this
 
   // construct electronic band structure
   Points fullPoints(crystalPh, context.getKMeshPhEl());
@@ -112,17 +111,12 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   auto elBandStructure = std::get<0>(t3);
   auto statisticsSweep = std::get<1>(t3);
 
-  // setup smearing using newly made electron band structure
-  // Here, we want to use a smearing corresponding to electrons, as this needs
-  // to match up with the drag terms and also with the electron quadrant... 
-  double tempSmearingPh = context.getPhSmearingWidth(); // TODO maybe do this differently? 
-  context.setPhSmearingWidth(context.getElSmearingWidth());
-
+  // Here, we use a smearing corresponding to electrons, as this needs
+  // to match up with the drag terms and also with the electron quadrant
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, elBandStructure);
   if (smearing->getType() == DeltaFunction::tetrahedron) {
     Error("Developer error: Tetrahedron smearing for transport untested and thus blocked");
   }
-  context.setElSmearingWidth(tempSmearingPh); // TODO maybe do this differently? 
 
   // don't proceed if we use more than one doping concentration --
   // phph scattering only has 1 mu value, therefore the linewidths won't add to it correctly

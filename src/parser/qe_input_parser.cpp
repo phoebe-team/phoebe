@@ -362,26 +362,6 @@ void getQELattice(const int iBravais, Eigen::VectorXd &celldm,
   }
 }
 
-std::vector<std::string> split(const std::string &s, char delimiter) {
-  std::vector<std::string> tokens;
-  std::string token;
-  std::istringstream tokenStream(s);
-
-  if (delimiter == ' ') {
-    for (std::string s2; tokenStream >> s2;) {
-      tokens.push_back(s2);
-    }
-  } else {
-    while (std::getline(tokenStream, token, delimiter)) {
-      token.erase(std::remove_if(token.begin(), token.end(), ::isspace),
-                  token.end());
-      tokens.push_back(token);
-    }
-  }
-
-  return tokens;
-}
-
 std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
   //  Here we read the dynamical matrix of inter-atomic force constants
   //	in real space.
@@ -481,8 +461,8 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
     hasDielectric = true;
   }
 
-  //	if there are the dielectric info, we can read dielectric matrix
-  //	and the Born charges
+  // if there are the dielectric info, we can read dielectric matrix
+  // and the Born charges
   Eigen::Matrix3d dielectricMatrix = Eigen::Matrix3d::Zero();
   Eigen::Tensor<double, 3> bornCharges(numAtoms, 3, 3);
   bornCharges.setZero();
@@ -511,10 +491,13 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
   //	Now we parse the coarse q grid
   std::getline(infile, line);
   lineSplit = split(line, ' ');
-  Eigen::VectorXi qCoarseGrid(3);
+  Eigen::Vector3i qCoarseGrid(3);
   qCoarseGrid(0) = std::stoi(lineSplit[0]);
   qCoarseGrid(1) = std::stoi(lineSplit[1]);
   qCoarseGrid(2) = std::stoi(lineSplit[2]);
+  if (qCoarseGrid(0) <= 0 || qCoarseGrid(1) <= 0 || qCoarseGrid(2) <= 0) {
+    Error("qCoarseGrid smaller than zero");
+  }
 
   Eigen::Tensor<double, 7> forceConstants(3, 3, qCoarseGrid[0], qCoarseGrid[1],
                                           qCoarseGrid[2], numAtoms, numAtoms);
@@ -544,21 +527,27 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
   infile.close();
 
   // Now we do postprocessing
-
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses);
+                  speciesNames, speciesMasses, bornCharges);
   crystal.print();
 
-  if (qCoarseGrid(0) <= 0 || qCoarseGrid(1) <= 0 || qCoarseGrid(2) <= 0) {
-    Error("qCoarseGrid smaller than zero");
-  }
   if (mpi->mpiHead()) {
-    std::cout << "Successfully parsed harmonic QE files.\n"
+    std::cout << "Successfully parsed harmonic QE phonon files.\n"
               << std::endl;
   }
 
-  PhononH0 dynamicalMatrix(crystal, dielectricMatrix, bornCharges,
-                           forceConstants, context.getSumRuleFC2());
+  // apply the appropriate ASR to the force constants
+  setAcousticSumRule(context.getSumRuleFC2(), crystal, qCoarseGrid, forceConstants);
+
+  // from phonopy we don't have the cell weights, so here we generate the
+  // R vectors and weights, and then reorder the force constants to match them
+  auto tup = reorderHarmonicForceConstants(crystal, forceConstants, qCoarseGrid);
+  Eigen::Tensor<double,5> matFC2 = std::get<0>(tup);
+  Eigen::MatrixXd bravaisVectors = std::get<1>(tup);
+  Eigen::VectorXd weights = std::get<2>(tup);
+
+  PhononH0 dynamicalMatrix(crystal, dielectricMatrix,
+                           matFC2, qCoarseGrid, bravaisVectors, weights);
 
   Kokkos::Profiling::popRegion();
   return std::make_tuple(crystal, dynamicalMatrix);
@@ -639,7 +628,6 @@ QEParser::parseElHarmonicFourier(Context &context) {
   }
 
   // we read the unit cell
-
   Eigen::Matrix3d directUnitCell;
   Eigen::Vector3d thisValues;
   pugi::xml_node cell = atomicStructure.child("cell");
@@ -656,7 +644,7 @@ QEParser::parseElHarmonicFourier(Context &context) {
   directUnitCell(1, 2) = std::stod(lineSplit[1]);
   directUnitCell(2, 2) = std::stod(lineSplit[2]);
 
-  // Now we parse the electronic structure
+  // Now we parse the electronic structure ============================
 
   pugi::xml_node bandStructureXML = output.child("band_structure");
   bool isLSDA = bandStructureXML.child("lsda").text().as_bool();
@@ -666,7 +654,7 @@ QEParser::parseElHarmonicFourier(Context &context) {
   // note: nelec is written as double in the XML file!
   int numElectrons = int(bandStructureXML.child("nelec").text().as_double());
 
-  // get fermi energy
+  // get fermi energy or HOMO ---------------------
   double homo;
   // it's an insulator
   if (bandStructureXML.child("highestOccupiedLevel")) {
@@ -678,6 +666,8 @@ QEParser::parseElHarmonicFourier(Context &context) {
         "nor fermi_energy tags appear in XML file.");
   }
   homo *= 2.;// conversion from Hartree to Rydberg
+
+  // parse the points grid -------------------------------------
   int numIrreduciblePoints = bandStructureXML.child("nks").text().as_int();
 
   pugi::xml_node startingKPoints = bandStructureXML.child("starting_k_points");
@@ -690,16 +680,20 @@ QEParser::parseElHarmonicFourier(Context &context) {
         "doesn't make sense for Phoebe -- likely you forgot to perform NSCF on\n"
         "the full k-mesh first.");
     }
-    // Error("Grid found in QE:XML, should have used full kPoints grid");
+    Error("Grid found in QE:XML, should have used full kPoints grid");
   }
 
-  // Initialize the crystal class
+  // here we don't parse born data, but we could also add this if needed for some reason.
+  Eigen::Matrix3d dielectricMatrix = Eigen::Matrix3d::Zero();
+  Eigen::Tensor<double, 3> bornCharges(numAtoms, 3, 3);
+  bornCharges.setZero();
 
+  // Initialize the crystal class
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses);
+                  speciesNames, speciesMasses, bornCharges);
   crystal.print();
 
-  // initialize reciprocal lattice cell
+  // initialize reciprocal lattice cell --------------------------
   // I need this to convert kPoints from cartesian to crystal coordinates
 
   pugi::xml_node basisSet = output.child("basis_set");
@@ -718,7 +712,7 @@ QEParser::parseElHarmonicFourier(Context &context) {
   bVectors(1, 2) = std::stod(lineSplit[1]);
   bVectors(2, 2) = std::stod(lineSplit[2]);
 
-  // parse k-points and energies
+  // parse k-points and energies ----------------------------
 
   Eigen::Matrix<double, 3, Eigen::Dynamic> irrPoints(3, numIrreduciblePoints);
   Eigen::VectorXd irrWeights(numIrreduciblePoints);
@@ -813,7 +807,7 @@ std::pair<Eigen::Tensor<double, 3>,
   Kokkos::Profiling::pushRegion("parseWSVecFromWannier90");
 
   if (fileName.empty()) {
-    Error("Must provide the Wannier90 WsVec file name");
+    DeveloperError("parseWSVecFromWannier90 called with an empty filename.");
   }
 
   std::string line;
@@ -823,7 +817,7 @@ std::pair<Eigen::Tensor<double, 3>,
   std::ifstream infile(fileName);
 
   if (not infile.is_open()) {
-    Error("Wannier WsVec file not found");
+    Error("Wannier WsVec file not found at " + fileName);
   }
 
   //  First line contains the title and date, and the information whether
@@ -883,7 +877,7 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
 
   Kokkos::Profiling::pushRegion("parseElHarmonicWannier (QE)");
 
-  //  Here we read the XML file of quantum espresso.
+  //  Here we read the _tb.dat file from Wannier90
 
   std::string fileName = context.getElectronH0Name();
 
@@ -898,7 +892,7 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
   std::ifstream infile(fileName);
 
   if (not infile.is_open()) {
-    Error("Wannier H0 file not found");
+    Error("Wannier H0 file not found at " + fileName);
   }
 
   //  First line contains the title and date
@@ -1025,7 +1019,7 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
   // note: for Wannier90, lattice vectors are the rows of the matrix
 
   ElectronH0Wannier electronH0(directUnitCell, bravaisVectors,
-                               simpleVectorsDegeneracies, h0R, rMatrix);
+                               simpleVectorsDegeneracies, h0R, &rMatrix);
 
   std::string wsVecFileName = context.getWsVecFileName();
   if (!wsVecFileName.empty()) {
@@ -1052,8 +1046,14 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
       i += 1;
     }
 
+    // here there is no born charge data, so we set this to zero
+    Eigen::Matrix3d dielectricMatrix = Eigen::Matrix3d::Zero();
+    Eigen::Tensor<double, 3> bornCharges(int(atomicPositions.rows()), 3, 3);
+    bornCharges.setZero();
+
+    // Initialize the crystal class
     Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                    speciesNames, speciesMasses);
+                    speciesNames, speciesMasses, bornCharges);
     crystal.print();
     Kokkos::Profiling::popRegion();
     return std::make_tuple(crystal, electronH0);

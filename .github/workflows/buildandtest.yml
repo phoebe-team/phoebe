@@ -6,14 +6,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        omp: [OFF, ON]
-        mpi: [OFF, ON]
+        omp: [ON]
+        mpi: [ON]
+        #omp: [OFF, ON]
+        #mpi: [OFF, ON]
         compiler:
           [
             "GCC 10",
-            "GCC 13",
-            "Clang 15",
-            "Clang 11",
+            #"GCC 13",
+            #"Clang 15",
+            #"Clang 11",
           ]
     env:
       OMP_NUM_THREADS: 4

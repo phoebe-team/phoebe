@@ -82,8 +82,8 @@ void BaseBandStructure::outputComponentsToJSON(const std::string &outFileName) {
         double ene = getEnergy(isIdx);
         bandsE.push_back(ene * energyConversion);
         Eigen::Vector3d vel = getGroupVelocity(isIdx);
-	std::vector<double> tmp;
-	for (int i = 0; i < 3; i++) {tmp.push_back(vel[i]*velocityRyToSi);}
+        std::vector<double> tmp;
+        for (int i = 0; i < 3; i++) {tmp.push_back(vel[i]*velocityRyToSi);}
         bandsV.push_back(tmp);
       }
       wavevectorsE.push_back(bandsE);
@@ -499,7 +499,7 @@ void FullBandStructure::setEnergies(Point &point, Eigen::VectorXd &energies_) {
   int ik = point.getIndex();
   if (!energies.indicesAreLocal(0,ik)) {
     // col distributed, only need to check ik
-    Error("Cannot access a non-local energy");
+    Error("DeveloperError: Cannot access a non-local energy in setEnergies.");
   }
   for (int ib = 0; ib < energies.localRows(); ib++) {
     energies(ib, ik) = energies_(ib);
@@ -508,9 +508,11 @@ void FullBandStructure::setEnergies(Point &point, Eigen::VectorXd &energies_) {
 
 void FullBandStructure::setVelocities(
     Point &point, Eigen::Tensor<std::complex<double>, 3> &velocities_) {
+
   if (!hasVelocities) {
-    Error("FullBandStructure was initialized without velocities");
+    Error("FullBandStructure was initialized without velocities, cannot set velocities.");
   }
+  
   // we convert from a tensor to a vector (how it's stored in memory)
   Eigen::VectorXcd tmpVelocities_(numBands * numBands * 3);
   for (int i = 0; i < numBands; i++) {
@@ -523,10 +525,12 @@ void FullBandStructure::setVelocities(
     }
   }
   int ik = point.getIndex();
+  if(ik >= numPoints || ik < 0) std::cout << "found a bad ik value " << ik << std::endl;
   if (!velocities.indicesAreLocal(0,ik)) {
     // col distributed, only need to check ik
-    Error("Cannot access a non-local velocity");
+    Error("DeveloperError: Cannot set a non-local velocity in distributed velocity vector.");
   }
+  // here this isn't a band index, it's actually an index over all compressed band indices 
   for (int ib = 0; ib < velocities.localRows(); ib++) {
     velocities(ib, ik) = tmpVelocities_(ib);
   }

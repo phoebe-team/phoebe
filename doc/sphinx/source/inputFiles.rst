@@ -76,7 +76,7 @@ This postprocesses the data for  Wannier interpolation or EPA calculations in Ph
   electronFourierCutoff = 4.
   epaMinEnergy = -4. eV
   epaMaxEnergy = 10. eV
-  epaNumBins = 10
+  epaNumBins = 40
   epaSmearingEnergy = 0.05 eV
 
 
@@ -135,6 +135,8 @@ Phonon BTE Solver
 
 * :ref:`dimensionality`
 
+* :ref:`thickness`
+
 * :ref:`constantRelaxationTime`
 
 * :ref:`withIsotopeScattering`
@@ -150,6 +152,8 @@ Phonon BTE Solver
 * :ref:`numRelaxonsEigenvalues`
 
 * :ref:`checkNegativeRelaxons`
+
+* :ref:`enforcePositiveSemiDefinite`
 
 .. raw:: html
 
@@ -222,6 +226,8 @@ Electron BTE Solver
 
 * :ref:`dimensionality`
 
+* :ref:`thickness`
+
 * :ref:`constantRelaxationTime`
 
 * :ref:`convergenceThresholdBTE`
@@ -250,6 +256,7 @@ Electron BTE Solver
 
 * :ref:`checkNegativeRelaxons`
 
+* :ref:`enforcePositiveSemiDefinite`
 
 .. raw:: html
 
@@ -294,6 +301,10 @@ EPA Transport
 * :ref:`epaEnergyStep`
 
 * :ref:`epaEnergyRange`
+
+* :ref:`dimensionality`
+
+* :ref:`thickness`
 
 * :ref:`kMesh`
 
@@ -482,7 +493,7 @@ Electron Lifetimes on a Path
 
 -----------------------------------
 
-Phonon Dos
+Phonon DoS
 ----------
 
 **Functionality:** Compute the phonon density of states.
@@ -980,7 +991,7 @@ symmetrizeMatrix
 
 * **Required:** no
 
-* **Default:** `false`
+* **Default:** `true`
 
 
 .. _numRelaxonsEigenvalues:
@@ -1009,8 +1020,24 @@ checkNegativeRelaxons
 
 * **Required:** no
 
+* **Requires:** :ref:`scatteringMatrixInMemory` = true, :ref:`solverBTE` = "relaxons","variational",or "iterative"
+
 * **Default:** `true`
 
+.. _enforcePositiveSemiDefinite:
+
+enforcePositiveSemiDefinite
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Description:** When `enforcePositiveSemiDefinite` is true, we apply a diagonal perturbation to the scattering matrix to make it positive definite. Note that that this is a bit of a band-aid -- you should check that your matrix is not too far from correct before applying this (that it has just a few small negative eigenvalues at most!).
+
+* **Format:** *bool*
+
+* **Required:** no
+
+* **Requires:** :ref:`scatteringMatrixInMemory` = true
+
+* **Default:** `false`
 
 .. _distributedElPhCoupling:
 
@@ -1115,13 +1142,27 @@ convergenceThresholdBTE
 dimensionality
 ^^^^^^^^^^^^^^
 
-* **Description:** Input the dimensionality of the material. As a result, transport coefficients tensors will be of size (dim x dim), and units will be suitably scaled for the desired dimensionality.
+* **Description:** Input the dimensionality of the material. As a result, transport coefficient tensors will be of size (dim x dim), and units will be suitably scaled for the desired dimensionality. For 2D materials, note that Phoebe assumes the material is oriented in x-y, with height in z. 
 
 * **Format:** *int*
 
 * **Required:** no
 
 * **Default:** `3`
+
+
+.. _thickness:
+
+thickness
+^^^^^^^^^^^^^^
+
+* **Description:** Input the thickness of a 2D material. This is only used if :ref:`dimensionality` = 2, and results in a scaling factor of (cell height/thickness) applied to the transport results. 
+
+* **Format:** *double*
+
+* **Required:** no
+
+* **Default:** `1.`
 
 
 .. _constantRelaxationTime:
@@ -1499,6 +1540,8 @@ numOccupiedStates
 ^^^^^^^^^^^^^^^^^
 
 * **Description:** Determines the number of occupied Kohn-Sham states at the ground state. The default value might be read from the :ref:`electronH0Name` (when this is the Quantum-ESPRESSO xml file) or the file with the el-ph interaction (so, the user may not need to specify it for transport calculations). This value controls where the Fermi level is set. The user alternatively can specify the :ref:`fermiLevel` (and :ref:`numOccupiedStates` will be computed from the Fermi level).
+
+Be aware that this is essentially the number of filled bands -- so if the number of electrons in the DFT calculation is say, 27, and the calculation is not spin polarized, then the numOccupiedStates should be set as 13.5. In general, it's good to ensure that the value of :math:`E_F` found in the DFT calculation matches the one calculated by Phoebe. 
 
 * **Format:** *double*
 

@@ -21,9 +21,13 @@ TEST(Crystal, Test1) {
   Context context;
   context.setUseSymmetries(true);
 
+  // no born charges for the test
+  Eigen::Tensor<double, 3> bornCharges(2, 3, 3);
+  bornCharges.setZero();
+
   // set up the crystal object
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses);
+                  speciesNames, speciesMasses, bornCharges);
 
   EXPECT_EQ(crystal.getNumAtoms(), 2);
   EXPECT_EQ(crystal.getNumSpecies(), 1);

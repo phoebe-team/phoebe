@@ -21,6 +21,7 @@ class Context {
 
   std::string electronH0Name;
   std::string wannier90Prefix;
+  std::string jdftxScfOutFile;
   std::string quantumEspressoPrefix;
   std::string elPhInterpolation;
 
@@ -28,6 +29,9 @@ class Context {
   std::string sumRuleFC2;
   int smearingMethod = -1;
   double smearingWidth = std::numeric_limits<double>::quiet_NaN();
+  double elSmearingWidth = std::numeric_limits<double>::quiet_NaN();
+  double phSmearingWidth = std::numeric_limits<double>::quiet_NaN();
+  //double dragSmearingWidth = std::numeric_limits<double>::quiet_NaN();
   double adaptiveSmearingPrefactor = std::numeric_limits<double>::quiet_NaN();
   Eigen::VectorXd temperatures;
   std::vector<std::string> solverBTE;
@@ -55,6 +59,7 @@ class Context {
   bool hasSpinOrbit = false;
 
   int dimensionality = 3;
+  double thickness = 1.; // material thickness or cross area for lower dimensions
 
   double dosMinEnergy = std::numeric_limits<double>::quiet_NaN();
   double dosMaxEnergy = std::numeric_limits<double>::quiet_NaN();
@@ -78,8 +83,7 @@ class Context {
   Eigen::VectorXd customIsotopeCouplings;
   Eigen::VectorXd customMasses;
 
-  // add RTA boundary scattering in phonon scattering matrix
-  // boundary length for isotope scattering
+  // add RTA boundary scattering in scattering matrix
   double boundaryLength = std::numeric_limits<double>::quiet_NaN();
 
   std::string elphFileName;
@@ -101,11 +105,12 @@ class Context {
   double epaDeltaEnergy = std::numeric_limits<double>::quiet_NaN();
 
   // plot of el-ph coupling
-  std::string g2PlotStyle;
-  Eigen::Vector3d g2PlotFixedPoint;
-  std::pair<int,int> g2PlotEl1Bands;
-  std::pair<int,int> g2PlotEl2Bands;
-  std::pair<int,int> g2PlotPhBands;
+  std::string g2PlotStyle = "allToAll";
+  std::string g2MeshStyle = "pointsMesh";
+  Eigen::Vector3d g2PlotFixedPoint = {0,0,0};
+  std::pair<int,int> g2PlotEl1Bands = std::make_pair(0,-1);
+  std::pair<int,int> g2PlotEl2Bands = std::make_pair(0,-1);
+  std::pair<int,int> g2PlotPhBands = std::make_pair(0,-1);
 
   // utilities for parsing
 
@@ -129,6 +134,8 @@ class Context {
   int numRelaxonsEigenvalues = 0;
   // toggle the check for negative relaxons eigenvalues in few eigenvalues case
   bool checkNegativeRelaxons = true;
+  // toggle the enforcement of the matrix being positive semidefinite
+  bool enforcePositiveSemiDefinite = false;
 
   // for coupled transport
   bool useDragTerms = true;
@@ -138,25 +145,14 @@ class Context {
 
 public:
 
-  /** Reads the user-provided input file and saves the input parameters
-   * @param fileName: path to the input file
-   */
-  void setupFromInput(const std::string &fileName);
-
-  /** Prints the user-provided input variables to output, including default values.
-   * @param fileName: path to the input file, just to print where input came from.
-   */
-  void printInputSummary(const std::string &fileName);
-
-  /** Reinforce that all variables dependent on each other are correct
-   */
-  void checkDependentVariables(); 
-
   // Setter and getter for all the variables above ----------------
 
   // Methods for the apps of plotting the electron-phonon coupling
   std::string getG2PlotStyle();
   void setG2PlotStyle(const std::string &x);
+
+  std::string getG2MeshStyle();
+  void setG2MeshStyle(const std::string &x);
 
   Eigen::Vector3d getG2PlotFixedPoint();
   void setG2PlotFixedPoint(const Eigen::Vector3d &x);
@@ -190,8 +186,13 @@ public:
 
   std::string getWannier90Prefix();
   void setWannier90Prefix(const std::string &x);
+
   std::string getQuantumEspressoPrefix();
   void setQuantumEspressoPrefix(const std::string &x);
+
+  std::string getJDFTxScfOutFile();
+  void setJDFTxScfOutFile(const std::string &x);
+
   std::string getElPhInterpolation();
 
   double getEpaSmearingEnergy() const;
@@ -296,6 +297,8 @@ public:
 
   int getDimensionality() const;
 
+  double getThickness() const;
+
   double getDosMinEnergy() const;
 
   double getDosMaxEnergy() const;
@@ -337,6 +340,16 @@ public:
 
   double getSmearingWidth() const;
   void setSmearingWidth(const double &x);
+
+  double getElSmearingWidth() const;
+  void setElSmearingWidth(const double &x);
+
+  double getPhSmearingWidth() const;
+  void setPhSmearingWidth(const double &x);
+
+  //double getDragSmearingWidth() const;
+  //void setDragSmearingWidth(const double &x);
+
   double getAdaptiveSmearingPrefactor() const;
   void setAdaptiveSmearingPrefactor(const double &x);
 
@@ -369,6 +382,21 @@ public:
   double getEpaEnergyStep() const;
   double getEFermiRange() const;
 
+  /** Reads the user-provided input file and saves the input parameters
+   * @param fileName: path to the input file
+   */
+  void setupFromInput(const std::string &fileName);
+
+  /** Prints the user-provided input variables to output, including default values.
+   * @param fileName: path to the input file, just to print where input came from.
+   */
+  void printInputSummary(const std::string &fileName);
+
+  /** Sanity checks the input variables to make sure they agree.
+   * TODO: This function should be replaced with a better system in the future.
+  */
+  void inputSanityCheck();
+
   Eigen::VectorXi getCoreElectrons();
   void setCoreElectrons(const Eigen::VectorXi &x);
 
@@ -397,6 +425,9 @@ public:
 
   bool getCheckNegativeRelaxons() const;
   bool setCheckNegativeRelaxons() const;
+
+  bool getEnforcePositiveSemiDefinite() const;
+  void setEnforcePositiveSemiDefinite(const bool &x);
 
 };
 

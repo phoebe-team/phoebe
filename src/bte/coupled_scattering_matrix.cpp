@@ -5,20 +5,20 @@
 #include <cmath>
 #include "coupled_vector_bte.h"
 #include "phel_scattering.h"
+#include "ifc3_parser.h"
+#include "interaction_elph.h"
 #include <map>
 
 CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
                                       StatisticsSweep &statisticsSweep_,
                                       BaseBandStructure &innerBandStructure_, // phonon
                                       BaseBandStructure &outerBandStructure_, // electron
-                                      Interaction3Ph *coupling3Ph_,
-                                      InteractionElPhWan *couplingElPh_,
                                       ElectronH0Wannier *electronH0_,
                                       PhononH0 *phononH0_)
     : ScatteringMatrix(context_, statisticsSweep_, innerBandStructure_, outerBandStructure_),
       BaseElScatteringMatrix(context_, statisticsSweep_, innerBandStructure_, outerBandStructure_),
       BasePhScatteringMatrix(context_, statisticsSweep_, innerBandStructure_, outerBandStructure_),
-        coupling3Ph(coupling3Ph_), couplingElPh(couplingElPh_), electronH0(electronH0_), phononH0(phononH0_) {
+      electronH0(electronH0_), phononH0(phononH0_) {
 
   // we need to overwrite num states as well as the internalDiagonal object,
   // as both of these are now different than the standard smatrix
@@ -27,10 +27,10 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
   linewidthMR = std::make_shared<VectorBTE>(statisticsSweep, outerBandStructure, 1);
 
   numStates = internalDiagonal->getNumStates();
-  numPhStates = int(innerBandStructure.irrStateIterator().size());
-  numElStates = int(outerBandStructure.irrStateIterator().size());
+  numPhStates = int(innerBandStructure.getNumStates());
+  numElStates = int(outerBandStructure.getNumStates()); 
   isCoupled = true;
-  // this is only actually true after we call phononOnlyA2Omega at the bottom of the scattering
+  // TODO this is only actually true after we call phononOnlyA2Omega at the bottom of the scattering
   // process addition section.
   // Otherwise, because ph scattering not symmetrized and el scattering is symmetrized,
   // we would have a very mismatched matrix
@@ -43,8 +43,7 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
       auto iBteIdx = BteIndex(iBte);
       StateIndex isIdx = innerBandStructure.bteToState(iBteIdx);
       double en = innerBandStructure.getEnergy(isIdx);
-      // TODO need to standardize this
-      if (en < 0.1 / ryToCmm1) { // cutoff at 0.1 cm^-1
+      if (en < phEnergyCutoff) { // cutoff at 0.1 cm^-1
         excludeIndices.push_back(iBte);
       }
 
@@ -126,34 +125,46 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   std::vector<std::tuple<std::vector<int>, int>> qkPairIterator = allPairIterators[2];
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator = allPairIterators[3];
 
-  // add el-ph scattering -----------------------------------------
+  // add el-ph scattering ----------------------------------------------
+  {
+  // read this in and let it go out of scope afterwards -- TODO merge this with phel one
+  InteractionElPhWan couplingElPh = 
+      InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
+
   addElPhScattering(*this, context, inPopulations, outPopulations,
                                   switchCase, kPairIterator,
                                   fermiOccupations,
                                   outerBandStructure, outerBandStructure,
-                                  *phononH0, couplingElPh, internalDiagonal);
+                                  *phononH0, &couplingElPh, linewidth);
+  }
 
-  // add charged impurity electron scattering  -------------------
+  // add charged impurity electron scattering  ------------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
                        switchCase, kPairIterator,
                        innerBandStructure, outerBandStructure, linewidth);
 */
-  // add ph-ph scattering ------------------------------------
+
+  // add ph-ph scattering ----------------------------------------------
+  { 
+  // read this in and let it go out of scope afterwards 
+  Interaction3Ph coupling3Ph = 
+      IFC3Parser::parse(context, innerBandStructure.getPoints().getCrystal());
   addPhPhScattering(*this, context, inPopulations, outPopulations,
                                   switchCase, qPairIterator,
                                   boseOccupations, boseOccupations,
                                   innerBandStructure, innerBandStructure,
-                                  *phononH0, coupling3Ph, linewidth);
+                                  *phononH0, &coupling3Ph, linewidth);
+  }
 
-  // Isotope scattering ---------------------------------
+  // Isotope scattering ------------------------------------------------
   if (context.getWithIsotopeScattering()) {
     addIsotopeScattering(*this, context, inPopulations, outPopulations,
                             switchCase, qPairIterator,
                             boseOccupations, boseOccupations,
-                            innerBandStructure, innerBandStructure, internalDiagonal);
+                            innerBandStructure, innerBandStructure, linewidth);
   }
 
-  // TODO check boundary scattering
+  // TODO check boundary scattering addition 
   // Add boundary scattering ----------------------
   // Call this twice for each section of the diagonal,
   // in one case handing it the phonon bands, in the other the electron bands.
@@ -183,42 +194,77 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   phononOnlyA2Omega();
   mpi->barrier(); // need to finish this before adding phel scattering
 
-  {
   // here we define a separate CoupledVectorBTE object -- the original
   // one had to be all reduced pre-symmetrization. We define this to
   // later add these post-symmetrization terms to the linewidths
   std::shared_ptr<CoupledVectorBTE> postSymLinewidths =
          std::make_shared<CoupledVectorBTE>(statisticsSweep, innerBandStructure, outerBandStructure, 1);
 
-  // Add phel scattering ---------------------------------------
-  // Because this has very different convergence than the standard transport,
-  // it calculates internally a third, denser el bandstructure
-  // It also internally generates it's k-q pair iterator, as it's only a
-  // linewidth calculation and therefore can be parallelized differently.
-  // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
-  // requires the replacing of the linewidths object into the SMatrix diagonal at the
-  // end of this function
+  {
 
-  addPhElScattering(*this, context, innerBandStructure, electronH0, couplingElPh, postSymLinewidths);
-  mpi->barrier();
+    // Add phel scattering ---------------------------------------
+    // Because this has very different convergence than the standard transport,
+    // it calculates internally a third, denser el bandstructure
+    // It also internally generates it's k-q pair iterator, as it's only a
+    // linewidth calculation and therefore can be parallelized differently.
+    // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
+    // requires the replacing of the linewidths object into the SMatrix diagonal at the
+    // end of this function
 
-  // after adding phel scattering to the diagonal, we also need to all reduce again
-  mpi->allReduceSum(&postSymLinewidths->data);
-  // Add in the phel contribution
-  // NOTE: would be nicer to use the add operatore from VectorBTE, but inheritance
-  // is causing me trouble -- Jenny
-  linewidth->data = linewidth->data + postSymLinewidths->data;
+    {
+    // read this in here but let it go out of scope afterwards, as it takes a lot of memory
+    InteractionElPhWan couplingElPh = 
+        InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
+        // TODO convert all the couplingElPh* function arguments to references
+
+    addPhElScattering(*this, context, innerBandStructure, electronH0, &couplingElPh, postSymLinewidths);
+    mpi->barrier();
+
+    // all reduce the calculated phel linewidths 
+    mpi->allReduceSum(&postSymLinewidths->data);
+    // TODO maybe output these phel linewidths? 
+    }
+    // Add drag terms ----------------------------------------------
+    if(context.getUseDragTerms()) { 
+
+    // read this in here but let it go out of scope afterwards, as it takes a lot of memory
+    // TODO why do I need to read this in thrice? 
+    // Try commenting out the OMP line in copy of eigenvectors, and also the k reset 
+    InteractionElPhWan couplingElPh = 
+        InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
+        // TODO convert all the couplingElPh* function arguments to references
+
+      // first add the el drag term 
+      // TODO replace these 0 and 1s with something smarter 
+      addDragTerm(*this, context, kqPairIterator, 0, electronH0,
+                          &couplingElPh, innerBandStructure, outerBandStructure);
+                      
+    }
+    if(context.getUseDragTerms()) { 
+
+      // read this in here but let it go out of scope afterwards, as it takes a lot of memory
+      // TODO why do I need to read this in thrice? 
+      // Try commenting out the OMP line in copy of eigenvectors, and also the k reset 
+      InteractionElPhWan couplingElPh = 
+          InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
+          // TODO convert all the couplingElPh* function arguments to references
+
+      // now the ph drag term
+      addDragTerm(*this, context, qkPairIterator, 1, electronH0,
+                          &couplingElPh, innerBandStructure, outerBandStructure);
+
+      // use drag ASR to correct the drag terms and recompute the phel linewidths 
+      //phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
+      //                              outerBandStructure,   // electron bands
+      //                              innerBandStructure);  // phonon bands 
+    }
+
+    // Add in the phel contribution
+    // NOTE: would be nicer to use the add operatore from VectorBTE, but bad inheritance design
+    // is causing trouble -- Jenny
+    linewidth->data = linewidth->data + postSymLinewidths->data;
 
   }// braces to have postSymLinewidths go out of scope
-
-  // Add drag terms ----------------------------------------------
-  // TODO add ability to add in the linewidths
-  // first add the el drag term
-  addDragTerm(*this, context, kqPairIterator, 0, electronH0,
-                       couplingElPh, innerBandStructure, outerBandStructure);
-  // now the ph drag term
-  addDragTerm(*this, context, qkPairIterator, 1, electronH0,
-                        couplingElPh, innerBandStructure, outerBandStructure);
 
 // TODO do we need to keep this here
   /*if(outputUNTimes) {
@@ -288,6 +334,21 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
 
+  // apply the spin degen factors
+  //reweightQuadrants();
+
+  // reinforce the condition that the scattering matrix is symmetric
+  // A -> ( A^T + A ) / 2
+  if ( context.getSymmetrizeMatrix() ) {
+    symmetrize();
+  }
+
+  // use the off diagonals to calculate the linewidths, 
+  // to ensure the special eigenvectors can be found/preserve conservation of momentum 
+  // that might be ruined by the delta functions 
+  reinforceLinewidths();
+
+  // TODO debug the "replaceLinewidths" function and use it instead
   // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths
   if (switchCase == 0) { // case of matrix construction
@@ -316,10 +377,14 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
 
-  // apply the spin degen factors
-  reweightQuadrants();
-
   if(mpi->mpiHead()) std::cout << "\nFinished computing the coupled scattering matrix." << std::endl;
+
+  //this->outputToHDF5("coupled_matrix.hdf5");
+
+  if(context.getEnforcePositiveSemiDefinite()) {
+    theMatrix.enforcePositiveSemiDefinite(); 
+  }
+
 }
 
 // set,unset the scaling of omega = A/sqrt(bose1*bose1+1)/sqrt(bose2*bose2+1)
@@ -340,7 +405,8 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
 
   auto allLocalStates = theMatrix.getAllLocalStates();
   size_t numAllLocalStates = allLocalStates.size();
-#pragma omp parallel for
+
+//#pragma omp parallel for
   for (size_t iTup=0; iTup<numAllLocalStates; iTup++) {
 
     auto tup = allLocalStates[iTup];
@@ -349,11 +415,11 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
     // However, for band structure access,
     // remember that these states are in quadrant 4 for ph-self,
     // and need to be shifted back to bandstructure indices
-    int iBte1 = std::get<0>(tup);
-    int iBte2 = std::get<1>(tup);
+    size_t iBte1 = std::get<0>(tup);
+    size_t iBte2 = std::get<1>(tup);
 
     // we skip any state that's not a phonon one
-    if(iBte1 < numElStates || iBte2 < numElStates) {
+    if(iBte1 < size_t(numElStates) || iBte2 < size_t(numElStates)) {
       continue;
     }
     // TODO excludeIndices... are they for ph indices or global ones?
@@ -365,8 +431,8 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
         excludeIndices.end())
       continue;
 
-    int iBtePhBands1 = iBte1 - numElStates;
-    int iBtePhBands2 = iBte2 - numElStates;
+    size_t iBtePhBands1 = iBte1 - numElStates;
+    size_t iBtePhBands2 = iBte2 - numElStates;
     BteIndex iBte1Idx(iBtePhBands1);
     BteIndex iBte2Idx(iBtePhBands2);
 
@@ -379,13 +445,27 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
     double term1 = particle.getPopPopPm1(en1, temp, chemPot);
     double term2 = particle.getPopPopPm1(en2, temp, chemPot);
 
-    if (iBte1 == iBte2) {
-      internalDiagonal->operator()(0, 0, iBte1) /= term1;
-    }
     theMatrix(iBte1, iBte2) /= sqrt(term1 * term2);
   }
+
+  // because the internalDiaognal is already reduced and is
+  // the same on each process, we need to apply the symmetrization
+  // term to each of the states separately
+  for(size_t is = numElStates; is < size_t(numStates); is++) { 
+
+    // the phonon bandstructure index
+    StateIndex isShiftPh(is - numElStates);
+    double en = innerBandStructure.getEnergy(isShiftPh);
+    double term = particle.getPopPopPm1(en, temp, chemPot);
+
+    internalDiagonal->operator()(0, 0, is) /= term;   
+  }
+
 }
 
+
+// each process will /term for some subset of the internal diagonal. 
+// however, this should be applied to all of them. 
 
 /* return irr k index from a matrix state index
  * helper function to simplify the below function */
@@ -603,8 +683,6 @@ void CoupledScatteringMatrix::reweightQuadrants() {
 //    }
   }
 }
-
-
 
 BaseBandStructure* CoupledScatteringMatrix::getPhBandStructure() { return &innerBandStructure; }
 BaseBandStructure* CoupledScatteringMatrix::getElBandStructure() { return &outerBandStructure; }

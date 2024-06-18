@@ -64,7 +64,7 @@ class Window {
   static const int energy = 2;
 
   /** the window type is provided by the user as an energy range,
-   * where the values are a +/- range around efermi
+   * where the values are a +/- range around mu
    */
   static const int muEnergy = 3;
 

@@ -2,6 +2,7 @@
 #include "constants.h"
 #include "eigen.h"
 #include "mpiHelper.h"
+#include "phonon_h0.h"
 #include <fstream>// it may be used
 #include <iostream>
 #include <set>
@@ -74,24 +75,6 @@ Eigen::MatrixXd IFC3Parser::wsInit(Crystal &crystal,
     rws.col(i) = tmpResult.col(i);
   }
   return rws;
-}
-
-/* given the list of all vectors in the WS superCell (rws),
- * determine the weight of a particular vector, r */
-double wsWeight(const Eigen::VectorXd &r, const Eigen::MatrixXd &rws) {
-  int nreq = 1;
-  for (int ir = 0; ir < rws.cols(); ir++) {
-    double rrt = r.dot(rws.col(ir));
-    double ck = rrt - rws.col(ir).squaredNorm() / 2.;
-    if (ck > 1.0e-6) {
-      return 0.;
-    }
-    if (abs(ck) < 1.0e-6) {
-      nreq += 1;
-    }
-  }
-  double x = 1. / (double) nreq;
-  return x;
 }
 
 /* find the index of a particular vector in cellPositions */

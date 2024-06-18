@@ -51,6 +51,8 @@ Then type
 
 
 ## Notes for Mac Users:
+
+#### For older, pre-M1 Macs: 
 There can be trouble linking to the libgfortran files required by scalapack.
 If libgfortran is not found, try adding it specifically to LD_LIBRARY_PATH:
 ```
@@ -62,3 +64,34 @@ one located with gcc:
 export LIBRARY_PATH=$LIBRARY_PATH:/opt/homebrew/Cellar/gcc/12.2.0/lib/gcc/12/
 ```
 
+#### For newer Macs with Apple Silicon chips: 
+
+```
+# if you don't have these already, use homebrew to install: 
+
+brew install cmake
+brew install gcc
+brew install llvm
+# stop here and follow the instructions llvm provides regarding setting path variables --
+# run whatever line it tells you that looks like the one below, where username should be your laptop username. 
+#echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> /Users/username/.bash_profile
+
+brew install open-mpi
+brew install hdf5-mpi
+brew install scalapack
+brew install libomp
+
+# before building, set these flags
+export CC=/opt/homebrew/opt/llvm/bin/clang
+export CXX=/opt/homebrew/opt/llvm/bin/clang++
+export LDFLAGS="-L/opt/homebrew/opt/llvm/lib/c++ -Wl,-no_compact_unwind,-rpath,/opt/homebrew/opt/llvm/lib/c++"
+export CXXFLAGS="-I/opt/homebrew/opt/llvm/include -I/opt/homebrew/opt/libomp/include -fopenmp"
+export CFLAGS="-I/usr/local/opt/libomp/include -I/opt/homebrew/opt/llvm/include"
+export LIBRARY_PATH=$LIBRARY_PATH:/opt/homebrew/Cellar/gcc/13.2.0/lib/gcc/13/
+export SDKROOT=$(xcrun --show-sdk-path)
+
+mkdir build
+cd build
+cmake ../
+make -j 4 phoebe  # change number to appropriate number of cpus
+```

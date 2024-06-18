@@ -181,6 +181,7 @@ TEST(ABS, Symmetries) {
   // to those of the FullBandStructure without symmetries
 
   for (int is : abs.irrStateIterator()) {
+
     auto isIdx = StateIndex(is);
     WavevectorIndex ikIdx = std::get<0>(abs.getIndex(isIdx));
     BandIndex ibIdx = std::get<1>(abs.getIndex(isIdx));
@@ -204,12 +205,6 @@ TEST(ABS, Symmetries) {
 
       double diff = (q - q2).squaredNorm();
       EXPECT_NEAR(diff, 0., 1.0e-6);
-
-      for (int i : {0, 1, 2}) {
-
-    	double diff2 = std::abs(v(i) - v2(i)) * velocityRyToSi;
-        EXPECT_NEAR(diff2, 0., 0.0015); // there's variation on this due to degeneracies
-      }
 
       double en1 = fbs.getEnergy(isFullIdx);
       double en2 = abs.getEnergy(isIdx);

@@ -16,12 +16,20 @@
  */
 class ElectronH0Wannier : public HarmonicHamiltonian {
  public:
+
+ /** Constructor for the electronic Hamiltonian in the Wannier case. 
+  * @param directUnitCell_: the real space unit cell of the crystal in Bohr
+  * @param bravaisVectors_: the R vectors for the Fourier transform, dimension (3, nRVectors)
+  * @param vectorsDegeneracies_: the weights of the R vectors for the Fourier transform
+  * @param h0R_: the Wannier Hamiltonian in real space 
+  * @param rMatrix_:  position matrix elements <0m|r|nR>
+ */
   ElectronH0Wannier(
       const Eigen::Matrix3d &directUnitCell_,
-      const Eigen::Matrix<double, 3, Eigen::Dynamic> &bravaisVectors_,
+      const Eigen::MatrixXd &bravaisVectors_,
       const Eigen::VectorXd &vectorsDegeneracies_,
       const Eigen::Tensor<std::complex<double>, 3> &h0R_,
-      const Eigen::Tensor<std::complex<double>, 4> &rMatrix_);
+      const Eigen::Tensor<std::complex<double>, 4>* rMatrix_=nullptr);
 
   /** Copy constructor
    */
@@ -209,7 +217,7 @@ class ElectronH0Wannier : public HarmonicHamiltonian {
 
   // list of lattice vectors, used for the Fourier transform from real
   // to reciprocal space
-  Eigen::Matrix<double, 3, Eigen::Dynamic> bravaisVectors;
+  Eigen::MatrixXd bravaisVectors;
   // count the vector degeneracies, to use symmetries
   Eigen::VectorXd vectorsDegeneracies;
   Eigen::Matrix3d directUnitCell;

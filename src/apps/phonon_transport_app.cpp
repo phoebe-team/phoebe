@@ -38,9 +38,16 @@ void PhononTransportApp::run(Context &context) {
   if (mpi->mpiHead()) {
     std::cout << "\nComputing phonon band structure." << std::endl;
   }
+
+
+  auto popLimitTemp = context.getWindowPopulationLimit();
+  context.setWindowPopulationLimit(1e-4);
+
   auto tup1 = ActiveBandStructure::builder(context, phononH0, fullPoints);
   auto bandStructure = std::get<0>(tup1);
   auto statisticsSweep = std::get<1>(tup1);
+
+  context.setWindowPopulationLimit(popLimitTemp);
 
   // print some info about state number reduction
   if (mpi->mpiHead()) {
@@ -251,6 +258,9 @@ void PhononTransportApp::run(Context &context) {
       std::cout << "Starting variational BTE solver\n" << std::endl;
     }
 
+    // NOTE this is currently un-preconditioned! We should update the algorithm as here
+    // See numerical recipies: the minimal residual algorithm, 2.7 Sparse Linear Systems, pg 89
+
     // note: each iteration should take approximately twice as long as
     // the iterative method above (in the way it's written here.
 
@@ -437,14 +447,14 @@ VectorBTE PhononTransportApp::getPhononElectronLinewidth(Context& context, Cryst
     // check that the crystal in the elph calculation is the
     // same as the one in the phph calculation
     if (crystalPh.getDirectUnitCell() != crystalEl.getDirectUnitCell()) {
-      Error("Phonon-electrons scattering requested, but crystals used for ph-ph and \n"
+      Warning("Phonon-electron scattering requested, but crystals used for ph-ph and \n"
         "ph-el scattering are not the same!");
     }
 
     // load the elph coupling
     // Note: this file contains the number of electrons
     // which is needed to understand where to place the fermi level
-    auto couplingElPh = InteractionElPhWan::parse(context, crystalPh, &phononH0);
+    auto couplingElPh = InteractionElPhWan::parse(context, crystalPh, phononH0);
 
     // TODO unsure if we should allow this variable to be set by the user in place of
     // the standard kmesh, to be consistent with other uses.

@@ -16,10 +16,14 @@ TEST(PointsTest, PointsHandling) {
   Eigen::VectorXd speciesMasses(1);
   speciesMasses(0) = 28.086;
 
+  // no born charges for the test
+  Eigen::Tensor<double, 3> bornCharges(2, 3, 3);
+  bornCharges.setZero();
+
   Context context;
 
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses);
+                  speciesNames, speciesMasses, bornCharges);
 
   Eigen::Vector3i mesh;
   mesh << 4, 4, 4;

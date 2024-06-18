@@ -5,38 +5,42 @@
 
 ElectronH0Wannier::ElectronH0Wannier(
     const Eigen::Matrix3d &directUnitCell_,
-    const Eigen::Matrix<double, 3, Eigen::Dynamic> &bravaisVectors_,
+    const Eigen::MatrixXd &bravaisVectors_,
     const Eigen::VectorXd &vectorsDegeneracies_,
     const Eigen::Tensor<std::complex<double>, 3> &h0R_,
-    const Eigen::Tensor<std::complex<double>, 4> &rMatrix_)
+    const Eigen::Tensor<std::complex<double>, 4>* rMatrix_)
     : particle(Particle::electron) {
 
   h0R = h0R_;
-  rMatrix = rMatrix_;
+  if(rMatrix_ != nullptr) rMatrix = *rMatrix_;
   directUnitCell = directUnitCell_;
   bravaisVectors = bravaisVectors_;
   vectorsDegeneracies = vectorsDegeneracies_;
 
   if (h0R.dimension(1) != h0R.dimension(2)) {
-    Error("WannierH0(): h0R should have dimensions (R,bands,bands)");
+    DeveloperError("WannierH0(): h0R should have dimensions (R,bands,bands)");
   }
   if (h0R.dimension(0) != bravaisVectors.cols()) {
-    Error("WannierH0(): h0R and bravaisVectors not aligned");
+    DeveloperError("WannierH0(): h0R and bravaisVectors not aligned");
   }
   if (vectorsDegeneracies.size() != bravaisVectors.cols()) {
-    Error("WannierH0(): degeneracies not aligned with vectors");
+    DeveloperError("WannierH0(): degeneracies not aligned with vectors");
   }
 
-  if ((rMatrix.dimension(1) != h0R.dimension(0)) ||
-      (rMatrix.dimension(2) != h0R.dimension(1)) ||
-      (rMatrix.dimension(3) != h0R.dimension(2))) {
-    Error("WannierH0(): h0R and rMatrix should be aligned");
-  }
+  if(rMatrix_ != nullptr) {
+    if ((rMatrix.dimension(1) != h0R.dimension(0)) ||
+        (rMatrix.dimension(2) != h0R.dimension(1)) ||
+        (rMatrix.dimension(3) != h0R.dimension(2))) {
+      DeveloperError("WannierH0(): h0R and rMatrix should be aligned");
+    }
 
-  if (rMatrix.dimension(0) != 3) {
-    Error("WannierH0(): rMatrix should be a vector");
+    if (rMatrix.dimension(0) != 3) {
+      DeveloperError("WannierH0(): rMatrix should be a vector");
+    }
   }
-
+  // TODO if we want to use shifted vectors, we should here apply equation 22 of
+  // the WannierBerri manuscript to H(R). This is a smarter way to do this. 
+  
   numWannier = int(h0R.dimension(1));
   numVectors = int(vectorsDegeneracies.size());
 
@@ -519,6 +523,11 @@ FullBandStructure ElectronH0Wannier::cpuPopulate(Points &fullPoints,
 
 std::vector<Eigen::MatrixXcd>
 ElectronH0Wannier::getBerryConnection(Point &point) {
+
+  if(rMatrix.dimension(0) == 0) {
+    Error("We cannot calculate Berry connection without position operator matrix.");
+  }
+
   Eigen::Vector3d k = point.getCoordinates(Points::cartesianCoordinates);
 
   // first we diagonalize the hamiltonian
@@ -838,8 +847,8 @@ StridedComplexView3D ElectronH0Wannier::kokkosBatchedBuildBlochHamiltonian(
                 arg += cartesianCoordinates(iK, i) * vectorsShifts_d(i, iDeg, iw1, iw2, iR);
               }
               Kokkos::complex<double> phase = exp(complexI * arg)
-                  / vectorsDegeneracies_d(iR) * degeneracyShifts_d(iw1, iw2, iR);
-              tmp += h0R_d(iR, iw1, iw2) * phase;
+                  / ( vectorsDegeneracies_d(iR) * degeneracyShifts_d(iw1, iw2, iR) );
+              tmp += h0R_d(iw1, iw2, iR) * phase;
             }
           }
           hamiltonians(iK, iw1, iw2) = tmp;

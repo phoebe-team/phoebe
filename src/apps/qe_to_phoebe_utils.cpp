@@ -136,8 +136,9 @@ void ElPhQeToPhoebeApp::testPhononTransform(
     const Eigen::Tensor<std::complex<double>, 3> &phEigenvectors,
     const Eigen::MatrixXd &phBravaisVectors,
     const Eigen::VectorXd &phDegeneracies, const Eigen::MatrixXd &phEnergies) {
+
   /** Like the test above, we
-   * 1) FT to Wannier representation.
+   * 1) FT to real space phonon basis representation.
    *    Since these are force constants, they should be real.
    * 2) FT back to Bloch space and check that we find the same results.
    *
@@ -147,7 +148,7 @@ void ElPhQeToPhoebeApp::testPhononTransform(
 
   int numPhBands = int(phononH0.getNumBands());
 
-  // Bloch To Wannier transform
+  // Bloch To real space transform
 
   auto atomicPositions = crystal.getAtomicPositions();
   int numAtoms = int(atomicPositions.rows());
@@ -174,7 +175,7 @@ void ElPhQeToPhoebeApp::testPhononTransform(
     }
   }
 
-  // FT to Wannier representation
+  // FT to real representation
 
   Eigen::Tensor<std::complex<double>, 5> h0R(
       numAtoms * numAtoms * phBravaisVectors.size(), numAtoms, numAtoms, 3, 3);
@@ -283,7 +284,7 @@ void ElPhQeToPhoebeApp::testPhononTransform(
 
     // diagonalize it, using the matrices from phononH0
     auto dq = u.adjoint() * hWK * u;
-    (void) dq;
+    //(void) dq;
     // check I found again the same eigenvalues
     for (int ib = 0; ib < numPhBands; ib++) {
       assert(abs(std::sqrt(dq(ib, ib).real()) - phEnergies(ib, iq)) < 1.0e-6);
@@ -315,7 +316,7 @@ void ElPhQeToPhoebeApp::testBackTransform(
   context.setElphFileName(context.getQuantumEspressoPrefix() + ".phoebe.elph.dat");
 #endif
 
-  auto couplingElPh = InteractionElPhWan::parse(context, crystal, &phononH0);
+  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
 
   for (int ik1 = 0; ik1 < numKPoints; ik1++) {
     Eigen::Vector3d k1C =
@@ -353,7 +354,7 @@ void ElPhQeToPhoebeApp::testBackTransform(
       polarData.push_back(polar);
 
       couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2,
-                                       eigenVectors3, q3Cs, polarData);
+                                       eigenVectors3, q3Cs, k1C, polarData);
       auto coupling2 = couplingElPh.getCouplingSquared(0);
 
       double sum1 = 0.;
@@ -404,8 +405,13 @@ void writeHeaderHDF5(
           "/numElectrons", HighFive::DataSpace::From(numFilledWannier));
       HighFive::DataSet dnSpin = file.createDataSet<int>(
           "/numSpin", HighFive::DataSpace::From(numSpin));
+      // if we write this with QE, it's the Giustino phase convention, which we deem phaseConv = 0
+      int phaseConvention = 0; 
+      HighFive::DataSet dphaseConvention = file.createDataSet<int>(
+          "/phaseConvention", HighFive::DataSpace::From(phaseConvention)); 
       dnElectrons.write(numFilledWannier);// # of occupied wannier functions
       dnSpin.write(numSpin);
+      dphaseConvention.write(phaseConvention);
 
       HighFive::DataSet dnElBands = file.createDataSet<int>(
           "/numElBands", HighFive::DataSpace::From(numWannier));
@@ -491,18 +497,18 @@ void writeElPhCouplingHDF5v1(
           gWannier.data(), gWannier.size());
 
       // note: gwan is distributed
-      unsigned int globalSize = numWannier * numWannier * numModes * numPhBravaisVectors * numElBravaisVectors;
+      size_t globalSize = size_t(numWannier) * numWannier * numModes * numPhBravaisVectors * numElBravaisVectors;
 
       // Create the data-space to write gWannier to
       std::vector<size_t> dims(2);
       dims[0] = 1;
-      dims[1] = size_t(globalSize);
+      dims[1] = globalSize;
       HighFive::DataSet dgwannier = file.createDataSet<std::complex<double>>(
           "/gWannier", HighFive::DataSpace(dims));
 
       // start point and the number of the total number of elements
       // to be written by this process
-      size_t start = mpi->divideWorkIter(numElBravaisVectors)[0] * numWannier * numWannier * numModes * numPhBravaisVectors;
+      size_t start = mpi->divideWorkIter(numElBravaisVectors)[0] * size_t(numWannier) * numWannier * numModes * numPhBravaisVectors;
       size_t offset = start;
 
       // Note: HDF5 < v1.10.2 cannot write datasets larger than 2 Gbs
@@ -515,7 +521,7 @@ void writeElPhCouplingHDF5v1(
       // what we write
       auto maxSize = int(pow(1000, 3)) / sizeof(std::complex<double>);
       size_t smallestSize =
-          numWannier * numWannier * numModes * numPhBravaisVectors;
+          size_t(numWannier) * numWannier * numModes * numPhBravaisVectors;
       std::vector<int> irEBunchSizes;
 
       // determine the size of each bunch of electronic bravais vectors
@@ -540,7 +546,7 @@ void writeElPhCouplingHDF5v1(
 
       // we now loop over these data sets, and write each chunk of
       // bravais vectors in parallel
-      int netOffset = 0;// offset from first bunch in this set to current bunch
+      size_t netOffset = 0;// offset from first bunch in this set to current bunch
       for (int iBunch = 0; iBunch < numDatasets; iBunch++) {
 
         // we need to determine the start, stop and offset of this
@@ -548,6 +554,8 @@ void writeElPhCouplingHDF5v1(
         size_t bunchElements = irEBunchSizes[iBunch] * smallestSize;
         size_t bunchStart = start + netOffset;
         size_t bunchOffset = offset + netOffset;
+	// we will use this to update the offset for the bunch during the
+	// next loop
         netOffset += bunchElements;
 
         int gwanSliceStart;
@@ -849,20 +857,20 @@ void ElPhQeToPhoebeApp::writeWannierCoupling(
 
   if (context.getHdf5ElPhFileFormat()==1) {
     writeElPhCouplingHDF5v1(context, gWannier, numFilledWannier, numSpin,
-                               numModes, numWannier, phDegeneracies,
-                               elDegeneracies, phBravaisVectors,
-                               elBravaisVectors, qMesh, kMesh);
+                              numModes, numWannier, phDegeneracies,
+                              elDegeneracies, phBravaisVectors,
+                              elBravaisVectors, qMesh, kMesh);
   } else {
     writeElPhCouplingHDF5v2(context, gWannier, numFilledWannier, numSpin,
-                               numModes, numWannier, phDegeneracies,
-                               elDegeneracies, phBravaisVectors,
-                               elBravaisVectors, qMesh, kMesh);
+                              numModes, numWannier, phDegeneracies,
+                              elDegeneracies, phBravaisVectors,
+                              elBravaisVectors, qMesh, kMesh);
   }
 #else
   writeElPhCouplingNoHDF5(context, gWannier, numFilledWannier, numSpin,
-                          numModes, numWannier, phDegeneracies,
-                          elDegeneracies, phBravaisVectors,
-                          elBravaisVectors, qMesh, constkMesh);
+                              numModes, numWannier, phDegeneracies,
+                              elDegeneracies, phBravaisVectors,
+                              elBravaisVectors, qMesh, kMesh);
 #endif
 
   if (mpi->mpiHead()) {

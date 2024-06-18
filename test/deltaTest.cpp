@@ -86,14 +86,14 @@ TEST(deltaFunctions, testAllDeltas) {
 //  std::cout << "gaussian " << delta << std::endl;
   //ASSERT_EQ(delta, );
 
-  AdaptiveGaussianDeltaFunction smearing2(phononBandStructure);
+  AdaptiveGaussianDeltaFunction smearing2(phononBandStructure, context);
   Eigen::Vector3d vdiff = v2 - v3;
   double delta = smearing2.getSmearing(enDiff, vdiff);
 //  if(delta > 0) {
 //  std::cout << "adaptive gaussian " << delta;
 //  std::cout << "qs is en " << iq1 << " " << iq2 << " " << iq3 << " " << is1.get() << " " << is2.get() << " " << is3.get() << " " << en1 << " " << en2 << " " << en3 << std::endl;
 
-  SymAdaptiveGaussianDeltaFunction smearing3(phononBandStructure);
+  SymAdaptiveGaussianDeltaFunction smearing3(phononBandStructure,context);
   delta = smearing3.getSmearing(enDiff, v1, v2, v3);
   //std::cout << " sym " << delta << std::endl;
   //ASSERT_EQ(delta, );

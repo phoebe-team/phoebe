@@ -32,14 +32,6 @@ class ElectronH0Fourier : public HarmonicHamiltonian {
   ElectronH0Fourier(Crystal &crystal_, const Points& coarsePoints_,
                     const FullBandStructure& coarseBandStructure_, double cutoff);
 
-  /** Copy constructor
-   */
-  ElectronH0Fourier(const ElectronH0Fourier &that);
-
-  /** Copy assignment
-   */
-  ElectronH0Fourier &operator=(const ElectronH0Fourier &that);
-
   /** Method to return that the underlying is that of an electronic Fermion.
    */
   Particle getParticle() override;

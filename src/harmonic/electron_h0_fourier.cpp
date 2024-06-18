@@ -47,6 +47,7 @@ ElectronH0Fourier::ElectronH0Fourier(Crystal &crystal_, const Points& coarsePoin
                                      double cutoff_)
     : crystal(crystal_), coarseBandStructure(coarseBandStructure_),
       coarsePoints(coarsePoints_), particle(Particle::electron) {
+
   numBands = coarseBandStructure.getNumBands();
   cutoff = cutoff_;
   numDataPoints = coarseBandStructure.getNumPoints();
@@ -71,39 +72,6 @@ ElectronH0Fourier::ElectronH0Fourier(Crystal &crystal_, const Points& coarsePoin
   }
   mpi->allReduceSum(&expansionCoefficients);
   loopPrint.close();
-}
-
-// Copy constructor
-ElectronH0Fourier::ElectronH0Fourier(const ElectronH0Fourier &that)
-    : crystal(that.crystal), coarseBandStructure(that.coarseBandStructure),
-      coarsePoints(that.coarsePoints), particle(that.particle),
-      expansionCoefficients(that.expansionCoefficients),
-      numBands(that.numBands), cutoff(that.cutoff),
-      numDataPoints(that.numDataPoints),
-      numPositionVectors(that.numPositionVectors),
-      minDistance(that.minDistance),
-      positionDegeneracies(that.positionDegeneracies),
-      positionVectors(that.positionVectors), refWavevector(that.refWavevector) {
-}
-
-// Copy assignment
-ElectronH0Fourier &ElectronH0Fourier::operator=(const ElectronH0Fourier &that) {
-  if (this != &that) {
-    crystal = that.crystal;
-    coarseBandStructure = that.coarseBandStructure;
-    coarsePoints = that.coarsePoints;
-    particle = that.particle;
-    expansionCoefficients = that.expansionCoefficients;
-    numBands = that.numBands;
-    cutoff = that.cutoff;
-    numDataPoints = that.numDataPoints;
-    numPositionVectors = that.numPositionVectors;
-    minDistance = that.minDistance;
-    positionDegeneracies = that.positionDegeneracies;
-    positionVectors = that.positionVectors;
-    refWavevector = that.refWavevector;
-  }
-  return *this;
 }
 
 Particle ElectronH0Fourier::getParticle() { return particle; }
@@ -156,13 +124,21 @@ FullBandStructure ElectronH0Fourier::populate(Points &fullPoints,
                                               const bool &withVelocities,
                                               const bool &withEigenvectors,
                                               const bool isDistributed) {
+
   FullBandStructure fullBandStructure(numBands, particle, withVelocities,
                                       withEigenvectors, fullPoints,
                                       isDistributed);
 
-  LoopPrint loopPrint("populating electronic band structure", "bands", numBands);
+  LoopPrint loopPrint("populating electronic band structure", "states",
+                              fullBandStructure.getNumStates());
 
-  for (auto ik : fullBandStructure.getLocalWavevectorIndices()) {
+  // this is mpi parallel in wavevector indices
+  std::vector<int> kIndices = fullBandStructure.getLocalWavevectorIndices();
+  for (size_t i = 0; i<kIndices.size(); i++) {
+
+    loopPrint.update();
+
+    int ik = kIndices[i];
     Point point = fullBandStructure.getPoint(ik);
     auto tup = diagonalize(point);
     auto ens = std::get<0>(tup);
@@ -446,7 +422,7 @@ ElectronH0Fourier::getGroupVelocityFromCoordinates(Eigen::Vector3d &wavevector,
 }
 
 StridedComplexView3D ElectronH0Fourier::kokkosBatchedBuildBlochHamiltonian(
-  [[maybe_unused]] const DoubleView2D &cartesianCoordinates) {
+    [[maybe_unused]] const DoubleView2D &cartesianCoordinates) {
   Error("Kokkos not implemented in ElectronH0Fourier");
   // dummy return to silence a warning
   StridedComplexView3D temp;
@@ -455,7 +431,7 @@ StridedComplexView3D ElectronH0Fourier::kokkosBatchedBuildBlochHamiltonian(
 
 std::tuple<DoubleView2D, StridedComplexView3D, ComplexView4D>
 ElectronH0Fourier::kokkosBatchedDiagonalizeWithVelocities(
-  [[maybe_unused]]  const DoubleView2D &cartesianCoordinates) {
+    [[maybe_unused]] const DoubleView2D &cartesianCoordinates) {
   Error("Kokkos not implemented in ElectronH0Fourier");
   std::tuple<DoubleView2D, StridedComplexView3D, ComplexView4D> temp;
   return temp;
@@ -463,7 +439,8 @@ ElectronH0Fourier::kokkosBatchedDiagonalizeWithVelocities(
 
 std::tuple<DoubleView2D, StridedComplexView3D>
 ElectronH0Fourier::kokkosBatchedDiagonalizeFromCoordinates(
-  [[maybe_unused]]  const DoubleView2D &cartesianCoordinates, [[maybe_unused]] const bool withMassScaling) {
+          [[maybe_unused]] const DoubleView2D &cartesianCoordinates,
+          [[maybe_unused]] const bool withMassScaling) {
   Error("Kokkos not implemented in ElectronH0Fourier");
   std::tuple<DoubleView2D, StridedComplexView3D> temp;
   return temp;

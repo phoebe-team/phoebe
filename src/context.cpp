@@ -83,6 +83,12 @@ double parseDoubleWithUnits(std::string &line) {
   if (patternInString(line, "mum")) {
     x /= distanceBohrToMum;
   }
+  if (patternInString(line, "ang")) {
+    x /= distanceBohrToAng;
+  }
+  if (patternInString(line, "Bohr") || patternInString(line, "bohr")) {
+    x /= 1.; // it's already in atomic units
+  }
 
   return x;
 }
@@ -132,7 +138,6 @@ std::tuple<int,double> parseDoubleVectorComponent(std::string line) {
   double val = std::stod(part2);
   return std::make_tuple(idx,val);
 }
-
 
 /** Parse a string of format "key = value units" to return an integer value.
  */
@@ -448,11 +453,9 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "phFC2FileName") {
         phFC2FileName = parseString(val);
       }
-
       if (parameterName == "phFC3FileName") {
         phFC3FileName = parseString(val);
       }
-
       if (parameterName == "phonopyDispFileName") {
         phonopyDispFileName = parseString(val);
       }
@@ -464,32 +467,28 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "sumRuleFC2") {
         sumRuleFC2 = parseString(val);
       }
-
       if (parameterName == "electronH0Name") {
         electronH0Name = parseString(val);
       }
-
       if (parameterName == "wannier90Prefix") {
         wannier90Prefix = parseString(val);
       }
-
+      if (parameterName == "JDFTxScfOutFile") {
+        jdftxScfOutFile = parseString(val);
+      }
       if (parameterName == "quantumEspressoPrefix") {
         quantumEspressoPrefix = parseString(val);
       }
-
       if (parameterName == "elPhInterpolation") {
         elPhInterpolation = parseString(val);
       }
-
       if (parameterName == "elphFileName") {
         setElphFileName(parseString(val));
       }
-
       if (parameterName == "electronFourierCutoff") {
         double x = parseDouble(val);
         electronFourierCutoff = x;
       }
-
       if (parameterName == "qMesh") {
         std::vector<int> vecMesh = parseIntList(val);
         qMesh(0) = vecMesh[0];
@@ -552,59 +551,48 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "appName") {
         appName = parseString(val);
       }
-
       if (parameterName == "solverBTE") {
         solverBTE = parseStringList(val);
       }
-
       if (parameterName == "convergenceThresholdBTE") {
         convergenceThresholdBTE = parseDouble(val);
       }
-
       if (parameterName == "maxIterationsBTE") {
         maxIterationsBTE = parseInt(val);
       }
-
       if (parameterName == "dimensionality") {
         dimensionality = parseInt(val);
       }
-
+      if (parameterName == "thickness") {
+        thickness = parseDoubleWithUnits(val);
+      }
       if (parameterName == "dosMinEnergy") {
         dosMinEnergy = parseDoubleWithUnits(val);
       }
-
       if (parameterName == "dosMaxEnergy") {
         dosMaxEnergy = parseDoubleWithUnits(val);
       }
-
       if (parameterName == "dosDeltaEnergy") {
         dosDeltaEnergy = parseDoubleWithUnits(val);
       }
-
       if (parameterName == "deltaPath") {
         deltaPath = parseDouble(val);
       }
-
       if (parameterName == "outputEigendisplacements") {
         outputEigendisplacements = parseBool(val);
       }
-
       if (parameterName == "outputUNTimes") {
         outputUNTimes = parseBool(val);
       }
-
       if (parameterName == "fermiLevel") {
         fermiLevel = parseDoubleWithUnits(val);
       }
-
       if (parameterName == "hasSpinOrbit") {
         hasSpinOrbit = parseBool(val);
       }
-
       if (parameterName == "distributedElPhCoupling") {
         distributedElPhCoupling = parseBool(val);
       }
-
       if (parameterName == "numOccupiedStates") {
         // note: numOccupiedStates refers to the number of states that are
         // occupied
@@ -616,7 +604,6 @@ void Context::setupFromInput(const std::string &fileName) {
           x *= 2;
         numOccupiedStates = x;
       }
-
       if (parameterName == "smearingMethod") {
         std::string x_ = parseString(val);
         // TODO: this is hardcoded, should be fixed how we validate input
@@ -632,55 +619,54 @@ void Context::setupFromInput(const std::string &fileName) {
           smearingMethod = -1;
         }
       }
-
       if (parameterName == "smearingWidth") {
         smearingWidth = parseDoubleWithUnits(val);
       }
-
+      if (parameterName == "phSmearingWidth") {
+        phSmearingWidth = parseDoubleWithUnits(val);
+      }
+      if (parameterName == "elSmearingWidth") {
+        elSmearingWidth = parseDoubleWithUnits(val);
+      }
+      //if (parameterName == "dragSmearingWidth") {
+      //  dragSmearingWidth = parseDoubleWithUnits(val);
+      //}
       if (parameterName == "adaptiveSmearingPrefactor") {
         adaptiveSmearingPrefactor = parseDouble(val);
       }
-
       if (parameterName == "constantRelaxationTime") {
         constantRelaxationTime = parseDoubleWithUnits(val);
       }
-
       if (parameterName == "scatteringMatrixInMemory") {
         scatteringMatrixInMemory = parseBool(val);
       }
-
       if (parameterName == "symmetrizeMatrix") {
         symmetrizeMatrix = parseBool(val);
       }
-
       if (parameterName == "useUpperTriangle") {
         useUpperTriangle = parseBool(val);
       }
-
       if (parameterName == "numRelaxonsEigenvalues") {
         numRelaxonsEigenvalues = parseInt(val);
       }
-
+      if (parameterName == "enforcePositiveSemiDefinite") {
+        enforcePositiveSemiDefinite = parseBool(val);
+      }
       if (parameterName == "checkNegativeRelaxons") {
         checkNegativeRelaxons = parseBool(val);
       }
-
       if (parameterName == "useDragTerms") {
         useDragTerms = parseBool(val);
       }
-
       if (parameterName == "useSymmetries") {
         useSymmetries = parseBool(val);
       }
-
       if (parameterName == "symmetrizeBandStructure") {
         symmetrizeBandStructure = parseBool(val);
       }
-
       if (parameterName == "withIsotopeScattering") {
         withIsotopeScattering = parseBool(val);
       }
-
       if (parameterName == "masses") {
         std::vector<double> x = parseDoubleList(val);
         customMasses = Eigen::VectorXd::Zero(int(x.size()));
@@ -695,7 +681,6 @@ void Context::setupFromInput(const std::string &fileName) {
           customIsotopeCouplings(i) = x[i];
         }
       }
-
       if (parameterName == "boundaryLength") {
         boundaryLength = parseDoubleWithUnits(val);
       }
@@ -704,35 +689,27 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "epaFileName") {
         epaFileName = parseString(val);
       }
-
       if (parameterName == "minChemicalPotential") {
         minChemicalPotential = parseDoubleWithUnits(val);
       }
-
       if (parameterName == "maxChemicalPotential") {
         maxChemicalPotential = parseDoubleWithUnits(val);
       }
-
       if (parameterName == "deltaChemicalPotential") {
         deltaChemicalPotential = parseDoubleWithUnits(val);
       }
-
       if (parameterName == "minTemperature") {
         minTemperature = parseDouble(val) / temperatureAuToSi;
       }
-
       if (parameterName == "maxTemperature") {
         maxTemperature = parseDouble(val) / temperatureAuToSi;
       }
-
       if (parameterName == "deltaTemperature") {
         deltaTemperature = parseDouble(val) / temperatureAuToSi;
       }
-
       if (parameterName == "eFermiRange") {
         eFermiRange = parseDoubleWithUnits(val);
       }
-
       if (parameterName == "epaSmearingEnergy") {
         epaSmearingEnergy = parseDoubleWithUnits(val);
       }
@@ -755,49 +732,45 @@ void Context::setupFromInput(const std::string &fileName) {
         epaEnergyStep = parseDoubleWithUnits(val);
       }
 
-      // EL-PH coupling plot App
+      // coupling plot apps
 
-      if (parameterName == "g2PlotStyle") {
+      if (parameterName == "couplingPlotStyle") {
         g2PlotStyle = parseString(val);
       }
-
-      if (parameterName == "g2FixedPoint") {
+      if (parameterName == "couplingMeshStyle") {
+        g2MeshStyle = parseString(val);
+      }
+      if (parameterName == "couplingFixedPoint") {
         std::vector<double> x = parseDoubleList(val);
         for (auto i : {0, 1, 2}) {
           g2PlotFixedPoint(i) = x[i];
         }
       }
-
-      if (parameterName == "g2PlotBandEl1") {
+      if (parameterName == "couplingPlotBandEl1") {
         std::vector<int> x = parseIntList(val);
         g2PlotEl1Bands.first = x[0];
         g2PlotEl1Bands.second = x[1];
       }
-
-      if (parameterName == "g2PlotBandEl2") {
+      if (parameterName == "couplingPlotBandEl2") {
         std::vector<int> x = parseIntList(val);
         g2PlotEl2Bands.first = x[0];
         g2PlotEl2Bands.second = x[1];
       }
-
-      if (parameterName == "g2PlotBandPh") {
+      if (parameterName == "couplingPlotBandPh") {
         std::vector<int> x = parseIntList(val);
         g2PlotPhBands.first = x[0];
         g2PlotPhBands.second = x[1];
       }
-
       if (parameterName == "hdf5ElphFileFormat") {
         int x = parseInt(val);
         setHdf5ElPhFileFormat(x);
       }
-
       if (parameterName == "wsVecFileName") {
         std::string x = parseString(val);
         setWsVecFileName(x);
       }
 
       // Polarization
-
       if (parameterName == "numCoreElectrons") {
         std::vector<int> x = parseIntList(val);
         Eigen::VectorXi xx(x.size());
@@ -830,15 +803,53 @@ void Context::setupFromInput(const std::string &fileName) {
     }
     lineCounter += 1;
   }
-  // check dependent input variables 
-  checkDependentVariables();
+  // check dependent input variables
+  inputSanityCheck();
 }
 
-void Context::checkDependentVariables() { 
+void Context::inputSanityCheck() {
 
   // this shouldn't be used if we're symmetrizing
   if(getSymmetrizeMatrix()) useUpperTriangle = false;
 
+  // check that coupled trasport app is only run with commensurate meshes
+  if(getAppName().compare("coupledTransport") == 0 ) {
+    if(useSymmetries) {
+      Error("Coupled transport app cannot be run with symmetries.");
+    }
+    if( kMesh(0)%qMesh(0) != 0 || kMesh(1)%qMesh(1) != 0 || kMesh(2)%qMesh(2) != 0 ) {
+      Error("For coupled relaxons solution, k and q meshes must be commensurate!");
+    }
+  }
+
+  // disallow symmetries when relaxons are used
+  for (const std::string &s : solverBTE) {
+    if (s.compare("variational") == 0 || s.compare("relaxons") == 0) {
+      if(useSymmetries) {
+        Error("Variational and relaxons solvers cannot be used with symmetries!");
+      }
+    }
+
+    // Warn users about relaxons with even meshes
+    if (s.compare("relaxons") == 0) {
+      if((qMesh.prod() % 2 == 0 && qMesh.prod() != 0) || (kMesh.prod() % 2 == 0 && kMesh.prod() != 0)) {
+        Warning("Relaxons solver should be run with an odd points mesh for reasons of eigenvector parity.");
+      }
+      if(smearingMethod == 1) { // adaptive smearing
+        Warning("Adaptive smearing can cause problems with the quality of the scattering matrix, and may cause negative eigenvalues to appear.\n"
+              "If this occurs, you should switch to Gaussian.");
+      }
+    }
+  }
+
+  // warn the user if thickness is not set but 2d is
+  if(dimensionality == 2) {
+    if(thickness == 1.) {
+      Warning("You have set dimensionality = 2 but not the thickness input parameter.\n"
+            "This means your final result will have (height of cell / 1.) applied, when it should be\n"
+            "height of cell / thickness!");
+    }
+  }
 }
 
 // helper functions for printInputSummary
@@ -872,6 +883,7 @@ void Context::printInputSummary(const std::string &fileName) {
   std::cout << "useSymmetries = " << useSymmetries << std::endl;
   std::cout << "symmetrizeBandStructure = " << symmetrizeBandStructure << std::endl;
   std::cout << "dimensionality = " << dimensionality << std::endl;
+  if(dimensionality != 3) std::cout << "thickness = " << thickness * distanceBohrToAng << " ang" << std::endl;
   std::cout << std::endl;
 
   // phonon parameters -------------------------------
@@ -905,6 +917,8 @@ void Context::printInputSummary(const std::string &fileName) {
         std::cout << "elPhInterpolation = " << elPhInterpolation << std::endl;
       if (!wannier90Prefix.empty())
         std::cout << "wannier90Prefix = " << wannier90Prefix << std::endl;
+      if (!jdftxScfOutFile.empty())
+        std::cout << "JDFTxScfOutFile = " << jdftxScfOutFile << std::endl;
       if (!quantumEspressoPrefix.empty())
         std::cout << "quantumEspressoPrefix = " << quantumEspressoPrefix
                   << std::endl;
@@ -929,6 +943,52 @@ void Context::printInputSummary(const std::string &fileName) {
     if(appName.find("elPhQeToPhoebe") != std::string::npos) {
       std::cout << "distributedElPhCoupling = " << distributedElPhCoupling
         << std::endl;
+    }
+    // plot coupling apps (either elph or ee)
+    if(appName.find("CouplingPlot") != std::string::npos) {
+      std::cout << '\n' << "couplingPlotStyle = " << g2PlotStyle << std::endl;
+      std::cout << "couplingMeshStyle = " << g2MeshStyle << std::endl;
+      if(g2PlotStyle.find("Fixed") != std::string::npos) {
+        std::cout << "couplingPlotFixedPoint = [ " << g2PlotFixedPoint.transpose() <<
+          " ]" << std::endl;
+      }
+      if(g2PlotEl1Bands.first != -1)
+        std::cout << "couplingPlotEl1Bands = [ " << g2PlotEl1Bands.first << " " <<
+                 g2PlotEl1Bands.second << " ]" << std::endl;
+      if(g2PlotEl1Bands.first != -1)
+        std::cout << "couplingPlotEl2Bands = [ " << g2PlotEl2Bands.first << " " <<
+                 g2PlotEl2Bands.second << " ]" << std::endl;
+      if(g2PlotEl1Bands.first != -1)
+        std::cout << "couplingPlotPhBands = [ " << g2PlotPhBands.first << " " <<
+                 g2PlotPhBands.second << " ]" << std::endl;
+
+      if(g2MeshStyle == "pointsPath") {
+
+        std::cout << "deltaPath = " << deltaPath << " 1/Bohr" << std::endl;
+
+        std::cout << "\nBand Path:" << std::endl;
+        std::cout << std::setprecision(4) << std::fixed;
+        const auto &dim = pathExtrema.dimensions();
+        int count = 0;
+        for (int i = 0; i < dim[0]; i++) {
+          std::cout << pathLabels[count] << " " << pathExtrema(i, 0, 0) << " "
+                    << pathExtrema(i, 0, 1) << " " << pathExtrema(i, 0, 2) << "  ";
+          count++;
+          std::cout << pathLabels[count] << " " << pathExtrema(i, 1, 0) << " "
+                    << pathExtrema(i, 1, 1) << " " << pathExtrema(i, 1, 2)
+                    << std::endl;
+          count++;
+        }
+      } else {
+        if(g2PlotStyle == "qFixed") {
+          std::cout << "kMesh = " << kMesh(0) << " " << kMesh(1) << " " << kMesh(2)
+                << std::endl;
+        }
+        else if(g2PlotStyle == "kFixed") {
+          std::cout << "qMesh = " << qMesh(0) << " " << qMesh(1) << " " << qMesh(2)
+                << std::endl;
+        }
+      }
     }
     std::cout << std::endl;
   }
@@ -980,8 +1040,17 @@ void Context::printInputSummary(const std::string &fileName) {
     if (!std::isnan(smearingWidth))
       std::cout << "smearingWidth = " << smearingWidth * energyRyToEv << " eV"
                 << std::endl;
+    if (!std::isnan(elSmearingWidth))
+      std::cout << "elSmearingWidth = " << elSmearingWidth * energyRyToEv << " eV"
+                << std::endl;
+    if (!std::isnan(phSmearingWidth))
+      std::cout << "phSmearingWidth = " << phSmearingWidth * energyRyToEv << " eV"
+                << std::endl;
+    //if (!std::isnan(dragSmearingWidth))
+    //  std::cout << "dragSmearingWidth = " << dragSmearingWidth * energyRyToEv << " eV"
+    //            << std::endl;
     if (!std::isnan(adaptiveSmearingPrefactor))
-      std::cout << "adaptiveSmearingPrefactor = " << adaptiveSmearingPrefactor 
+      std::cout << "adaptiveSmearingPrefactor = " << adaptiveSmearingPrefactor
                 << std::endl;
 
     if(appName.find("Transport") != std::string::npos) {
@@ -1005,6 +1074,9 @@ void Context::printInputSummary(const std::string &fileName) {
         std::cout << "symmetrizeMatrix = " << symmetrizeMatrix << std::endl;
         std::cout << "numRelaxonsEigenvalues = " << numRelaxonsEigenvalues << std::endl;
         if(numRelaxonsEigenvalues != 0) std::cout << "checkNegativeRelaxons = " << checkNegativeRelaxons << std::endl;
+      }
+      if(scatteringMatrixInMemory) {
+        std::cout << "enforcePositiveSemiDefinite = " << enforcePositiveSemiDefinite << std::endl;
       }
     }
 
@@ -1036,8 +1108,7 @@ void Context::printInputSummary(const std::string &fileName) {
       if (dopings.size() != 0)
         printVectorXd("dopings", dopings, "cm^-3");
       if (chemicalPotentials.size() != 0)
-        printVectorXd("chemicalPotentials", chemicalPotentials * energyRyToEv,
-                      "eV");
+        printVectorXd("chemicalPotentials", chemicalPotentials * energyRyToEv, "eV");
       if (!std::isnan(minChemicalPotential))
         std::cout << "minChemicalPotential = "
                   << minChemicalPotential * energyRyToEv << " eV" << std::endl;
@@ -1051,8 +1122,13 @@ void Context::printInputSummary(const std::string &fileName) {
         std::cout << "eFermiRange = " << eFermiRange << " eV" << std::endl;
       if (!std::isnan(fermiLevel))
         std::cout << "fermiLevel = " << fermiLevel * energyRyToEv << std::endl;
-      if (!std::isnan(numOccupiedStates))
-        std::cout << "numOccupiedStates = " << numOccupiedStates << std::endl;
+      if (!std::isnan(numOccupiedStates)) {
+        if(!hasSpinOrbit) { // need to account for spin factor
+          std::cout << "numOccupiedStates = " << numOccupiedStates/2.0 << std::endl;
+        } else {
+          std::cout << "numOccupiedStates = " << numOccupiedStates << std::endl;
+        }
+      }
     }
     // should not be printed when phellifetimes app is run
     if (appName.find("honon") != std::string::npos && appName.find("lectron") == std::string::npos) {
@@ -1170,6 +1246,9 @@ void Context::printInputSummary(const std::string &fileName) {
       std::cout << "numOccupiedStates = " << numOccupiedStates << std::endl;
     std::cout << "---------------------------------------------\n" << std::endl;
   }
+
+  inputSanityCheck(); // call the input sanity check to make sure these make sense
+
 }
 
 std::string Context::getPhFC2FileName() { return phFC2FileName; }
@@ -1196,6 +1275,9 @@ void Context::setElectronH0Name(const std::string &x) { electronH0Name = x; }
 
 std::string Context::getWannier90Prefix() { return wannier90Prefix; }
 void Context::setWannier90Prefix(const std::string &x) { wannier90Prefix = x; }
+
+std::string Context::getJDFTxScfOutFile() { return jdftxScfOutFile; }
+void Context::setJDFTxScfOutFile(const std::string &x) { jdftxScfOutFile = x; }
 
 std::string Context::getQuantumEspressoPrefix() {
   return quantumEspressoPrefix;
@@ -1261,6 +1343,8 @@ int Context::getMaxIterationsBTE() const { return maxIterationsBTE; }
 
 int Context::getDimensionality() const { return dimensionality; }
 
+double Context::getThickness() const { return thickness; }
+
 double Context::getDosMinEnergy() const { return dosMinEnergy; }
 
 double Context::getDosMaxEnergy() const { return dosMaxEnergy; }
@@ -1305,8 +1389,17 @@ bool Context::getHasSpinOrbit() const { return hasSpinOrbit; }
 void Context::setHasSpinOrbit(const bool &x) { hasSpinOrbit = x; }
 
 int Context::getSmearingMethod() const { return smearingMethod; }
+
 double Context::getSmearingWidth() const { return smearingWidth; }
+double Context::getElSmearingWidth() const { return elSmearingWidth; }
+double Context::getPhSmearingWidth() const { return phSmearingWidth; }
+//double Context::getDragSmearingWidth() const { return dragSmearingWidth; }
+
 void Context::setSmearingWidth(const double &x) { smearingWidth = x; }
+void Context::setElSmearingWidth(const double &x) { elSmearingWidth = x; }
+void Context::setPhSmearingWidth(const double &x) { phSmearingWidth = x; }
+//void Context::setDragSmearingWidth(const double &x) { dragSmearingWidth = x; }
+
 double Context::getAdaptiveSmearingPrefactor() const { return adaptiveSmearingPrefactor; }
 void Context::setAdaptiveSmearingPrefactor(const double &x) { adaptiveSmearingPrefactor = x; }
 
@@ -1351,6 +1444,9 @@ void Context::setNumRelaxonsEigenvalues(const int &x) {
 
 bool Context::getCheckNegativeRelaxons() const { return checkNegativeRelaxons; }
 
+bool Context::getEnforcePositiveSemiDefinite() const { return enforcePositiveSemiDefinite; }
+void Context::setEnforcePositiveSemiDefinite(const bool &x) { enforcePositiveSemiDefinite = x; }
+
 bool Context::getUseSymmetries() const { return useSymmetries; }
 void Context::setUseSymmetries(const bool &x) { useSymmetries = x; }
 
@@ -1384,6 +1480,9 @@ double Context::getEFermiRange() const { return eFermiRange; }
 
 std::string Context::getG2PlotStyle() { return g2PlotStyle; }
 void Context::setG2PlotStyle(const std::string &x) { g2PlotStyle = x; }
+
+std::string Context::getG2MeshStyle() { return g2MeshStyle; }
+void Context::setG2MeshStyle(const std::string &x) { g2MeshStyle = x; }
 
 Eigen::Vector3d Context::getG2PlotFixedPoint() { return g2PlotFixedPoint; }
 void Context::setG2PlotFixedPoint(const Eigen::Vector3d &x) {

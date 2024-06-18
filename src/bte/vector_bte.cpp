@@ -26,8 +26,7 @@ VectorBTE::VectorBTE(StatisticsSweep &statisticsSweep_,
     for (int is : bandStructure.irrStateIterator()) {
       auto isIdx = StateIndex(is);
       double en = bandStructure.getEnergy(isIdx);
-      // TODO standardize this number!
-      if (en < 0.1 / ryToCmm1) { // cutoff at 0.1 cm^-1
+      if (en < phEnergyCutoff) { // cutoff at 0.1 cm^-1
         int iBte = bandStructure.stateToBte(isIdx).get();
         excludeIndices.push_back(iBte);
       }

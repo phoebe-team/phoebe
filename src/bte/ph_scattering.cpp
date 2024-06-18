@@ -12,9 +12,6 @@
 //       scattering matrix on the in vector, returning outVec = sMatrix*vector
 // only linewidth is passed: we compute only the linewidths
 
-// auxiliary variable for deciding how to apply low energy cutoff
-const double phEnergyCutoff = 0.001 / ryToCmm1; // discard states with small
-
 // TODO check to see how we can simplify this function
 
 // function to add phph scattering to a scattering matrix
@@ -41,6 +38,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
 
   // setup smearing using phonon band structure
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, innerBandStructure);
+
   if ( // innerBandStructure != outerBandStructure &&
      smearing->getType() == DeltaFunction::tetrahedron) {
     Error("Developer error: Tetrahedron smearing for transport untested and thus blocked");
@@ -621,10 +619,6 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
     massVariance = crystal.getAtomicIsotopeCouplings();
     Eigen::VectorXd masses = crystal.getAtomicMasses();
 
-    std::cout.precision(5);
-    if(mpi->mpiHead()) std::cout << "massVariance " << massVariance << " " << 0.0000738723 << std::endl; 
-    if(mpi->mpiHead()) std::cout << "masses " << masses.transpose() << std::endl;
-
     if (masses.size() != massVariance.size() || masses.size() != numAtoms) {
       Error("Developer error: Problem setting up mass variance: incosistent sizes");
     }
@@ -742,7 +736,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
               iBte2Shift = std::get<1>(tup);
             }
 
-            if (switchCase == 0) { // case of matrix construction
+	    if (switchCase == 0) { // case of matrix construction
               if (context.getUseSymmetries()) {
                 BteIndex iBte1Idx(iBte1);
                 BteIndex iBte2Idx(iBte2);

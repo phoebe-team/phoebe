@@ -22,16 +22,6 @@ void ElectronWannierTransportApp::run(Context &context) {
   auto electronH0 = std::get<1>(t1);
   Kokkos::Profiling::popRegion();
 
-  // load the elph coupling
-  // Note: this file contains the number of electrons
-  // which is needed to understand where to place the fermi level
-  Kokkos::Profiling::pushRegion("ETapp.parseInteraction");
-  InteractionElPhWan couplingElPh(crystal);
-  if (std::isnan(context.getConstantRelaxationTime())) {
-    couplingElPh = InteractionElPhWan::parse(context, crystal, &phononH0);
-  }
-  Kokkos::Profiling::popRegion();
-
   // compute the band structure on the fine grid
   if (mpi->mpiHead()) {
     std::cout << "\nComputing electronic band structure." << std::endl;
@@ -43,12 +33,14 @@ void ElectronWannierTransportApp::run(Context &context) {
   auto statisticsSweep = std::get<1>(t3);
   Kokkos::Profiling::popRegion();
 
+  //bandStructure.outputComponentsToJSON("band_components.json");
+
   // print some info about how window and symmetries have reduced things
   if (mpi->mpiHead()) {
     if(bandStructure.hasWindow() != 0) {
-        std::cout << "Window selection reduced electronic band structure from "
-                << fullPoints.getNumPoints()*electronH0.getNumBands() << " to "
-                << bandStructure.getNumStates() << " states."  << std::endl;
+      std::cout << "Window selection reduced electronic band structure from "
+              << fullPoints.getNumPoints()*electronH0.getNumBands() << " to "
+              << bandStructure.getNumStates() << " states."  << std::endl;
     }
     if(context.getUseSymmetries()) {
       std::cout << "Symmetries reduced electronic band structure from "
@@ -69,7 +61,7 @@ void ElectronWannierTransportApp::run(Context &context) {
   // build/initialize the scattering matrix and the smearing
   Kokkos::Profiling::pushRegion("ETapp.setupScatteringMatrix");
   ElScatteringMatrix scatteringMatrix(context, statisticsSweep, bandStructure,
-                                      bandStructure, phononH0, &couplingElPh);
+                                      bandStructure, phononH0);
   scatteringMatrix.setup();
   scatteringMatrix.outputToJSON("rta_el_relaxation_times.json");
   Kokkos::Profiling::popRegion();
@@ -448,8 +440,7 @@ void ElectronWannierTransportApp::runVariationalMethod(
     auto outF = scatteringMatrix.dot(inF);
     VectorBTE az2E = outF[0];
     VectorBTE az2T = outF[1];
-    transportCoefficients.calcVariational(az2E, az2T, zNewE, zNewT, bE, bT,
-                                          preconditioning);
+    transportCoefficients.calcVariational(az2E, az2T, zNewE, zNewT, bE, bT, preconditioning);
     transportCoefficients.print(iter);
     elCond = transportCoefficients.getElectricalConductivity();
     thCond = transportCoefficients.getThermalConductivity();
@@ -457,7 +448,7 @@ void ElectronWannierTransportApp::runVariationalMethod(
     // decide whether to exit or run the next iteration
     double deltaE = findMaxRelativeDifference(elCond, elCondOld);
     double deltaT = findMaxRelativeDifference(thCond, thCondOld);
-    if ((deltaE < threshold) && (deltaT < threshold)) {
+    if ((deltaE < threshold) && (deltaT < threshold) && iter > 2) {
       // recompute our final guess for transport coefficients
       transportCoefficients.calcFromSymmetricPopulation(zNewE, zNewT);
       break;

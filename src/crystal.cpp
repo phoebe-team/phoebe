@@ -24,31 +24,33 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
                  Eigen::MatrixXd &atomicPositions_,
                  Eigen::VectorXi &atomicSpecies_,
                  std::vector<std::string> &speciesNames_,
-                 Eigen::VectorXd &speciesMasses_) {
+                 Eigen::VectorXd &speciesMasses_,
+                 Eigen::Tensor<double, 3>& bornCharges_) {
 
   setDirectUnitCell(directUnitCell_); // sets both direct and reciprocal
   volumeUnitCell = calcVolume(directUnitCell);
 
   if (volumeUnitCell <= 0.) {
-    Error("Unexpected non positive volume");
+    Error("Crystal somehow has a zero or negative unit cell volume.");
   }
 
   dimensionality = context.getDimensionality();
 
   if (atomicSpecies_.size() != atomicPositions_.rows()) {
-    Error("atomic species and positions are not aligned");
+    Error("Atomic species and positions are not aligned.");
   }
   if (atomicPositions_.cols() != 3) {
-    Error("atomic positions need three coordinates");
+    Error("Atomic positions need three coordinates.");
   }
   if ((int)speciesMasses_.size() != (int)speciesNames_.size()) {
-    Error("species masses and names are not aligned");
+    Error("Species masses and names are not aligned.");
   }
 
   atomicSpecies = atomicSpecies_;
   atomicPositions = atomicPositions_;
   speciesMasses = speciesMasses_;
   speciesNames = speciesNames_;
+  bornCharges = bornCharges_;
 
   numAtoms = int(atomicPositions.rows());
   numSpecies = int(speciesNames.size());
@@ -306,7 +308,9 @@ const Eigen::Matrix3d &Crystal::getReciprocalUnitCell() {
   return reciprocalUnitCell;
 }
 
-const int &Crystal::getNumAtoms() const { return numAtoms; }
+const int &Crystal::getNumAtoms() { return numAtoms; }
+
+const Eigen::Tensor<double, 3> Crystal::getBornEffectiveCharges() { return bornCharges; }
 
 double Crystal::getVolumeUnitCell(int dimensionality_) {
   double volume;
@@ -637,4 +641,14 @@ Crystal::buildWignerSeitzVectorsWithShift(const Eigen::Vector3i &grid,
     }
   }
   return std::make_tuple(bravaisVectors, degeneracies);
+}
+
+// change of basis methods
+Eigen::Vector3d Crystal::crystalToCartesian(const Eigen::Vector3d &point) {
+  return getReciprocalUnitCell() * point;
+}
+
+Eigen::Vector3d Crystal::cartesianToCrystal(const Eigen::Vector3d &point) {
+  Eigen::Vector3d p = getReciprocalUnitCell().inverse() * point;
+  return p;
 }

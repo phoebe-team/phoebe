@@ -101,7 +101,7 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
 
     Kokkos::Profiling::pushRegion("call diagonalization");
     auto tup = h0->kokkosBatchedDiagonalizeFromCoordinates(Kokkos::subview(qs, Kokkos::make_pair(start_iik, stop_iik), Kokkos::ALL));
-    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::popRegion(); // call diag
 
     DoubleView2D energies_d = std::get<0>(tup);
     StridedComplexView3D eigenvectors_d = std::get<1>(tup);
@@ -139,9 +139,9 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
         }
       }
     }
-    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::popRegion(); // store results 
   }
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion();// end diag loop region
 
   if (withVelocities) {
     // the same again, but for velocities
@@ -182,12 +182,12 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
         }
       }
     }
-    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::popRegion(); // end of velocity loop
   }
   mpi->allReduceSum(&energies);
   mpi->allReduceSum(&velocities);
   mpi->allReduceSum(&eigenvectors);
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // abs band structure 
 
 }
 
@@ -490,7 +490,7 @@ void ActiveBandStructure::buildSymmetries() {
     }
     ikOld = ik;
   }
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // build syms
 }
 
 std::tuple<ActiveBandStructure, StatisticsSweep>
@@ -605,7 +605,7 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
     }
   }
   } // close OMP parallel region
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // diagonalize loop
 
   // this numBands is the full bands num, doesn't matter which point
   Point point = points_.getPoint(0);
@@ -724,6 +724,7 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
         "You are likely out of memory.");
     }
   }
+  Kokkos::Profiling::popRegion();// end diag loop
 
   windowMethod = window.getMethodUsed();
 
@@ -795,14 +796,15 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
       setVelocities(point, thisVelocities);
     }
   }
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end trimmed diag loop
   mpi->allReduceSum(&energies);
   mpi->allReduceSum(&velocities);
   mpi->allReduceSum(&eigenvectors);
 
+  Kokkos::Profiling::pushRegion("Symmetrize bandstructure");
   if(context.getSymmetrizeBandStructure()) symmetrize(context, withVelocities);
   buildSymmetries();
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end sym bandstructure
 }
 
 /** in this function, useful for electrons, we first compute the band structure
@@ -822,7 +824,7 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   Kokkos::Profiling::pushRegion("h0.populate");
   FullBandStructure fullBandStructure =
       h0.populate(points_, tmpWithVel_, tmpWithEig_, tmpIsDistributed_);
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end ho populate
 
   // ---------- establish mu and other statistics --------------- //
   // This will work even if fullBandStructure is distributed
@@ -935,7 +937,7 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   }
 
   } // close OMP parallel region
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // close filter points
 
   // the same for all points in full band structure
   numFullBands = fullBandStructure.getNumBands();
@@ -1082,7 +1084,8 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   mpi->allReduceSum(&energies);
   if (withEigenvectors)
     mpi->allReduceSum(&eigenvectors);
-  Kokkos::Profiling::popRegion();
+
+  Kokkos::Profiling::popRegion(); // end collect energies 
 
   // compute velocities, store, reduce
   if (withVelocities) {
@@ -1123,13 +1126,16 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
       setVelocities(point, thisVelocities);
     }
     mpi->allReduceSum(&velocities);
-    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::popRegion(); // end compute velocities 
   }
 
   if(context.getSymmetrizeBandStructure()) symmetrize(context, withVelocities);
+  Kokkos::Profiling::pushRegion("Symmetrize bandstructure, active BS, BAPP");
   buildSymmetries();
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end sym bandstructure
   //statisticsSweep.calcNumFreeCarriers(this);
+
+  Kokkos::Profiling::popRegion(); // end build as pp 
   return statisticsSweep;
 }
 
@@ -1249,13 +1255,14 @@ void ActiveBandStructure::symmetrize(Context &context,
   auto atomicSpecies = lowSymCrystal.getAtomicSpecies();
   auto speciesNames = lowSymCrystal.getSpeciesNames();
   auto speciesMasses = lowSymCrystal.getSpeciesMasses();
+  auto bornCharges = lowSymCrystal.getBornEffectiveCharges();
 
   // temporarily set symmetries = true, then turn off after this.
   bool useSymmetries = context.getUseSymmetries();
   context.setUseSymmetries(true);
 
   Crystal highSymCrystal(context, directCell, atomicPositions,
-                         atomicSpecies, speciesNames, speciesMasses);
+                         atomicSpecies, speciesNames, speciesMasses, bornCharges);
   Points highSymPoints = points;
   highSymPoints.swapCrystal(highSymCrystal);
 
@@ -1360,7 +1367,7 @@ void ActiveBandStructure::symmetrize(Context &context,
     }
   }
   context.setUseSymmetries(useSymmetries);
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); /// end sym bandstructure
 }
 
 void ActiveBandStructure::enforceBandNumSymmetry(
@@ -1384,13 +1391,14 @@ void ActiveBandStructure::enforceBandNumSymmetry(
   auto atomicSpecies = lowSymCrystal.getAtomicSpecies();
   auto speciesNames = lowSymCrystal.getSpeciesNames();
   auto speciesMasses = lowSymCrystal.getSpeciesMasses();
+  auto bornCharges = lowSymCrystal.getBornEffectiveCharges();
 
   // temporarily set symmetries = true, then turn off after this.
   bool useSymmetries = context.getUseSymmetries();
   context.setUseSymmetries(true);
 
   Crystal highSymCrystal(context, directCell, atomicPositions,
-                         atomicSpecies, speciesNames, speciesMasses);
+                         atomicSpecies, speciesNames, speciesMasses, bornCharges);
   Points highSymPoints = points;
   highSymPoints.swapCrystal(highSymCrystal);
 

@@ -1,20 +1,17 @@
-#ifndef PARSER_H
-#define PARSER_H
+#ifndef JDFTX_PARSER_H
+#define JDFTX_PARSER_H
 
 #include "context.h"
 #include "electron_h0_fourier.h"
 #include "electron_h0_wannier.h"
 #include "phonon_h0.h"
-#include "phonopy_input_parser.h"
-#include "jdftx_input_parser.h"
-#include "qe_input_parser.h"
 #include <string>
 
-/** Class used to make decisions about which parser to call
- * depending on which options were provided as input.
+/** Class used to parse the raw data from JDFTx
  */
-class Parser {
+class JDFTxParser {
 public:
+
   /** parsing of force constants.
    * @param context: the object containing the user input.
    * @return Crystal: crystal is the object describing the crystal structure.
@@ -32,8 +29,8 @@ public:
    * the coarse grid of points, with all the infrastructure necessary to
    * interpolate it on finer grids of k-points.
    */
-  static std::tuple<Crystal, ElectronH0Fourier>
-  parseElHarmonicFourier(Context &context);
+  //static std::tuple<Crystal, ElectronH0Fourier>
+  //parseElHarmonicFourier(Context &context);
 
   /** parsing of electronic band structure for Wannier interpolation.
    * This class parses the _tb.dat file from Wannier90, which is created
@@ -44,8 +41,14 @@ public:
    * electronic Hamiltonian in the Wannier representation, and capable of
    * interpolating the band structure on a fine grid of k-points.
    */
-  static std::tuple<Crystal, ElectronH0Wannier>
-  parseElHarmonicWannier(Context &context, Crystal *inCrystal = nullptr);
+  static std::tuple<Crystal, ElectronH0Wannier> 
+        parseElHarmonicWannier(Context &context, Crystal *inCrystal = nullptr);
+
+  /**
+   * Function to parse crystal structure from either totalE.out or phonon.out
+  */
+  static Crystal parseCrystal(Context& context); 
+
 };
 
 #endif

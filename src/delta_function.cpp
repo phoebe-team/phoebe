@@ -38,13 +38,22 @@ GaussianDeltaFunction::GaussianDeltaFunction(BaseBandStructure& bandStructure, C
 
   double smearingWidth = context.getSmearingWidth();
 
+  if(!std::isnan(context.getPhSmearingWidth()) && bandStructure.getParticle().isPhonon() ) {
+    smearingWidth = context.getPhSmearingWidth();
+  } 
+  if(!std::isnan(context.getElSmearingWidth()) && bandStructure.getParticle().isElectron() ) {
+    smearingWidth = context.getElSmearingWidth();
+  } 
+
   // in the coupled case we need two
-  if (context.getAppName().find("Coupled") != std::string::npos && 
-		  	bandStructure.getParticle().isPhonon()) {
-    smearingWidth = smearingWidth * 0.01;  
+  //if (context.getAppName().find("coupled") != std::string::npos && 
+ 	//	  	bandStructure.getParticle().isPhonon()) {
+  //  smearingWidth = smearingWidth * 1.;  
+  //}
+  if(mpi->mpiHead()) {
+    std::setprecision(9);
+    std::cout << "\nGaussian smearing width is " << smearingWidth * 13.6057039763 << " eV." << std::endl;
   }
-  if(mpi->mpiHead())
-    std::cout << "The Gaussian smearing width is set to " << smearingWidth << std::endl;
 
   inverseWidth = 1. / smearingWidth;
   prefactor = 1. / smearingWidth / sqrt(pi);
@@ -55,15 +64,12 @@ double GaussianDeltaFunction::getSmearing(const double &energy,
                                           [[maybe_unused]] const Eigen::Vector3d &velocity,
                                           [[maybe_unused]] const Eigen::Vector3d &velocity2,
                                           [[maybe_unused]] const Eigen::Vector3d &velocity3) {
-  (void)velocity;
   double x = energy * inverseWidth;
   if ( x > 6. ) return 0.; // the error is < 2e-16, and prevents underflow
   return prefactor * exp(-x * x);
 }
 
-double GaussianDeltaFunction::getSmearing(const double &energy, StateIndex &is) {
-  (void)energy;
-  (void)is;
+double GaussianDeltaFunction::getSmearing([[maybe_unused]] const double &energy, [[maybe_unused]] StateIndex &is) {
   Error("GaussianDeltaFunction::getSmearing2 not implemented");
   return 1.;
 }
@@ -92,9 +98,9 @@ AdaptiveGaussianDeltaFunction::AdaptiveGaussianDeltaFunction(
     }
   }
   else if(bandStructure.getParticle().isPhonon()) { 
-    adaptivePrefactor = 0.0001; // this is tested to work well for phonons
+    adaptivePrefactor = 0.01; // this is tested to work well for phonons
   } else {
-    adaptivePrefactor = 2.; // tested to work well for electrons
+    adaptivePrefactor = 0.001; // tested to work well for electrons
   }
   if(mpi->mpiHead()) 
     std::cout << "The adaptive smearing prefactor is set to " << adaptivePrefactor << std::endl;
@@ -138,10 +144,8 @@ double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
   return exp(-x * x) / sqrtPi / sigma / erf2;
 }
 
-double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
-                                                  StateIndex &is) {
-  (void)energy;
-  (void)is;
+double AdaptiveGaussianDeltaFunction::getSmearing([[maybe_unused]] const double &energy,
+                                                  [[maybe_unused]] StateIndex &is) {
   Error("AdaptiveGaussianDeltaFunction::getSmearing2 not implemented");
   return 1.;
 }
@@ -356,12 +360,11 @@ double TetrahedronDeltaFunction::getSmearing(const double &energy,
   return weight;
 }
 
-double TetrahedronDeltaFunction::getSmearing(const double &energy,
-                                             const Eigen::Vector3d &velocity,
-                                             const Eigen::Vector3d &velocity2,
-                                             const Eigen::Vector3d &velocity3) {
+double TetrahedronDeltaFunction::getSmearing([[maybe_unused]] const double &energy,
+                                             [[maybe_unused]] const Eigen::Vector3d &velocity,
+                                             [[maybe_unused]] const Eigen::Vector3d &velocity2,
+                                             [[maybe_unused]] const Eigen::Vector3d &velocity3) {
 
-  (void)energy; (void)velocity; (void)velocity2; (void)velocity3;
   Error("TetrahedronDeltaFunction getSmearing1 not implemented");
   return 1.;
 }

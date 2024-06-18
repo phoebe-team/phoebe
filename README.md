@@ -1,4 +1,5 @@
 ![Build and Test](https://github.com/mir-group/phoebe/workflows/Build%20and%20Test/badge.svg)
+[![Documentation Status](https://readthedocs.org/projects/phoebe/badge/?version=develop)](https://phoebe.readthedocs.io/en/develop/?badge=develop)
 
 # Phoebe <img src="doc/sphinx/source/_static/icon.png" width="25"/>
 
@@ -25,21 +26,20 @@ If you feel you've found a bug or seen some unexpected behavior, please let us k
 ### Current functionalities
 #### Electronic Transport
 
-   * Electron-phonon and phonon-electron scattering by Wannier interpolation
+   * Electron-phonon and phonon-electron scattering rates by Wannier interpolation
    * Electron-phonon scattering within the electron-phonon averaged (EPA) approximation
-   * Polar correction and boundary scattering contributions to transport
    * Electronic transport coefficients (mobility, conductivity, thermal conductivity, and Seebeck coefficient)
 
 #### Phonon Transport
 
-   * 3-phonon scattering from thirdOrder.py/ShengBTE or Phono3py force constants
-   * Boundary and isotope scattering contributions to transport
-   * Phonon (lattice) thermal conductivity
-   * Lattice thermal conductivity calculations including ph-el lifetimes
+   * Phonon (lattice) thermal conductivity, including: 
+     * 3-phonon scattering from thirdOrder.py/ShengBTE or Phono3py force constants
+     * Boundary, isotope, and phonon-electron scattering contributions
+     * Lattice thermal conductivity calculations including both ph-ph and ph-el scattering 
 
 #### And more...
 
-   * BTE solutions by RTA, iterative, variational, and relaxons solvers
+   * BTE solutions by RTA, iterative, variational, and relaxon solvers
    * Calculation of electron and phonon linewidths or relaxation times on a path
-   * Wigner transport equation correction for electrons and phonons (Zener tunneling contribution to electron transport)
+   * Wigner transport equation correction for electrons and phonons 
    * Hydrodynamic transport properties (viscosity) for electrons and phonons

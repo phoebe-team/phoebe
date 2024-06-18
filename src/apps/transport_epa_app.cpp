@@ -14,6 +14,7 @@
 #include "utilities.h"
 #include <nlohmann/json.hpp>
 #include <vector>
+#include "dos_app.h"
 
 void TransportEpaApp::run(Context &context) {
 
@@ -30,10 +31,10 @@ void TransportEpaApp::run(Context &context) {
 
   // in principle, we should add 1 to account for ends of energy interval
   // I will not do that, because will work with the centers of energy steps
-  int numEnergies = int((maxEnergy - minEnergy) / energyStep);
+  size_t numEnergies = size_t((maxEnergy - minEnergy) / energyStep);
   // energies at the centers of energy steps
   Eigen::VectorXd energies(numEnergies);
-  for (int i = 0; i < numEnergies; ++i) {
+  for (size_t i = 0; i < numEnergies; ++i) {
     // add 0.5 to be in the middle of the energy step
     energies(i) = (double(i) + 0.5) * energyStep + minEnergy;
   }
@@ -42,9 +43,7 @@ void TransportEpaApp::run(Context &context) {
   Points fullPoints(crystal, context.getKMesh());
   fullPoints.setIrreduciblePoints();
 
-  if (mpi->mpiHead()) {
-    std::cout << "\nBuilding electronic band structure" << std::endl;
-  }
+  // Building electronic band structure -----------------------
 
   // filter to only the bands relevant to transport
   electronH0.trimBands(context, minEnergy, maxEnergy);
@@ -60,7 +59,10 @@ void TransportEpaApp::run(Context &context) {
 
   if (mpi->mpiHead()) {
     std::cout << "Starting EPA with " << numEnergies << " energies and "
-              << bandStructure.getNumStates() << " states" << std::endl;
+              << bandStructure.getNumStates() << " states." << std::endl;
+    std::cout << std::setprecision(4) << "Energy grid ranges from " << minEnergy*energyRyToEv << " to " 
+              << maxEnergy*energyRyToEv 
+              << " eV with " << numEnergies << " bins." << std::endl;
   }
 
   //--------------------------------
@@ -68,11 +70,19 @@ void TransportEpaApp::run(Context &context) {
   auto t2 = calcEnergyProjVelocity(context, bandStructure, energies);
   Eigen::Tensor<double, 3> energyProjVelocity = std::get<0>(t2);
   Eigen::VectorXd dos = std::get<1>(t2);
-
+  {
+    // output to file (convert to std::vector for the sake of reusing dos output function from dos_app)
+    // braces to make this go out of scope after writing 
+    std::vector<double> dosVec(dos.data(), dos.data() + dos.rows() * dos.cols());
+    std::vector<double> energyVec(energies.data(), energies.data() + energies.rows() * energies.cols());
+    Particle particle = bandStructure.getParticle();
+    outputDOSToJSON(energyVec, dosVec, particle, "epa_dos.json"); 
+  } 
   //--------------------------------
   // Calculate EPA scattering rates
   VectorEPA scatteringRates =
       getScatteringRates(context, statisticsSweep, energies, crystal, dos);
+
   outputToJSON("epa_relaxation_times.json", scatteringRates, statisticsSweep,
                energies, context);
 
@@ -183,7 +193,7 @@ VectorEPA TransportEpaApp::getScatteringRates(
     return crtRate;
   }
 
-  int spinFactor = 2;
+  double spinFactor = 2.;
   if (context.getHasSpinOrbit()) {
     spinFactor = 1;
   }
@@ -212,7 +222,7 @@ VectorEPA TransportEpaApp::getScatteringRates(
     }
   }
 
-  LoopPrint loopPrint("calculation of EPA scattering rates", "phonon modes",
+  LoopPrint loopPrint("calculation of EPA scattering rates", "energy bins per MPI process",
                       int(mpi->divideWorkIter(numEnergies).size()));
 
   VectorEPA epaRate(statisticsSweep, numEnergies, 1);

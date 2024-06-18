@@ -110,6 +110,7 @@ void IO::goodbye(Context &context) {
   }
   // iterative solver
   if (std::find(solvers.begin(), solvers.end(), "iterative") != solvers.end()) {
+
     std::cout << "  For the use of the iterative BTE solver:" << std::endl;
     std::cout << "\tM. Omini and A. Sparavigna. \n" <<
     //    "\tAn iterative approach to the phonon Boltzmann " <<
@@ -133,6 +134,7 @@ void IO::goodbye(Context &context) {
   // wigner transport
   if(context.getAppName() == "phononTransport"
         || context.getAppName() == "electronWannierTransport") {
+          
     std::cout << "  For the Wigner transport equations:" << std::endl;
     std::cout << "\tM. Simoncelli, N. Marzari, and F. Mauri.\n" <<
     //    "\tUnified theory of thermal transport in crystals and glasses.\n" <<
@@ -141,7 +143,8 @@ void IO::goodbye(Context &context) {
     //    "\tInterband tunneling effects on materials transport properties using the first principles Wigner distribution.\n" <<
         "\tMaterials Today Physics 19, 100412 (2021).\n" << std::endl;
   }
-  // EPA
+  // EPA 
+  // TODO add the fourier interpolation -- Boltztrap??
   if(context.getElPhInterpolation() == "epa" || context.getAppName() == "transportEpa") {
     std::cout << "  For the use of the EPA method:" << std::endl;
     std::cout << "\tS.Bang, J.Kim, D.Wee, G.Samsonidze, and B.Kozinsky.\n" <<
@@ -153,7 +156,8 @@ void IO::goodbye(Context &context) {
   if(context.getAppName() == "electronWannierBands" ||
         context.getAppName() == "electronWannierDos" ||
         context.getAppName() == "electronLifetimes" ||
-        context.getAppName() == "electronWannierTransport") {
+        context.getAppName() == "electronWannierTransport" || 
+        context.getAppName() == "coupledTransport") {
     std::cout << "  For the use of Wannier functions and interpolation:" << std::endl;
     std::cout << "\tN. Marzari, A.A. Mostofi, J.R. Yates, I. Souza, and D. Vanderbilt.\n" <<
     //    "\tMaximally localized Wannier functions: Theory and applications.\n" <<
@@ -161,10 +165,10 @@ void IO::goodbye(Context &context) {
   }
 
   // Electron-phonon from ab-initio
-  if(context.getAppName() == "electronWannierBands" ||
-      context.getAppName() == "electronWannierDos" ||
+  if(context.getAppName() == "coupledTransport" ||
       context.getAppName() == "electronLifetimes" ||
       context.getAppName() == "electronWannierTransport") {
+
     std::cout << "  For the use of ab-initio electron-phonon coupling:" << std::endl;
     std::cout << "\tS. Piscanec, M. Lazzeri, F. Mauri, A. C. Ferrari, and J. Robertson.\n" <<
               //    "\tKohn Anomalies and Electron-Phonon Interactions in Graphite.\n" <<
@@ -181,7 +185,10 @@ void IO::goodbye(Context &context) {
              "\tPhysical Review Letters 106, 045901 (2011)\n" << std::endl;
   }
   // scattering matrix/bte symmetries
-  if (context.getScatteringMatrixInMemory() && context.getUseSymmetries()) {
+  if (context.getScatteringMatrixInMemory() && context.getUseSymmetries() && 
+       (context.getAppName() == "electronWannierTransport" || 
+        context.getAppName() == "phononTransport")) {
+
     std::cout << "  For the use of symmetries in the scattering matrix:" << std::endl;
     std::cout << "\tL. Chaput.\n" <<
               //    "\tDirect Solution to the Linearized Phonon Boltzmann Equation.\n" <<
@@ -191,7 +198,7 @@ void IO::goodbye(Context &context) {
 }
 
 LoopPrint::LoopPrint(const std::string &task_, const std::string &step_,
-                     const int &numSteps_) {
+                     const size_t &numSteps_) {
   if (!mpi->mpiHead())
     return;
 
@@ -211,7 +218,7 @@ LoopPrint::LoopPrint(const std::string &task_, const std::string &step_,
 
   std::cout << "\n";
   std::cout << "Started " << task << " with ~" << numSteps << " " << step
-            << " per/MPI process." << std::endl;
+            << " per MPI process." << std::endl;
 
   stepDigits = int(log10(numSteps)) + 1; // number of digits in numSteps
 }

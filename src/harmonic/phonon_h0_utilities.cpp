@@ -1,13 +1,36 @@
-#include "phonon_h0.h"
-
 #include <cmath>
 #include <iostream>
 
+#include "crystal.h"
 #include "eigen.h"
 #include "exceptions.h"
+#include "utilities.h"
+#include "common_kokkos.h"
+#include "mpiHelper.h"
+#include "phonon_h0.h"
 
-void PhononH0::setAcousticSumRule(const std::string &sumRule,
-                                  Eigen::Tensor<double, 7>& forceConstants) {
+/** Auxiliary methods for sum rule on Born charges
+ */
+void sp_zeu(Eigen::Tensor<double, 3> &zeu_u,
+                      Eigen::Tensor<double, 3> &zeu_v, double &scalar, int& numAtoms) {
+  // get the scalar product of two effective charges matrices zeu_u and zeu_v
+  // (considered as vectors in the R^(3*3*nat) space)
+
+  scalar = 0.;
+#pragma omp parallel for collapse(3) reduction(+ : scalar)
+  for (int i = 0; i < 3; i++) {
+    for (int j = 0; j < 3; j++) {
+      for (int na = 0; na < numAtoms; na++) {
+        scalar += zeu_u(i, j, na) * zeu_v(i, j, na);
+      }
+    }
+  }
+}
+
+void setAcousticSumRule(const std::string &sumRule, Crystal& crystal, 
+                        const Eigen::Vector3i& qCoarseGrid,
+                        Eigen::Tensor<double, 7>& forceConstants) {
+
   //  VectorXi u_less(6*3*numAtoms)
   //  indices of the vectors u that are not independent to the preceding ones
   //  n_less = number of such vectors
@@ -25,6 +48,9 @@ void PhononH0::setAcousticSumRule(const std::string &sumRule,
   //  Tensor<int> zeu_less(6*3)
   //  indices of zeu_u vectors that are not independent to the preceding ones
   //  ! nzeu_less = number of such vectors
+
+  int numAtoms = crystal.getNumAtoms();
+  auto bornCharges = crystal.getBornEffectiveCharges();
 
   std::string sr = sumRule;
   std::transform(sr.begin(), sr.end(), sr.begin(), ::tolower);
@@ -153,12 +179,12 @@ void PhononH0::setAcousticSumRule(const std::string &sumRule,
             }
           }
           // i.e. zeu_u(q,:,:,:)
-          sp_zeu(zeu_x, tempZeu, scalar);
+          sp_zeu(zeu_x, tempZeu, scalar, numAtoms);
           zeu_w -= scalar * tempZeu;
         }
       }
       double norm2;
-      sp_zeu(zeu_w, zeu_w, norm2);
+      sp_zeu(zeu_w, zeu_w, norm2, numAtoms);
 
       if (norm2 > 1.0e-16) {
 #pragma omp parallel for collapse(3)
@@ -197,7 +223,7 @@ void PhononH0::setAcousticSumRule(const std::string &sumRule,
           }
         }
         // get rescaling factor
-        sp_zeu(zeu_x, zeu_new, scalar);
+        sp_zeu(zeu_x, zeu_new, scalar, numAtoms);
         // rescale vector
 
         for (int i = 0; i < 3; i++) {
@@ -215,7 +241,7 @@ void PhononH0::setAcousticSumRule(const std::string &sumRule,
 
     zeu_new -= zeu_w;
     double norm2;
-    sp_zeu(zeu_w, zeu_w, norm2);
+    sp_zeu(zeu_w, zeu_w, norm2, numAtoms);
     if (mpi->mpiHead()) {
       std::cout << "Norm of the difference between old and new effective "
                    "charges: "
@@ -649,18 +675,222 @@ void PhononH0::setAcousticSumRule(const std::string &sumRule,
   }
 }
 
-void PhononH0::sp_zeu(Eigen::Tensor<double, 3> &zeu_u,
-                      Eigen::Tensor<double, 3> &zeu_v, double &scalar) const {
-  // get the scalar product of two effective charges matrices zeu_u and zeu_v
-  // (considered as vectors in the R^(3*3*nat) space)
+  /** wsWeight computes the `weights`, i.e. the number of symmetry-equivalent
+   * Bravais lattice vectors, that are used in the phonon Fourier transform.
+   */
+double wsWeight(const Eigen::VectorXd &r, const Eigen::MatrixXd &rws) {
+  // wsWeight() assigns this weight:
+  // - if a point is inside the Wigner-Seitz cell:    weight=1
+  // - if a point is outside the WS cell:             weight=0
+  // - if a point q is on the border of the WS cell, it finds the number N
+  //   of translationally equivalent point q+G  (where G is a lattice vector)
+  //   that are also on the border of the cell. Then: weight = 1/N
+  //
+  // I.e. if a point is on the surface of the WS cell of a cubic lattice
+  // it will have weight 1/2; on the vertex of the WS it would be 1/8;
+  // the K point of an hexagonal lattice has weight 1/3 and so on.
 
-  scalar = 0.;
-#pragma omp parallel for collapse(3) reduction(+ : scalar)
-  for (int i = 0; i < 3; i++) {
-    for (int j = 0; j < 3; j++) {
-      for (int na = 0; na < numAtoms; na++) {
-        scalar += zeu_u(i, j, na) * zeu_v(i, j, na);
+  // rws: contains the list of nearest neighbor atoms
+  // r: the position of the reference point
+  // rws.cols(): number of nearest neighbors
+
+  int numREq = 1;
+
+  for (int ir = 0; ir < rws.cols(); ir++) {
+    double rrt = r.dot(rws.col(ir));
+    double ck = rrt - rws.col(ir).squaredNorm() / 2.;
+    if (ck > 1.0e-6) {
+      return 0.;
+    }
+    if (abs(ck) <= 1.0e-6) {
+      numREq += 1;
+    }
+  }
+  double x = 1. / (double)numREq;
+  return x;
+}
+
+std::tuple<Eigen::Tensor<double, 5>,Eigen::MatrixXd,Eigen::VectorXd> 
+          reorderHarmonicForceConstants(Crystal& crystal,
+                                const Eigen::Tensor<double, 7>& forceConstants,
+                                Eigen::Vector3i& qCoarseGrid) {
+
+  Kokkos::Profiling::pushRegion("reorderForceConstants");
+
+  // this part can actually be expensive to execute, so we compute it once
+  // at the beginning
+  auto directUnitCell = crystal.getDirectUnitCell();
+  auto atomicPositions = crystal.getAtomicPositions();
+  int numAtoms = crystal.getNumAtoms();
+
+  Eigen::MatrixXd directUnitCellSup(3, 3);
+  directUnitCellSup.col(0) = directUnitCell.col(0) * qCoarseGrid(0);
+  directUnitCellSup.col(1) = directUnitCell.col(1) * qCoarseGrid(1);
+  directUnitCellSup.col(2) = directUnitCell.col(2) * qCoarseGrid(2);
+
+  int nr1Big = 2 * qCoarseGrid(0);
+  int nr2Big = 2 * qCoarseGrid(1);
+  int nr3Big = 2 * qCoarseGrid(2);
+
+  // start by generating the weights for the Fourier transform
+  //auto wsCache = wsInit(directUnitCellSup, directUnitCell, nr1Big, nr2Big, nr3Big);
+
+  // TODO the whole function inside these blocks should be replaced by buildWSVectorsWithShift
+  // from crystal class, to be consistent. 
+  // We would have to look up the index of each R vector in the list of iR provided by the
+  // crystal class function for each vector inside the loops below. 
+  // -----------------------------------------------
+  const int numMax = 2;
+  int index = 0;
+  const int numMaxRWS = 200;
+
+  Eigen::MatrixXd tmpResult(3, numMaxRWS);
+
+  for (int ir = -numMax; ir <= numMax; ir++) {
+    for (int jr = -numMax; jr <= numMax; jr++) {
+      for (int kr = -numMax; kr <= numMax; kr++) {
+        for (int i : {0, 1, 2}) {
+          tmpResult(i, index) =
+              directUnitCellSup(i, 0) * ir + directUnitCellSup(i, 1) * jr + directUnitCellSup(i, 2) * kr;
+        }
+
+        if (tmpResult.col(index).squaredNorm() > 1.0e-6) {
+          index += 1;
+        }
+        if (index > numMaxRWS) {
+          Error("WSInit > numMaxRWS");
+        }
       }
     }
   }
+  int numRWS = index;
+  Eigen::MatrixXd rws(3, numRWS);
+  for (int i = 0; i < numRWS; i++) {
+    rws.col(i) = tmpResult.col(i);
+  }
+
+  // now, I also prepare the wsCache, which is used to accelerate
+  // the shortRange() calculation
+
+  Eigen::Tensor<double, 5> wsCache(2 * nr3Big + 1, 2 * nr2Big + 1,
+                                   2 * nr1Big + 1, numAtoms, numAtoms);
+  wsCache.setZero();
+
+  for (int na = 0; na < numAtoms; na++) {
+    for (int nb = 0; nb < numAtoms; nb++) {
+      double total_weight = 0.;
+
+      // sum over r vectors in the super cell - very safe range!
+
+      for (int n1 = -nr1Big; n1 <= nr1Big; n1++) {
+        int n1ForCache = n1 + nr1Big;
+        for (int n2 = -nr2Big; n2 <= nr2Big; n2++) {
+          int n2ForCache = n2 + nr2Big;
+          for (int n3 = -nr3Big; n3 <= nr3Big; n3++) {
+            int n3ForCache = n3 + nr3Big;
+
+            Eigen::Vector3d r_ws;
+            for (int i : {0, 1, 2}) {
+              // note that this cell is different from above
+              r_ws(i) = double(n1) * directUnitCell(i, 0) +
+                        double(n2) * directUnitCell(i, 1) +
+                        double(n3) * directUnitCell(i, 2);
+              r_ws(i) += atomicPositions(na, i) - atomicPositions(nb, i);
+            }
+
+            double x = wsWeight(r_ws, rws);
+            wsCache(n3ForCache, n2ForCache, n1ForCache, nb, na) = x;
+            total_weight += x;
+          }
+        }
+      }
+      if (abs(total_weight - qCoarseGrid(0) * qCoarseGrid(1) * qCoarseGrid(2)) > 1.0e-8) {
+        Error("DeveloperError: wrong total_weight, weight: "
+                + std::to_string(total_weight) + " qMeshProd: " + std::to_string(qCoarseGrid.prod()) );
+      }
+    }
+  }
+  // ------------------------------------------
+
+
+  // we compute the total number of bravais lattice vectors
+  int numBravaisVectors = 0;
+  for (int n3 = -nr3Big; n3 <= nr3Big; n3++) {
+    int n3ForCache = n3 + nr3Big;
+    for (int n2 = -nr2Big; n2 <= nr2Big; n2++) {
+      int n2ForCache = n2 + nr2Big;
+      for (int n1 = -nr1Big; n1 <= nr1Big; n1++) {
+        int n1ForCache = n1 + nr1Big;
+        for (int nb = 0; nb < numAtoms; nb++) {
+          for (int na = 0; na < numAtoms; na++) {
+            if (wsCache(n3ForCache, n2ForCache, n1ForCache, nb, na) > 0.) {
+              numBravaisVectors += 1;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // next, we reorder the dynamical matrix along the bravais lattice vectors 
+  // and save the weights and vectors for later use 
+  Eigen::MatrixXd bravaisVectors = Eigen::MatrixXd::Zero(3, numBravaisVectors);
+  Eigen::VectorXd weights = Eigen::VectorXd::Zero(numBravaisVectors);
+  Eigen::Tensor<double,5> mat2R(3, 3, numAtoms, numAtoms, numBravaisVectors);
+  mat2R.setZero();
+
+  int iR = 0;
+  for (int n3 = -nr3Big; n3 <= nr3Big; n3++) {
+    int n3ForCache = n3 + nr3Big;
+    for (int n2 = -nr2Big; n2 <= nr2Big; n2++) {
+      int n2ForCache = n2 + nr2Big;
+      for (int n1 = -nr1Big; n1 <= nr1Big; n1++) {
+        int n1ForCache = n1 + nr1Big;
+        // loop over the shifted vectors (R+T, in which we shift the origin to the atomic positions)
+        for (int nb = 0; nb < numAtoms; nb++) {
+          for (int na = 0; na < numAtoms; na++) {
+            double weight = wsCache(n3ForCache, n2ForCache, n1ForCache, nb, na);
+            if (weight > 0.) {
+              weights(iR) = weight;
+
+              Eigen::Vector3d r;
+              for (int i : {0, 1, 2}) {
+                r(i) = n1 * directUnitCell(i, 0) + n2 * directUnitCell(i, 1) +
+                       n3 * directUnitCell(i, 2);
+              }
+              bravaisVectors.col(iR) = r;
+
+              int m1 = mod((n1 + 1), qCoarseGrid(0));
+              if (m1 <= 0) {
+                m1 += qCoarseGrid(0);
+              }
+              int m2 = mod((n2 + 1), qCoarseGrid(1));
+              if (m2 <= 0) {
+                m2 += qCoarseGrid(1);
+              }
+              int m3 = mod((n3 + 1), qCoarseGrid(2));
+              if (m3 <= 0) {
+                m3 += qCoarseGrid(2);
+              }
+              m1 += -1;
+              m2 += -1;
+              m3 += -1;
+
+              for (int j : {0, 1, 2}) {
+                for (int i : {0, 1, 2}) {
+                  // convert to a single iR vector index 
+                  mat2R(i, j, na, nb, iR) += forceConstants(i, j, m1, m2, m3, na, nb);
+                }
+              }
+              iR += 1;
+            }
+          }
+        }
+      }
+    }
+  }
+  Kokkos::Profiling::popRegion();
+
+  return std::make_tuple(mat2R,bravaisVectors,weights);
+
 }

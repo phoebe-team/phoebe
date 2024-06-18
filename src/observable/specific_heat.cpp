@@ -44,16 +44,15 @@ void SpecificHeat::calc() {
     double sum = 0.;
     std::vector<int> iss = bandStructure.irrStateIterator();
     int niss = iss.size();
-#pragma omp parallel for reduction(+ : sum) default(none) shared(bandStructure,particle,temp,norm,chemPot,iss,niss,ryToCmm1)
+#pragma omp parallel for reduction(+ : sum) default(none) shared(bandStructure,particle,temp,norm,chemPot,iss,niss,phEnergyCutoff)
     for(int iis = 0; iis < niss; iis++){
 
       int is = iss[iis];
       StateIndex isIdx(is);
       auto en = bandStructure.getEnergy(isIdx);
 
-      // TODO phononCutoff should be standardized!
       // exclude acoustic phonons, cutoff at 0.1 cm^-1
-      if (en < 0.1 / ryToCmm1 && particle.isPhonon()) {
+      if (en < phEnergyCutoff && particle.isPhonon()) {
         continue;
       }
 

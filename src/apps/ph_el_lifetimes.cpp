@@ -19,7 +19,7 @@ void PhElLifetimesApp::run(Context &context) {
   // load the elph coupling
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
-  auto couplingElPh = InteractionElPhWan::parse(context, crystal, &phononH0);
+  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
 
   // Compute the window filtered phonon band structure ---------------------------
   if (mpi->mpiHead()) {

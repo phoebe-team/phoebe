@@ -102,23 +102,13 @@ void kokkosZHEEV(StridedComplexView3D &A, DoubleView2D &W) {
 DeviceManager *kokkosDeviceMemory = nullptr;
 
 DeviceManager::DeviceManager() {
+
   memoryUsed = 0.;
   char *memStr = std::getenv("MAXMEM");
   if (memStr != nullptr) {
     memoryTotal = std::atof(memStr) * 1.0e9;
   } else {
     memoryTotal = 16.0e9; // 16 Gb is our educated guess for available memory
-
-//    size_t freeMemory, totalMemory;
-//#if defined(KOKKOS_ENABLE_SERIAL) || defined(KOKKOS_ENABLE_OPENMP)
-//
-//#elif defined(KOKKOS_ENABLE_CUDA)
-//    cudaMemGetInfo (&freeMemory, &totalMemory );
-//    memoryUsed += totalMemory - freeMemory;
-//    memoryTotal = double(totalMemory);
-//#else
-//    Error("Implement DevicecManager for this backend");
-//#endif
   }
 }
 

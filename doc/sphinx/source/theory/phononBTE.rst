@@ -437,5 +437,5 @@ Hence, one can work with the same techniques detailed above, provided that we wo
 
 * Disadvantage 2: note that the symmetric matrix gains two Cartesian coordinate indices. As a result, in the limiting case of no symmetries in the system (only the identity), the matrix :math:`A^{ij}_{\nu^*\nu'^*}` will still be computed on the same number of wavevectors of  :math:`A_{\nu\nu'}`, but occupies 3x3 times more memory without adding any information. Therefore, for low-symmetry systems, consider disabling symmetries.
 
-* Disadvantage 3: The symmetries of the BTE are so far not applicable to the variational and relaxons solveres. This is not so much a problem with implementaiton, but instead is because of a need for a derivation of symmetries for these cases.
+* Disadvantage 3: The symmetries of the BTE are so far not applicable to the variational and relaxons solvers. This is not so much a problem with implementation, but instead is because of a need for a derivation of symmetries for these cases.
 

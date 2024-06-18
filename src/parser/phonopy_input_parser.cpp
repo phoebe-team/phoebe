@@ -560,10 +560,21 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
   directUnitCell.transposeInPlace();
 
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses);
+                  speciesNames, speciesMasses, bornCharges);
   crystal.print();
-  PhononH0 dynamicalMatrix(crystal, dielectricMatrix, bornCharges,
-                           forceConstants, context.getSumRuleFC2());
+
+  // apply the appropriate ASR to the force constants 
+  setAcousticSumRule(context.getSumRuleFC2(), crystal, qCoarseGrid, forceConstants);
+
+  // from phonopy we don't have the cell weights, so here we generate the 
+  // R vectors and weights, and then reorder the force constants to match them 
+  auto tup = reorderHarmonicForceConstants(crystal, forceConstants, qCoarseGrid);
+  Eigen::Tensor<double,5> matFC2 = std::get<0>(tup);
+  Eigen::MatrixXd bravaisVectors = std::get<1>(tup);
+  Eigen::VectorXd weights = std::get<2>(tup);
+
+  PhononH0 dynamicalMatrix(crystal, dielectricMatrix,
+                           matFC2, qCoarseGrid, bravaisVectors, weights);
 
   Kokkos::Profiling::popRegion();
   return std::make_tuple(crystal, dynamicalMatrix);

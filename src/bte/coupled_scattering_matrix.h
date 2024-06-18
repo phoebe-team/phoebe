@@ -3,8 +3,6 @@
 
 #include "electron_h0_wannier.h"
 #include "phonon_h0.h"
-#include "interaction_3ph.h"
-#include "interaction_elph.h"
 #include "base_el_scattering_matrix.h"
 #include "base_ph_scattering_matrix.h"
 #include "coupled_vector_bte.h"
@@ -48,8 +46,6 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
  CoupledScatteringMatrix(Context &context_, StatisticsSweep &statisticsSweep_,
                     BaseBandStructure &innerBandStructure_,
                     BaseBandStructure &outerBandStructure_,
-                    Interaction3Ph *coupling3Ph_ = nullptr,
-                    InteractionElPhWan *couplingElPh_ = nullptr,
                     ElectronH0Wannier *electronH0_ = nullptr,
                     PhononH0 *phononH0_ = nullptr);
 
@@ -67,9 +63,6 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
   BaseBandStructure* getElBandStructure();
 
  protected:
-
-  Interaction3Ph *coupling3Ph;
-  InteractionElPhWan *couplingElPh;
 
   ElectronH0Wannier *electronH0;
   PhononH0 *phononH0;
@@ -117,31 +110,31 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
   // friend functions for adding scattering rates
   // see respective header files for more details
   friend void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
-                                std::vector<VectorBTE> &inPopulations,
-                                std::vector<VectorBTE> &outPopulations,
-                                int &switchCase,
-                                std::vector<std::tuple<std::vector<int>, int>> qPairIterator,
-                                Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
-                                BaseBandStructure &innerBandStructure,
-                                BaseBandStructure &outerBandStructure,
-                                PhononH0* phononH0,
-                                Interaction3Ph *coupling3Ph,
-                                VectorBTE *linewidth);
+                  std::vector<VectorBTE> &inPopulations,
+                  std::vector<VectorBTE> &outPopulations,
+                  int &switchCase,
+                  std::vector<std::tuple<std::vector<int>, int>> qPairIterator,
+                  Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
+                  BaseBandStructure &innerBandStructure,
+                  BaseBandStructure &outerBandStructure,
+                  PhononH0* phononH0,
+                  Interaction3Ph *coupling3Ph,
+                  VectorBTE *linewidth);
 
   friend void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
-                                std::vector<VectorBTE> &inPopulations,
-                                std::vector<VectorBTE> &outPopulations, int &switchCase,
-                                std::vector<std::tuple<std::vector<int>, int>> qPairIterator,
-                                Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
-                                BaseBandStructure &innerBandStructure,
-                                BaseBandStructure &outerBandStructure,
-                                VectorBTE *linewidth);
+                  std::vector<VectorBTE> &inPopulations,
+                  std::vector<VectorBTE> &outPopulations, int &switchCase,
+                  std::vector<std::tuple<std::vector<int>, int>> qPairIterator,
+                  Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
+                  BaseBandStructure &innerBandStructure,
+                  BaseBandStructure &outerBandStructure,
+                  VectorBTE *linewidth);
 
   friend void addPhElScattering(BasePhScatteringMatrix& matrix, Context& context,
-                BaseBandStructure& phBandStructure,
-                ElectronH0Wannier* electronH0,
-                InteractionElPhWan* couplingElPhWan,
-                std::shared_ptr<VectorBTE> linewidth);
+                  BaseBandStructure& phBandStructure,
+                  ElectronH0Wannier* electronH0,
+                  InteractionElPhWan* couplingElPhWan,
+                  std::shared_ptr<VectorBTE> linewidth);
 
   friend void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                   std::vector<VectorBTE> &inPopulations,
@@ -156,22 +149,27 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
                   VectorBTE *linewidth);
 
   friend void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &context,
-                       std::vector<VectorBTE> &inPopulations,
-                       std::vector<VectorBTE> &outPopulations,
-                       int &switchCase,
-                       std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
-                       BaseBandStructure &innerBandStructure,
-                       BaseBandStructure &outerBandStructure,
-                       std::shared_ptr<VectorBTE> linewidth);
+                  std::vector<VectorBTE> &inPopulations,
+                  std::vector<VectorBTE> &outPopulations,
+                  int &switchCase,
+                  std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
+                  BaseBandStructure &innerBandStructure,
+                  BaseBandStructure &outerBandStructure,
+                  std::shared_ptr<VectorBTE> linewidth);
 
   friend void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
-                  int dragTermType,
+                  const int& dragTermType,
                   ElectronH0Wannier* electronH0,
                   InteractionElPhWan *couplingElPhWan,
                   BaseBandStructure &innerBandStructure,
                   BaseBandStructure &outerBandStructure);
 
+  friend void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
+                  Context& context,
+                  std::shared_ptr<CoupledVectorBTE> phElLinewidths,
+                  BaseBandStructure& elBandStructure,
+                  BaseBandStructure& phBandStructure);				
 };
 
 #endif

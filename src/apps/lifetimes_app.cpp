@@ -23,7 +23,7 @@ void ElectronLifetimesApp::run(Context &context) {
   // load the el-ph coupling
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
-  auto couplingElPh = InteractionElPhWan::parse(context, crystal, &phononH0);
+  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
 
   // set k and q point meshes and paths
   Points pathKPoints(crystal, context.getPathExtrema(),
@@ -43,11 +43,11 @@ void ElectronLifetimesApp::run(Context &context) {
   StatisticsSweep statisticsSweep(context, &fullBandStructure);
 
   //----------------------------------------------------------------------------
-
+  
   // build/initialize the scattering matrix and the smearing
   ElScatteringMatrix scatteringMatrix(context, statisticsSweep,
                                       fullBandStructure, pathBandStructure,
-                                      phononH0, &couplingElPh);
+                                      phononH0);
   scatteringMatrix.setup();
 
   scatteringMatrix.outputToJSON("path_el_relaxation_times.json");

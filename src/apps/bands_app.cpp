@@ -34,13 +34,14 @@ void PhononBandsApp::run(Context &context) {
   FullBandStructure fullBandStructure =
       phononH0.populate(pathPoints, withVelocities, withEigenvectors);
 
-  // arguments: bandStructure, context, pathPoints, outputFileName
+  // output the contents of the band structure to file 
   outputBandsToJSON(fullBandStructure, context, pathPoints,
                     "phonon_bands.json");
 
   if (mpi->mpiHead()) {
     std::cout << "Finishing phonon bands calculation" << std::endl;
   }
+
 }
 
 /* --------------------- ElectronWannierBandsApp --------------------- */
@@ -62,7 +63,7 @@ void ElectronWannierBandsApp::run(Context &context) {
   FullBandStructure fullBandStructure =
       electronH0.populate(pathPoints, withVelocities, withEigenvectors);
 
-  // arguments: bandStructure, context, pathPoints, outputFileName
+  // output band structure contents to file
   outputBandsToJSON(fullBandStructure, context, pathPoints,
                     "electron_bands.json");
 
@@ -154,9 +155,9 @@ void outputBandsToJSON(FullBandStructure &fullBandStructure, Context &context,
     auto pathLabels = context.getPathLabels();
     // check if this point is one of the high sym points,
     // and if it is, save the index
-    if (coord[0] == extremaCoordinates[extremaCount][0] &&
-        coord[1] == extremaCoordinates[extremaCount][1] &&
-        coord[2] == extremaCoordinates[extremaCount][2]) {
+    if ( abs(coord[0] - extremaCoordinates[extremaCount][0]) < 1e-8 &&
+        abs(coord[1] - extremaCoordinates[extremaCount][1]) < 1e-8 &&
+        abs(coord[2] - extremaCoordinates[extremaCount][2]) < 1e-8 ) {
 
       pathLabelIndices.push_back(ik);
       // if the next extrema is the same as this one, add the index
@@ -272,9 +273,11 @@ void ElectronWannierBandsApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getDeltaPath(), "deltaPath");
 
   std::string crystalMsg = "crystal structure";
-  throwErrorIfUnset(context.getInputAtomicPositions(), crystalMsg);
-  throwErrorIfUnset(context.getInputSpeciesNames(), crystalMsg);
-  throwErrorIfUnset(context.getInputAtomicSpecies(), crystalMsg);
+  if(context.getJDFTxScfOutFile().empty()) { // Wannier90 doesn't give us this, user must set it
+    throwErrorIfUnset(context.getInputAtomicPositions(), crystalMsg);
+    throwErrorIfUnset(context.getInputSpeciesNames(), crystalMsg);
+    throwErrorIfUnset(context.getInputAtomicSpecies(), crystalMsg);
+  }
 }
 
 void ElectronFourierBandsApp::checkRequirements(Context &context) {

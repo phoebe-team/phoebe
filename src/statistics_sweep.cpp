@@ -120,6 +120,8 @@ StatisticsSweep::StatisticsSweep(Context &context,
         mpi->allReduceSum(&occupiedStates);
       }
     } else {
+
+      // TODO we would need to change this for a spin pol calculation !
       occupiedStates /= spinFactor;
 
       // initial guess for chemical potential will be Ef
@@ -280,8 +282,8 @@ StatisticsSweep::findChemicalPotentialFromDoping(const double &doping,
   // numElectrons is the number of electrons in the unit cell before doping
   // doping > 0 means p-doping (fermi level in the valence band)
 
-  numElectronsDoped =
-      occupiedStates - doping * volume * pow(distanceBohrToCm, 3) / spinFactor;
+  numElectronsDoped = occupiedStates - doping * volume * pow(distanceBohrToCm, 3) / spinFactor;
+
   // bisection method: I need to find the root of N - \int fermi dirac = 0
   // initial guess
   double chemicalPotential = fermiLevel;
@@ -298,18 +300,18 @@ StatisticsSweep::findChemicalPotentialFromDoping(const double &doping,
           "were not excluded using exclude_bands in Wannier90.\nSee a note about this in the elphWannier tutorial.");
   }
   if (numElectronsDoped < 0.) {
-    Error("The number of occupied states is negative");
+    Error("The number of occupied states is negative!");
   }
 
   // if we are looking for the fermi level at T=0 and n=0, we have a corner case
   // when we have completely empty bands or completely full bands.
   if (doping == 0. && temperature == 0.) {// case of computing fermi level
     if (numElectronsDoped == 0.) {
-      fermiLevel = *min_element(energies.begin(), energies.end());
+      if(energies.size() > 0) fermiLevel = *min_element(energies.begin(), energies.end());
       chemicalPotential = fermiLevel;
       return chemicalPotential;
     } else if (numElectronsDoped == float(numBands)) {
-      fermiLevel = *max_element(energies.begin(), energies.end());
+      if(energies.size() > 0) fermiLevel = *max_element(energies.begin(), energies.end());
       chemicalPotential = fermiLevel;
       return chemicalPotential;
     }
@@ -337,12 +339,12 @@ StatisticsSweep::findChemicalPotentialFromDoping(const double &doping,
 
   // check if starting values are bad
   if (sgn(aY) == sgn(bY)) {
-    Error("I should revisit the boundary limits for bisection method");
+    Error("Something is wrong with the boundary limits for mu determination bisection method.");
   }
 
   for (int iter = 0; iter < maxIter; iter++) {
     if (mpi->mpiHead() && iter == maxIter - 1) {
-      Error("Max iteration reached in finding mu");
+      Error("Max iteration reached without finding mu.");
     }
     // x value is midpoint of prior values
     double cX = (aX + bX) / 2.;
@@ -418,8 +420,7 @@ void StatisticsSweep::printInfo() {
   std::cout << "Statistical parameters for the calculation\n";
 
   if (particle.isElectron()) {
-    std::cout << "Fermi level: " << fermiLevel * energyRyToEv << " (eV)"
-              << std::endl;
+    std::cout << "Fermi level: " << fermiLevel * energyRyToEv << " (eV)"  << std::endl;
     std::cout << "Index, temperature, chemical potential, doping concentration\n";
   } else {
     std::cout << "Index, temperature\n";

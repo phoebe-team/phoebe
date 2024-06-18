@@ -9,7 +9,7 @@ Let :math:`f_{\lambda}` be the out-of-equilibrium electron occupation number, wh
 First, we rewrite the occupation number as:
 
 .. math::
-   f_{\lambda} = \bar{f}_{\lambda} + \bar{f}_{\lambda}(1-\bar{f}_{\lambda}) \delta f_{\lambda}
+   f_{\lambda} = \bar{f}_{\lambda} + \delta f_{\lambda}
 
 where :math:`\bar{f}_{\lambda}` is the Fermi--Dirac distribution function and we introduced :math:`\delta f_{\lambda}` as the canonical distribution function.
 
@@ -25,8 +25,8 @@ The electron scattering matrix :math:`\Omega_{\lambda,\lambda'}` can be computed
 
 .. math::
    \Omega_{\boldsymbol{k}b,\boldsymbol{k}'b'} =&
-   \tau_{kb} \delta_{kb,k'b'} - (1-\delta_{kb,k'b'})
-   \frac{2\pi}{V N_k} \sum_{\boldsymbol{q}\nu}
+   \frac{1}{\tau_{kb}} \delta_{kb,k'b'} + (1-\delta_{kb,k'b'})
+   \frac{2\pi}{N_k\hbar} \sum_{\boldsymbol{q}\nu}
    |g_{bb'\nu}(\boldsymbol{k},\boldsymbol{k}')|^2 \\
    &\times
    \bigg[
@@ -42,7 +42,7 @@ with
 
 .. math::
    \frac{1}{\tau_{kb}} =&
-   \frac{2\pi}{V N_k} \sum_{b'\boldsymbol{k}',\nu \boldsymbol{q}}
+   \frac{2\pi}{N_k\hbar} \sum_{b'\boldsymbol{k}',\nu \boldsymbol{q}}
    |g_{bb'\nu}(\boldsymbol{k},\boldsymbol{k}')|^2
    \times
    \bigg[
@@ -109,12 +109,12 @@ In Phoebe, instead of solving the original BTE problem in the form :math:`\sum_{
 with 
 
 .. math::
-   \delta f_{\lambda} = ( \bar{f}_{\lambda} (1-\bar{f}_{\lambda}) )^{\frac{1}{2}} \delta f_{\lambda}
+   \delta f_{\lambda} = ( \bar{f}_{\lambda} (1-\bar{f}_{\lambda}) )^{-\frac{1}{2}} \delta f_{\lambda}
 
 and
 
 .. math::
-   \tilde{b}_{\lambda} = ( \bar{f}_{\lambda} (1-\bar{f}_{\lambda}) )^{\frac{1}{2}} b_{\lambda}
+   \tilde{b}_{\lambda} = ( \bar{f}_{\lambda} (1-\bar{f}_{\lambda}) )^{-\frac{1}{2}} b_{\lambda}
 
 
    

@@ -4,3 +4,10 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.11"
+
+sphinx:
+  configuration: doc/sphinx/source/conf.py
+
+python:
+  install:
+  - requirements: doc/sphinx/source/requirements.txt

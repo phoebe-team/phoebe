@@ -47,9 +47,10 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
   bool withSymmetries = context.getUseSymmetries();
   int numCalculations = statisticsSweep.getNumCalculations();
 
-  double spinFactor = 2.; // nonspin pol = 2
-  if (context.getHasSpinOrbit()) { spinFactor = 1.; }
-  double norm = spinFactor / context.getKMesh().prod(); // we sum over q here, but the two meshes are the same
+  // spin factor not applied to scattering rate, but later in Onsager coefficients 
+  //double spinFactor = 2.; // nonspin pol = 2
+  //if (context.getHasSpinOrbit()) { spinFactor = 1.; }
+  double norm = 1. / context.getKMesh().prod(); // we sum over q here, but the two meshes are the same
 
   LoopPrint loopPrint("computing el-ph contribution to the scattering matrix",
                                         "k-points", int(kPairIterator.size()));

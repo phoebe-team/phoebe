@@ -343,12 +343,6 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   int nb1 = int(eigvec1.cols());
   int numLoops = int(eigvecs2.size()); // the number of k2 and q points 
 
-  auto elPhCached = this->elPhCached;
-  int numPhBands = this->numPhBands;
-  int numWsR2Vectors = this->numWsR2Vectors;
-  DoubleView2D wsR2Vectors_k = this->wsR2Vectors_k;
-  DoubleView1D wsR2VectorsDegeneracies_k = this->wsR2VectorsDegeneracies_k;
-
 #ifdef MPI_AVAIL
   int pool_rank = mpi->getRank(mpi->intraPoolComm);
   int pool_size = mpi->getSize(mpi->intraPoolComm);
@@ -366,6 +360,12 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
       Kokkos::Profiling::popRegion();
   }
 #endif
+
+  auto elPhCached = this->elPhCached;
+  int numPhBands = this->numPhBands;
+  int numWsR2Vectors = this->numWsR2Vectors;
+  DoubleView2D wsR2Vectors_k = this->wsR2Vectors_k;
+  DoubleView1D wsR2VectorsDegeneracies_k = this->wsR2VectorsDegeneracies_k;
 
   // get nb2 for each ik and find the max
   // since loops and views must be rectangular, not ragged
@@ -787,16 +787,16 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
                                    numWsR2Vectors, numPhBands, poolNb1, numElBands);
 
       Kokkos::parallel_for(
-          "elPhCached",
-          Range4D({0, 0, 0, 0},
-                  {numWsR2Vectors, numPhBands, poolNb1, numElBands}),
-          KOKKOS_LAMBDA(int irP, int nu, int ib1, int iw2) {
-            Kokkos::complex<double> tmp(0.0);
-            for (int iw1 = 0; iw1 < numElBands; iw1++) {
-              tmp += g1(irP, nu, iw1, iw2) * eigvec1_k(ib1, iw1);
-            }
-            poolElPhCached_k(irP, nu, ib1, iw2) = tmp;
-          });
+        "elPhCached",
+        Range4D({0, 0, 0, 0},
+                {numWsR2Vectors, numPhBands, poolNb1, numElBands}),
+        KOKKOS_LAMBDA(int irP, int nu, int ib1, int iw2) {
+          Kokkos::complex<double> tmp(0.0);
+          for (int iw1 = 0; iw1 < numElBands; iw1++) {
+            tmp += g1(irP, nu, iw1, iw2) * eigvec1_k(ib1, iw1);
+          }
+          poolElPhCached_k(irP, nu, ib1, iw2) = tmp;
+      });
 
       // note: we do the reduction after the rotation, so that the tensor
       // may be a little smaller when windows are applied (nb1<numWannier)

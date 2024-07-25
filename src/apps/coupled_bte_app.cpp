@@ -105,6 +105,11 @@ void CoupledTransportApp::run(Context &context) {
     std::cout << "Done computing electronic band structure.\n" << std::endl;
   }
 
+  // output bandstructure to a JSON file for both electrons and phonons
+  phBandStructure.outputComponentsToJSON("phonon_bandstructure.json");
+  elBandStructure.outputComponentsToJSON("electron_bandstructure.json");
+  std::cout << "Bandstructures output to JSON files.\n" << std::endl;
+
   // Construct the full C matrix
   // the dimensions of this matrix are (numElStates + numPhStates, numElStates + numPhStates)
   // we provide the el stat sweep because we need the one that has information about the

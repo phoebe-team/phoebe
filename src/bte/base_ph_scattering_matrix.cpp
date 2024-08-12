@@ -7,12 +7,3 @@ BasePhScatteringMatrix::BasePhScatteringMatrix(Context &context_,
     : ScatteringMatrix(context_, statisticsSweep_, innerBandStructure_, outerBandStructure_) {
 
 }
-
-/*BaseBandStructure BaseElScatteringMatrix::initialElBandStructure() {
-  return innerBandStructure;
-}*/
-
-/*BaseBandStructure BaseElScatteringMatrix::finalElBandStructure() {
-  return outerBandStructure;
-}*/
-

@@ -64,8 +64,8 @@ protected:
 
   friend void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 BaseBandStructure &phBandStructure,
-                ElectronH0Wannier* electronH0,
-                InteractionElPhWan *couplingElPhWan,
+                BaseBandStructure &elBandStructure,
+                InteractionElPhWan &couplingElPhWan,
                 std::shared_ptr<VectorBTE> linewidth);
 
 };

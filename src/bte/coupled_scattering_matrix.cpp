@@ -125,18 +125,17 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   std::vector<std::tuple<std::vector<int>, int>> qkPairIterator = allPairIterators[2];
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator = allPairIterators[3];
 
-  // add el-ph scattering ----------------------------------------------
-  {
-  // read this in and let it go out of scope afterwards -- TODO merge this with phel one
+  // read in elph coupling 
   InteractionElPhWan couplingElPh = 
       InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
 
+
+  // add el-ph scattering ----------------------------------------------
   addElPhScattering(*this, context, inPopulations, outPopulations,
                                   switchCase, kPairIterator,
                                   fermiOccupations,
                                   outerBandStructure, outerBandStructure,
                                   *phononH0, &couplingElPh, linewidth);
-  }
 
   // add charged impurity electron scattering  ------------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
@@ -145,7 +144,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 */
 
   // add ph-ph scattering ----------------------------------------------
-  { 
+ { 
   // read this in and let it go out of scope afterwards 
   Interaction3Ph coupling3Ph = 
       IFC3Parser::parse(context, innerBandStructure.getPoints().getCrystal());
@@ -211,47 +210,23 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
 
-    {
-    // read this in here but let it go out of scope afterwards, as it takes a lot of memory
-    InteractionElPhWan couplingElPh = 
-        InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
-        // TODO convert all the couplingElPh* function arguments to references
-
-    addPhElScattering(*this, context, innerBandStructure, electronH0, &couplingElPh, postSymLinewidths);
+    addPhElScattering(*this, context, innerBandStructure, outerBandStructure, couplingElPh, postSymLinewidths);
     mpi->barrier();
 
     // all reduce the calculated phel linewidths 
     mpi->allReduceSum(&postSymLinewidths->data);
     // TODO maybe output these phel linewidths? 
-    }
+
     // Add drag terms ----------------------------------------------
     if(context.getUseDragTerms()) { 
 
-    // read this in here but let it go out of scope afterwards, as it takes a lot of memory
-    // TODO why do I need to read this in thrice? 
-    // Try commenting out the OMP line in copy of eigenvectors, and also the k reset 
-    InteractionElPhWan couplingElPh = 
-        InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
-        // TODO convert all the couplingElPh* function arguments to references
-
       // first add the el drag term 
       // TODO replace these 0 and 1s with something smarter 
-      addDragTerm(*this, context, kqPairIterator, 0, electronH0,
-                          &couplingElPh, innerBandStructure, outerBandStructure);
-                      
-    }
-    if(context.getUseDragTerms()) { 
-
-      // read this in here but let it go out of scope afterwards, as it takes a lot of memory
-      // TODO why do I need to read this in thrice? 
-      // Try commenting out the OMP line in copy of eigenvectors, and also the k reset 
-      InteractionElPhWan couplingElPh = 
-          InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
-          // TODO convert all the couplingElPh* function arguments to references
-
+      addDragTerm(*this, context, kqPairIterator, 0, 
+                         couplingElPh, innerBandStructure, outerBandStructure);
       // now the ph drag term
-      addDragTerm(*this, context, qkPairIterator, 1, electronH0,
-                          &couplingElPh, innerBandStructure, outerBandStructure);
+      addDragTerm(*this, context, qkPairIterator, 1,
+                         couplingElPh, innerBandStructure, outerBandStructure);
 
       // use drag ASR to correct the drag terms and recompute the phel linewidths 
       //phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
@@ -335,7 +310,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
 
   // apply the spin degen factors
-  //reweightQuadrants();
+  reweightQuadrants();
 
   // reinforce the condition that the scattering matrix is symmetric
   // A -> ( A^T + A ) / 2
@@ -372,7 +347,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
       }
     } else {
       for (int is = 0; is < numStates; is++) {
-        if(theMatrix.indicesAreLocal(is,is)) theMatrix(is, is) = linewidth->operator()(iCalc, 0, is);
+        if(theMatrix.indicesAreLocal(is,is)) theMatrix(is, is) = linewidth->operator()(iCalc, 0, is); // I think this is not right here...
       }
     }
   }
@@ -460,9 +435,7 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
 
     internalDiagonal->operator()(0, 0, is) /= term;   
   }
-
 }
-
 
 // each process will /term for some subset of the internal diagonal. 
 // however, this should be applied to all of them. 
@@ -649,6 +622,15 @@ void CoupledScatteringMatrix::reweightQuadrants() {
   double Nq = double(context.getQMesh().prod());
   //double Nkq = (Nk + Nq)/2.;
 
+  for(int iBte = 0; iBte < numStates; iBte++)  {
+    if(iBte < numElStates) { // electron
+      internalDiagonal->data(0,iBte) *= 1.; 
+    }
+    if(iBte >= numElStates) { // phonon 
+      internalDiagonal->data(0,iBte) *= spinFactor * ( Nq / Nk ); 
+    }
+  }
+
   // loop over states and apply the reweighting factors of eq 28
   for(auto matrixState : theMatrix.getAllLocalStates()) {
 
@@ -656,31 +638,25 @@ void CoupledScatteringMatrix::reweightQuadrants() {
     int iMat1 = std::get<0>(matrixState);
     int iMat2 = std::get<1>(matrixState);
 
-    // if it's the el-el one, s1 = el, s2 = el, we apply factor of 1/2
-    if (iMat1 < numElStates && iMat2 < numElStates) {
-      //theMatrix(iMat1, iMat2) *= 1./Nk;
-      theMatrix(iMat1, iMat2) *= 1.; //1./spinFactor; // TODO put this back later, scattering matrix is missing a 2 that this is compensating for
-                                                      // but I would have to add this 2 into the scattering matrix for electrons, which would
-                                                      // trash all the normal solves which are already compensating for this in later parts of the code
+    // if it's the el-el one, s1 = el, s2 = el, 
+    if (iMat1 < numElStates && iMat2 < numElStates) { // 2 / Nk
+      theMatrix(iMat1, iMat2) *= 1.; 
     }
-    // quadrant el-ph drag, upper right. s1 = el, s2 = ph, apply 1/sqrt(2)
-    else if(iMat1 < numElStates && iMat2 >= numElStates) {
-      //theMatrix(iMat1, iMat2) *= 1./Nq; //1./sqrt(spinFactor) * sqrt(Nk / Nq);
-      theMatrix(iMat1, iMat2) *= 1./sqrt(spinFactor) * sqrt(Nk / Nq);
+    // quadrant el-ph drag, upper right. s1 = el, s2 = ph
+    else if(iMat1 < numElStates && iMat2 >= numElStates) {  // sqrt(Nk/(2*Nq))
+      theMatrix(iMat1, iMat2) *= 1.; // /sqrt(spinFactor * ( Nq / Nk ));
     }
-    // quadrant ph-el drag, lower left. s1 = ph, s2 = el, apply 1/sqrt(2)
-    else if(iMat1 >= numElStates && iMat2 < numElStates) {
-      //theMatrix(iMat1, iMat2) *= 1./Nk; //1./sqrt(spinFactor) * sqrt(Nq / Nk);
-      theMatrix(iMat1, iMat2) *= 1./sqrt(spinFactor) * sqrt(Nq / Nk);
+    // quadrant ph-el drag, lower left. s1 = ph, s2 = el
+    else if(iMat1 >= numElStates && iMat2 < numElStates) { // sqrt(Nk/(2*Nq))
+      theMatrix(iMat1, iMat2) *= 1.; // /sqrt(spinFactor * ( Nq / Nk ));
     }
     // quadrant ph self, lower right. s1 = ph, s2 = ph
-//    else if(iMat1 >= numElStates && iMat2 >= numElStates) {
-//      //theMatrix(iMat1, iMat2) *=  1./Nq; //1.; // do nothing
-//      theMatrix(iMat1, iMat2) *=  1.; // do nothing
-//    }
-//    else {
-//      Error("Developer error: Somehow we found an out of bounds coupled matrix state in reweight.");
-//    }
+    else if(iMat1 >= numElStates && iMat2 >= numElStates) { // 2 / Nk
+      theMatrix(iMat1, iMat2) *= spinFactor * ( Nq / Nk ); 
+    }
+    else {
+      Error("Developer error: Somehow we found an out of bounds coupled matrix state in reweight.");
+    }
   }
 }
 

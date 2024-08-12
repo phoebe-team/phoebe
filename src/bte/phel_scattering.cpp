@@ -6,8 +6,6 @@
 #include "phel_scattering_matrix.h"
 #include "coupled_scattering_matrix.h"
 
-//const double phononCutoff = 0.001 / ryToCmm1; // used to discard small phonon energies
-
 /** Method to construct the kq pair iterator for this class.
 * Slightly different than the others, so we calculate it internally.
 * This is especially because the intermediate state band structure
@@ -18,10 +16,6 @@ std::vector<std::tuple<int, std::vector<int>>> getPhElIterator(
                                         BaseBandStructure& phBandStructure) {
 
   std::vector<std::tuple<int, std::vector<int>>> pairIterator;
-
-  // TODO for the scattering matrix case this isn't really ideal.
-  // We'd like to parallelize over the local diagonal states...
-  // Why is having the kpoints be the outer loop important?
 
   // here I parallelize over ik1 which is the outer loop on k-points
   std::vector<int> k1Iterator = elBandStructure.parallelIrrPointsIterator();
@@ -56,20 +50,33 @@ std::vector<std::tuple<int, std::vector<int>>> getPhElIterator(
 
 void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                       BaseBandStructure& phBandStructure,
-	                    ElectronH0Wannier* electronH0,
-                      InteractionElPhWan* couplingElPhWan,
+                      BaseBandStructure& elBandStructure,
+                      InteractionElPhWan& couplingElPhWan,
                       std::shared_ptr<VectorBTE> linewidth) {
 
   // throw error if it's not a ph band structure
   if(!phBandStructure.getParticle().isPhonon()) { 
     DeveloperError("Cannot calculate phel scattering with an electron BS.");
   }
-  // TODO should we be using exclude indices here?
+
+  // throw an error if these meshes are not commensurate. Here, we don't want to 
+  // generate states on the fly. If we lock k/q = integer, then for any given
+  // set of k and q, k' will still be on the electronic band structure
+  auto kMesh = context.getKMesh();
+  auto qMesh = context.getQMesh(); 
+  if( kMesh(0)%qMesh(0) != 0 || kMesh(1)%qMesh(1) != 0 || kMesh(2)%qMesh(2) != 0 ) {
+    Error("For ph-el scattering calculations, k and q meshes must be commensurate!");
+  }
 
   Particle elParticle(Particle::electron);
-  int numCalculations = matrix.statisticsSweep.getNumCalculations();
-  Crystal crystalPh = phBandStructure.getPoints().getCrystal();
   Particle particle = phBandStructure.getParticle();
+  StatisticsSweep& statisticsSweep = matrix.statisticsSweep; 
+  if(!statisticsSweep.getParticle().isElectron()) { 
+    DeveloperError("Statistics sweep provided to phel scattering must be electronic one!"); 
+  } 
+
+  int numCalculations = matrix.statisticsSweep.getNumCalculations();
+  //Crystal crystalPh = phBandStructure.getPoints().getCrystal();
 
   Eigen::VectorXd temperatures(numCalculations);
   for (int iCalc=0; iCalc<numCalculations; ++iCalc) {
@@ -86,30 +93,11 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
   double norm = spinFactor / double(context.getKMeshPhEl().prod());
 
-  // compute the elBand structure on the fine grid -------------------------
-  if (mpi->mpiHead()) {
-    std::cout << "\nComputing electronic band structure for ph-el scattering.\n"
-              << std::endl;
+  // if this is a coupled calculation, we need to remove the spin factor and Nk here, it will be reapplied later
+  if(context.getAppName().find("coupled") != std::string::npos ) { 
+    if(mpi->mpiHead()) std::cout <<  "spin factor " << spinFactor << std::endl;
+    norm = 1. / double(context.getQMesh().prod()); 
   }
-
-  // update the window so that it's only a very narrow
-  // scale slice around mu, 1.25* the max phonon energy
-  double maxPhEnergy = phBandStructure.getMaxEnergy();
-  auto inputWindowType = context.getWindowType();
-  //context.setWindowType("muCenteredEnergy");
-  if(mpi->mpiHead()) {
-    std::cout << "Of the active phonon modes, the maximum energy state is " <<
-       maxPhEnergy*energyRyToEv*1e3 << " meV." <<
-        "\nSelecting states within +/- 1.5 x " << maxPhEnergy*energyRyToEv*1e3 << " meV"
-        << " of max/min electronic mu values." << std::endl;
-  }
-  Eigen::Vector2d range = {-1.5*maxPhEnergy,1.5*maxPhEnergy};
-
-  // construct electronic band structure
-  Points fullPoints(crystalPh, context.getKMeshPhEl());
-  auto t3 = ActiveBandStructure::builder(context, *electronH0, fullPoints);
-  auto elBandStructure = std::get<0>(t3);
-  auto statisticsSweep = std::get<1>(t3);
 
   // Here, we use a smearing corresponding to electrons, as this needs
   // to match up with the drag terms and also with the electron quadrant
@@ -126,41 +114,8 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         "concentration at the time. Let us know if you want to have multiple mu values as a feature.");
   }
 
-  // TODO move this to bandstructure and make a printStats function
-  // print some info about how window and symmetries have reduced el bands
-  if (mpi->mpiHead()) {
-    if(elBandStructure.hasWindow() != 0) {
-        std::cout << "Window selection reduced electronic band structure from "
-                << fullPoints.getNumPoints() * electronH0->getNumBands() << " to "
-                << elBandStructure.getNumStates() << " states."  << std::endl;
-    }
-    if(context.getUseSymmetries()) {
-      std::cout << "Symmetries reduced electronic band structure from "
-        << elBandStructure.getNumStates() << " to "
-        << elBandStructure.irrStateIterator().size() << " states." << std::endl;
-    }
-    std::cout << "Done computing electronic band structure.\n" << std::endl;
-  }
-  // just return if no states are found
-  if(int(elBandStructure.irrStateIterator().size()) == 0) {
-    if(mpi->mpiHead()) {
-      std::cout << "Exiting ph-el scattering function, zero el states found which can participate." << std::endl;
-    }
-    return;
-  }
-
-  // switch back to the window type that was originally input by the user
-  context.setWindowType(inputWindowType);
-
   // now that we have the band structure, we can generate the kqPairs
   // to iterate over in parallel
-  // TODO for now this parallelizes over the electronic states.
-  // As this function only adds to the diagonal, this is ok -- we can
-  // just update the linewidths object here, as the Smatrix diagonal is
-  // replaced after an all-reduce at the end of the smatrix calculations.
-  // it's (according to Andrea) better to parallelize the outer
-  // loop over el states, though I suppose if one was motivated this could
-  // be switched to parallelize over local phScattering matrix diagonal states
   std::vector<std::tuple<int,std::vector<int>>> kqPairIterator
                 = getPhElIterator(elBandStructure, phBandStructure);
 
@@ -172,7 +127,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
     nb1Max = std::max(nb1Max, int(elBandStructure.getEnergies(ikIdx).size()));
   }
 
-  // NOTE statistics sweep is the one for electrons
   // precompute Fermi-Dirac populations
   // TODO can we fit this into the same format as the other ones
   // to call the helper function instead?
@@ -218,7 +172,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
     WavevectorIndex iqIdx(iq);
     auto q3C = phBandStructure.getWavevector(iqIdx);
     auto ev3 = phBandStructure.getEigenvectors(iqIdx);
-    Eigen::VectorXcd thisPolar = couplingElPhWan->polarCorrectionPart1(q3C, ev3);
+    Eigen::VectorXcd thisPolar = couplingElPhWan.polarCorrectionPart1(q3C, ev3);
     for (int i=0; i<thisPolar.size(); ++i) {
       polarData(iq, i) = thisPolar(i);
     }
@@ -240,6 +194,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
     loopPrint.update();
 
     int ik1 = std::get<0>(t1);
+
     WavevectorIndex ik1Idx(ik1);
     auto iq3Indexes = std::get<1>(t1);
 
@@ -251,9 +206,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
     // the 2nd process call calcCouplingSquared 7 times as well.
     if (ik1 == -1) {
       Eigen::Vector3d k1C = Eigen::Vector3d::Zero();
-      int numWannier = couplingElPhWan->getCouplingDimensions()(4);
+      int numWannier = couplingElPhWan.getCouplingDimensions()(4);
       Eigen::MatrixXcd eigenVector1 = Eigen::MatrixXcd::Zero(numWannier, 1);
-      couplingElPhWan->cacheElPh(eigenVector1, k1C);
+      couplingElPhWan.cacheElPh(eigenVector1, k1C);
       // since this is just a dummy call used to help other MPI processes
       // compute the coupling, and not to compute matrix elements, we can skip
       // to the next loop iteration
@@ -261,7 +216,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
     }
 
     // store k1 energies, velocities, eigenvectors from elBandstructure
-    Eigen::Vector3d k1C = elBandStructure.getWavevector(ik1Idx);
+    Eigen::Vector3d k1Cartesian = elBandStructure.getWavevector(ik1Idx);
     Eigen::VectorXd state1Energies = elBandStructure.getEnergies(ik1Idx);
     auto nb1 = int(state1Energies.size());
     Eigen::MatrixXd v1s = elBandStructure.getGroupVelocities(ik1Idx);
@@ -274,11 +229,11 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                                 getReducibleStarFromIrreducible(ik1).size();
 
     // precompute first fourier transform + rotation by k1
-    couplingElPhWan->cacheElPh(eigenVector1, k1C);
+    couplingElPhWan.cacheElPh(eigenVector1, k1Cartesian);
 
     // prepare batches of q3s based on memory usage (so that this could be done on gpus)?
     size_t nq3 = size_t(iq3Indexes.size());
-    size_t numBatches = couplingElPhWan->estimateNumBatches(nq3, nb1);
+    size_t numBatches = couplingElPhWan.estimateNumBatches(nq3, nb1);
 
     // loop over batches of q3s
     // later we will loop over the q3s inside each batch
@@ -289,91 +244,100 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
       size_t start = nq3 * iBatch / numBatches;
       size_t end = nq3 * (iBatch + 1) / numBatches;
       size_t batchSize = end - start;
+      size_t revisedBatchSize = 0; // increment this each time we find a useful kp point
 
-      std::vector<Eigen::Vector3d> allQ3C(batchSize);
-      std::vector<Eigen::MatrixXcd> allEigenVectors3(batchSize);
-      std::vector<Eigen::MatrixXd> allV3s(batchSize);
-      std::vector<Eigen::VectorXcd> allPolarData(batchSize);
+      // first, we will determine which kp points actually matter, and build a list 
+      // of the important kp and q points
+      std::vector<int> filteredQIndices; 
+      std::vector<int> filteredK2Indices; 
+
+      std::vector<Eigen::Vector3d> allQ3Cartesian;
+      std::vector<Eigen::MatrixXcd> allEigenVectors3; 
+      std::vector<Eigen::VectorXcd> allPolarData; 
+
+      std::vector<Eigen::Vector3d> allK2Cartesian; 
+      std::vector<Eigen::MatrixXcd> allEigenVectors2;
 
       // do prep work for all values of q3 in current batch,
       // store stuff needed for couplings later
       //
       // loop over each iq3 in the batch of q3s
-      #pragma omp parallel for
+      // we only take points which are on the active bandstructure -- 
+      // this speeds things up dramatically and should not eliminate meaningful states, 
+      // especially if convergence is tested wrt window size 
+
+      // here the critical block is ok, as 95% of the points are discarded and we only 
+      // push back a few 
+      #pragma omp parallel for  
       for (size_t iq3Batch = 0; iq3Batch < batchSize; iq3Batch++) {
 
         size_t iq3 = iq3Indexes[start + iq3Batch];
         WavevectorIndex iq3Idx(iq3);
+        Eigen::Vector3d q3Cartesian = phBandStructure.getWavevector(iq3Idx);
+        Eigen::Vector3d k2Cartesian = q3Cartesian + k1Cartesian; 
 
-        allPolarData[iq3Batch] = polarData.row(iq3);
-        allEigenVectors3[iq3Batch] = phBandStructure.getEigenvectors(iq3Idx);
-        allV3s[iq3Batch] = phBandStructure.getGroupVelocities(iq3Idx);
-        allQ3C[iq3Batch] = phBandStructure.getWavevector(iq3Idx); // TODO remove this test statement
+        // check if this point is on the mesh or not 
+        // TODO this is slow, can we make it faster? 
+        Eigen::Vector3d k2Crys = elBandStructure.getPoints().cartesianToCrystal(k2Cartesian);
+        int ik2 = elBandStructure.getPointIndex(k2Crys, true);
+        if(ik2 == -1) {  // if point is not on the mesh, continue
+          continue; 
+        }
 
+        // if this kp point is on the el bandstructure, here we save all the ph and el' information
+        #pragma omp critical 
+        {
+          revisedBatchSize++;
+          filteredQIndices.push_back(iq3);
+          filteredK2Indices.push_back(ik2);
+
+          WavevectorIndex ik2Idx = WavevectorIndex(ik2);
+          allK2Cartesian.push_back(k2Cartesian);                                 // kP wavevector  // TODO might be able to remove this 
+          allPolarData.push_back(polarData.row(iq3));                            // long range polar data
+          allEigenVectors2.push_back(elBandStructure.getEigenvectors(ik2Idx));  // el Kp eigenvectors
+
+          allQ3Cartesian.push_back(phBandStructure.getWavevector(iq3Idx));            // ph wavevector in cartesian 
+          allEigenVectors3.push_back(phBandStructure.getEigenvectors(iq3Idx));        // ph eigenvectors
+        }
       }
 
-      // precompute the k2 indices such that k2-k1=q3, where k1 is fixed
-      std::vector<Eigen::Vector3d> allK2C(batchSize);
-      #pragma omp parallel for
-      for (size_t iq3Batch = 0; iq3Batch < batchSize; iq3Batch++) {
-
-        size_t iq3 = iq3Indexes[start + iq3Batch];
-        WavevectorIndex iq3Index(iq3);
-        Eigen::Vector3d q3C = allQ3C[iq3Batch]; 
-
-        // k' = k + q : phonon absorption
-        Eigen::Vector3d k2C = q3C + k1C; 
-        allK2C[iq3Batch] = k2C;
-      }
-
-      // calculate the state energies, vs, eigs of all k2 points
-      bool withVelocities = false;
-      if (smearing->getType() == DeltaFunction::adaptiveGaussian ||
-                        smearing->getType() == DeltaFunction::symAdaptiveGaussian) {
-        withVelocities = true;
-      }
-      bool withEigenvectors = true; // we need these below to calculate coupling
-
-      // TODO can we actually just use the stored band structure? why not?
-      auto tHelp = electronH0->populate(allK2C, withVelocities, withEigenvectors);
-
-      std::vector<Eigen::VectorXd> allStates2Energies = std::get<0>(tHelp);
-      std::vector<Eigen::MatrixXcd> allEigenVectors2 = std::get<1>(tHelp);
-      std::vector<Eigen::Tensor<std::complex<double>,3>> allV2s = std::get<2>(tHelp);
+      batchSize = revisedBatchSize;
 
       // Generate couplings for fixed k1, all k2s and all Q3Cs
-      couplingElPhWan->calcCouplingSquared(eigenVector1, allEigenVectors2,
-                                          allEigenVectors3, allQ3C, k1C, allPolarData);
+      couplingElPhWan.calcCouplingSquared(eigenVector1, allEigenVectors2,
+                                          allEigenVectors3, allQ3Cartesian, k1Cartesian, allPolarData);
 
       // do postprocessing loop with batch of couplings to calculate the scattering rates
       for (size_t iq3Batch = 0; iq3Batch < batchSize; iq3Batch++) {
 
-        size_t iq3 = iq3Indexes[start + iq3Batch];
+        int iq3 = filteredQIndices[iq3Batch]; 
+        int ik2 = filteredK2Indices[iq3Batch]; 
         WavevectorIndex iq3Idx(iq3);
+        WavevectorIndex ik2Idx(ik2);
 
-        Eigen::VectorXd state2Energies = allStates2Energies[iq3Batch];
-        auto k2C = allK2C[iq3Batch]; // TODO remove this it's just for testing
-        auto q3C = allQ3C[iq3Batch]; // TODO remove this it's just for testing
-        auto nb2 = int(state2Energies.size());
-        
+        auto k2C = allK2Cartesian[iq3Batch]; // TODO remove this it's just for testing
+        auto q3C = allQ3Cartesian[iq3Batch]; // TODO remove this it's just for testing
+
         // for gpu would replace with compute OTF
         Eigen::VectorXd state3Energies = phBandStructure.getEnergies(iq3Idx); // iq3Idx
-        //auto t5 = couplingElPhWan->phononH0->diagonalizeFromCoordinates(q3C); 
-        //Eigen::VectorXd state3Energies = std::get<0>(t5);
+        Eigen::VectorXd state2Energies = elBandStructure.getEnergies(ik2Idx); // iq3Idx
+        auto nb2 = int(state2Energies.size());
 
         // NOTE: these loops are already set up to be applicable to gpus
         // the precomputaton of the smearing values and the open mp loops could
         // be converted to GPU relevant version
         int nb3 = state3Energies.size();
         Eigen::Tensor<double,3> smearingValues(nb1, nb2, nb3);
+//         #pragma omp parallel for default(none) shared(iQIndexes, batchSize,revisedBatchSize, kCartesian, start, isKpMinus, phononBandStructure,filteredQIndices, polarDataQMinus, polarDataQPlus, electronBandStructure, allKpCartesian, allPolarData, allStateEnergiesKp, allVKps, allEigenVectorsKp, allQCartesian, allStateEnergiesQ, allVQs, allEigenVectorsQ)
 
-        #pragma omp parallel for collapse(3)
+
+        #pragma omp parallel for collapse(3) default(none) shared(nb1,nb2,nb3,state1Energies, state2Energies, state3Energies, phEnergyCutoff, smearingValues, elBandStructure, phBandStructure,ik1Idx,ik2Idx,iq3Idx,smearing)
         for (int ib2 = 0; ib2 < nb2; ib2++) {
           for (int ib1 = 0; ib1 < nb1; ib1++) {
             for (int ib3 = 0; ib3 < nb3; ib3++) {
 
-              double en2 = state2Energies(ib2);
               double en1 = state1Energies(ib1);
+              double en2 = state2Energies(ib2);
               double en3 = state3Energies(ib3);
 
               // remove small divergent phonon energies
@@ -383,6 +347,19 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
               }
               double delta = 0;
 
+              Eigen::Vector3d v1, v2, v3; 
+              if(smearing->getType() == DeltaFunction::symAdaptiveGaussian || 
+                          smearing->getType() == DeltaFunction::adaptiveGaussian) {
+
+                StateIndex is1(elBandStructure.getIndex(ik1Idx,BandIndex(ib1)));
+                StateIndex is2(elBandStructure.getIndex(ik2Idx,BandIndex(ib2)));
+                StateIndex is3(phBandStructure.getIndex(iq3Idx,BandIndex(ib3)));
+
+                v1 = elBandStructure.getGroupVelocity(is1);
+                v2 = elBandStructure.getGroupVelocity(is2);
+                v3 = phBandStructure.getGroupVelocity(is3);
+              }
+
               // NOTE: for gpus, if statements need to be moved outside, as
               // this creates load balancing issues for gpu threads and cpu must
               // dispatch this decision info
@@ -390,22 +367,12 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 delta = smearing->getSmearing(en1 - en2 + en3);
 
               } else if (smearing->getType() == DeltaFunction::symAdaptiveGaussian) {
-                Eigen::Vector3d v1 = v1s.row(ib1);
-                Eigen::Vector3d v2;
-                for (int i : {0,1,2}) {
-                   v2(i) = allV2s[iq3Batch](ib2, ib2, i).real();
-                }
-                Eigen::Vector3d v3 = allV3s[iq3Batch].row(ib3);
                 delta = smearing->getSmearing(en1 - en2 + en3, v1, v2, v3);
 
               // adaptive gaussian for delta(omega - (Ek' - Ek))
               // has width of W = a | v2 - v1 |
               } else if (smearing->getType() == DeltaFunction::adaptiveGaussian) {
-                Eigen::Vector3d vdiff = v1s.row(ib1);
-                for (int i : {0,1,2}) {
-                  vdiff(i) -= allV2s[iq3Batch](ib2, ib2, i).real();
-                }
-                delta = smearing->getSmearing(en1 - en2 + en3, vdiff);
+                delta = smearing->getSmearing(en1 - en2 + en3, v1-v2);
               } else {
                 Error("Tetrahedron smearing is currently not tested with phel scattering.");
               }
@@ -414,7 +381,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
           }
         }
 
-        Eigen::Tensor<double, 3> coupling = couplingElPhWan->getCouplingSquared(iq3Batch);
+        Eigen::Tensor<double, 3> coupling = couplingElPhWan.getCouplingSquared(iq3Batch);
         // symmetrize the elph coupling tensor
         matrix.symmetrizeCoupling(coupling, state1Energies, state2Energies, state3Energies);
 
@@ -445,6 +412,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
               double en2 = state2Energies(ib2);
               double en1 = state1Energies(ib1);
+
               //double fermi1 = elBandStructure.getParticle().getPopulation(en1,temp,chemPot);
               //double fermi2 = elBandStructure.getParticle().getPopulation(en2,temp,chemPot);
 
@@ -468,10 +436,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
                 if (smearingValues(ib1, ib2, ib3) <= 0.) { continue; }
 
-                // avoid overflow
-                //double denominator = (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc)) * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)));
-                //if (abs(denominator < 1e-15)) continue; 
-
                 double rate =
                     coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)
                     smearingValues(ib1, ib2, ib3)
@@ -480,6 +444,44 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                     (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
                     * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc))); 
 
+                  Eigen::Vector3d q = {0.8, 0.8, 0.8};
+                  Eigen::Vector3d qCrys = phBandStructure.getPoints().cartesianToCrystal(q3C);
+                  Eigen::Vector3d kpCrys = elBandStructure.getPoints().cartesianToCrystal(k2C);
+                  Eigen::Vector3d kCrys = elBandStructure.getPoints().cartesianToCrystal(k1Cartesian);
+/*
+                  if((q-qCrys).norm() < 0.1 && ib3 == 4 && (elBandStructure.getPointIndex(kpCrys) == 7118) && (elBandStructure.getPointIndex(kCrys) == 2529) ) { 
+                 //if( ibte3 == 14194 - 13446 && mpi->mpiHead()) {
+
+                    //Eigen::Vector3d kCrys = elBandStructure.getPoints().cartesianToCrystal(k1C);
+                    //Eigen::Vector3d kpCrys = elBandStructure.getPoints().cartesianToCrystal(k2C);
+                    //Eigen::Vector3d qCrys = phBandStructure.getPoints().cartesianToCrystal(q3C);
+
+                    auto ik2 = elBandStructure.getPointIndex(kpCrys); 
+                    WavevectorIndex ik2idx(ik2); BandIndex b2Idx(ib2);
+                    auto is2 = elBandStructure.getIndex(ik2idx,b2Idx);
+                    StateIndex s2Idx(is2);
+
+                      //std::cout << en2 << " vs. " << elBandStructure.getEnergy(s2Idx) << std::endl;
+                      //std::cout << allV2s[iq3Batch](ib2, ib2, 0).real() << " " << allV2s[iq3Batch](ib2, ib2, 1).real() << " " << allV2s[iq3Batch](ib2, ib2, 2).real() << " " << " vs. " << elBandStructure.getGroupVelocity(s2Idx).transpose() << std::endl;
+                      //std::cout << elBandStructure.getEigenvectors(ik2idx) << std::endl;
+                      //std::cout << std::endl;
+                      //Eigen::Vector3d v1 = v1s.row(ib1);
+                      //Eigen::Vector3d v2;
+                      //for (int i : {0,1,2}) {
+                      //  v2(i) = allV2s[iq3Batch](ib2, ib2, i).real();
+                      //}
+                      //Eigen::Vector3d v3 = allV3s[iq3Batch].row(ib3);
+
+                      //double delta = smearing->getSmearing(en1 - en2 + en3, v1, v2, v3);
+                      //std::cout << "phel delta, diff, en1, en2, en3 : " << delta << ' ' <<  en1 - en2 + en3  << ' ' <<  en1 << ' ' << en2 << ' ' << en3 << std::endl; //" | " << v1.transpose() << " | " << v2.transpose() << " | " << v3.transpose() << '\n';
+
+                      std::cout << "indices: " << ibte3 << " kpts: " << ik1 << " " << elBandStructure.getPointIndex(kpCrys) << " " << iq3 << "| bands: " << ib1 << " " << ib2 << " " << ib3 << std::endl;
+                      //std::cout << std::setprecision(4) << "points " << kCrys.transpose() << " | " << kpCrys.transpose() << " | " << qCrys.transpose() << std::endl;
+                      std::cout << std::setprecision(5) <<"rate " << rate << " | " << coupling(ib1, ib2, ib3) << " " << 1./en3 << " " << (sinh(0.5 * en3 / temperatures(iCalc)) / (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
+                      * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)))) << " " << smearingValues(ib1, ib2, ib3) <<  " " << en1 << " " << en2 << " " << en3 << std::endl;
+                    //} 
+                  }                
+*/       
                 // if it's not a coupled matrix, this will be ibte3
                 // We have to define shifted ibte3, or it will be further
                 // shifted every loop.

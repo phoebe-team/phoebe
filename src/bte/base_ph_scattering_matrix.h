@@ -48,10 +48,10 @@ class BasePhScatteringMatrix : virtual public ScatteringMatrix {
                                 std::shared_ptr<VectorBTE> linewidth);
 
   friend void addPhElScattering(BasePhScatteringMatrix& matrix, Context& context,
-                BaseBandStructure& phBandStructure,
-                ElectronH0Wannier* electronH0,
-                InteractionElPhWan* couplingElPhWan,
-                std::shared_ptr<VectorBTE> linewidth);
+                                BaseBandStructure& phBandStructure,
+                                BaseBandStructure& elBandStructure,
+                                InteractionElPhWan& couplingElPhWan,
+                                std::shared_ptr<VectorBTE> linewidth);
 
 };
 

@@ -7,6 +7,8 @@
 // TODO el and get ph bandstructure getters are nice.
 // Could we perhaps extend this to all the scattering matrix objects?
 
+// TODO I think we should work out how to delete this class soon 
+
 // this matrix class is just essentially a linewidths container,
 // as in the phel linewidths + ph ph scattering thermal conductivity app,
 // it's nice to separate and print out the two contributions.
@@ -42,9 +44,17 @@ void PhElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     Error("Linewidths shouldn't have dimensionality");
   }
 
+  // construct electronic band structure
+  Points fullPoints(getPhBandStructure().getPoints().getCrystal(), context.getKMeshPhEl());
+  auto t3 = ActiveBandStructure::builder(context, *electronH0, fullPoints);
+  auto elBandStructure = std::get<0>(t3);
+  // TODO this is super dangerous, it will work here but ! 
+  // the fact that addPhElScattering cannot check if this is an el or ph statistics sweep is trap!
+  statisticsSweep = std::get<1>(t3);
+
   // compute the phonon electron lifetimes
-  addPhElScattering(*this, context, getPhBandStructure(),
-                        electronH0, couplingElPhWan, linewidth);
+  addPhElScattering(*this, context, getPhBandStructure(), elBandStructure,
+                    *couplingElPhWan, linewidth);
 
   // reduce as this is parallelized over mpi processes for wavevectrors
   mpi->allReduceSum(&linewidth->data);

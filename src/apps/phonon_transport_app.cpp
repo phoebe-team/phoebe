@@ -39,15 +39,9 @@ void PhononTransportApp::run(Context &context) {
     std::cout << "\nComputing phonon band structure." << std::endl;
   }
 
-
-  auto popLimitTemp = context.getWindowPopulationLimit();
-  context.setWindowPopulationLimit(1e-4);
-
   auto tup1 = ActiveBandStructure::builder(context, phononH0, fullPoints);
   auto bandStructure = std::get<0>(tup1);
   auto statisticsSweep = std::get<1>(tup1);
-
-  context.setWindowPopulationLimit(popLimitTemp);
 
   // print some info about state number reduction
   if (mpi->mpiHead()) {

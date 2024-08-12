@@ -35,7 +35,7 @@ class BasePhScatteringMatrix : virtual public ScatteringMatrix {
                                 BaseBandStructure &innerBandStructure,
                                 BaseBandStructure &outerBandStructure,
                                 PhononH0& phononH0,
-                                Interaction3Ph *coupling3Ph,
+                                Interaction3Ph& coupling3Ph,
                                 std::shared_ptr<VectorBTE> linewidth);
 
   friend void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,

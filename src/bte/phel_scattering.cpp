@@ -328,8 +328,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         // be converted to GPU relevant version
         int nb3 = state3Energies.size();
         Eigen::Tensor<double,3> smearingValues(nb1, nb2, nb3);
-//         #pragma omp parallel for default(none) shared(iQIndexes, batchSize,revisedBatchSize, kCartesian, start, isKpMinus, phononBandStructure,filteredQIndices, polarDataQMinus, polarDataQPlus, electronBandStructure, allKpCartesian, allPolarData, allStateEnergiesKp, allVKps, allEigenVectorsKp, allQCartesian, allStateEnergiesQ, allVQs, allEigenVectorsQ)
-
 
         #pragma omp parallel for collapse(3) default(none) shared(nb1,nb2,nb3,state1Energies, state2Energies, state3Energies, phEnergyCutoff, smearingValues, elBandStructure, phBandStructure,ik1Idx,ik2Idx,iq3Idx,smearing)
         for (int ib2 = 0; ib2 < nb2; ib2++) {
@@ -435,53 +433,15 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 //    * norm / temperatures(iCalc) * pi * k1Weight;
 
                 if (smearingValues(ib1, ib2, ib3) <= 0.) { continue; }
-
-                double rate =
+                
+                double rate = 
                     coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)
                     smearingValues(ib1, ib2, ib3)
                     * norm * pi / en3 * k1Weight 
                     * sinh(0.5 * en3 / temperatures(iCalc)) / 
                     (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
                     * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc))); 
-
-                  Eigen::Vector3d q = {0.8, 0.8, 0.8};
-                  Eigen::Vector3d qCrys = phBandStructure.getPoints().cartesianToCrystal(q3C);
-                  Eigen::Vector3d kpCrys = elBandStructure.getPoints().cartesianToCrystal(k2C);
-                  Eigen::Vector3d kCrys = elBandStructure.getPoints().cartesianToCrystal(k1Cartesian);
-/*
-                  if((q-qCrys).norm() < 0.1 && ib3 == 4 && (elBandStructure.getPointIndex(kpCrys) == 7118) && (elBandStructure.getPointIndex(kCrys) == 2529) ) { 
-                 //if( ibte3 == 14194 - 13446 && mpi->mpiHead()) {
-
-                    //Eigen::Vector3d kCrys = elBandStructure.getPoints().cartesianToCrystal(k1C);
-                    //Eigen::Vector3d kpCrys = elBandStructure.getPoints().cartesianToCrystal(k2C);
-                    //Eigen::Vector3d qCrys = phBandStructure.getPoints().cartesianToCrystal(q3C);
-
-                    auto ik2 = elBandStructure.getPointIndex(kpCrys); 
-                    WavevectorIndex ik2idx(ik2); BandIndex b2Idx(ib2);
-                    auto is2 = elBandStructure.getIndex(ik2idx,b2Idx);
-                    StateIndex s2Idx(is2);
-
-                      //std::cout << en2 << " vs. " << elBandStructure.getEnergy(s2Idx) << std::endl;
-                      //std::cout << allV2s[iq3Batch](ib2, ib2, 0).real() << " " << allV2s[iq3Batch](ib2, ib2, 1).real() << " " << allV2s[iq3Batch](ib2, ib2, 2).real() << " " << " vs. " << elBandStructure.getGroupVelocity(s2Idx).transpose() << std::endl;
-                      //std::cout << elBandStructure.getEigenvectors(ik2idx) << std::endl;
-                      //std::cout << std::endl;
-                      //Eigen::Vector3d v1 = v1s.row(ib1);
-                      //Eigen::Vector3d v2;
-                      //for (int i : {0,1,2}) {
-                      //  v2(i) = allV2s[iq3Batch](ib2, ib2, i).real();
-                      //}
-                      //Eigen::Vector3d v3 = allV3s[iq3Batch].row(ib3);
-
-                      //double delta = smearing->getSmearing(en1 - en2 + en3, v1, v2, v3);
-                      //std::cout << "phel delta, diff, en1, en2, en3 : " << delta << ' ' <<  en1 - en2 + en3  << ' ' <<  en1 << ' ' << en2 << ' ' << en3 << std::endl; //" | " << v1.transpose() << " | " << v2.transpose() << " | " << v3.transpose() << '\n';
-
-                      std::cout << "indices: " << ibte3 << " kpts: " << ik1 << " " << elBandStructure.getPointIndex(kpCrys) << " " << iq3 << "| bands: " << ib1 << " " << ib2 << " " << ib3 << std::endl;
-                      //std::cout << std::setprecision(4) << "points " << kCrys.transpose() << " | " << kpCrys.transpose() << " | " << qCrys.transpose() << std::endl;
-                      std::cout << std::setprecision(5) <<"rate " << rate << " | " << coupling(ib1, ib2, ib3) << " " << 1./en3 << " " << (sinh(0.5 * en3 / temperatures(iCalc)) / (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
-                      * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)))) << " " << smearingValues(ib1, ib2, ib3) <<  " " << en1 << " " << en2 << " " << en3 << std::endl;
-                    //} 
-                  }                
-*/       
+ 
                 // if it's not a coupled matrix, this will be ibte3
                 // We have to define shifted ibte3, or it will be further
                 // shifted every loop.

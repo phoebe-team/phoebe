@@ -144,15 +144,17 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 */
 
   // add ph-ph scattering ----------------------------------------------
+  
  { 
   // read this in and let it go out of scope afterwards 
   Interaction3Ph coupling3Ph = 
       IFC3Parser::parse(context, innerBandStructure.getPoints().getCrystal());
+     
   addPhPhScattering(*this, context, inPopulations, outPopulations,
                                   switchCase, qPairIterator,
                                   boseOccupations, boseOccupations,
                                   innerBandStructure, innerBandStructure,
-                                  *phononH0, &coupling3Ph, linewidth);
+                                  *phononH0, coupling3Ph, linewidth);
   }
 
   // Isotope scattering ------------------------------------------------

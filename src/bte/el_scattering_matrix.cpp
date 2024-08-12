@@ -1,4 +1,4 @@
-#include "el_scattering_matrix.h"
+einclude "el_scattering_matrix.h"
 #include "constants.h"
 #include "helper_el_scattering.h"
 #include "mpiHelper.h"
@@ -71,8 +71,8 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // load the elph coupling
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
-  Crystal crystal = innerBandStructure.getPoints().getCrystal(); 
-  InteractionElPhWan couplingElPh = 
+  Crystal crystal = innerBandStructure.getPoints().getCrystal();
+  InteractionElPhWan couplingElPh =
       InteractionElPhWan::parse(context, crystal, phononH0);
 
   addElPhScattering(*this, context, inPopulations, outPopulations, switchCase,
@@ -120,10 +120,10 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     degeneracyAveragingLinewidths(linewidthMR);
   }
 
-  // use the off diagonals to calculate the linewidths, 
-  // to ensure the special eigenvectors can be found/preserve conservation of momentum 
-  // that might be ruined by the delta functions 
-  //reinforceLinewidths();
+  // use the off diagonals to calculate the linewidths,
+  // to ensure the special eigenvectors can be found/preserve conservation of momentum
+  // that might be ruined by the delta functions
+  reinforceLinewidths();
 
  // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths

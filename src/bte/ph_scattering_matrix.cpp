@@ -6,6 +6,7 @@
 #include <cmath>
 #include "general_scattering.h"
 #include "ph_scattering.h"
+#include "ifc3_parser.h"
 
 PhScatteringMatrix::PhScatteringMatrix(Context &context_,
                                        StatisticsSweep &statisticsSweep_,
@@ -63,11 +64,17 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                         getIteratorWavevectorPairs(switchCase);
 
   // here we call the function to add ph-ph scattering
-  addPhPhScattering(*this, context, inPopulations, outPopulations,
-                                  switchCase, qPairIterator,
-                                  innerBose, outerBose,
-                                  innerBandStructure, outerBandStructure,
-                                  *phononH0, coupling3Ph, linewidth);
+  {
+    // read this in and let it go out of scope afterwards 
+    Interaction3Ph coupling3Ph = 
+        IFC3Parser::parse(context, innerBandStructure.getPoints().getCrystal());
+
+    addPhPhScattering(*this, context, inPopulations, outPopulations,
+                                    switchCase, qPairIterator,
+                                    innerBose, outerBose,
+                                    innerBandStructure, outerBandStructure,
+                                    *phononH0, coupling3Ph, linewidth);
+  }
 
   // NOTE: this is very slightly OMP thread num dependent.
   // That's because it uses the phonon eigenvectors, which can be slightly
@@ -124,6 +131,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
 
   // recalculate the phonon linewidths from the off diagonals 
+  //a2Omega(); // TODO remove
   //reinforceLinewidths();
 
   // some phonons like acoustic modes at the gamma, with omega = 0,

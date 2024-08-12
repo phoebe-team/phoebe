@@ -24,7 +24,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                                  BaseBandStructure &innerBandStructure,
                                  BaseBandStructure &outerBandStructure,
                                  PhononH0& phononH0,
-                                 Interaction3Ph *coupling3Ph,
+                                 Interaction3Ph& coupling3Ph,
                                  std::shared_ptr<VectorBTE> linewidth) {
 
   // notes: + process is (1+2) -> 3
@@ -35,6 +35,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
   auto excludeIndices = matrix.excludeIndices;
   bool outputUNTimes = matrix.outputUNTimes;
   Particle particle = innerBandStructure.getParticle();
+  const double pathLinewidthCutoff = 0.000001 / ryToCmm1; 
 
   // setup smearing using phonon band structure
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, innerBandStructure);
@@ -98,10 +99,10 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
     pointHelper.prepare(iq1Indexes, iq2);
 
     // prepare batches based on memory usage
-    int numBatches = coupling3Ph->estimateNumBatches(nq1, nb2);
+    int numBatches = coupling3Ph.estimateNumBatches(nq1, nb2);
 
     // precalculate D3cached for current value of q2
-    coupling3Ph->cacheD3(q2);
+    coupling3Ph.cacheD3(q2);
 
     // loop over batches of q1s
     // later we will loop over the q1s inside each batch
@@ -179,7 +180,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
       }
 
       // calculate batch of couplings
-      auto tuple1 = coupling3Ph->getCouplingsSquared(
+      auto tuple1 = coupling3Ph.getCouplingsSquared(
           q1_v, q2, ev1_v, ev2, ev3Plus_v, ev3Minus_v,
           nb1_v, nb2, nb3Plus_v, nb3Minus_v);
       auto couplingPlus_v = std::get<0>(tuple1);
@@ -264,7 +265,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                   continue;
                 }
               } else {
-                if (enProd < phEnergyCutoff) { continue; }
+                if (enProd < pathLinewidthCutoff) { continue; }
               }
 
               double deltaPlus;

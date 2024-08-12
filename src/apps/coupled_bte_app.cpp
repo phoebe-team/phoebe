@@ -30,9 +30,6 @@ void CoupledTransportApp::run(Context &context) {
     Error("To run the coupled BTE app supply a ph-ph or el-ph file!");
   }
 
-  // TODO add a warning message if anything but the population window is used or somehow allow separate windows?
-  // TODO warning about not using adaptive smearing if gaussian is specified?
-
   // set up the electron and phonon hamiltonians from file --------------------------
   // Read the necessary input files
   auto tup = Parser::parsePhHarmonic(context);
@@ -45,40 +42,12 @@ void CoupledTransportApp::run(Context &context) {
   // TODO maybe add a check that these crystals are the same
 
   // Set up phonon bandstructure information ---------------------------------------------
-  if (mpi->mpiHead()) {
-    std::cout << "\nComputing phonon band structure." << std::endl;
-  }
-
-  auto popLimitTemp = context.getWindowPopulationLimit();
-  context.setWindowPopulationLimit(1e-4); // TODO testing statement
-
   Points qPoints(crystal, context.getQMesh());
   auto tup1 = ActiveBandStructure::builder(context, phononH0, qPoints);
   auto phBandStructure = std::get<0>(tup1);
   auto phStatisticsSweep = std::get<1>(tup1);
 
-  context.setWindowPopulationLimit(popLimitTemp); // TODO testing statement
-
-  // print some info about state number reduction
-  if (mpi->mpiHead()) {
-    if(phBandStructure.hasWindow() != 0) {
-      std::cout << "Window selection reduced phonon band structure from "
-              << qPoints.getNumPoints() * phononH0.getNumBands() << " to "
-              << phBandStructure.getNumStates() << " states."  << std::endl;
-    }
-    if(context.getUseSymmetries()) {
-      std::cout << "Symmetries reduced phonon band structure from "
-          << phBandStructure.getNumStates() << " to "
-          << phBandStructure.irrStateIterator().size() << " states." << std::endl;
-    }
-    std::cout << "Done computing phonon band structure.\n" << std::endl;
-  }
-
   // Set up electron bandstructure information ---------------------------------------------
-  if (mpi->mpiHead()) {
-    std::cout << "\nComputing electronic band structure." << std::endl;
-  }
-
   Points kPoints(crystal, context.getKMesh());
   auto t3 = ActiveBandStructure::builder(context, electronH0, kPoints);
   auto elBandStructure = std::get<0>(t3);
@@ -90,25 +59,10 @@ void CoupledTransportApp::run(Context &context) {
         "at a time, as this would take up far too much memory at once!");
   }
 
-  // print some info about how window and symmetries have reduced el bands
-  if (mpi->mpiHead()) {
-    if(elBandStructure.hasWindow() != 0) {
-      std::cout << "Window selection reduced electronic band structure from "
-        << kPoints.getNumPoints() * electronH0.getNumBands() << " to "
-        << elBandStructure.getNumStates() << " states."  << std::endl;
-    }
-    if(context.getUseSymmetries()) {
-      std::cout << "Symmetries reduced electronic band structure from "
-        << elBandStructure.getNumStates() << " to "
-        << elBandStructure.irrStateIterator().size() << " states." << std::endl;
-    }
-    std::cout << "Done computing electronic band structure.\n" << std::endl;
-  }
-
   // output bandstructure to a JSON file for both electrons and phonons
   phBandStructure.outputComponentsToJSON("phonon_bandstructure.json");
   elBandStructure.outputComponentsToJSON("electron_bandstructure.json");
-  std::cout << "Bandstructures output to JSON files.\n" << std::endl;
+  if (mpi->mpiHead()) { std::cout << "Bandstructures output to JSON files.\n" << std::endl; } 
 
   // Construct the full C matrix
   // the dimensions of this matrix are (numElStates + numPhStates, numElStates + numPhStates)
@@ -116,7 +70,6 @@ void CoupledTransportApp::run(Context &context) {
   // electronic chemical potential (the ph one just has mu = 0)
   CoupledScatteringMatrix scatteringMatrix(context, elStatisticsSweep,
                                         phBandStructure, elBandStructure,
-                                        //&coupling3Ph, &couplingElPh,
                                         &electronH0, &phononH0);
   scatteringMatrix.setup();   // adds in all the scattering rates
 
@@ -151,20 +104,10 @@ void CoupledTransportApp::run(Context &context) {
           "temperature/chemical potential is allowed in a run");
   }
 
-  //if (context.getScatteringMatrixInMemory() && !context.getUseSymmetries()) {
-  //  if (doVariational || doRelaxons || doIterative) {
-  //    if ( context.getSymmetrizeMatrix() ) {
-        // reinforce the condition that the scattering matrix is symmetric
-        // A -> ( A^T + A ) / 2
-  //      scatteringMatrix.symmetrize();
-  //    }
-  //  }
-  //}
   //scatteringMatrix.outputToHDF5("coupledMatrix.hdf5");
 
-
-if(doIterative || doVariational) {
-    Warning("Coupled BTE app only implmeneted for relaxons solver.");
+  if(doIterative || doVariational) {
+    Warning("Coupled BTE app only implemented for relaxons solver.");
   }
 
   if (doRelaxons) {
@@ -180,7 +123,7 @@ if(doIterative || doVariational) {
     coupledCoeffs.calcSpecialEigenvectors(elStatisticsSweep, &phBandStructure, &elBandStructure);
     // TODO improve this later, symmetrization here set to false and true
     coupledCoeffs.outputDuToJSON(scatteringMatrix, context, false);
-    coupledCoeffs.outputDuToJSON(scatteringMatrix, context, true);
+    //coupledCoeffs.outputDuToJSON(scatteringMatrix, context, true);
 
     // diagonalize the coupled matrix
     auto tup2 = scatteringMatrix.diagonalize();
@@ -221,7 +164,6 @@ void CoupledTransportApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getPhFC2FileName(), "PhFC2FileName");
   throwErrorIfUnset(context.getQMesh(), "qMesh");
   throwWarningIfUnset(context.getSumRuleFC2(), "sumRuleFC2");
-  //throwErrorIfUnset(context.getPhFC3FileName(), "PhFC3FileName");
   throwErrorIfUnset(context.getTemperatures(), "temperatures");
   throwErrorIfUnset(context.getSmearingMethod(), "smearingMethod");
   if (context.getSmearingMethod() == DeltaFunction::gaussian) {

@@ -95,6 +95,8 @@ void CoupledCoefficients::calcFromRelaxons(
   int numElStates = int(elBandStructure->irrStateIterator().size());
   int numPhStates = int(phBandStructure->irrStateIterator().size());
   int numRelaxons = eigenvalues.size();
+  double Nk = context.getKMesh().prod();
+  double Nq = context.getQMesh().prod();
 
   int iCalc = 0;
   auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
@@ -170,6 +172,8 @@ void CoupledCoefficients::calcFromRelaxons(
       v = phBandStructure->getGroupVelocity(isIdx);
       double energy = phBandStructure->getEnergy(isIdx);
       if (energy < phEnergyCutoff) { continue; }
+
+      v *= (spinFactor * Nq/Nk );
 
       for (auto j : {0, 1, 2}) {
         phV0(gamma, j) += eigenvectors(is,gamma) * v(j) * theta0(is);
@@ -636,7 +640,6 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   int numElStates = int(elBandStructure->irrStateIterator().size());
   int numPhStates = int(phBandStructure->irrStateIterator().size());
   int numStates = numElStates + numPhStates;
-  //int numRelaxons = eigenvalues.size();
 
   double Nk = double(context.getKMesh().prod());
   double Nq = double(context.getQMesh().prod());
@@ -680,7 +683,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   }
   Cph *= 1./(volume * Nq * kBT * T);
   Cel *= spinFactor/(volume * Nk * kBT * T);
-  Ctot = Cel + Cph;
+  Ctot = Cel + (Nk/(spinFactor*Nq)) * Cph;
 
   // normalization coeff U (summed up below)
   // U = D/(V*Nk) * (1/kT) sum_km F(1-F)
@@ -693,6 +696,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   A = Eigen::Vector3d::Zero();
 
   // Precalculate theta_e, theta0, phi  ----------------------------------
+  // TODO UPDATE THE NOTES
 
   // theta^0 - energy conservation eigenvector
   //   electronic states = ds * g-1 * (hE - mu) * 1/(kbT^2 * V * Nkq * Ctot)
@@ -712,7 +716,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   phi = Eigen::MatrixXd::Zero(3, numStates);
 
   // spin degen vector
-  Eigen::VectorXd ds = Eigen::VectorXd::Zero(numStates);
+  double spinNorm = sqrt(spinFactor/(volume*Nk));
 
   for(int is = 0; is < numStates; is++) {
 
@@ -730,16 +734,14 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
       // note, this function expects kBT
       sqrtPopTerm = sqrt(electron.getPopPopPm1(energy, kBT, chemPot));
 
-      ds(is) = sqrt( spinFactor / Nk );
-
       U += sqrtPopTerm * sqrtPopTerm;
       for(int i : {0,1,2} ) {
         G(i) += k(i) * k(i) * sqrtPopTerm * sqrtPopTerm;
-        phi(i, is) = sqrtPopTerm * ds(is) * k(i);
+        phi(i, is) = sqrtPopTerm * k(i); 
       }
 
-      theta0(is) = sqrtPopTerm * (energy - chemPot) * ds(is);
-      theta_e(is) = sqrtPopTerm * ds(is);
+      theta0(is) = sqrtPopTerm * (energy - chemPot);
+      theta_e(is) = sqrtPopTerm;
 
     } else { // second part of the vector is phonon quantities
 
@@ -755,13 +757,11 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
       q = phBandStructure->getPoints().bzToWs(q,Points::cartesianCoordinates);
       sqrtPopTerm = sqrt(phonon.getPopPopPm1(energy, kBT, 0));
 
-      ds(is) = sqrt( 1. / Nq );
-
       for(int i : {0,1,2} ) {
         A(i) += q(i) * q(i) * sqrtPopTerm * sqrtPopTerm;
-        phi(i, is) = sqrtPopTerm * ds(is) * q(i);
+        phi(i, is) = sqrtPopTerm * q(i); 
       }
-      theta0(is) = sqrtPopTerm * energy * ds(is);
+      theta0(is) = (Nk/(spinFactor*Nq)) * sqrtPopTerm * energy; 
     }
   }
   
@@ -769,19 +769,19 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   U *= spinFactor / (volume * Nk * kBT);
   G *= spinFactor / (volume * Nk * kBT);
   A *= 1. / (volume * Nq * kBT);
-  //M = G + A;
+  A *= (Nk / (spinFactor * Nq)); 
 
   // apply the normalization to theta_e
-  theta_e *= 1./sqrt(kBT * U * volume);
+  theta_e *= spinNorm * (1./sqrt(kBT * U));
   // apply normalization to theta0
-  theta0 *= 1./sqrt(kBT * T * volume * Ctot);
+  theta0 *= spinNorm * 1./sqrt(kBT * T * Ctot);
   // apply normalization to phi
   for(int is = 0; is < numStates; is++) {
     for(int i : {0,1,2}) {
       if(is < numElStates) { // electrons
-        phi(i,is) *= 1./sqrt(kBT * volume * G(i));
+        phi(i,is) *= spinNorm * 1./sqrt(kBT * G(i));
       } else { // phonons
-        phi(i,is) *= 1./sqrt(kBT * volume * A(i));
+        phi(i,is) *= 1./spinNorm * (1./(volume * Nq)) * 1./sqrt(kBT * A(i));
       }
     }
   }
@@ -812,6 +812,9 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   BaseBandStructure* phBandStructure = coupledScatteringMatrix.getPhBandStructure();
   BaseBandStructure* elBandStructure = coupledScatteringMatrix.getElBandStructure();
 
+  double Nk = double(context.getKMesh().prod());
+  double Nq = double(context.getQMesh().prod());
+
   int numElStates = int(elBandStructure->irrStateIterator().size());
   auto calcStat = statisticsSweep.getCalcStatistics(0); // only one calc for relaxons
   double kBT = calcStat.temperature;
@@ -828,6 +831,9 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   Eigen::Matrix3d Wji0; Wji0.setZero();
   Eigen::Matrix3d elWji0; elWji0.setZero();
   Eigen::Matrix3d phWji0; phWji0.setZero();
+
+  double spinNormSq = (Nk/(spinFactor * Nq)) * (Nk/(spinFactor * Nq));
+  double spinNorm32 = (Nk/(spinFactor * Nq)) * sqrt(Nk/(spinFactor * Nq));
 
   // sum over the alpha and v states that this process owns
   for (auto tup : coupledScatteringMatrix.getAllLocalStates()) {
@@ -856,14 +862,14 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
           DuEl(i, j) += upperTriangleFactor * duContribution;
         // phonon only quadrant case
         } else if ( is1 >= numElStates && is2 >= numElStates ) {
-          DuPh(i, j) += upperTriangleFactor * duContribution;
+          DuPh(i, j) += spinNormSq * upperTriangleFactor * duContribution;
         // drag term contribution (never has upper triangle factor, only in 1 quadrant)
         // use the upper quandrant, (el,ph) as this is always filled because it's in the upper triangle
         } else if ( is1 < numElStates && is2 >= numElStates) { // upper triangle 
-          DuDragPh(i, j) += duContribution;
+          DuDragPh(i, j) += spinNorm32 * duContribution;
 
         } else if ( is1 >= numElStates && is2 < numElStates) { // lower triangle part 
-          DuDragEl(i, j) += duContribution;
+          DuDragEl(i, j) += spinNorm32 * duContribution;
         }
       }
     }
@@ -897,6 +903,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     // discard acoustic phonon modes
     if (en < phEnergyCutoff) { continue; }
     auto v = phBandStructure->getGroupVelocity(isIdx);
+    // rescaled v for phonons
+    v *= (spinFactor*Nq)/Nk;
     for (auto j : {0, 1, 2}) {
       for (auto i : {0, 1, 2}) {
         // note: phi and theta here are elStates long, so we need to shift the state

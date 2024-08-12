@@ -29,7 +29,7 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
 
   // we calculate a new phonon band structure with the same points mesh as the el one
   if (mpi->mpiHead()) {
-    std::cout << "Computing phonon band structure." << std::endl;
+    std::cout << "Computing intermediate state phonon band structure." << std::endl;
   }
 
   // all initial and final kstates are the same (as in the matrix construction)
@@ -307,6 +307,7 @@ void HelperElScattering::prepare(const Eigen::Vector3d &k1,
 
     int ik2Counter = -1;
     for (int ik2 : k2Indexes) {
+
       ik2Counter++;
       auto ik2Idx = WavevectorIndex(ik2);
       Eigen::Vector3d k2 = innerBandStructure.getWavevector(ik2Idx);

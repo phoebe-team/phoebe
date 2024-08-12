@@ -96,7 +96,7 @@ class BaseBandStructure {
   /** Returns an iterator to be used for loops over the Bloch state index.
    * The values of the iterator are distributed in N blocks over N MPI ranks.
    */
-  std::vector<size_t> parallelStateIterator();
+  virtual std::vector<size_t> parallelStateIterator();
 
   /** Returns the energy of a quasiparticle from its Bloch index
    * Used for accessing the band structure in the BTE.
@@ -284,7 +284,13 @@ class BaseBandStructure {
    * @param symReduced : if the bandstructure info should be sym reduced or not
    */
   void outputComponentsToJSON(const std::string &outFileName = "bandstructure.json"); 
-                                //const bool& symReduced = true);
+
+  /** 
+   * A function to print information about how many states are in this bandstructure, and how 
+   * things were reduced by filtering of states. 
+   * @param fullNumBands: The maximum number of bands possible
+  */
+  void printBandStructureStateInfo(const int& fullNumBands);
 
 };
 
@@ -327,11 +333,14 @@ class FullBandStructure : public BaseBandStructure {
 
   FullBandStructure();
 
+  /* Note, these explicit constructors are needed because we want to make deep copies
+  when these objects are created and assigned as FBS fbs = h0.populate() */
+
   /** Copy constructor
    */
   FullBandStructure(const FullBandStructure &that);
 
-  /** Assignment operator
+  /** Copy assignment operator
    */
   FullBandStructure &operator=(const FullBandStructure &that);
 
@@ -518,7 +527,7 @@ class FullBandStructure : public BaseBandStructure {
    * @return eigenvectors: a complex matrix(numBands,numBands) where numBands
    * is the number of Bloch states present at the specified wavevector.
    * Eigenvectors are ordered along columns.
-   * Note that all band structure interpolations may give eigenvectors.
+   * Note that not all band structure interpolations may give eigenvectors.
    */
   Eigen::MatrixXcd getEigenvectors(WavevectorIndex &ik) override;
 
@@ -701,6 +710,7 @@ class FullBandStructure : public BaseBandStructure {
    * equivalent to point #ik.
    */
   std::vector<int> getReducibleStarFromIrreducible(const int &ik) override;
+
 protected:
   // stores the quasiparticle kind
   Particle particle;
@@ -726,7 +736,7 @@ protected:
   int numLocalPoints = 0;
 
   // method to find the index of the point, from its crystal coordinates
-  int getIndex(Eigen::Vector3d &pointCoordinates);
+  //int getIndex(Eigen::Vector3d &pointCoordinates);
 
   // ActiveBandStructure, which restricts the FullBandStructure to a subset
   // of wavevectors, needs low-level access to the raw data (for now)

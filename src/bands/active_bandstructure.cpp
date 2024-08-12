@@ -512,6 +512,8 @@ ActiveBandStructure::builder(Context &context, HarmonicHamiltonian &h0,
     StatisticsSweep s = activeBandStructure.buildAsPostprocessing(
         context, points_, h0, withEigenvectors, withVelocities);
 
+    activeBandStructure.printBandStructureStateInfo(h0.getNumBands()); 
+    if(mpi->mpiHead()) std::cout << "\n----- Done computing electronic band structure. -----\n" << std::endl;
     return std::make_tuple(activeBandStructure, s);
 
   }
@@ -528,6 +530,8 @@ ActiveBandStructure::builder(Context &context, HarmonicHamiltonian &h0,
                                       withEigenvectors, withVelocities);
 
     StatisticsSweep statisticsSweep(context);
+    activeBandStructure.printBandStructureStateInfo(h0.getNumBands()); 
+    if(mpi->mpiHead()) std::cout << "----- Done computing phonon band structure. -----\n" << std::endl;
     return std::make_tuple(activeBandStructure, statisticsSweep);
   }
 }
@@ -1486,4 +1490,3 @@ void ActiveBandStructure::enforceBandNumSymmetry(
   } // end OMP parallel block
   context.setUseSymmetries(useSymmetries);
 }
-

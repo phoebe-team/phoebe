@@ -443,8 +443,9 @@ public:
                                         const bool &withEigenvector = true,
                                         const bool &withVelocities = true);
 
-  /* helper function to enforce that sym eq points have the same number of bands
-  *  during the construction of active band structure */
+  /** helper function to enforce that sym eq points have the same number of bands
+   *  during the construction of active band structure 
+   */
   void enforceBandNumSymmetry(Context& context, const int& numFullBands,
         const std::vector<int>& myFilteredPoints,
         Eigen::MatrixXi& filteredBands,

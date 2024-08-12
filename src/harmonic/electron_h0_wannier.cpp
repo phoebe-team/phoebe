@@ -436,6 +436,7 @@ FullBandStructure ElectronH0Wannier::populate(Points &fullPoints,
       fullBandStructure.setEigenvectors(point, eigVec);
     }
   }
+  fullBandStructure.printBandStructureStateInfo(getNumBands());
   return fullBandStructure;
 }
 

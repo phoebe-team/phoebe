@@ -809,6 +809,13 @@ void Context::setupFromInput(const std::string &fileName) {
 
 void Context::inputSanityCheck() {
 
+  // Other options that should be locked: 
+  // commensurate meshes when phel is utilized 
+
+  if(!jdftxScfOutFile.empty() &&  mpi->getSize(mpi->intraPoolComm) > 1) {
+    Error("JDFTx interface cannot be used with pools!");
+  }
+
   // this shouldn't be used if we're symmetrizing
   if(getSymmetrizeMatrix()) useUpperTriangle = false;
 

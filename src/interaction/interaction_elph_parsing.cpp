@@ -270,7 +270,7 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     mpi->bcast(&numElBravaisVectors, mpi->interPoolComm);
     mpi->bcast(&phaseConvention);
 
-    // phase convention 2 is used by JDFTx, which supports spin
+    // phase convention 1 is used by JDFTx, which supports spin
     if (numSpin == 2 && phaseConvention == 0) {
       Error("Spin is not currently supported when using QE.");
     } else if (numSpin == 2 && phaseConvention == 1) { // this is spin polarized JDFTx
@@ -322,6 +322,10 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
   int numElBravaisVectors = elBravaisVectorsDegeneracies_.size();
   int numPhBravaisVectors = phBravaisVectorsDegeneracies_.size();
   int phaseConvention = std::get<8>(t);
+
+  if(numElBravaisVectors < mpi->getSize() && phaseConvention == 1) {
+    Error("JDFTx input files cannot be used when nMPI processes > numElBravaisVectors = " + std::to_string(numElBravaisVectors));
+  }
 
   Eigen::Tensor<std::complex<double>, 5> couplingWannier_;
 
@@ -554,15 +558,6 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
   } catch (std::exception &error) {
     Error("Issue reading elph Wannier representation from hdf5.");
   }
-
-  //Eigen::array<int, 5> shuffling({1, 0, 2, 4, 3});
-  //couplingWannier_ = couplingWannier_.shuffle(shuffling);
-  //std::cout << std::scientific << std::endl;
-
-  //for(int i = 0; i<numPhBands; i++) {
-  //  std::cout << " coupling wannier " << couplingWannier_(3,7,i,63,1) << std::endl;
-  //}
-  //couplingWannier_.setConstant(1.);
 
   Kokkos::Profiling::popRegion();
 

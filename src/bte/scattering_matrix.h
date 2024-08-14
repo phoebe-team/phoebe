@@ -125,9 +125,9 @@ public:
    */
   void a2Omega();
 
-//  /** The inverse of a2Omega, converts the matrix Omega to A
-//   */
-//  void omega2A();
+  /** The inverse of a2Omega, converts the matrix Omega to A
+   */
+  void omega2A();
 
   /** Diagonalize the scattering matrix
    * @param numEigenvalues: if a number is supplied, calculate

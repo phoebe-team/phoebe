@@ -16,16 +16,6 @@ void PhElLifetimesApp::run(Context &context) {
   auto crystalEl = std::get<0>(t1);
   auto electronH0 = std::get<1>(t1);
 
-  // load the elph coupling
-  // Note: this file contains the number of electrons
-  // which is needed to understand where to place the fermi level
-  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
-
-  // Compute the window filtered phonon band structure ---------------------------
-  if (mpi->mpiHead()) {
-    std::cout << "\nComputing phonon band structure." << std::endl;
-  }
-
   bool withEigenvectors = true;
   bool withVelocities = true;
   Points qPoints(crystal, context.getQMesh());
@@ -33,25 +23,10 @@ void PhElLifetimesApp::run(Context &context) {
   auto phBandStructure = std::get<0>(t3);
   StatisticsSweep statisticsSweep = std::get<1>(t3);
 
-  // print some info about how window and symmetries have reduced things
-  if (mpi->mpiHead()) {
-    if(phBandStructure.hasWindow() != 0) {
-        std::cout << "Window selection reduced phonon band structure from "
-          << qPoints.getNumPoints() * phononH0.getNumBands() << " to "
-          << phBandStructure.getNumStates() << " states."  << std::endl;
-    }
-    if(context.getUseSymmetries()) {
-      std::cout << "Symmetries reduced phonon band structure from "
-          << phBandStructure.getNumStates() << " to "
-          << phBandStructure.irrStateIterator().size() << " states.\n" << std::endl;
-    }
-    std::cout << "Done computing phonon band structure.\n" << std::endl;
-  }
-
   // build/initialize the scattering matrix and the smearing
   PhElScatteringMatrix scatteringMatrix(context, statisticsSweep,
                                         phBandStructure,
-                                        &couplingElPh, &electronH0);
+                                        &phononH0, &electronH0);
   scatteringMatrix.setup();
   scatteringMatrix.outputToJSON("rta_phel_relaxation_times.json");
 

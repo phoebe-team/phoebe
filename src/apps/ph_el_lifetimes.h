@@ -3,7 +3,7 @@
 
 #include "app.h"
 
-/** Main driver for the transport calculation
+/** Main driver for the calculation
  */
 class PhElLifetimesApp: public App {
 public:

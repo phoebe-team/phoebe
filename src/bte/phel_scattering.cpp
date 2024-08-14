@@ -51,12 +51,14 @@ std::vector<std::tuple<int, std::vector<int>>> getPhElIterator(
 void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                       BaseBandStructure& phBandStructure,
                       BaseBandStructure& elBandStructure,
+                      StatisticsSweep& statisticsSweep, 
                       InteractionElPhWan& couplingElPhWan,
                       std::shared_ptr<VectorBTE> linewidth) {
 
-  // throw error if it's not a ph band structure
-  if(!phBandStructure.getParticle().isPhonon()) { 
-    DeveloperError("Cannot calculate phel scattering with an electron BS.");
+  // throw error if it's not a correct band structure
+  if(!phBandStructure.getParticle().isPhonon() 
+                || !elBandStructure.getParticle().isElectron()) { 
+    DeveloperError("Wrong bandstructure passed to phel calculation.");
   }
 
   // throw an error if these meshes are not commensurate. Here, we don't want to 
@@ -70,17 +72,16 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
   Particle elParticle(Particle::electron);
   Particle particle = phBandStructure.getParticle();
-  StatisticsSweep& statisticsSweep = matrix.statisticsSweep; 
   if(!statisticsSweep.getParticle().isElectron()) { 
     DeveloperError("Statistics sweep provided to phel scattering must be electronic one!"); 
   } 
 
-  int numCalculations = matrix.statisticsSweep.getNumCalculations();
+  int numCalculations = statisticsSweep.getNumCalculations();
   //Crystal crystalPh = phBandStructure.getPoints().getCrystal();
 
   Eigen::VectorXd temperatures(numCalculations);
   for (int iCalc=0; iCalc<numCalculations; ++iCalc) {
-    auto calcStat = matrix.statisticsSweep.getCalcStatistics(iCalc);
+    auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
     double temp = calcStat.temperature;
     temperatures(iCalc) = temp;
   }
@@ -441,7 +442,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                     * sinh(0.5 * en3 / temperatures(iCalc)) / 
                     (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
                     * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc))); 
- 
+
+                
+
                 // if it's not a coupled matrix, this will be ibte3
                 // We have to define shifted ibte3, or it will be further
                 // shifted every loop.

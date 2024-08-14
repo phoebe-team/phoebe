@@ -211,7 +211,10 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
 
-    addPhElScattering(*this, context, innerBandStructure, outerBandStructure, couplingElPh, postSymLinewidths);
+    addPhElScattering(*this, context, 
+                      innerBandStructure, outerBandStructure, 
+                      statisticsSweep, 
+                      couplingElPh, postSymLinewidths);
     mpi->barrier();
 
     // all reduce the calculated phel linewidths 

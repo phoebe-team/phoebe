@@ -4,9 +4,12 @@
 #include "io.h"
 #include "mpiHelper.h"
 #include <cmath>
+#include "parser.h"
 #include "general_scattering.h"
 #include "ph_scattering.h"
+#include "phel_scattering.h"
 #include "ifc3_parser.h"
+#include "interaction_elph.h"
 
 PhScatteringMatrix::PhScatteringMatrix(Context &context_,
                                        StatisticsSweep &statisticsSweep_,
@@ -62,11 +65,12 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator =
                                         getIteratorWavevectorPairs(switchCase);
 
+  Crystal crystal = innerBandStructure.getPoints().getCrystal();
+
   // here we call the function to add ph-ph scattering
   {
     // read this in and let it go out of scope afterwards 
-    Interaction3Ph coupling3Ph = 
-        IFC3Parser::parse(context, innerBandStructure.getPoints().getCrystal());
+    Interaction3Ph coupling3Ph = IFC3Parser::parse(context, crystal);
 
     addPhPhScattering(*this, context, inPopulations, outPopulations,
                                     switchCase, qPairIterator,
@@ -87,7 +91,6 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                   linewidth);
   }
 
-
   // Add boundary scattering
   if (!std::isnan(context.getBoundaryLength())) {
     if (context.getBoundaryLength() > 0.) {
@@ -96,17 +99,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
 
-  // TODO add phel scattering
-  //if(!context.getElphFileName().empty()) {
-      // this is a weird case because it requires another band structure object,
-      // which we don't have access to in the regular phonon class here.
-      //
-      // we could make it so that the phononElectron scattering object... which maybe
-      // will also compute the drag terms, does all the creating of the band structure and whatnot that
-      // is currently gumming up phonon_transport_app...
-  //
-
-  // MPI reduce the distributed data now that all the scattering is accounted for
+  // MPI reduce the distributed data 
   if (switchCase == 1) {
     for (auto & outPopulation : outPopulations) {
       mpi->allReduceSum(&outPopulation.data);
@@ -119,8 +112,68 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
 
+  if(!context.getElphFileName().empty()) {
+
+    // output the phph linewidths
+    outputLifetimesToJSON("rta_phph_relaxation_times.json", linewidth);
+
+    // IMPORTANT NOTE: the ph-el scattering does not receive symmetrization because
+    // it doesn't have these factors of n(n+0) in the scattering rates.
+    // Therefore, we should symmetrize here, then add these term afterwards.
+    a2Omega();
+    mpi->barrier(); // need to finish this before adding phel scattering
+
+    // later add these to the linewidths
+    std::shared_ptr<CoupledVectorBTE> phelLinewidths =
+         std::make_shared<CoupledVectorBTE>(statisticsSweep, innerBandStructure, outerBandStructure, 1);
+
+    // load the elph coupling
+    auto couplingElPh = InteractionElPhWan::parse(context, crystal, *phononH0);
+
+    // load electron band structure
+    auto t1 = Parser::parseElHarmonicWannier(context, &crystal);
+    auto crystalEl = std::get<0>(t1);
+    auto electronH0 = std::get<1>(t1);
+    // first we make compute the band structure on the fine grid
+    Points fullPoints(crystal, context.getKMesh());
+
+    auto tup1 = ActiveBandStructure::builder(context, electronH0, fullPoints);
+    auto elBandStructure = std::get<0>(tup1);
+    auto elStatisticsSweep = std::get<1>(tup1);
+
+    // check that the crystal in the elph calculation is the
+    // same as the one in the phph calculation
+    if (crystal.getDirectUnitCell() != crystalEl.getDirectUnitCell()) {
+      Warning("Phonon-electron scattering requested, "
+        "but crystals used for ph-ph and \n"
+        "ph-el scattering are not the same!");
+    }
+
+    // Phel gerates it's k-q pair iterator, as it's only a
+    // linewidth calculation and therefore can be parallelized differently.
+    // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
+    // requires the replacing of the linewidths object into the SMatrix diagonal at the
+    // end of this function
+    addPhElScattering(*this, context, 
+                      innerBandStructure, outerBandStructure,
+                      statisticsSweep,  
+                      couplingElPh, phelLinewidths);
+
+    // all reduce the calculated phel linewidths 
+    mpi->allReduceSum(&phelLinewidths->data);
+
+    // output these phel linewidths
+    outputLifetimesToJSON("rta_phel_relaxation_times.json", phelLinewidths);
+
+    // Add in the phel contribution
+    linewidth->data = linewidth->data + phelLinewidths->data;
+
+    // convert the matrix back to A to carry on as usual
+    omega2A(); 
+
+  }// braces to have elph coupling go out of scope
+
   // Average over degenerate eigenstates.
-  // we turn it off for now and leave the code if needed in the future << what does this mean?
   if (switchCase == 2) {
     degeneracyAveragingLinewidths(linewidth);
     if(outputUNTimes) {

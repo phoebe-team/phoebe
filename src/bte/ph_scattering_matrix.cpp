@@ -12,11 +12,10 @@ PhScatteringMatrix::PhScatteringMatrix(Context &context_,
                                        StatisticsSweep &statisticsSweep_,
                                        BaseBandStructure &innerBandStructure_,
                                        BaseBandStructure &outerBandStructure_,
-                                       Interaction3Ph *coupling3Ph_,
                                        PhononH0 *phononH0_)
     : ScatteringMatrix(context_, statisticsSweep_, innerBandStructure_, outerBandStructure_),
      BasePhScatteringMatrix(context_, statisticsSweep_, innerBandStructure_, outerBandStructure_),
-      coupling3Ph(coupling3Ph_), phononH0(phononH0_) {
+     phononH0(phononH0_) {
 
   if (&innerBandStructure != &outerBandStructure && phononH0 == nullptr) {
     Error("Developer error: PhScatteringMatrix needs phononh0 for incommensurate grids");
@@ -198,6 +197,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
             int iMatj = getSMatrixIndex(iBteIdx, jCart);
             theMatrix(iMati, iMatj) = 0.;
           }
+          // note this is plus equals because it needs to be!
+          // look closely at how the rates are written in Fugallo et al.
           theMatrix(iMati, iMati) += linewidth->operator()(iCalc, 0, iBte);
         }
       }

@@ -66,14 +66,14 @@ protected:
                        BaseBandStructure &innerBandStructure,
                        BaseBandStructure &outerBandStructure,
                        PhononH0 &phononH0,
-                       InteractionElPhWan *couplingElPhWan,
+                       InteractionElPhWan &couplingElPhWan,
                        std::shared_ptr<VectorBTE> linewidth);
 
   friend void addDragTerm(BaseElScatteringMatrix &matrix, Context &context,
                       std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
                       const int& dragTermType,
                       ElectronH0Wannier* electronH0,
-                      InteractionElPhWan *couplingElPhWan,
+                      InteractionElPhWan &couplingElPhWan,
                       BaseBandStructure &innerBandStructure,
                       BaseBandStructure &outerBandStructure, 
                       std::shared_ptr<VectorBTE> linewidth);

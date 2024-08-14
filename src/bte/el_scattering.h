@@ -22,7 +22,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                   BaseBandStructure &innerBandStructure,
                   BaseBandStructure &outerBandStructure,
                   PhononH0 &phononH0,
-                  InteractionElPhWan *couplingElPhWan,
+                  InteractionElPhWan &couplingElPhWan,
                   std::shared_ptr<VectorBTE> linewidth);
 
 void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &context,

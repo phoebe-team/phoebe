@@ -125,17 +125,17 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   std::vector<std::tuple<std::vector<int>, int>> qkPairIterator = allPairIterators[2];
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator = allPairIterators[3];
 
+  // TODO we should let this go out of scope 
   // read in elph coupling 
   InteractionElPhWan couplingElPh = 
-      InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
-
+        InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
 
   // add el-ph scattering ----------------------------------------------
   addElPhScattering(*this, context, inPopulations, outPopulations,
-                                  switchCase, kPairIterator,
-                                  fermiOccupations,
-                                  outerBandStructure, outerBandStructure,
-                                  *phononH0, &couplingElPh, linewidth);
+                          switchCase, kPairIterator,
+                          fermiOccupations,
+                          outerBandStructure, outerBandStructure,
+                          *phononH0, couplingElPh, linewidth);
 
   // add charged impurity electron scattering  ------------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
@@ -144,7 +144,6 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 */
 
   // add ph-ph scattering ----------------------------------------------
-  
  { 
   // read this in and let it go out of scope afterwards 
   Interaction3Ph coupling3Ph = 

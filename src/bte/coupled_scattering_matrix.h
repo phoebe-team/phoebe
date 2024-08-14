@@ -118,7 +118,7 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
                   BaseBandStructure &innerBandStructure,
                   BaseBandStructure &outerBandStructure,
                   PhononH0* phononH0,
-                  Interaction3Ph *coupling3Ph,
+                  Interaction3Ph &coupling3Ph,
                   VectorBTE *linewidth);
 
   friend void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
@@ -145,7 +145,7 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
                   BaseBandStructure &innerBandStructure,
                   BaseBandStructure &outerBandStructure,
                   PhononH0 &phononH0,
-                  InteractionElPhWan *couplingElPhWan,
+                  InteractionElPhWan &couplingElPhWan,
                   VectorBTE *linewidth);
 
   friend void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &context,

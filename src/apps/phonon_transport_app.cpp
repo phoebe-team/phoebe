@@ -43,31 +43,9 @@ void PhononTransportApp::run(Context &context) {
   auto bandStructure = std::get<0>(tup1);
   auto statisticsSweep = std::get<1>(tup1);
 
-  // print some info about state number reduction
-  if (mpi->mpiHead()) {
-    if(bandStructure.hasWindow() != 0) {
-        std::cout << "Window selection reduced phonon band structure from "
-                << fullPoints.getNumPoints() * phononH0.getNumBands() << " to "
-                << bandStructure.getNumStates() << " states."  << std::endl;
-    }
-    if(context.getUseSymmetries()) {
-      std::cout << "Symmetries reduced phonon band structure from "
-          << bandStructure.getNumStates() << " to "
-          << bandStructure.irrStateIterator().size() << " states." << std::endl;
-    }
-    std::cout << "Done computing phonon band structure.\n" << std::endl;
-  }
-
-  // load the 3phonon coupling
-  if (mpi->mpiHead()) {
-    std::cout << "Starting anharmonic scattering calculation." << std::endl;
-  }
-  // this also checks that the crystal is the same one read in for 3ph
-  auto coupling3Ph = IFC3Parser::parse(context, crystal);
-
   // build/initialize the scattering matrix and the smearing
   PhScatteringMatrix scatteringMatrix(context, statisticsSweep, bandStructure,
-                                      bandStructure, &coupling3Ph, &phononH0);
+                                      bandStructure, &phononH0);
   scatteringMatrix.setup();
 
   // if requested in input, load the phononElectron information

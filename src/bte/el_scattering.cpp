@@ -27,7 +27,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                        BaseBandStructure &innerBandStructure,
                        BaseBandStructure &outerBandStructure,
                        PhononH0 &phononH0,
-                       InteractionElPhWan *couplingElPhWan,
+                       InteractionElPhWan &couplingElPhWan,
                        std::shared_ptr<VectorBTE> linewidth) {
 
   StatisticsSweep &statisticsSweep = matrix.statisticsSweep;
@@ -70,9 +70,9 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
     // the 2nd process call calcCouplingSquared 7 times as well.
     if (ik1 == -1) {
       Eigen::Vector3d k1C = Eigen::Vector3d::Zero();
-      int numWannier = couplingElPhWan->getCouplingDimensions()(4);
+      int numWannier = couplingElPhWan.getCouplingDimensions()(4);
       Eigen::MatrixXcd eigenVector1 = Eigen::MatrixXcd::Zero(numWannier, 1);
-      couplingElPhWan->cacheElPh(eigenVector1, k1C);
+      couplingElPhWan.cacheElPh(eigenVector1, k1C);
       // since this is just a dummy call used to help other MPI processes
       // compute the coupling, and not to compute matrix elements, we can skip
       // to the next loop iteration
@@ -85,13 +85,13 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
     Eigen::MatrixXd v1s = outerBandStructure.getGroupVelocities(ik1Idx);
     Eigen::MatrixXcd eigenVector1 = outerBandStructure.getEigenvectors(ik1Idx);
 
-    couplingElPhWan->cacheElPh(eigenVector1, k1C);
+    couplingElPhWan.cacheElPh(eigenVector1, k1C);
 
     pointHelper.prepare(k1C, ik2Indexes);
 
     // prepare batches based on memory usage
     auto nk2 = int(ik2Indexes.size());
-    int numBatches = couplingElPhWan->estimateNumBatches(nk2, nb1);
+    int numBatches = couplingElPhWan.estimateNumBatches(nk2, nb1);
 
     // loop over batches of q1s
     // later we will loop over the q1s inside each batch
@@ -138,14 +138,14 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
       }
       Kokkos::Profiling::popRegion();
 
-      couplingElPhWan->calcCouplingSquared(eigenVector1, allEigenVectors2,
+      couplingElPhWan.calcCouplingSquared(eigenVector1, allEigenVectors2,
                                            allEigenVectors3, allQ3C, k1C, allPolarData);
 
       Kokkos::Profiling::pushRegion("symmetrize coupling");
 #pragma omp parallel for
       for (int ik2Batch = 0; ik2Batch < batch_size; ik2Batch++) {
         matrix.symmetrizeCoupling(
-            couplingElPhWan->getCouplingSquared(ik2Batch),
+            couplingElPhWan.getCouplingSquared(ik2Batch),
             state1Energies, allState2Energies[ik2Batch], allStates3Energies[ik2Batch]
         );
       }
@@ -157,7 +157,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
 
         int ik2 = ik2Indexes[start + ik2Batch];
 
-        Eigen::Tensor<double, 3>& coupling = couplingElPhWan->getCouplingSquared(ik2Batch);
+        Eigen::Tensor<double, 3>& coupling = couplingElPhWan.getCouplingSquared(ik2Batch);
 
         Eigen::Vector3d k2C = allK2C[ik2Batch];
         auto t3 = innerBandStructure.getRotationToIrreducible(k2C, Points::cartesianCoordinates);

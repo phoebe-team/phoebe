@@ -64,9 +64,6 @@ void PhononLifetimesApp::run(Context &context) {
   auto crystal = std::get<0>(t2);
   auto phononH0 = std::get<1>(t2);
 
-  // load the 3phonon coupling
-  auto coupling3Ph = IFC3Parser::parse(context, crystal);
-
   // set k and q point meshes and paths
   Points pathPoints(crystal, context.getPathExtrema(),
                     context.getDeltaPath());
@@ -88,7 +85,7 @@ void PhononLifetimesApp::run(Context &context) {
   // build/initialize the scattering matrix and the smearing
   PhScatteringMatrix scatteringMatrix(context, statisticsSweep,
                                       fullBandStructure, pathBandStructure,
-                                      &coupling3Ph, &phononH0);
+                                      &phononH0);
   scatteringMatrix.setup();
 
   scatteringMatrix.outputToJSON("path_ph_relaxation_times.json");

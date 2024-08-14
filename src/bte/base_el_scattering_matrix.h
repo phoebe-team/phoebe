@@ -16,9 +16,9 @@ class BaseElScatteringMatrix : virtual public ScatteringMatrix {
 
   /** Constructor that just calls the constructor of scattering matrix */
   BaseElScatteringMatrix(Context &context_,
-                                   StatisticsSweep &statisticsSweep_,
-                                   BaseBandStructure &innerBandStructure_,
-                                   BaseBandStructure &outerBandStructure_);
+                        StatisticsSweep &statisticsSweep_,
+                        BaseBandStructure &innerBandStructure_,
+                        BaseBandStructure &outerBandStructure_);
 
  protected:
 
@@ -35,7 +35,7 @@ class BaseElScatteringMatrix : virtual public ScatteringMatrix {
                        BaseBandStructure &innerBandStructure,
                        BaseBandStructure &outerBandStructure,
                        PhononH0 &phononH0,
-                       InteractionElPhWan *couplingElPhWan,
+                       InteractionElPhWan& couplingElPhWan,
                        std::shared_ptr<VectorBTE> linewidth);
 
   friend void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &context,

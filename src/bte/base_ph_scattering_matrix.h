@@ -18,9 +18,9 @@ class BasePhScatteringMatrix : virtual public ScatteringMatrix {
 
   /** Constructor that just calls the constructor of scattering matrix */
   BasePhScatteringMatrix(Context &context_,
-                                   StatisticsSweep &statisticsSweep_,
-                                   BaseBandStructure &innerBandStructure_,
-                                   BaseBandStructure &outerBandStructure_);
+                        StatisticsSweep &statisticsSweep_,
+                        BaseBandStructure &innerBandStructure_,
+                        BaseBandStructure &outerBandStructure_);
 
  protected:
 

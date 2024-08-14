@@ -1,4 +1,4 @@
-einclude "el_scattering_matrix.h"
+#include "el_scattering_matrix.h"
 #include "constants.h"
 #include "helper_el_scattering.h"
 #include "mpiHelper.h"
@@ -78,7 +78,7 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   addElPhScattering(*this, context, inPopulations, outPopulations, switchCase,
                                   kPairIterator, innerFermi, //outerFermi,
                                   innerBandStructure, outerBandStructure, phononH0,
-                                  &couplingElPh, linewidth);
+                                  couplingElPh, linewidth);
   }
   // add charged impurity electron scattering  -------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,

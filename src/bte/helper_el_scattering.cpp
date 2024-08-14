@@ -6,14 +6,15 @@
 #include <iomanip>
 
 HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
-                               BaseBandStructure &outerBandStructure_,
-                               StatisticsSweep &statisticsSweep_,
-                               const int &smearingType_, PhononH0 &h0_, InteractionElPhWan *coupling)
-    : innerBandStructure(innerBandStructure_),
-      outerBandStructure(outerBandStructure_),
-      statisticsSweep(statisticsSweep_),
-      smearingType(smearingType_),
-      h0(h0_), couplingElPhWan(coupling) {
+                                      BaseBandStructure &outerBandStructure_,
+                                      StatisticsSweep &statisticsSweep_,
+                                      const int &smearingType_, PhononH0 &h0_, 
+                                      InteractionElPhWan &coupling)
+                    : innerBandStructure(innerBandStructure_),
+                      outerBandStructure(outerBandStructure_),
+                      statisticsSweep(statisticsSweep_),
+                      smearingType(smearingType_),
+                      h0(h0_), couplingElPhWan(coupling) {
 
   // three conditions must be met to avoid recomputing k3
   // 1 - k1 and k2 mesh must be the same
@@ -179,7 +180,7 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
       WavevectorIndex iq3Index(iq3);
       Eigen::Vector3d q3 = bandStructure3->getWavevector(iq3Index);
       auto ev3 = bandStructure3->getEigenvectors(iq3Index);
-      polarData.col(iiq3) = couplingElPhWan->polarCorrectionPart1(q3, ev3);
+      polarData.col(iiq3) = couplingElPhWan.polarCorrectionPart1(q3, ev3);
     }
 
     // gather results from across the MPI processes
@@ -345,7 +346,7 @@ void HelperElScattering::prepare(const Eigen::Vector3d &k1,
         }
       }
 
-      Eigen::VectorXcd polarData = couplingElPhWan->polarCorrectionPart1(q3, eigenVectors3);
+      Eigen::VectorXcd polarData = couplingElPhWan.polarCorrectionPart1(q3, eigenVectors3);
 
       cacheEnergies[ik2Counter] = energies3;
       cacheEigenVectors[ik2Counter] = eigenVectors3;

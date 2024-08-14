@@ -142,14 +142,12 @@ void BaseBandStructure::printBandStructureStateInfo(const int& fullNumBands) {
     if(getParticle().isElectron()) particleName = "electron";
 
     // should be triggered by initial full bandstructure creation
-    if(hasWindow() == 0 && !useSym) {
-
-      std::cout << "\n----- Computing " << particleName << " band structure. -----" << std::endl;
-
+    if(hasWindow() == 0) {
+ 
       std::cout << "Created " << particleName <<
       " band structure with " << getPoints().getNumPoints() <<
       " wavevector points and \n" << fullNumBands << " bands for a total of "
-      << getPoints().getNumPoints()*fullNumBands << " states." << std::endl;
+      << getPoints().getNumPoints()*fullNumBands << " states." << std::endl; 
     }
     // the next two blocks tell us about how when an ABS is used, state number is reduced
     if(hasWindow() != 0) {

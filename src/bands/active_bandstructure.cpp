@@ -500,6 +500,13 @@ ActiveBandStructure::builder(Context &context, HarmonicHamiltonian &h0,
                              const bool &forceBuildAPP) {
 
   Particle particle = h0.getParticle();
+  if(mpi->mpiHead()) {
+    if(particle.isPhonon()) {
+      std::cout << "\n------- Computing phonon band structure. -------\n" << std::endl;
+    } else {
+      std::cout << "\n------- Computing electron band structure. -------\n" << std::endl;
+    } 
+  }
 
   ActiveBandStructure activeBandStructure(particle, points_);
 
@@ -513,7 +520,8 @@ ActiveBandStructure::builder(Context &context, HarmonicHamiltonian &h0,
         context, points_, h0, withEigenvectors, withVelocities);
 
     activeBandStructure.printBandStructureStateInfo(h0.getNumBands()); 
-    if(mpi->mpiHead()) std::cout << "\n----- Done computing electronic band structure. -----\n" << std::endl;
+    if(mpi->mpiHead()) 
+      std::cout << "\n------- Done computing electron band structure. -------\n" << std::endl;
     return std::make_tuple(activeBandStructure, s);
 
   }
@@ -531,7 +539,8 @@ ActiveBandStructure::builder(Context &context, HarmonicHamiltonian &h0,
 
     StatisticsSweep statisticsSweep(context);
     activeBandStructure.printBandStructureStateInfo(h0.getNumBands()); 
-    if(mpi->mpiHead()) std::cout << "----- Done computing phonon band structure. -----\n" << std::endl;
+    if(mpi->mpiHead()) 
+      std::cout << "\n------- Done computing phonon band structure. -------\n" << std::endl;
     return std::make_tuple(activeBandStructure, statisticsSweep);
   }
 }

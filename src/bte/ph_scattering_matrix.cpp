@@ -21,9 +21,8 @@ PhScatteringMatrix::PhScatteringMatrix(Context &context_,
      phononH0(phononH0_) {
 
   if (&innerBandStructure != &outerBandStructure && phononH0 == nullptr) {
-    Error("Developer error: PhScatteringMatrix needs phononh0 for incommensurate grids");
+    DeveloperError("PhScatteringMatrix needs phononH0 for incommensurate grids");
   }
-
 }
 
 void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
@@ -48,11 +47,11 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
              inPopulations.empty() && outPopulations.empty()) {
     switchCase = 2;
   } else {
-    Error("Developer error: builderPh found a non-supported case");
+    DeveloperError("builderPh found a non-supported case");
   }
 
   if ((linewidth != nullptr) && (linewidth->dimensionality != 1)) {
-    Error("Developer error: The linewidths shouldn't have dimensionality!");
+    DeveloperError("The linewidths shouldn't have dimensionality!");
   }
 
   // add in the different scattering contributions -------------------
@@ -124,29 +123,29 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     mpi->barrier(); // need to finish this before adding phel scattering
 
     // later add these to the linewidths
-    std::shared_ptr<CoupledVectorBTE> phelLinewidths =
-         std::make_shared<CoupledVectorBTE>(statisticsSweep, innerBandStructure, outerBandStructure, 1);
+    std::shared_ptr<VectorBTE> phelLinewidths =
+         std::make_shared<VectorBTE>(statisticsSweep, outerBandStructure, 1);
 
     // load the elph coupling
     auto couplingElPh = InteractionElPhWan::parse(context, crystal, *phononH0);
 
     // load electron band structure
-    auto t1 = Parser::parseElHarmonicWannier(context, &crystal);
-    auto crystalEl = std::get<0>(t1);
-    auto electronH0 = std::get<1>(t1);
+    auto t = Parser::parseElHarmonicWannier(context, &crystal);
+    auto crystalEl = std::get<0>(t);
+    auto electronH0 = std::get<1>(t);
     // first we make compute the band structure on the fine grid
     Points fullPoints(crystal, context.getKMesh());
 
-    auto tup1 = ActiveBandStructure::builder(context, electronH0, fullPoints);
-    auto elBandStructure = std::get<0>(tup1);
-    auto elStatisticsSweep = std::get<1>(tup1);
+    auto tup = ActiveBandStructure::builder(context, electronH0, fullPoints);
+    auto elBandStructure = std::get<0>(tup);
+    auto elStatisticsSweep = std::get<1>(tup);
 
     // check that the crystal in the elph calculation is the
     // same as the one in the phph calculation
     if (crystal.getDirectUnitCell() != crystalEl.getDirectUnitCell()) {
       Warning("Phonon-electron scattering requested, "
-        "but crystals used for ph-ph and \n"
-        "ph-el scattering are not the same!");
+              "but crystals used for ph-ph and \n"
+              "ph-el scattering are not the same!");
     }
 
     // Phel gerates it's k-q pair iterator, as it's only a
@@ -155,8 +154,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
     addPhElScattering(*this, context, 
-                      innerBandStructure, outerBandStructure,
-                      statisticsSweep,  
+                      innerBandStructure, elBandStructure,
+                      elStatisticsSweep,  
                       couplingElPh, phelLinewidths);
 
     // all reduce the calculated phel linewidths 
@@ -166,6 +165,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     outputLifetimesToJSON("rta_phel_relaxation_times.json", phelLinewidths);
 
     // Add in the phel contribution
+    // TODO better to just add the vectorBTE objects? 
     linewidth->data = linewidth->data + phelLinewidths->data;
 
     // convert the matrix back to A to carry on as usual

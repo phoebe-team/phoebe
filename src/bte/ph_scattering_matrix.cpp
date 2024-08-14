@@ -119,7 +119,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // IMPORTANT NOTE: the ph-el scattering does not receive symmetrization because
     // it doesn't have these factors of n(n+0) in the scattering rates.
     // Therefore, we should symmetrize here, then add these term afterwards.
-    a2Omega();
+    // Only needs to be done if matrix is in memory already 
+    if(highMemory) a2Omega();
     mpi->barrier(); // need to finish this before adding phel scattering
 
     // later add these to the linewidths
@@ -169,7 +170,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     linewidth->data = linewidth->data + phelLinewidths->data;
 
     // convert the matrix back to A to carry on as usual
-    omega2A(); 
+    if(highMemory) omega2A(); 
 
   }// braces to have elph coupling go out of scope
 

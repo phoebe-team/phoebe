@@ -109,6 +109,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
   // don't proceed if we use more than one doping concentration --
   // phph scattering only has 1 mu value, therefore the linewidths won't add to it correctly
+  // TODO should this be migrated to the outer function call? 
   int numMu = statisticsSweep.getNumChemicalPotentials();
   if (numMu != 1) {
       Error("Can currenly only add ph-el scattering one doping "
@@ -442,8 +443,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                     * sinh(0.5 * en3 / temperatures(iCalc)) / 
                     (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
                     * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc))); 
-
-                
 
                 // if it's not a coupled matrix, this will be ibte3
                 // We have to define shifted ibte3, or it will be further

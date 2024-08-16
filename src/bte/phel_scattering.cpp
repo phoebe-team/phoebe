@@ -55,6 +55,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                       InteractionElPhWan& couplingElPhWan,
                       std::shared_ptr<VectorBTE> linewidth) {
 
+  if(mpi->mpiHead()) 
+    std::cout << "------------- Phonon-electron scattering -------------\n" << std::endl; 
+
   // throw error if it's not a correct band structure
   if(!phBandStructure.getParticle().isPhonon() 
                 || !elBandStructure.getParticle().isElectron()) { 
@@ -89,10 +92,10 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // note: innerNumFullPoints is the number of points in the full grid
   // may be larger than innerNumPoints, when we use ActiveBandStructure
   // note: in the equations for this rate, because there's an integraton over k,
-  // this rate is actually 1/NK (sometimes written N_eFermi).
+  // this rate is 1/NK (sometimes written N_eFermi).
   double spinFactor = 2.; // nonspin pol = 2
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
-  double norm = spinFactor / double(context.getKMeshPhEl().prod());
+  double norm = spinFactor / double(context.getKMesh().prod());
 
   // if this is a coupled calculation, we need to remove the spin factor and Nk here, it will be reapplied later
   if(context.getAppName().find("coupled") != std::string::npos ) { 
@@ -307,7 +310,8 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
       // Generate couplings for fixed k1, all k2s and all Q3Cs
       couplingElPhWan.calcCouplingSquared(eigenVector1, allEigenVectors2,
-                                          allEigenVectors3, allQ3Cartesian, k1Cartesian, allPolarData);
+                                          allEigenVectors3, allQ3Cartesian, 
+                                          k1Cartesian, allPolarData);
 
       // do postprocessing loop with batch of couplings to calculate the scattering rates
       for (size_t iq3Batch = 0; iq3Batch < batchSize; iq3Batch++) {

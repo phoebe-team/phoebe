@@ -26,6 +26,8 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                                  PhononH0& phononH0,
                                  Interaction3Ph& coupling3Ph,
                                  std::shared_ptr<VectorBTE> linewidth) {
+  if(mpi->mpiHead()) 
+    std::cout << "------------- Phonon-phonon scattering -------------\n" << std::endl; 
 
   // notes: + process is (1+2) -> 3
   //        - processes are (1+3)->2 and (3+2)->1
@@ -62,6 +64,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
 
   Helper3rdState pointHelper(innerBandStructure, outerBandStructure, outerBose,
                              matrix.statisticsSweep, smearing->getType(), phononH0);
+
   LoopPrint loopPrint("computing ph-ph contribution to scattering matrix", "q-point pairs",
                       int(qPairIterator.size()));
 

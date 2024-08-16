@@ -43,7 +43,7 @@ void PhElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
 
   // construct electronic band structure
-  Points fullPoints(getPhBandStructure().getPoints().getCrystal(), context.getKMeshPhEl());
+  Points fullPoints(getPhBandStructure().getPoints().getCrystal(), context.getKMesh());
   auto t3 = ActiveBandStructure::builder(context, *electronH0, fullPoints);
   auto elBandStructure = std::get<0>(t3);
   // TODO this is super dangerous, it will work here but ! 

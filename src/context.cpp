@@ -503,13 +503,6 @@ void Context::setupFromInput(const std::string &fileName) {
         kMesh(2) = vecMesh[2];
       }
 
-      if (parameterName == "kMeshPhEl") {
-        std::vector<int> vecMesh = parseIntList(val);
-        kMeshPhEl(0) = vecMesh[0];
-        kMeshPhEl(1) = vecMesh[1];
-        kMeshPhEl(2) = vecMesh[2];
-      }
-
       if (parameterName == "windowType") {
         windowType = parseString(val);
       }
@@ -1311,8 +1304,6 @@ std::string Context::getAppName() { return appName; }
 
 Eigen::Vector3i Context::getQMesh() { return qMesh; }
 Eigen::Vector3i Context::getKMesh() { return kMesh; }
-Eigen::Vector3i Context::getKMeshPhEl() { return kMeshPhEl; }
-void Context::setKMeshPhEl(Eigen::Vector3i newKMeshPhEl) { kMeshPhEl = newKMeshPhEl; }
 
 std::string Context::getWindowType() { return windowType; }
 void Context::setWindowType(const std::string &x) { windowType = x; }

@@ -29,6 +29,9 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                  std::vector<VectorBTE> &inPopulations,
                                  std::vector<VectorBTE> &outPopulations) {
 
+  if(mpi->mpiHead()) 
+    std::cout << "============== Building phonon scattering matrix ==============\n" << std::endl; 
+
   // 3 cases:
   // theMatrix and linewidth is passed: we compute and store in memory the
   // scattering matrix and the diagonal
@@ -116,8 +119,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // output the phph linewidths
     outputLifetimesToJSON("rta_phph_relaxation_times.json", linewidth);
 
-    // IMPORTANT NOTE: the ph-el scattering does not receive symmetrization because
-    // it doesn't have these factors of n(n+0) in the scattering rates.
+    // IMPORTANT NOTE: the ph-el scattering does not receive symmetrization factor
+    // because it doesn't have these factors of n(n+1) in the scattering rates.
     // Therefore, we should symmetrize here, then add these term afterwards.
     // Only needs to be done if matrix is in memory already 
     if(highMemory) a2Omega();
@@ -134,7 +137,6 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     auto t = Parser::parseElHarmonicWannier(context, &crystal);
     auto crystalEl = std::get<0>(t);
     auto electronH0 = std::get<1>(t);
-    // first we make compute the band structure on the fine grid
     Points fullPoints(crystal, context.getKMesh());
 
     auto tup = ActiveBandStructure::builder(context, electronH0, fullPoints);
@@ -155,8 +157,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
     addPhElScattering(*this, context, 
-                      innerBandStructure, elBandStructure,
-                      elStatisticsSweep,  
+                      innerBandStructure, elBandStructure, elStatisticsSweep,  
                       couplingElPh, phelLinewidths);
 
     // all reduce the calculated phel linewidths 
@@ -168,6 +169,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // Add in the phel contribution
     // TODO better to just add the vectorBTE objects? 
     linewidth->data = linewidth->data + phelLinewidths->data;
+
+    //std::cout << phelLinewidths->data << std::endl;
 
     // convert the matrix back to A to carry on as usual
     if(highMemory) omega2A(); 
@@ -185,6 +188,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // recalculate the phonon linewidths from the off diagonals 
   //a2Omega(); // TODO remove
+  // we should do this if phel is not involved, otherwise it wipes out phel 
   //reinforceLinewidths();
 
   // some phonons like acoustic modes at the gamma, with omega = 0,

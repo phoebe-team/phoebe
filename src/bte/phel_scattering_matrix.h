@@ -31,7 +31,6 @@ public:
    * eigenvectors.
    */
   PhElScatteringMatrix(Context &context_, StatisticsSweep &statisticsSweep_,
-                       //BaseBandStructure &elBandStructure_,
                        BaseBandStructure &phBandStructure_,
                        PhononH0 *phononH0_, 
                        ElectronH0Wannier *electronH0_);

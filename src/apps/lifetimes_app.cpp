@@ -114,7 +114,7 @@ void ElectronLifetimesApp::checkRequirements(Context &context) {
 void PhononLifetimesApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getPhFC2FileName(), "phFC2FileName");
   throwWarningIfUnset(context.getSumRuleFC2(), "sumRuleFC2");
-  throwErrorIfUnset(context.getPhFC3FileName(), "phFC3FileName");
+  //throwErrorIfUnset(context.getPhFC3FileName(), "phFC3FileName");
   throwErrorIfUnset(context.getPathExtrema(), "points path extrema");
   throwErrorIfUnset(context.getQMesh(), "qMesh");
   throwErrorIfUnset(context.getTemperatures(), "temperatures");

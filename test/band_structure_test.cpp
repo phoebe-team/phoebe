@@ -14,6 +14,7 @@ TEST(FullBandStructureTest, BandStructureStorage) {
 
   Context context;
   context.setPhFC2FileName("../test/data/444_silicon.fc");
+  context.setSymmetrizeBandStructure(false);
 
   auto tup = QEParser::parsePhHarmonic(context);
   auto crystal = std::get<0>(tup);
@@ -69,7 +70,7 @@ TEST(FullBandStructureTest, BandStructureStorage) {
 #ifdef KOKKOS_ENABLE_CUDA
     ASSERT_NEAR(std::abs(norm-normT)/norm, 0.0, 1e-7);
 #else
-    ASSERT_NEAR(c1, 0., 1.e-16);
+    ASSERT_NEAR(c1, 0., 1.e-16); // TODO temporarily comment this out, as WignerFix branch will modify it anyway
 #endif
   }
 
@@ -89,7 +90,7 @@ TEST(FullBandStructureTest, BandStructureStorage) {
 #ifdef KOKKOS_ENABLE_CUDA
     ASSERT_NEAR(std::abs(norm-normT)/norm, 0.0, 1e-15);
 #else
-    ASSERT_NEAR(c2, 0., 1.e-16);
+    ASSERT_NEAR(c2, 0., 1.e-16); // TODO temporarily comment this out, as WignerFix branch will modify it anyway 
 #endif
   }
 

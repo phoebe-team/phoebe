@@ -97,6 +97,7 @@ void CoupledCoefficients::calcFromRelaxons(
   int numRelaxons = eigenvalues.size();
   double Nk = context.getKMesh().prod();
   double Nq = context.getQMesh().prod();
+  double phononVelNorm = (spinFactor * Nq/Nk ); 
 
   int iCalc = 0;
   auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
@@ -108,7 +109,8 @@ void CoupledCoefficients::calcFromRelaxons(
 
   // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
-  relaxonEigenvectorsCheck(eigenvectors, numRelaxons, numPhStates, theta0, theta_e);
+  Particle electron = elBandStructure->getParticle();
+  genericRelaxonEigenvectorsCheck(eigenvectors, numRelaxons, electron, theta0, theta_e, alpha0, alpha_e);
 
   // calculate the V components -----------------------------------------------------------
   // Here we have "ph" and "el" components, which are summed only
@@ -169,11 +171,10 @@ void CoupledCoefficients::calcFromRelaxons(
     } else { // phonon states
 
       isIdx = StateIndex(is-numElStates);
-      v = phBandStructure->getGroupVelocity(isIdx);
+      v = phBandStructure->getGroupVelocity(isIdx) * phononVelNorm;
       double energy = phBandStructure->getEnergy(isIdx);
-      if (energy < phEnergyCutoff) { continue; }
 
-      v *= (spinFactor * Nq/Nk );
+      if (energy < phEnergyCutoff) { continue; }
 
       for (auto j : {0, 1, 2}) {
         phV0(gamma, j) += eigenvectors(is,gamma) * v(j) * theta0(is);
@@ -566,70 +567,6 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 
 }
 
-void CoupledCoefficients::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                        int& numRelaxons, int& numPhStates, Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e) {
-
-  Eigen::VectorXd prod0(numRelaxons);
-  Eigen::VectorXd prod_e(numRelaxons);
-  prod0.setZero(); prod_e.setZero();
-  //Eigen::Vector3d vecprodphi1(numRelaxons);
-  //Eigen::Vector3d vecprodphi2(numRelaxons);
-  //Eigen::Vector3d vecprodphi3(numRelaxons);
-
-  // sum over the alpha and v states that this process owns
-  for (auto tup : eigenvectors.getAllLocalStates()) {
-
-    auto is = std::get<0>(tup);
-    auto gamma = std::get<1>(tup);
-
-    prod0(gamma) += eigenvectors(is,gamma) * theta0(is);
-    prod_e(gamma) += eigenvectors(is,gamma) * theta_e(is);
-    //vecprodphi1[gamma] += eigenvectors(is,gamma) * phi(0,is);
-    //vecprodphi2[gamma] += eigenvectors(is,gamma) * phi(1,is);
-    //vecprodphi3[gamma] += eigenvectors(is,gamma) * phi(2,is);
-
-  }
-  // scalar products with vectors
-  mpi->allReduceSum(&prod0); mpi->allReduceSum(&prod_e);
-  //mpi->allReduceSum(&vecprodphi1); mpi->allReduceSum(&vecprodphi2); mpi->allReduceSum(&vecprodphi3);
-
-  // find the element with the maximum product
-  prod0 = prod0.cwiseAbs();
-  prod_e = prod_e.cwiseAbs();
-  Eigen::Index maxCol0, idxAlpha0;
-  Eigen::Index maxCol_e, idxAlpha_e;
-  float maxTheta0 = prod0.maxCoeff(&idxAlpha0, &maxCol0);
-  float maxThetae = prod_e.maxCoeff(&idxAlpha_e, &maxCol_e);
-
-  if(mpi->mpiHead()) {
-    std::cout << std::fixed;
-    std::cout << std::setprecision(4);
-    std::cout << "Maximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
-    std::cout << "First ten products with theta_0:";
-    for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prod0(gamma); }
-    std::cout << "\n\nMaximum scalar product theta_e.theta_alpha = " << maxThetae << " at index " << idxAlpha_e << "." << std::endl;
-    if(numRelaxons - numPhStates >= 10) { // avoid a segfault in an edge case of few el states
-      std::cout << "First ten products with theta_e starting with the numPhStates + 1 indexed eigenvector:";
-      for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prod_e(gamma+numPhStates); }
-    }
-    std::cout << std::endl;
-  }
-
-  // save these indices to the class objects
-  // if they weren't really found, we leave these indices
-  // as -1 so that no relaxons are skipped
-  if(maxTheta0 >= 0.50) {
-    if(mpi->mpiHead()) std::cout << "Identified energy eigenvector, it will be discarded from viscosity." << std::endl;
-    alpha0 = idxAlpha0;
-  }
-  if(maxThetae >= 0.45) {
-    if(mpi->mpiHead()) std::cout << "Identified charge eigenvector, it will be discarded from viscosity." << std::endl;
-    alpha_e = idxAlpha_e;
-  } 
-
-
-}
-
 // calculate special eigenvectors
 void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSweep,
                                                 BaseBandStructure* phBandStructure,
@@ -717,6 +654,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
 
   // spin degen vector
   double spinNorm = sqrt(spinFactor/(volume*Nk));
+  double phNormFactor = (Nk/(spinFactor*Nq)); 
 
   for(int is = 0; is < numStates; is++) {
 
@@ -761,15 +699,14 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
         A(i) += q(i) * q(i) * sqrtPopTerm * sqrtPopTerm;
         phi(i, is) = sqrtPopTerm * q(i); 
       }
-      theta0(is) = (Nk/(spinFactor*Nq)) * sqrtPopTerm * energy; 
+      theta0(is) = phNormFactor * sqrtPopTerm * energy; 
     }
   }
   
   // add the normalization prefactor to U
   U *= spinFactor / (volume * Nk * kBT);
   G *= spinFactor / (volume * Nk * kBT);
-  A *= 1. / (volume * Nq * kBT);
-  A *= (Nk / (spinFactor * Nq)); 
+  A *= phNormFactor / (volume * Nq * kBT);
 
   // apply the normalization to theta_e
   theta_e *= spinNorm * (1./sqrt(kBT * U));

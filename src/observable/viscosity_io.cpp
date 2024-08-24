@@ -10,7 +10,7 @@ void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
                                     int& numRelaxons, Particle& particle,
                                     Eigen::VectorXd& theta0,
                                     Eigen::VectorXd& theta_e,
-                                    int& alpha0, int& alpha_e) {
+                                    int& alpha0, int& alpha_e, bool print) {
 
   // calculate the overlaps with special eigenvectors
   Eigen::VectorXd prodTheta0(numRelaxons); prodTheta0.setZero();
@@ -34,20 +34,23 @@ void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
   float maxTheta0 = prodTheta0.maxCoeff(&idxAlpha0, &maxCol0);
   float maxThetae = prodThetae.maxCoeff(&idxAlpha_e, &maxCol_e);
 
-  if(mpi->mpiHead()) {
+  if(mpi->mpiHead() && print) {
+    // avoid a segfault in an edge case of few el states
+    int maxPrint = 10; 
+    if(numRelaxons < 10) { maxPrint = numRelaxons; } 
+
     std::cout << std::fixed;
     std::cout << std::setprecision(4);
     std::cout << "Maximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
     std::cout << "First ten products with theta_0:";
-    for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodTheta0(gamma); }
+    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prodTheta0(gamma); }
     if(particle.isElectron()) {
       std::cout << "\n\nMaximum scalar product theta_e.theta_alpha = " << maxThetae << " at index " << idxAlpha_e << "." << std::endl;
       std::cout << "First ten products with theta_e:";
-      for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodThetae(gamma); }
+      for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prodThetae(gamma); }
     }
     std::cout << "\n" << std::endl;
     //std::cout << "Eigenvector norm check: " << theta0.dot(theta0) << " " << theta_e.dot(theta_e);
-
   }
 
   // save these indices to the class objects
@@ -57,6 +60,75 @@ void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
   if(maxThetae >= 0.75) alpha_e = idxAlpha_e;
 
 }
+
+/*
+std::tuple<int,int> relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
+                              int& numRelaxons, Particle& particle, 
+                              Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e) {
+
+  Eigen::VectorXd prod0(numRelaxons);
+  Eigen::VectorXd prod_e(numRelaxons);
+  prod0.setZero(); prod_e.setZero();
+  //Eigen::Vector3d vecprodphi1(numRelaxons);
+  //Eigen::Vector3d vecprodphi2(numRelaxons);
+  //Eigen::Vector3d vecprodphi3(numRelaxons);
+
+  // sum over the alpha and v states that this process owns
+  for (auto tup : eigenvectors.getAllLocalStates()) {
+
+    auto is = std::get<0>(tup);
+    auto gamma = std::get<1>(tup);
+
+    prod0(gamma) += eigenvectors(is,gamma) * theta0(is);
+    prod_e(gamma) += eigenvectors(is,gamma) * theta_e(is);
+    //vecprodphi1[gamma] += eigenvectors(is,gamma) * phi(0,is);
+    //vecprodphi2[gamma] += eigenvectors(is,gamma) * phi(1,is);
+    //vecprodphi3[gamma] += eigenvectors(is,gamma) * phi(2,is);
+
+  }
+  // scalar products with vectors
+  mpi->allReduceSum(&prod0); mpi->allReduceSum(&prod_e);
+  //mpi->allReduceSum(&vecprodphi1); mpi->allReduceSum(&vecprodphi2); mpi->allReduceSum(&vecprodphi3);
+
+  // find the element with the maximum product
+  prod0 = prod0.cwiseAbs();
+  prod_e = prod_e.cwiseAbs();
+  Eigen::Index maxCol0, idxAlpha0;
+  Eigen::Index maxCol_e, idxAlpha_e;
+  float maxTheta0 = prod0.maxCoeff(&idxAlpha0, &maxCol0);
+  float maxThetae = prod_e.maxCoeff(&idxAlpha_e, &maxCol_e);
+
+  if(mpi->mpiHead()) {
+
+    // avoid a segfault in an edge case of few el states
+    int maxPrint = 10; 
+    if(numRelaxons < 10) { maxPrint = numRelaxons; } 
+
+    std::cout << std::fixed;
+    std::cout << std::setprecision(4);
+    std::cout << "Maximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
+    std::cout << "First ten scalar products with theta_0:";
+    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prod0(gamma); }
+    std::cout << "\n\nMaximum scalar product theta_e.theta_alpha = " << maxThetae << " at index " << idxAlpha_e << "." << std::endl;
+    std::cout << "First ten scalar products with theta_e:";
+    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prod_e(gamma); }
+    std::cout << std::endl;
+  }
+
+  // save these indices to the class objects
+  // if they weren't really found, we leave these indices
+  // as -1 so that no relaxons are skipped
+  int alpha0, alpha_e; 
+  if(maxTheta0 >= 0.75) {
+    if(mpi->mpiHead()) std::cout << "Identified energy eigenvector, it will be discarded from viscosity." << std::endl;
+    alpha0 = idxAlpha0;
+  }
+  if(maxThetae >= 0.75) {
+    if(mpi->mpiHead()) std::cout << "Identified charge eigenvector, it will be discarded from viscosity." << std::endl;
+    alpha_e = idxAlpha_e;
+  } 
+  return std::make_tuple(alpha0,alpha_e);
+}*/
 
 // calculate special eigenvectors
 void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,

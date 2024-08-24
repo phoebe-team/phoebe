@@ -56,7 +56,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                       std::shared_ptr<VectorBTE> linewidth) {
 
   if(mpi->mpiHead()) 
-    std::cout << "------------- Phonon-electron scattering -------------\n" << std::endl; 
+    std::cout << "\n------------- Phonon-electron scattering -------------\n" << std::endl; 
 
   // throw error if it's not a correct band structure
   if(!phBandStructure.getParticle().isPhonon() 
@@ -99,7 +99,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
   // if this is a coupled calculation, we need to remove the spin factor and Nk here, it will be reapplied later
   if(context.getAppName().find("coupled") != std::string::npos ) { 
-    if(mpi->mpiHead()) std::cout <<  "spin factor " << spinFactor << std::endl;
     norm = 1. / double(context.getQMesh().prod()); 
   }
 
@@ -107,7 +106,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // to match up with the drag terms and also with the electron quadrant
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, elBandStructure);
   if (smearing->getType() == DeltaFunction::tetrahedron) {
-    Error("Developer error: Tetrahedron smearing for transport untested and thus blocked");
+    DeveloperError("Tetrahedron smearing for transport untested and thus blocked");
   }
 
   // don't proceed if we use more than one doping concentration --

@@ -48,12 +48,13 @@
    * @param thetae: charge conservation eigenvector
    * @param alpha0: eigenvalue index of theta0 eigenvector
    * @param alphae: eigenvalue index of thetae eigenvector
+   * @param print: optional argument to tell if we should print information 
    */
   void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
                                 int& numRelaxons, Particle& particle,
                                 Eigen::VectorXd& theta0,
                                 Eigen::VectorXd& theta_e,
-                                int& alpha0, int& alpha_e);
+                                int& alpha0, int& alpha_e, bool print = true); 
 
   /** Helper function to pre-calculate the special eigenvectors theta0,
    * theta_e, phi as well as A, C

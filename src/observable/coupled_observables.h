@@ -18,7 +18,7 @@ public:
                                        Crystal &crystal_,
                                        Context &context_);
 
-  /** Prints to screen the thermal conductivity at various temperatures
+  /** Prints to screen the transport properties at various temperatures
    * in a a nicely formatted way.
    */
   virtual void print();
@@ -42,9 +42,9 @@ public:
                       Eigen::VectorXd& eigenvalues,
                       ParallelMatrix<double>& eigenvectors);
 
-  void relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                        int& numRelaxons, int& numPhStates,
-                        Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e);
+  //void relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
+  //                      int& numRelaxons, int& numPhStates,
+  //                      Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e);
 
   /** Calculate Du(i,j) and output it to JSON for real space solvers
   * @param coupledScatteringMatrix: the scattering matrix, before diagonalization

@@ -1905,7 +1905,7 @@ void ScatteringMatrix::reinforceLinewidths() {
     }
 
     std::cout << "compare ph linewidths, new vs. old " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl;
-    for (int i = numElStates; i<numStates; i++) {
+    for (int i = numElStates; i<numElStates+50; i++) {
       // zero out anything below 1e-12 so this is easier to read
       double x = newLinewidths(0,i);
       double y = internalDiagonal->data(0,i);

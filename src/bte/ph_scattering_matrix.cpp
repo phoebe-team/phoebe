@@ -70,7 +70,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   Crystal crystal = innerBandStructure.getPoints().getCrystal();
 
   // here we call the function to add ph-ph scattering
-  {
+  if(!context.getPhFC3FileName().empty()) {
     // read this in and let it go out of scope afterwards 
     Interaction3Ph coupling3Ph = IFC3Parser::parse(context, crystal);
 

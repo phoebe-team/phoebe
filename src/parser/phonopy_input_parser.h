@@ -18,4 +18,13 @@ public:
   static std::tuple<Crystal, PhononH0> parsePhHarmonic(Context &context);
 };
 
+// parsing helper functions for phonopy
+void parseBornEffectiveCharges(Context& context, Eigen::Matrix3d& dielectricMatrix, 
+                               Eigen::Tensor<double, 3>& bornCharges, 
+                               std::vector<std::string>& speciesNames); 
+
+Crystal parsePhonopyYaml(Context& context, Eigen::Vector3i& qCoarseGrid, 
+                                           Eigen::MatrixXd& cellPositions2); 
+
+
 #endif

@@ -22,13 +22,13 @@ class PhononH0 : public HarmonicHamiltonian {
  public:
   /** Constructor, which stores all input data.
    * @param crystal: the object with the information on the crystal structure
-   * @param dielectricMatrix: 3x3 matrix with the dielectric matrix
-   * @param bornCharges: real tensor of size (numAtoms,3,3) with the Born
-   * effective charges
    * @param forceConstants: a tensor of doubles with the force constants
    * size is (iR, 3, 3, numAtoms, numAtoms)
+   * @param qCoarseGrid: the supercell/coarse qmesh of this calculation as a 3vector
+   * @param bravaisVectors: the R vectors used in the harmonic phonon real space representation
+   * @param weights: the R vector weights used in the Fourier transform to recip space
    */
-  PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
+  PhononH0(Crystal &crystal, 
            Eigen::Tensor<double, 5> &forceConstants_,
            Eigen::Vector3i& qCoarseGrid,
            const Eigen::MatrixXd& bravaisVectors_,

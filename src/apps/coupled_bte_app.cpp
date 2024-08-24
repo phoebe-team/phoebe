@@ -36,6 +36,9 @@ void CoupledTransportApp::run(Context &context) {
   auto crystal = std::get<0>(tup);
   auto phononH0 = std::get<1>(tup);
 
+  // in the JDFTx case this crystal object is not used. 
+  // In QE, it sets the crystal to the phonon one because 
+  // Wannier90 does not write the crysal structure to file
   auto t1 = Parser::parseElHarmonicWannier(context, &crystal);
   auto crystalEl = std::get<0>(t1);
   auto electronH0 = std::get<1>(t1);
@@ -88,12 +91,13 @@ void CoupledTransportApp::run(Context &context) {
     if (s.compare("relaxons") == 0) {    doRelaxons = true; }
   }
 
+  // TODO these should all be moved to some input sanity checking code 
   // here we do validation of the input, to check for consistency
   if (doRelaxons && !context.getScatteringMatrixInMemory()) {
-    Error("Relaxons require matrix kept in memory");
+    Error("Relaxons require matrix kept in memory.");
   }
   if (doRelaxons && context.getUseSymmetries()) {
-    Error("Relaxon solver only works without symmetries");
+    Error("Relaxon solver only works without symmetries.");
     // Note: this is a problem of the theory I suppose
     // because the scattering matrix may not be anymore symmetric
     // or may require some modifications to make it work
@@ -101,7 +105,7 @@ void CoupledTransportApp::run(Context &context) {
   }
   if (context.getScatteringMatrixInMemory() && elStatisticsSweep.getNumCalculations() != 1) {
     Error("If scattering matrix is kept in memory, only one "
-          "temperature/chemical potential is allowed in a run");
+          "temperature/chemical potential is allowed in a run.");
   }
 
   //scatteringMatrix.outputToHDF5("coupledMatrix.hdf5");

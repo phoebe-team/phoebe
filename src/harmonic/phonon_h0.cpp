@@ -14,8 +14,7 @@
 #include <highfive/H5Easy.hpp>
 #endif
 
-
-PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
+PhononH0::PhononH0(Crystal &crystal,
                    Eigen::Tensor<double, 5> &forceConstants_,
                    Eigen::Vector3i& qCoarseGrid_,
                    const Eigen::MatrixXd& bravaisVectors_, const Eigen::VectorXd& weights_)
@@ -31,7 +30,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
   atomicSpecies = crystal.getAtomicSpecies();
   speciesMasses = crystal.getSpeciesMasses();
   atomicPositions = crystal.getAtomicPositions();
-  dielectricMatrix = dielectricMatrix_;
+  dielectricMatrix = crystal.getDielectricMatrix();
   bornCharges = crystal.getBornEffectiveCharges();
 
   if (dielectricMatrix.sum() > 0.) {
@@ -246,7 +245,7 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
 
 // copy constructor
 PhononH0::PhononH0(const PhononH0 &that)
-    : crystal(that.crystal), particle(that.particle), hasDielectric(that.hasDielectric),
+    : particle(that.particle), crystal(that.crystal), hasDielectric(that.hasDielectric),
       numAtoms(that.numAtoms), numBands(that.numBands),
       volumeUnitCell(that.volumeUnitCell), atomicSpecies(that.atomicSpecies),
       speciesMasses(that.speciesMasses), atomicPositions(that.atomicPositions),

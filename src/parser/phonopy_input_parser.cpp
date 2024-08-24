@@ -27,7 +27,7 @@ int findRIndex(Eigen::MatrixXd &cellPositions2, Eigen::Vector3d &position2) {
     }
   }
   if (ir2 == -1) {
-    Error("Developer error: force constant R vector index not found in R vector list.");
+    DeveloperError("Force constant R vector index not found in R vector list.");
   }
   return ir2;
 }
@@ -40,6 +40,264 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
   if (mpi->mpiHead()) {
     std::cout << "Using harmonic force constants from phonopy." << std::endl;
   }
+
+  // values to be set when parsing yaml file
+  // not possible to set up crystal internally because 
+  // we would need born chargest to do this 
+  Eigen::Vector3i qCoarseGrid = {0,0,0};
+  Eigen::MatrixXd cellPositions2;
+
+  Crystal crystal = parsePhonopyYaml(context, qCoarseGrid, cellPositions2); 
+  // have to be careful with this, as phonopy expects
+  // the direct unit cell to be the transpose of the phoebe convention
+  Eigen::Matrix3d directUnitCell = crystal.getDirectUnitCell().transpose();
+  int numAtoms = crystal.getNumAtoms();
+
+  // Parse the fc2.hdf5 file and read in the dynamical matrix
+  // ==========================================================
+#ifndef HDF5_AVAIL
+  Error(
+      "Phono3py HDF5 output cannot be read if Phoebe is not built with HDF5.");
+#else
+
+  // set up buffer to read entire matrix
+  // have to use this because the phono3py data is shaped as a
+  // 4 dimensional array, and eigen tensor is not supported by highFive
+  std::vector<std::vector<std::vector<std::vector<double>>>> ifc2;
+  std::vector<int> cellMap;
+  HighFive::FixedLenStringArray<14> unitVec;
+  std::string unit;
+
+  std::string fileName = context.getPhFC2FileName();
+  if (fileName.empty()) {
+    Error("Phonopy required file phFC2FileName (fc2.hdf5) file not "
+          "specified in input file.");
+  }
+  if (mpi->mpiHead())
+    std::cout << "Reading in " + fileName + "." << std::endl;
+
+  try {
+    // Open the hdf5 file
+    HighFive::File file(fileName, HighFive::File::ReadOnly);
+
+    // Set up hdf5 datasets
+    HighFive::DataSet difc2 = file.getDataSet("/force_constants");
+    HighFive::DataSet dCellMap = file.getDataSet("/p2s_map");
+    // read in the ifc2 data
+    difc2.read(ifc2);
+    dCellMap.read(cellMap);
+
+    // check that cell map matches number of atoms
+    if(int(cellMap.size()) != numAtoms) {
+      Error("Developer error: p2s_map from phono3py does not match numAtoms."
+                "\nyaml file and HDF5 file are somehow mismatched.");
+    }
+
+    // unfortunately it appears this is not in some fc files...
+    // default to ev/Ang^2
+    try {
+      HighFive::DataSet dConversion = file.getDataSet("/physical_unit");
+      dConversion.read(unitVec);
+      unit = unitVec[0];
+    } catch (std::exception &error) {
+      if(mpi->mpiHead()) {
+        std::cout << "\nPhonopy fc file did not include units. "
+         << "\nThis is likely ok, defaulting to eV/angstrom^2."
+         << "\nHowever, you should check to be sure the magnitude of your"
+         << " phonon frequencies is sensible.\n" << std::endl;
+      }
+      unit = "eV/angstrom^2";
+    }
+
+  } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
+    Error("Issue reading fc2.hdf5 file. Make sure it exists at " + fileName +
+          "\n and is not open by some other persisting processes.");
+  }
+
+  Eigen::Tensor<double, 7> forceConstants(3, 3, qCoarseGrid[0], qCoarseGrid[1],
+                                          qCoarseGrid[2], numAtoms, numAtoms);
+
+  // if the force constants are compact format, the first two
+  // dimensions will not be the same (one will be nprimAtoms, other nsupAtoms)
+  bool compact = false;
+  if(ifc2.size() != ifc2[0].size()) compact = true;
+
+  // phonopy force constants are in ev/ang^2, convert to atomic
+  double conversion = 1;
+  if(unit.find("eV/ang") != std::string::npos) {
+    conversion = pow(distanceBohrToAng, 2) / energyRyToEv;
+  }
+
+  // for the second atom, we must loop over all possible
+  // cells in the superCell containing copies of these
+  // unit cell atoms
+  for (int r3 = 0; r3 < qCoarseGrid[2]; r3++) {
+    for (int r2 = 0; r2 < qCoarseGrid[1]; r2++) {
+      for (int r1 = 0; r1 < qCoarseGrid[0]; r1++) {
+
+        // NOTE we do this because phonopy has an
+        // "old" and "new" format for superCell files,
+        // and there's not an eay way for us to tell which
+        // one a user might have loaded in. Therefore,
+        // we can't intelligently guess the ordering of
+        // atoms in the superCell, and instead use R
+        // to find their index.
+
+        // build the R vector associated with this
+        // cell in the superCell
+        Eigen::Vector3d R;
+        R = r1 * directUnitCell.row(0) + 
+            r2 * directUnitCell.row(1) +
+            r3 * directUnitCell.row(2);
+
+        // use the find cell function to determine
+        // the index of this cell in the list of
+        // R vectors (named cellPositions from above)
+        int ir = findRIndex(cellPositions2, R);
+
+        // loop over the first atoms. Because we consider R1=0,
+        // these are only primitive unit cell atoms.
+        for (int iat = 0; iat < numAtoms; iat++) {
+          for (int jat = 0; jat < numAtoms; jat++) {
+
+            // Need to convert to superCell indices.
+            // Atoms in superCell are ordered so that there is a
+            // unit cell atom followed by numUnitCell-in-superCell-#-of-atoms,
+            // which are representations of the unit cell atom in other cells
+            // we find this by using cellMap to tell us where the
+            // first atom of this type is, then adding ir, which tells us
+            // which cell it's in.
+            //
+            int isAt, jsAt;
+            if(!compact) {
+              // We must put an offset of iR onto the first index, because
+              // the format in phono3py is D(R',R=0)
+              isAt = cellMap[iat] + ir;
+              jsAt = cellMap[jat];
+            }
+            else {
+              // if compact, now it appears notation is D(R=0,R')
+              jsAt = cellMap[iat] + ir;
+              isAt = jat;
+            }
+            // loop over cartesian directions
+            for (int ic : {0, 1, 2}) {
+              for (int jc : {0, 1, 2}) {
+
+                // here, cellMap tells us the position of this
+                // unit cell atom in the superCell of phonopy
+                forceConstants(ic, jc, r1, r2, r3, iat, jat) =
+                    ifc2[isAt][jsAt][ic][jc] * conversion;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (mpi->mpiHead()) {
+    std::cout << "Successfully parsed harmonic phonopy files.\n" << std::endl;
+  }
+
+  // apply the appropriate ASR to the force constants 
+  setAcousticSumRule(context.getSumRuleFC2(), crystal, qCoarseGrid, forceConstants);
+
+  // from phonopy we don't have the cell weights, so here we generate the 
+  // R vectors and weights, and then reorder the force constants to match them 
+  auto tup = reorderHarmonicForceConstants(crystal, forceConstants, qCoarseGrid);
+  Eigen::Tensor<double,5> matFC2 = std::get<0>(tup);
+  Eigen::MatrixXd bravaisVectors = std::get<1>(tup);
+  Eigen::VectorXd weights = std::get<2>(tup);
+
+  PhononH0 dynamicalMatrix(crystal, matFC2, qCoarseGrid, bravaisVectors, weights);
+
+  Kokkos::Profiling::popRegion();
+  return std::make_tuple(crystal, dynamicalMatrix);
+#endif
+}
+
+void parseBornEffectiveCharges(Context& context, Eigen::Matrix3d& dielectricMatrix, 
+                               Eigen::Tensor<double, 3>& bornCharges, 
+                               std::vector<std::string>& speciesNames) { 
+
+  // the below code will parse the BORN file
+  std::string fileName = context.getPhonopyBORNFileName();
+  std::ifstream infile(fileName);
+  std::string line;
+
+  // skip reading in born charges if file name is not set
+  if (!fileName.empty()) {
+
+    infile.clear();
+    infile.open(fileName);
+
+    if (!infile.is_open()) {
+      Error("BORN file " + fileName + " cannot be read.");
+    }
+    if(mpi->mpiHead()) {
+      std::cout << "\nReading in the phonopy BORN file." << std::endl;
+    }
+
+    // in current versions of phonopy, the first line either contains the
+    // unit conversion or the "default conversion". In old versions, it was a
+    // comment containing atom info.
+    // we're ignoring this for now, as these conversions do not appear right for us.
+    // in fact, BECs are almost always in units of e, so that had better be what the
+    // user uses. For now, we read this line to skip it
+    getline(infile,line);
+
+    bool readDielectric = false;
+    int iat = 0;
+    while (getline(infile,line)) {
+
+      // make sure it's not a comment
+      if(line.find("#") != std::string::npos) continue;
+      // make sure it's not blank
+      if(line.find_first_not_of(' ') == std::string::npos) continue;
+
+      // the first non-comment line in the file is the dielectric matrix
+      if(!readDielectric) {
+        std::istringstream iss2(line);
+        iss2 >> dielectricMatrix(0,0) >> dielectricMatrix(0,1) >>
+          dielectricMatrix(0,2) >> dielectricMatrix(1,0) >> dielectricMatrix(1,1) >>
+          dielectricMatrix(1,2) >> dielectricMatrix(2,0) >> dielectricMatrix(2,1) >>
+          dielectricMatrix(2,2);
+        readDielectric = true;
+      }
+      else {  // parse the born charges in the rest of the file
+        std::vector<std::string> tok = tokenize(line);
+         for(int i = 0; i < 3; i++) {
+           for(int j = 0; j < 3; j++) {
+              bornCharges(iat,i,j) = std::stod(tok[i*3 + j]);
+           }
+         }
+        iat++;
+      }
+    }
+    // print the charge matrices
+    if(mpi->mpiHead()) {
+
+      std::cout << "Dielectric matrix read as:" << std::endl;
+      std::cout << dielectricMatrix << '\n' << std::endl;
+      std::cout << "Born effective charges read as:" << std::endl;
+     for (int idx = 0; idx < iat; idx++) {
+        std::cout << speciesNames[idx] << " ";
+        for(int i = 0; i < 3; i++) {
+          for(int j = 0; j < 3; j++) {
+            std::cout << bornCharges(idx,i,j) << " ";
+          }
+        }
+        std::cout << std::endl;
+      }
+      std::cout << std::endl;
+    }
+  }
+}
+
+Crystal parsePhonopyYaml(Context& context, Eigen::Vector3i& qCoarseGrid, 
+                                           Eigen::MatrixXd& cellPositions2) { 
 
   double distanceConversion = 1. / distanceBohrToAng;
 
@@ -60,8 +318,7 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
   }
   if (not infile.is_open()) {
     Error("Phonopy required file phonopyDispFileName (phono3py_disp.yaml) "
-          "not found at " +
-          fileName);
+          "not found at " + fileName);
   }
   if (mpi->mpiHead())
     std::cout << "Reading in " + fileName + "." << std::endl;
@@ -71,7 +328,6 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
   // tllPositions2 the below data storage, and decide how we should look
   // for supercell information.
   // --------------------------------------------------------
-  Eigen::Vector3i qCoarseGrid = {0,0,0};
   std::string supercellSearchString = "supercell:";
   while (std::getline(infile, line)) {
 
@@ -320,7 +576,7 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
   // the distances from the unit cell to a superCell
   // nCells here is the number of unit cell copies in the superCell
   int nCells = qCoarseGrid.prod();
-  Eigen::MatrixXd cellPositions2(3, nCells);
+  cellPositions2.resize(3, nCells);
   cellPositions2.setZero();
   for (int iCell = 0; iCell < nCells; iCell++) {
     // find the non-WS cell R2 vectors which are
@@ -332,227 +588,12 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
   // ============================================================
   // the BORN file contains the dielectric matrix on the first line,
   // and the BECs of unique atoms on the following lines
-  Eigen::Matrix3d dielectricMatrix;
-  dielectricMatrix.setZero();
+  Eigen::Matrix3d dielectricMatrix = Eigen::Matrix3d::Zero();
   Eigen::Tensor<double, 3> bornCharges(numAtoms, 3, 3);
   bornCharges.setZero();
 
-  // the below code will parse the BORN file
-  fileName = context.getPhonopyBORNFileName();
-  // skip reading in born charges if file name is not set
-  if (!fileName.empty()) {
-
-    infile.clear();
-    infile.open(fileName);
-
-    if (!infile.is_open()) {
-      Error("BORN file " + fileName + " cannot be read.");
-    }
-    if(mpi->mpiHead()) {
-      std::cout << "\nReading in the phonopy BORN file." << std::endl;
-    }
-
-    // in current versions of phonopy, the first line either contains the
-    // unit conversion or the "default conversion". In old versions, it was a
-    // comment containing atom info.
-    // we're ignoring this for now, as these conversions do not appear right for us.
-    // in fact, BECs are almost always in units of e, so that had better be what the
-    // user uses. For now, we read this line to skip it
-    getline(infile,line);
-
-    bool readDielectric = false;
-    int iat = 0;
-    while (getline(infile,line)) {
-
-      // make sure it's not a comment
-      if(line.find("#") != std::string::npos) continue;
-      // make sure it's not blank
-      if(line.find_first_not_of(' ') == std::string::npos) continue;
-
-      // the first non-comment line in the file is the dielectric matrix
-      if(!readDielectric) {
-        std::istringstream iss2(line);
-        iss2 >> dielectricMatrix(0,0) >> dielectricMatrix(0,1) >>
-          dielectricMatrix(0,2) >> dielectricMatrix(1,0) >> dielectricMatrix(1,1) >>
-          dielectricMatrix(1,2) >> dielectricMatrix(2,0) >> dielectricMatrix(2,1) >>
-          dielectricMatrix(2,2);
-        readDielectric = true;
-      }
-      else {  // parse the born charges in the rest of the file
-        std::vector<std::string> tok = tokenize(line);
-         for(int i = 0; i < 3; i++) {
-           for(int j = 0; j < 3; j++) {
-              bornCharges(iat,i,j) = std::stod(tok[i*3 + j]);
-           }
-         }
-        iat++;
-      }
-    }
-    // print the charge matrices
-    if(mpi->mpiHead()) {
-
-      std::cout << "Dielectric matrix read as:" << std::endl;
-      std::cout << dielectricMatrix << '\n' << std::endl;
-      std::cout << "Born effective charges read as:" << std::endl;
-      for (int idx = 0; idx < iat; idx++) {
-        std::cout << speciesNames[idx] << " ";
-        for(int i = 0; i < 3; i++) {
-          for(int j = 0; j < 3; j++) {
-            std::cout << bornCharges(idx,i,j) << " ";
-          }
-        }
-        std::cout << std::endl;
-      }
-      std::cout << std::endl;
-    }
-  }
-
-// Parse the fc2.hdf5 file and read in the dynamical matrix
-// ==========================================================
-#ifndef HDF5_AVAIL
-  Error(
-      "Phono3py HDF5 output cannot be read if Phoebe is not built with HDF5.");
-#else
-
-  // set up buffer to read entire matrix
-  // have to use this because the phono3py data is shaped as a
-  // 4 dimensional array, and eigen tensor is not supported by highFive
-  std::vector<std::vector<std::vector<std::vector<double>>>> ifc2;
-  std::vector<int> cellMap;
-  HighFive::FixedLenStringArray<14> unitVec;
-  std::string unit;
-
-  fileName = context.getPhFC2FileName();
-  if (fileName.empty()) {
-    Error("Phonopy required file phFC2FileName (fc2.hdf5) file not "
-          "specified in input file.");
-  }
-  if (mpi->mpiHead())
-    std::cout << "Reading in " + fileName + "." << std::endl;
-
-  try {
-    // Open the hdf5 file
-    HighFive::File file(fileName, HighFive::File::ReadOnly);
-
-    // Set up hdf5 datasets
-    HighFive::DataSet difc2 = file.getDataSet("/force_constants");
-    HighFive::DataSet dCellMap = file.getDataSet("/p2s_map");
-    // read in the ifc2 data
-    difc2.read(ifc2);
-    dCellMap.read(cellMap);
-
-    // check that cell map matches number of atoms
-    if(int(cellMap.size()) != numAtoms) {
-      Error("Developer error: p2s_map from phono3py does not match numAtoms."
-                "\nyaml file and HDF5 file are somehow mismatched.");
-    }
-
-    // unfortunately it appears this is not in some fc files...
-    // default to ev/Ang^2
-    try {
-      HighFive::DataSet dConversion = file.getDataSet("/physical_unit");
-      dConversion.read(unitVec);
-      unit = unitVec[0];
-    } catch (std::exception &error) {
-      if(mpi->mpiHead()) {
-        std::cout << "\nPhonopy fc file did not include units. "
-         << "\nThis is likely ok, defaulting to eV/angstrom^2."
-         << "\nHowever, you should check to be sure the magnitude of your"
-         << " phonon frequencies is sensible.\n" << std::endl;
-      }
-      unit = "eV/angstrom^2";
-    }
-
-  } catch (std::exception &error) {
-    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
-    Error("Issue reading fc2.hdf5 file. Make sure it exists at " + fileName +
-          "\n and is not open by some other persisting processes.");
-  }
-
-  Eigen::Tensor<double, 7> forceConstants(3, 3, qCoarseGrid[0], qCoarseGrid[1],
-                                          qCoarseGrid[2], numAtoms, numAtoms);
-
-  // if the force constants are compact format, the first two
-  // dimensions will not be the same (one will be nprimAtoms, other nsupAtoms)
-  bool compact = false;
-  if(ifc2.size() != ifc2[0].size()) compact = true;
-
-  // phonopy force constants are in ev/ang^2, convert to atomic
-  double conversion = 1;
-  if(unit.find("eV/ang") != std::string::npos) {
-    conversion = pow(distanceBohrToAng, 2) / energyRyToEv;
-  }
-
-  // for the second atom, we must loop over all possible
-  // cells in the superCell containing copies of these
-  // unit cell atoms
-  for (int r3 = 0; r3 < qCoarseGrid[2]; r3++) {
-    for (int r2 = 0; r2 < qCoarseGrid[1]; r2++) {
-      for (int r1 = 0; r1 < qCoarseGrid[0]; r1++) {
-
-        // NOTE we do this because phonopy has an
-        // "old" and "new" format for superCell files,
-        // and there's not an eay way for us to tell which
-        // one a user might have loaded in. Therefore,
-        // we can't intelligently guess the ordering of
-        // atoms in the superCell, and instead use R
-        // to find their index.
-
-        // build the R vector associated with this
-        // cell in the superCell
-        Eigen::Vector3d R;
-        R = r1 * directUnitCell.row(0) + r2 * directUnitCell.row(1) +
-            r3 * directUnitCell.row(2);
-
-        // use the find cell function to determine
-        // the index of this cell in the list of
-        // R vectors (named cellPositions from above)
-        int ir = findRIndex(cellPositions2, R);
-
-        // loop over the first atoms. Because we consider R1=0,
-        // these are only primitive unit cell atoms.
-        for (int iat = 0; iat < numAtoms; iat++) {
-          for (int jat = 0; jat < numAtoms; jat++) {
-
-            // Need to convert to superCell indices.
-            // Atoms in superCell are ordered so that there is a
-            // unit cell atom followed by numUnitCell-in-superCell-#-of-atoms,
-            // which are representations of the unit cell atom in other cells
-            // we find this by using cellMap to tell us where the
-            // first atom of this type is, then adding ir, which tells us
-            // which cell it's in.
-            //
-            int isAt, jsAt;
-            if(!compact) {
-              // We must put an offset of iR onto the first index, because
-              // the format in phono3py is D(R',R=0)
-              isAt = cellMap[iat] + ir;
-              jsAt = cellMap[jat];
-            }
-            else {
-              // if compact, now it appears notation is D(R=0,R')
-              jsAt = cellMap[iat] + ir;
-              isAt = jat;
-            }
-            // loop over cartesian directions
-            for (int ic : {0, 1, 2}) {
-              for (int jc : {0, 1, 2}) {
-
-                // here, cellMap tells us the position of this
-                // unit cell atom in the superCell of phonopy
-                forceConstants(ic, jc, r1, r2, r3, iat, jat) =
-                    ifc2[isAt][jsAt][ic][jc] * conversion;
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  if (mpi->mpiHead()) {
-    std::cout << "Successfully parsed harmonic phonopy files.\n" << std::endl;
-  }
+  parseBornEffectiveCharges(context, dielectricMatrix, 
+                            bornCharges, speciesNames); 
 
   // Now we do postprocessing
   // must transpose the lattice vectors before passing to crystal,
@@ -560,23 +601,8 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
   directUnitCell.transposeInPlace();
 
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses, bornCharges);
+                  speciesNames, speciesMasses, bornCharges, dielectricMatrix);
   crystal.print();
 
-  // apply the appropriate ASR to the force constants 
-  setAcousticSumRule(context.getSumRuleFC2(), crystal, qCoarseGrid, forceConstants);
-
-  // from phonopy we don't have the cell weights, so here we generate the 
-  // R vectors and weights, and then reorder the force constants to match them 
-  auto tup = reorderHarmonicForceConstants(crystal, forceConstants, qCoarseGrid);
-  Eigen::Tensor<double,5> matFC2 = std::get<0>(tup);
-  Eigen::MatrixXd bravaisVectors = std::get<1>(tup);
-  Eigen::VectorXd weights = std::get<2>(tup);
-
-  PhononH0 dynamicalMatrix(crystal, dielectricMatrix,
-                           matFC2, qCoarseGrid, bravaisVectors, weights);
-
-  Kokkos::Profiling::popRegion();
-  return std::make_tuple(crystal, dynamicalMatrix);
-#endif
+  return crystal;
 }

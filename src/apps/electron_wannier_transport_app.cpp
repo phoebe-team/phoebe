@@ -35,29 +35,6 @@ void ElectronWannierTransportApp::run(Context &context) {
 
   //bandStructure.outputComponentsToJSON("band_components.json");
 
-  // print some info about how window and symmetries have reduced things
-  if (mpi->mpiHead()) {
-    if(bandStructure.hasWindow() != 0) {
-      std::cout << "Window selection reduced electronic band structure from "
-              << fullPoints.getNumPoints()*electronH0.getNumBands() << " to "
-              << bandStructure.getNumStates() << " states."  << std::endl;
-    }
-    if(context.getUseSymmetries()) {
-      std::cout << "Symmetries reduced electronic band structure from "
-          << bandStructure.getNumStates() << " to "
-          << bandStructure.irrStateIterator().size() << " states." << std::endl;
-    }
-    std::cout << "Done computing electronic band structure.\n" << std::endl;
-  }
-
-  // Old code for using all the band structure
-  //  bool withVelocities = true;
-  //  bool withEigenvectors = true;
-  //  FullBandStructure bandStructure = electronH0.populate(
-  //      fullPoints, withVelocities, withEigenvectors);
-  //  // set the chemical potentials to zero, load temperatures
-  //  StatisticsSweep statisticsSweep(context, &bandStructure);
-
   // build/initialize the scattering matrix and the smearing
   Kokkos::Profiling::pushRegion("ETapp.setupScatteringMatrix");
   ElScatteringMatrix scatteringMatrix(context, statisticsSweep, bandStructure,

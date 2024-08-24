@@ -324,7 +324,8 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
   int phaseConvention = std::get<8>(t);
 
   if(numElBravaisVectors < mpi->getSize() && phaseConvention == 1) {
-    Error("JDFTx input files cannot be used when nMPI processes > numElBravaisVectors = " + std::to_string(numElBravaisVectors));
+    Error("JDFTx input files cannot be used when nMPI processes > numElBravaisVectors = "
+     + std::to_string(numElBravaisVectors));
   }
 
   Eigen::Tensor<std::complex<double>, 5> couplingWannier_;
@@ -715,7 +716,7 @@ InteractionElPhWan parseHDF5(Context &context, Crystal &crystal,
     mpi->bcast(&fileFormat);
 
   } catch (std::exception &error) {
-    Error("Something wrong deciding the HDF5 format");
+    Error("Something wrong determining the HDF5 format.");
   }
 
   if (fileFormat==1) {

@@ -144,16 +144,16 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 */
 
   // add ph-ph scattering ----------------------------------------------
- { 
+  { 
   // read this in and let it go out of scope afterwards 
-  Interaction3Ph coupling3Ph = 
-      IFC3Parser::parse(context, innerBandStructure.getPoints().getCrystal());
+    Interaction3Ph coupling3Ph = 
+        IFC3Parser::parse(context, innerBandStructure.getPoints().getCrystal());
      
-  addPhPhScattering(*this, context, inPopulations, outPopulations,
-                                  switchCase, qPairIterator,
-                                  boseOccupations, boseOccupations,
-                                  innerBandStructure, innerBandStructure,
-                                  *phononH0, coupling3Ph, linewidth);
+    addPhPhScattering(*this, context, inPopulations, outPopulations,
+                                    switchCase, qPairIterator,
+                                    boseOccupations, boseOccupations,
+                                    innerBandStructure, innerBandStructure,
+                                    *phononH0, coupling3Ph, linewidth);
   }
 
   // Isotope scattering ------------------------------------------------
@@ -325,7 +325,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // use the off diagonals to calculate the linewidths, 
   // to ensure the special eigenvectors can be found/preserve conservation of momentum 
   // that might be ruined by the delta functions 
-  reinforceLinewidths();
+  //reinforceLinewidths();
 
   // TODO debug the "replaceLinewidths" function and use it instead
   // we place the linewidths back in the diagonal of the scattering matrix
@@ -659,7 +659,7 @@ void CoupledScatteringMatrix::reweightQuadrants() {
       theMatrix(iMat1, iMat2) *= spinFactor * ( Nq / Nk ); 
     }
     else {
-      Error("Developer error: Somehow we found an out of bounds coupled matrix state in reweight.");
+      DeveloperError("Somehow we found an out of bounds coupled matrix state in reweight.");
     }
   }
 }

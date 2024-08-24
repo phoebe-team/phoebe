@@ -117,10 +117,10 @@ void PhononThermalConductivity::calcFromPopulation(VectorBTE &n) {
   mpi->allReduceSum(&tensordxd);
 
   // we print the unsymmetrized tensor to output file
-  if(mpi->mpiHead()) {
-    std::cout << "Pre-symmetrization thermal conductivity:\n" << std::endl;
-    print();
-  }
+  //if(mpi->mpiHead()) {
+  //  std::cout << "Pre-symmetrization thermal conductivity:\n" << std::endl;
+  //  print();
+  //}
   // symmetrize the thermal conductivity
   //symmetrize(tensordxd);
 }

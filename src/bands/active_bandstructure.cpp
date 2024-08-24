@@ -1269,13 +1269,15 @@ void ActiveBandStructure::symmetrize(Context &context,
   auto speciesNames = lowSymCrystal.getSpeciesNames();
   auto speciesMasses = lowSymCrystal.getSpeciesMasses();
   auto bornCharges = lowSymCrystal.getBornEffectiveCharges();
+  auto dielectricMatrix = lowSymCrystal.getDielectricMatrix(); 
 
   // temporarily set symmetries = true, then turn off after this.
   bool useSymmetries = context.getUseSymmetries();
   context.setUseSymmetries(true);
 
   Crystal highSymCrystal(context, directCell, atomicPositions,
-                         atomicSpecies, speciesNames, speciesMasses, bornCharges);
+                         atomicSpecies, speciesNames, speciesMasses, 
+                         bornCharges, dielectricMatrix);
   Points highSymPoints = points;
   highSymPoints.swapCrystal(highSymCrystal);
 
@@ -1405,13 +1407,14 @@ void ActiveBandStructure::enforceBandNumSymmetry(
   auto speciesNames = lowSymCrystal.getSpeciesNames();
   auto speciesMasses = lowSymCrystal.getSpeciesMasses();
   auto bornCharges = lowSymCrystal.getBornEffectiveCharges();
+  auto dielectricMatrix = lowSymCrystal.getDielectricMatrix(); 
 
   // temporarily set symmetries = true, then turn off after this.
   bool useSymmetries = context.getUseSymmetries();
   context.setUseSymmetries(true);
 
   Crystal highSymCrystal(context, directCell, atomicPositions,
-                         atomicSpecies, speciesNames, speciesMasses, bornCharges);
+                         atomicSpecies, speciesNames, speciesMasses, bornCharges, dielectricMatrix);
   Points highSymPoints = points;
   highSymPoints.swapCrystal(highSymCrystal);
 

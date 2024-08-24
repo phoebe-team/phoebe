@@ -122,7 +122,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   Eigen::VectorXd cellWeights(nCells);
   cellWeights.setConstant(1.);
 
-  PhononH0 dynamicalMatrix(crystal, dielectricMatrix, 
+  PhononH0 dynamicalMatrix(crystal, 
                            forceConstants, qMesh,
                            cellMapReformat, cellWeights);
 
@@ -141,8 +141,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
 }
 
 std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
-                                                      Context &context, 
-                                                      [[maybe_unused]] Crystal *inCrystal) {
+                                                      Context &context) {
 
   // parse the crystal structure from totalE.out 
   // ========================================================================
@@ -373,10 +372,12 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
   // This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor) 
   Eigen::Tensor<double, 3> bornCharges(numAtoms, 3, 3);
   bornCharges.setZero();
+  Eigen::Matrix3d dielectricMatrix;
+  dielectricMatrix.setZero();
 
   // Now we do postprocessing
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses, bornCharges);
+                  speciesNames, speciesMasses, bornCharges, dielectricMatrix);
   crystal.print();
 
   return crystal; 

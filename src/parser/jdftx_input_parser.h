@@ -42,7 +42,7 @@ public:
    * interpolating the band structure on a fine grid of k-points.
    */
   static std::tuple<Crystal, ElectronH0Wannier> 
-        parseElHarmonicWannier(Context &context, Crystal *inCrystal = nullptr);
+        parseElHarmonicWannier(Context &context);
 
   /**
    * Function to parse crystal structure from either totalE.out or phonon.out

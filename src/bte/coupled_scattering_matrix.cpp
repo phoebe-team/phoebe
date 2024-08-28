@@ -75,16 +75,16 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
   // enforce proper bandstructure definitions
   if(!innerBandStructure.getParticle().isPhonon() &&
                         !outerBandStructure.getParticle().isElectron()) {
-    Error("Developer error: Tried to create CMatrix with bandstructures of wrong particle type!");
+    DeveloperError("Tried to create CMatrix with bandstructures of wrong particle type!");
   }
   // scattering matrix also must be in memory
   if(!highMemory) {
-    Error("Developer error: Cannot construct coupled matrix without full matrix in memory.");
+    DeveloperError("Cannot construct coupled matrix without full matrix in memory.");
   }
   // block symmetry use as relaxons solver cannot benefit from this,
   // and relaxons are the only point of this matrix
   if (context.getUseSymmetries()) {
-    Error("Developer error: Currently cannot use symmetry for the calculation of the coupled scattering matrix.");
+    DeveloperError("Currently cannot use symmetry for the calculation of the coupled scattering matrix.");
   }
 }
 
@@ -100,11 +100,11 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // internal diagonal should be allocated, as well as the matrix
   if (linewidth == nullptr || theMatrix.rows() == 0) {
-    Error("Developer error: Attempted to construct coupled bte scattering matrix without linewidths or matrix.");
+    DeveloperError("Attempted to construct coupled bte scattering matrix without linewidths or matrix.");
   }
   // linewidths have to be a certain shape here
   if ((linewidth != nullptr) && (linewidth->dimensionality != 1)) {
-    Error("Developer error: The linewidths shouldn't have dimensionality!");
+    DeveloperError("Developer error: The linewidths shouldn't have dimensionality!");
   }
 
   // add in the different scattering contributions -------------------
@@ -314,7 +314,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
 
   // apply the spin degen factors
-  reweightQuadrants();
+  //reweightQuadrants();
 
   // reinforce the condition that the scattering matrix is symmetric
   // A -> ( A^T + A ) / 2
@@ -372,7 +372,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 void CoupledScatteringMatrix::phononOnlyA2Omega() {
 
   if(context.getUseSymmetries()) {
-    Error("Developer error: Cannot use phononOnlyA2Omega with sym!");
+    DeveloperError("Cannot use phononOnlyA2Omega with sym!");
   }
 
   int iCalc = 0; // as there can only be one temperature
@@ -565,7 +565,7 @@ std::vector<std::vector<std::tuple<std::vector<int>, int>>>
       addWavevectorToMap(qPairMap, iq2, iq1);
     }
     else {
-      Error("Developer error: Somehow we found an out of bounds coupled matrix state.");
+      DeveloperError("Somehow we found an out of bounds coupled matrix state.");
     }
   }
 

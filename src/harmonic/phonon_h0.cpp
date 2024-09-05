@@ -639,6 +639,8 @@ PhononH0::diagonalizeVelocity(Point &point) {
   return diagonalizeVelocityFromCoordinates(coordinates);
 }
 
+// TODO I think it would be easier to 
+// apply these phases to the dynmat during the transform
 Eigen::Tensor<std::complex<double>, 3>
 PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
 
@@ -672,7 +674,9 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
   // value of the derivative of the dynamical matrix.
   // This works better than doing finite differences on the frequencies.
   double deltaQ = 1.0e-8;
+  // kx, ky, kz directions 
   for (int i : {0, 1, 2}) {
+
     // define q+ and q- from finite differences.
     Eigen::Vector3d qcenter = coordinates;
     Eigen::Vector3d qPlus = coordinates;

@@ -150,7 +150,7 @@ Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1(const Eigen::Vector3d 
 							  const Eigen::MatrixXcd &ev3) {
 
   // gather variables
-  double volume = 1; crystal.getVolumeUnitCell();
+  double volume = crystal.getVolumeUnitCell();
   Eigen::Matrix3d reciprocalUnitCell = crystal.getReciprocalUnitCell();
   Eigen::Matrix3d epsilon = phononH0.getDielectricMatrix();
   Eigen::Tensor<double, 3> bornCharges = phononH0.getBornCharges();

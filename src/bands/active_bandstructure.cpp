@@ -464,7 +464,7 @@ void ActiveBandStructure::buildSymmetries() {
       Eigen::VectorXd e = getEnergies(ikIdx);
       allEnergies.push_back(e);
     }
-    points.setIrreduciblePoints(&allVelocities, &allEnergies);
+    points.setIrreduciblePoints(&allVelocities); //&allVelocities, &allEnergies);
   }
 
   numIrrPoints = int(points.irrPointsIterator().size());
@@ -679,10 +679,10 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
   * we do this here because at this point, we have set up the filter
   * but not applied it yet. This makes it easy to edit the filter without
   * causing problems removing bands later */
-  if(context.getSymmetrizeBandStructure()) {
-	  enforceBandNumSymmetry(context, numFullBands, myFilteredPoints, filteredBands,
-                         displacements, h0, withVelocities);
-  }
+  //if(context.getSymmetrizeBandStructure()) {
+	//  enforceBandNumSymmetry(context, numFullBands, myFilteredPoints, filteredBands,
+  //                       displacements, h0, withVelocities);
+ // }
 
   // numBands is a book-keeping of how many bands per point there are
   // this isn't a constant number.
@@ -815,7 +815,7 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
   mpi->allReduceSum(&eigenvectors);
 
   Kokkos::Profiling::pushRegion("Symmetrize bandstructure");
-  if(context.getSymmetrizeBandStructure()) symmetrize(context, withVelocities);
+  //if(context.getSymmetrizeBandStructure()) symmetrize(context, withVelocities);
   buildSymmetries();
   Kokkos::Profiling::popRegion(); // end sym bandstructure
 }
@@ -1009,10 +1009,10 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   * we do this here because at this point, we have set up the filter
   * but not applied it yet. This makes it easy to edit the filter without
   * causing problems removing bands later */
-  if(context.getSymmetrizeBandStructure()) {
-    enforceBandNumSymmetry(context, numFullBands, myFilteredPoints, filteredBands,
-                         displacements, h0, withVelocities);
-  }
+  //if(context.getSymmetrizeBandStructure()) {
+  //  enforceBandNumSymmetry(context, numFullBands, myFilteredPoints, filteredBands,
+  //                       displacements, h0, withVelocities);
+  //}
 
   // ---------- count numBands and numStates  --------------- //
   // numBands is a book-keeping of how many bands per point there are
@@ -1142,7 +1142,7 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
     Kokkos::Profiling::popRegion(); // end compute velocities 
   }
 
-  if(context.getSymmetrizeBandStructure()) symmetrize(context, withVelocities);
+  //if(context.getSymmetrizeBandStructure()) symmetrize(context, withVelocities);
   Kokkos::Profiling::pushRegion("Symmetrize bandstructure, active BS, BAPP");
   buildSymmetries();
   Kokkos::Profiling::popRegion(); // end sym bandstructure
@@ -1242,7 +1242,7 @@ std::vector<int>
 ActiveBandStructure::getReducibleStarFromIrreducible(const int &ik) {
   return points.getReducibleStarFromIrreducible(ik);
 }
-
+/*
 void ActiveBandStructure::symmetrize(Context &context,
                                      const bool &withVelocities) {
 
@@ -1384,7 +1384,8 @@ void ActiveBandStructure::symmetrize(Context &context,
   context.setUseSymmetries(useSymmetries);
   Kokkos::Profiling::popRegion(); /// end sym bandstructure
 }
-
+*/
+/*
 void ActiveBandStructure::enforceBandNumSymmetry(
     Context &context, const int &numFullBands, const std::vector<int> &myFilteredPoints,
     Eigen::MatrixXi &filteredBands,
@@ -1479,7 +1480,7 @@ void ActiveBandStructure::enforceBandNumSymmetry(
     std::vector<int> maxBandList;
 
     if (reducibleList.empty()) {
-      Error("Developer error: enforceSymmetry reducible star is empty.");
+      DeveloperError("EnforceSymmetry reducible star is empty.");
     }
 
     for (int ikRed : reducibleList) {
@@ -1502,3 +1503,4 @@ void ActiveBandStructure::enforceBandNumSymmetry(
   } // end OMP parallel block
   context.setUseSymmetries(useSymmetries);
 }
+*/

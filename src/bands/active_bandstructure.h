@@ -421,7 +421,7 @@ public:
   // and these are the tools to convert indices
   void buildSymmetries();
   // symmetrizes the band energies, velocities, and eigenvectors
-  void symmetrize(Context &context, const bool& withVelocities);
+  //void symmetrize(Context &context, const bool& withVelocities);
 
   // utilities to convert Bloch indices into internal indices
   int velBloch2Comb(const int &ik, const int &ib1, const int &ib2,
@@ -446,12 +446,12 @@ public:
   /** helper function to enforce that sym eq points have the same number of bands
    *  during the construction of active band structure 
    */
-  void enforceBandNumSymmetry(Context& context, const int& numFullBands,
+  /*void enforceBandNumSymmetry(Context& context, const int& numFullBands,
         const std::vector<int>& myFilteredPoints,
         Eigen::MatrixXi& filteredBands,
         const std::vector<int>& displacements,
         HarmonicHamiltonian& h0, const bool &withVelocities);
-
+        */
 };
 
 #endif

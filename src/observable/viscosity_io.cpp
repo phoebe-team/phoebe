@@ -131,7 +131,7 @@ std::tuple<int,int> relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvector
 }*/
 
 // calculate special eigenvectors
-void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
+void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
                                     StatisticsSweep& statisticsSweep,
                                     double& spinFactor,
                                     Eigen::VectorXd& theta0,
@@ -151,7 +151,10 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
   double chemPot = 0; // has to be zero for phonons,
                       // don't use the stat sweep one which may have
                       // finite values if phel scattering is used
-  double Npts = bandStructure.getPoints().getNumPoints();
+  //double Npts = bandStructure.getPoints().getNumPoints();
+  double Npts; 
+  if(particle.isPhonon()) Npts = context.getQMesh().prod(); 
+  else { Npts = context.getKMesh().prod(); }
 
   // set particle specific quantities
   if(particle.isElectron()) {

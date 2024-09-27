@@ -215,7 +215,7 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
 // calculate special eigenvectors
 void PhononViscosity::calcSpecialEigenvectors() {
 
-  genericCalcSpecialEigenvectors(bandStructure, statisticsSweep,
+  genericCalcSpecialEigenvectors(context, bandStructure, statisticsSweep,
                           spinFactor, theta0, theta_e, phi, C, A);
 
 }

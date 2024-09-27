@@ -67,7 +67,7 @@
    * @param C: specific heat
    * @param A: specific momentum
    */
-   void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
+   void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
                               StatisticsSweep& statisticsSweep,
                               double& spinFactor,
                               Eigen::VectorXd& theta0,

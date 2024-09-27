@@ -226,7 +226,7 @@ void ElectronViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenve
 // calculate special eigenvectors
 void ElectronViscosity::calcSpecialEigenvectors() {
 
-  genericCalcSpecialEigenvectors(bandStructure, statisticsSweep,
+  genericCalcSpecialEigenvectors(context, bandStructure, statisticsSweep,
                           spinFactor, theta0, theta_e, phi, C, A);
 }
 

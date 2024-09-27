@@ -131,6 +131,16 @@ for spin in spinPostFix:
     hf.create_dataset('chemicalPotential', data=mu*2.)  # convert to Ry
     hf.create_dataset('wannierHamiltonian', data=Hwannier*2.) # convert to Ry
 
+    # ---- read the born charges and dielectric matrix if they exist
+    dielectric = np.loadtxt("totalE.epsInf")
+    zeff = np.loadtxt("totalE.Zeff")
+    zeff = np.reshape(zeff,(-1,3,3))
+    print(zeff)
+
+    # TODO do these need unit conversions?
+    hf.create_dataset('epsInf', data=dielectric)
+    hf.create_dataset('Zeff', data=zeff)
+
     # Read the elph cell map, weights and matrix elements ------------------
     cellMapEph = np.loadtxt('wannier.mlwfCellMapPh'+spin, usecols=[0,1,2]).astype(int)
     nCellsEph = cellMapEph.shape[0]

@@ -243,7 +243,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                 double bose3Symm = sinh3Data(ib3, iCalc); // 1/2/sinh() term
 
                 // Calculate transition probability W+
-                double rate =
+                double rate = 
                     coupling(ib1, ib2, ib3) * ((fermi2 + bose3) * delta1
                        + (1. - fermi2 + bose3) * delta2) * norm / en3 * pi;
 
@@ -255,12 +255,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                 double rateOffDiagonal = -
                       coupling(ib1, ib2, ib3) * bose3Symm * (delta1 + delta2)
                       * norm / en3 * pi;
-
-                // double rateOffDiagonal = -
-                // coupling(ib1, ib2, ib3)
-                // * ((1 + bose3 - fermi1) * delta1 + (bose3 + fermi1) * delta2)
-                // * norm / en3 * pi;
-
+                      
                 if (switchCase == 0) {
 
                   if (withSymmetries) {
@@ -299,7 +294,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                       if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
                         linewidth->operator()(iCalc, 0, iBte2) += rate;
                         matrix.linewidthMR->operator()(iCalc, 0, iBte2) += rateMR;
-		      }
+		                  }
                     }
                   }
                 } else if (switchCase == 1) {
@@ -379,8 +374,9 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
 
   // set up the dirac delta function we will use
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, innerBandStructure);
+  // TODO switch this to for window?
   if (smearing->getType() == DeltaFunction::tetrahedron) {
-    Error("Developer error: Tetrahedron smearing for transport untested and thus blocked");
+    DeveloperError("Tetrahedron smearing should be blocked when a filtering window is used, which is almost all el calculations.");
   }
 
   if(mpi->mpiHead()) {

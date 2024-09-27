@@ -30,11 +30,6 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   auto atomicSpecies = crystal.getAtomicSpecies();
   auto speciesMasses = crystal.getSpeciesMasses();
 
-  // Here there is no born charge data, so we set this to zero 
-  // TODO This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor)
-  Eigen::Matrix3d dielectricMatrix;
-  dielectricMatrix.setZero();
-
   // load in the data written to jdftx.elph.phoebe.hdf5 by the conversion script
   // ========================================================================
 
@@ -269,7 +264,8 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
 /* Helper function to read crystal class information  */
 Crystal JDFTxParser::parseCrystal(Context& context) {
 
-  // TODO we need to fix this before publishing 
+  // TODO we need to fix this before publishing
+  // TODO replace this with crystal written to the HDF5 file 
   std::string fileName = context.getJDFTxScfOutFile();
 
   // open input file
@@ -368,12 +364,53 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
     atomicPositions(i, 2) = temp2(2);
   }
 
-  // Here there is no born charge data, so we set this to zero 
-  // This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor) 
+  // TODO all this should later come from hdf5
+  // This is saved in totalE.Zeff and totalE.epsInf (the dielectric tensor) 
   Eigen::Tensor<double, 3> bornCharges(numAtoms, 3, 3);
-  bornCharges.setZero();
+  std::vector<std::vector<std::vector<double>>> bornChargesTemp; 
   Eigen::Matrix3d dielectricMatrix;
-  dielectricMatrix.setZero();
+
+ #ifdef HDF5_AVAIL
+
+  fileName = context.getPhFC2FileName();
+  if (fileName.empty()) {
+    Error("Check your path, jdftx.elph.phoebe.hdf5 not found at " + fileName);
+  }
+  if (mpi->mpiHead())
+    std::cout << "Reading in " + fileName + " to get born charges and dielectric matrix." << std::endl;
+  try {
+
+    // Open the hdf5 file
+    HighFive::File file(fileName, HighFive::File::ReadOnly);
+
+    // Set up hdf5 datasets
+    HighFive::DataSet depsInf = file.getDataSet("/epsInf");
+    HighFive::DataSet dzeff = file.getDataSet("/Zeff");
+
+    // read in the data 
+    dzeff.read(bornChargesTemp);
+    depsInf.read(dielectricMatrix);
+
+  } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
+    Error("Issue found while reading jdftx.elph.phoebe.hdf5. Make sure it exists at " + fileName +
+          "\n and is not open by some other persisting processes.");
+  }
+
+  #else
+    Error("Born charges + dielectric matrix in JDFTx require a build with HDF5.");
+  #endif
+
+  // copy into born charge eigen tensor
+  for(int iat = 0; iat<numAtoms; ++iat) {
+    for(auto i : {0,1,2}) { 
+      for(auto j : {0,1,2}) {
+        bornCharges(iat,i,j) = bornChargesTemp[iat][i][j]; 
+      }
+    }
+  }
+
+  dielectricMatrix = dielectricMatrix*0.25; 
 
   // Now we do postprocessing
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,

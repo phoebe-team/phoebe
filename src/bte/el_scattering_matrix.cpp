@@ -43,11 +43,11 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   } else if (theMatrix.rows() == 0 && linewidth != nullptr && inPopulations.empty() && outPopulations.empty()) {
     switchCase = 2;
   } else {
-    Error("Developer error: El matrix builder found a non-supported case");
+    DeveloperError("El matrix builder found a non-supported case");
   }
 
   if ((linewidth != nullptr) && (linewidth->dimensionality != 1)) {
-    Error("Developer error: The linewidths shouldn't have dimensionality");
+    DeveloperError("The linewidths shouldn't have dimensionality");
   }
 
   // set up the MRTA container
@@ -155,8 +155,12 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
   Kokkos::Profiling::popRegion();
 
-  // before closing, write the MR relaxation times to file
+  //if(mpi->mpiHead()) std::cout << linewidth->data.transpose() << std::endl;
+
+  // before closing, write the relaxation times to file
   outputLifetimesToJSON("rta_el_momentum_relaxation_times.json", linewidthMR);
+  outputLifetimesToJSON("rta_el_relaxation_times.json", linewidth);
+
 }
 
 // function called on shared ptrs of linewidths

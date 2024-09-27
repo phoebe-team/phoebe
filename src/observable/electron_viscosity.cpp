@@ -122,7 +122,7 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
   LoopPrint loopPrint("Transforming relaxon populations","relaxons", eigenvectors.getAllLocalStates().size()); 
 
   // transform from the relaxon population basis to the electron population ------------
-  Eigen::Tensor<double, 3> fRelaxons(3, 3, numStates);
+  Eigen::Tensor<double, 3> fRelaxons(3, 3, int(numStates));
   fRelaxons.setZero();
 
   // TODO the problem is this is a nonstandard all reduce!

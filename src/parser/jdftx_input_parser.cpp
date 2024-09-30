@@ -154,7 +154,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   int nCells = 0;
   int nWannier = 0;
   int nBands = 0; 
-  int nElectrons = 0; 
+  double nElectrons = 0; 
   int spinFactor = 2;
   double fermiLevel;
 

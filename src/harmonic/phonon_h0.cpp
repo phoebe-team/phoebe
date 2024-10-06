@@ -49,10 +49,7 @@ PhononH0::PhononH0(Crystal &crystal,
 
   if (hasDielectric) { // prebuild terms useful for long range corrections
 
-    // TODO this is important for 3d materials, though I'm not sure about 2D ones
-    //dielectricMatrix = dielectricMatrix * 2.;
-
-    double cutoff = gMax * 4.;
+    double cutoff = gMax * 4. * alpha; // Gmax is the cutoff for the Ewald sum
 
     // Estimate of nr1x,nr2x,nr3x generating all vectors up to G^2 < geg
     // Only for dimensions where periodicity is present, e.g. if nr1=1
@@ -75,15 +72,22 @@ PhononH0::PhononH0(Crystal &crystal,
     double norm;
     Eigen::Matrix3d reff;
     if(dimensionality == 2 && longRange2d) {
-      norm = e2 * twoPi / volumeUnitCell;  // originally
-      // (e^2 * 2\pi) / Area
-      // fac = (sign * e2 * tpi) / (omega * bg(3, 3) / alat)
+      norm = twoPi / volumeUnitCell;  // originally
+      // (2\pi) / Area
+      // fac = (sign * tpi) / (omega * bg(3, 3) / alat)
       reff = dielectricMatrix * 0.5 * directUnitCell(2,2);
     } else {
       norm = e2 * fourPi / volumeUnitCell;
     }
 
     int numG = (2*nr1x+1) * (2*nr2x+1) * (2*nr3x+1);
+    std::cout << "numG " << numG << std::endl;
+    std::cout << "dielectric " << dielectricMatrix << '\n' <<  std::endl;
+
+    //reciprocalUnitCell /= reciprocalUnitCell(0, 0); 
+    int debugVec; 
+    //reciprocalUnitCell = reciprocalUnitCell.transpose();
+
     gVectors.resize(3,numG);
     {
       int ig = 0;
@@ -94,6 +98,11 @@ PhononH0::PhononH0(Crystal &crystal,
             gVectors(1, ig) = double(m1) * reciprocalUnitCell(1, 0) + double(m2) * reciprocalUnitCell(1, 1) + double(m3) * reciprocalUnitCell(1, 2);
             gVectors(2, ig) = double(m1) * reciprocalUnitCell(2, 0) + double(m2) * reciprocalUnitCell(2, 1) + double(m3) * reciprocalUnitCell(2, 2);
             ++ig;
+            //std::cout << gVectors(0, ig-1) << " " << gVectors(1, ig-1) << " "<< gVectors(2, ig-1) << std::endl;
+            //if(m1 == 0 && m2 == 2 && m3 == 1) {
+            //  std::cout << gVectors(0, ig-1) << " " << gVectors(1, ig-1) << " "<< gVectors(2, ig-1) << std::endl;
+            //  debugVec = ig-1; 
+            //}
           }
         }
       }
@@ -118,16 +127,17 @@ PhononH0::PhononH0(Crystal &crystal,
         geg = (g.transpose() * dielectricMatrix * g).value();
       }
 
-      if (0. < geg && geg < 4. * gMax) {
+      // exclude G = 0
+      if (0. < geg && geg < 4. * alpha * gMax) {
         double normG;
 
         if(dimensionality == 2 && longRange2d) {
           normG = norm * exp(-g.norm() * 0.25) / sqrt(g.norm()) * (1.0 + geg * sqrt(g.norm()));
         } else {
-          normG = norm * exp(-geg * 0.25) / geg;
+          normG = norm * exp(-geg * 0.25 / ( alpha )) / geg; // facgd
         }
 
-        Eigen::MatrixXd gZ(3, numAtoms);
+        Eigen::MatrixXd gZ(3, numAtoms); // in QE rgd_blk, this is called zag and zcg
         for (int na = 0; na < numAtoms; na++) {
           for (int i : {0, 1, 2}) {
             gZ(i, na) = g(0) * bornCharges(na, 0, i) + g(1) * bornCharges(na, 1, i) + g(2) * bornCharges(na, 2, i);
@@ -136,10 +146,14 @@ PhononH0::PhononH0(Crystal &crystal,
 
         Eigen::MatrixXd fnAt = Eigen::MatrixXd::Zero(numAtoms, 3);
         for (int na = 0; na < numAtoms; na++) {
+          //if(ig == debugVec) {  std::cout << atomicPositions.row(na) << std::endl; }
           for (int i : {0, 1, 2}) {
             for (int nb = 0; nb < numAtoms; nb++) {
-              double arg =
-                  (atomicPositions.row(na) - atomicPositions.row(nb)).dot(g);
+              double arg = (atomicPositions.row(na) - atomicPositions.row(nb)).dot(g); 
+              //if(ig == debugVec) { 
+              //  std::cout << "arg na nb " << na << " " << nb << " " << arg << std::endl;
+              //  std::cout << " positions " << atomicPositions.row(na) - atomicPositions.row(nb) << std::endl;
+              //}
               fnAt(na, i) += gZ(i, nb) * cos(arg);
             }
           }
@@ -148,9 +162,20 @@ PhononH0::PhononH0(Crystal &crystal,
           for (int j : {0, 1, 2}) {
             for (int i : {0, 1, 2}) {
               longRangeCorrection1(i, j, na) += -normG * gZ(i, na) * fnAt(na, j);
+              //if(ig == debugVec) {
+              //  std::cout << std::scientific << "+ to dynmat i j at " << i << " " << j << " " << na << " " << -normG * gZ(i, na) * fnAt(na, j) << std::endl;;
+              //}
             }
           }
         }
+        if(ig == debugVec) {
+        //  std::cout << "g vector " << ig << " vec " << g.transpose()<<  std::endl; // / 1.05550515 << std::endl;
+          std::cout << "geg " << std::scientific << geg << std::endl;
+          std::cout << "norm G " << normG << " norm " << norm << '\n' << std::endl;
+        //  std::cout << " fnAt " << fnAt << std::endl;
+        //  std::cout << " gZ " << gZ << std::endl;
+        }
+
       }
     }
   }
@@ -422,6 +447,7 @@ FullBandStructure PhononH0::cpuPopulate(Points &points, bool &withVelocities,
 
 void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                                 const Eigen::VectorXd &q) {
+
   // this subroutine is the analogous of rgd_blk in QE
   // compute the rigid-ion (long-range) term for q
   // The long-range term used here, to be added to or subtracted from the
@@ -434,55 +460,12 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
   //   real(DP) &
   //        q(3),           &! q-vector
 
-  // alpha, implicitly set to 1, is the Ewald parameter,
+  // alpha, set to 1, is the Ewald parameter,
   // geg is an estimate of G^2 such that the G-space sum is convergent for alpha
   // very rough estimate: geg/4/alpha > gMax = 14
   // (exp (-14) = 10^-6)
 
   Kokkos::Profiling::pushRegion("PhononH0::addLongRangeTerm");
-
-/*
-       IF (loto_2d) THEN
-          geg = g1**2 + g2**2 + g3**2
-          grg = 0.0d0
-          IF (g1**2 + g2**2 > 1d-8) THEN
-            grg = g1 * reff(1, 1) * g1 + g1 * reff(1, 2) * g2 + g2 * reff(2, 1) * g1 + g2 * reff(2, 2) * g2
-            grg = grg / (g1**2 + g2**2)
-          ENDIF
-        ELSE
-          geg = (g1 * (epsil(1, 1) * g1 + epsil(1, 2) * g2 + epsil(1, 3) * g3) + &
-                 g2 * (epsil(2, 1) * g1 + epsil(2, 2) * g2 + epsil(2, 3) * g3) + &
-                 g3 * (epsil(3, 1) * g1 + epsil(3, 2) * g2 + epsil(3, 3) * g3))
-        ENDIF
-        !
-        IF (geg > 0.0d0 .AND. geg / (alph * 4.0d0) < gmax) THEN
-          !
-          IF (loto_2d) THEN
-            facgd = fac * (tpi / alat) * EXP(-geg / (alph * 4.0d0)) / (SQRT(geg) * (1.0 + grg * SQRT(geg)))
-          ELSE
-            facgd = fac * EXP(-geg / (alph * 4.0d0)) / geg
-          ENDIF
-          !
-          DO nb = 1, nat
-            zbg(:) = g1 * zeu(1, :, nb) + g2 * zeu(2, :, nb) + g3 * zeu(3, :, nb)
-            DO na = 1, nat
-              zag(:) = g1 * zeu(1, :, na) + g2 * zeu(2, :, na) + g3 * zeu(3, :, na)
-              arg = 2.d0 * pi * (g1 * (tau(1, na) - tau(1 ,nb)) + &
-                                 g2 * (tau(2, na) - tau(2, nb)) + &
-                                 g3 * (tau(3, na) - tau(3, nb)) )
-              facg = facgd * CMPLX(COS(arg), SIN(arg), KIND=DP)
-              !
-              DO j = 1, 3
-                DO i = 1, 3
-                  dyn(i, j, na, nb) = dyn(i, j, na, nb) + facg * zag(i) * zbg(j)
-                ENDDO ! i
-              ENDDO ! j
-            ENDDO ! na
-          ENDDO ! nb
- */
-
-
-
 
   for (int na = 0; na < numAtoms; na++) {
     for (int j : {0, 1, 2}) {
@@ -491,7 +474,7 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
       }
     }
   }
-
+  
   double norm;
   Eigen::Matrix3d reff;
   if(dimensionality == 2 && longRange2d) {
@@ -515,12 +498,12 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
         geg = (gq.transpose() * dielectricMatrix * gq).value();
       }
 
-    if (geg > 0. && geg < 4. * gMax) {
+    if (geg > 0. && geg < 4. * alpha * gMax) {
       double normG;
       if(dimensionality == 2 && longRange2d) { // TODO check if norm is squared
-        normG = norm * exp(-gq.norm() * 0.25) / sqrt(gq.norm()) * (1.0 + geg * sqrt(gq.norm()));
+        normG = norm * exp(-gq.norm() * 0.25 / alpha ) / sqrt(gq.norm()) * (1.0 + geg * sqrt(gq.norm()));
       } else {
-        normG = norm * exp(-geg * 0.25) / geg;
+        normG = norm * exp(-geg * 0.25 / alpha) / geg;
       }
 
       Eigen::MatrixXd gqZ(3, numAtoms);
@@ -535,8 +518,7 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
       Eigen::MatrixXcd phases(numAtoms, numAtoms);
       for (int nb = 0; nb < numAtoms; nb++) {
         for (int na = 0; na < numAtoms; na++) {
-          double arg =
-              (atomicPositions.row(na) - atomicPositions.row(nb)).dot(gq);
+          double arg = (atomicPositions.row(na) - atomicPositions.row(nb)).dot(gq);
           phases(na, nb) = {cos(arg), sin(arg)};
         }
       }

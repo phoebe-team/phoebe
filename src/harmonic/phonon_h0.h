@@ -175,6 +175,7 @@ protected:
   // TODO -- when long range correction for dim=2 has been really well checked,
   // uncomment this to activate it
   bool longRange2d = false;
+  double alpha = 1; 
 
   // the R vectors on the WS cell used in the Fourier transform
   int numBravaisVectors = 0;
@@ -187,6 +188,7 @@ protected:
   Eigen::MatrixXd gVectors;
   Eigen::Tensor<double,3> longRangeCorrection1;
   const double gMax = 14.; // cutoff for ewald summation
+  const double e2 = 1; 
 
   // kokkos members:
   DoubleView1D atomicMasses_d;

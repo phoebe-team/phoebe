@@ -98,8 +98,8 @@ class PhononH0 : public HarmonicHamiltonian {
   FullBandStructure populate(Points &points, const bool &withVelocities,
                              const bool &withEigenvectors,
                              const bool isDistributed = false) override;
-  FullBandStructure cpuPopulate(Points &points, bool &withVelocities,
-                                bool &withEigenvectors, bool isDistributed = false);
+  FullBandStructure cpuPopulate(Points &points, const bool &withVelocities,
+                                const bool &withEigenvectors, bool isDistributed = false);
   FullBandStructure kokkosPopulate(Points &points, const bool &withVelocities,
                                    const bool &withEigenvectors, const bool isDistributed = false);
   StridedComplexView3D kokkosBatchedBuildBlochHamiltonian(
@@ -171,11 +171,12 @@ protected:
   Eigen::Tensor<double, 3> bornCharges;
   Eigen::Vector3i qCoarseGrid;
   Eigen::Matrix3d directUnitCell;
+  Eigen::Matrix3d reciprocalUnitCell; 
   int dimensionality;
   // TODO -- when long range correction for dim=2 has been really well checked,
   // uncomment this to activate it
   bool longRange2d = false;
-  double alpha = 1; 
+  double alpha = 10; 
 
   // the R vectors on the WS cell used in the Fourier transform
   int numBravaisVectors = 0;
@@ -187,7 +188,7 @@ protected:
 
   Eigen::MatrixXd gVectors;
   Eigen::Tensor<double,3> longRangeCorrection1;
-  const double gMax = 14.; // cutoff for ewald summation
+  const double gMax = 24.; // cutoff for ewald summation
   const double e2 = 1; 
 
   // kokkos members:

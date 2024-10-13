@@ -25,7 +25,7 @@ PhononH0::PhononH0(Crystal &crystal,
   Kokkos::Profiling::pushRegion("phononH0 constructor");
 
   directUnitCell = crystal.getDirectUnitCell();
-  Eigen::Matrix3d reciprocalUnitCell = crystal.getReciprocalUnitCell();
+  reciprocalUnitCell = crystal.getReciprocalUnitCell();
   volumeUnitCell = crystal.getVolumeUnitCell();
   atomicSpecies = crystal.getAtomicSpecies();
   speciesMasses = crystal.getSpeciesMasses();
@@ -85,8 +85,8 @@ PhononH0::PhononH0(Crystal &crystal,
     std::cout << "dielectric " << dielectricMatrix << '\n' <<  std::endl;
 
     //reciprocalUnitCell /= reciprocalUnitCell(0, 0); 
+
     int debugVec; 
-    //reciprocalUnitCell = reciprocalUnitCell.transpose();
 
     gVectors.resize(3,numG);
     {
@@ -412,11 +412,11 @@ FullBandStructure PhononH0::populate(Points &points,
                                      const bool &withVelocities,
                                      const bool &withEigenvectors,
                                      const bool isDistributed) {
-  return kokkosPopulate(points, withVelocities, withEigenvectors, isDistributed);
+  return cpuPopulate(points, withVelocities, withEigenvectors, isDistributed);
 }
 
-FullBandStructure PhononH0::cpuPopulate(Points &points, bool &withVelocities,
-                                        bool &withEigenvectors,
+FullBandStructure PhononH0::cpuPopulate(Points &points, const bool &withVelocities,
+                                        const bool &withEigenvectors,
                                         bool isDistributed) {
   FullBandStructure fullBandStructure(numBands, particle, withVelocities,
                                       withEigenvectors, points, isDistributed);
@@ -486,6 +486,8 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
     norm = e2 * fourPi / volumeUnitCell;
   }
 
+  //Eigen::Matrix3d reciprocalUnitCell = crystal.getReciprocalUnitCell();
+
   for (int ig=0; ig<gVectors.cols(); ++ig) {
     Eigen::Vector3d gq = gVectors.col(ig) + q;
 
@@ -503,7 +505,7 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
       if(dimensionality == 2 && longRange2d) { // TODO check if norm is squared
         normG = norm * exp(-gq.norm() * 0.25 / alpha ) / sqrt(gq.norm()) * (1.0 + geg * sqrt(gq.norm()));
       } else {
-        normG = norm * exp(-geg * 0.25 / alpha) / geg;
+        normG = norm * exp(-geg * 0.25 / ( alpha ) ) / geg;
       }
 
       Eigen::MatrixXd gqZ(3, numAtoms);

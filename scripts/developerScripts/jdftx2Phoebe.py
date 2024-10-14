@@ -1,6 +1,7 @@
 import numpy as np
 import h5py
 import sys
+import os.path
 
 # Phoebe requires all these compoenents, which we can read in and reformat from JDFTx
 #elBravaisVectors         Dataset {3, 1957}
@@ -44,11 +45,10 @@ for line in open('totalE.out'):
         mu = float(line.split()[2])
     if line.startswith('nElectrons:'):
         nElec = int(line.split()[1].split('.')[0])
-        if(len(spinPostFix) > 1): nElec = int(nElec/2.) # each up/down hdf5 file will have half the bands and half the electrons
     if line.startswith('spintype'):
         if(line.split()[1] == 'no-spin'):
             nSpin = 1
-            nElecSubtract*=2
+            #nElecSubtract*=2
         elif(line.split()[1] == 'spin-orbit'):
             nSpin = 2  # spin orbit coupling
         elif(line.split()[1] == 'z-spin'):
@@ -63,7 +63,12 @@ for line in open('totalE.out'):
         collectIons = False
         kfold = np.array([int(tok) for tok in line.split()[1:4]])
     if line.find('Initializing the Grid') >= 0:
-            refLine = iLine
+        refLine = iLine
+    if 'Chosen fftbox size, S = [' in line:
+        tokens = line.split()
+        Sbox = float(tokens[6])*float(tokens[7])*float(tokens[8])
+    if 'unit cell volume =' in line:
+        volume = float(line.split()[-1])
     if not Rdone:
             rowNum = iLine - (refLine+2)
             if rowNum>=0 and rowNum<3:
@@ -98,8 +103,16 @@ nAtoms = nModes // 3
 
 for spin in spinPostFix:
 
-    if(spin == ""): hf = h5py.File('jdftx.elph.phoebe.hdf5', 'w')
-    else: hf = h5py.File('jdftx.'+spin+'.elph.phoebe.hdf5', 'w')
+    # in this case we need to read spin up/dn channels
+    if(len(spinPostFix) > 1):
+        n = np.fromfile('totalE.n_'+spin.lower(), dtype=np.float64)
+        dV = volume / Sbox
+        nElec = dV * np.sum(n)
+        nElec = nElec - nElecSubtract/2. # excluded bands should come evenly off the two?
+        print(spin + " Nelectrons = ", dV * np.sum(n))
+        print("mu:", mu)
+
+    hf = h5py.File('jdftx.'+spin+'.elph.phoebe.hdf5', 'w')
     hf.create_dataset('phaseConvention',data=phaseConvention)
 
     cellMap = np.loadtxt("wannier.mlwfCellMap"+spin)[:,0:3].astype(int)
@@ -132,10 +145,13 @@ for spin in spinPostFix:
     hf.create_dataset('wannierHamiltonian', data=Hwannier*2.) # convert to Ry
 
     # ---- read the born charges and dielectric matrix if they exist
-    dielectric = np.loadtxt("totalE.epsInf")
-    zeff = np.loadtxt("totalE.Zeff")
-    zeff = np.reshape(zeff,(-1,3,3))
-    print(zeff)
+    if os.path.isfile("totalE.Zeff"):
+        dielectric = np.loadtxt("totalE.epsInf")
+        zeff = np.loadtxt("totalE.Zeff")
+        zeff = np.reshape(zeff,(-1,3,3))
+    else:
+        zeff = np.zeros((nAtoms,3,3))
+        dielectric = np.zeros((3,3))
 
     # TODO do these need unit conversions?
     hf.create_dataset('epsInf', data=dielectric)

@@ -171,12 +171,13 @@ protected:
   Eigen::Tensor<double, 3> bornCharges;
   Eigen::Vector3i qCoarseGrid;
   Eigen::Matrix3d directUnitCell;
-  Eigen::Matrix3d reciprocalUnitCell; 
   int dimensionality;
   // TODO -- when long range correction for dim=2 has been really well checked,
   // uncomment this to activate it
   bool longRange2d = false;
-  double alpha = 10; 
+  double alat = 1;
+  double alpha;
+  //0.25; // works for BiVO4 -- 0.25; \\ 0.5 for TiO2 \\ 1.5 for MgO 
 
   // the R vectors on the WS cell used in the Fourier transform
   int numBravaisVectors = 0;
@@ -188,8 +189,8 @@ protected:
 
   Eigen::MatrixXd gVectors;
   Eigen::Tensor<double,3> longRangeCorrection1;
-  const double gMax = 24.; // cutoff for ewald summation
-  const double e2 = 1; 
+  const double gMax = 14.; // cutoff for ewald summation
+  const double e2 = 4; 
 
   // kokkos members:
   DoubleView1D atomicMasses_d;

@@ -19,13 +19,14 @@ PhononH0::PhononH0(Crystal &crystal,
                    Eigen::Vector3i& qCoarseGrid_,
                    const Eigen::MatrixXd& bravaisVectors_, const Eigen::VectorXd& weights_)
     : crystal(crystal), particle(Particle::phonon) {
+
   // in this section, we save as class properties a few variables
   // that are needed for the diagonalization of phonon frequencies
 
   Kokkos::Profiling::pushRegion("phononH0 constructor");
 
   directUnitCell = crystal.getDirectUnitCell();
-  reciprocalUnitCell = crystal.getReciprocalUnitCell();
+  Eigen::Matrix3d reciprocalUnitCell = crystal.getReciprocalUnitCell();
   volumeUnitCell = crystal.getVolumeUnitCell();
   atomicSpecies = crystal.getAtomicSpecies();
   speciesMasses = crystal.getSpeciesMasses();
@@ -46,6 +47,10 @@ PhononH0::PhononH0(Crystal &crystal,
   numBravaisVectors = bravaisVectors.cols();
   qCoarseGrid = qCoarseGrid_;
   mat2R = forceConstants_;
+
+  alat = sqrt(directUnitCell(0,0)*directUnitCell(0,0) + directUnitCell(1,0)*directUnitCell(1,0) + directUnitCell(2,0)*directUnitCell(2,0));
+  alpha = (twoPi/alat * twoPi/alat); 
+  //std::cout << " alpha   alat   twoPi/alat " << alpha << " " << alat << " " << twoPi/alat << std::endl;
 
   if (hasDielectric) { // prebuild terms useful for long range corrections
 
@@ -77,16 +82,18 @@ PhononH0::PhononH0(Crystal &crystal,
       // fac = (sign * tpi) / (omega * bg(3, 3) / alat)
       reff = dielectricMatrix * 0.5 * directUnitCell(2,2);
     } else {
-      norm = e2 * fourPi / volumeUnitCell;
+      norm = 4 * fourPi / volumeUnitCell;
     }
 
     int numG = (2*nr1x+1) * (2*nr2x+1) * (2*nr3x+1);
-    std::cout << "numG " << numG << std::endl;
-    std::cout << "dielectric " << dielectricMatrix << '\n' <<  std::endl;
+    //std::cout << "numG " << numG << std::endl;
+    //std::cout << "dielectric " << dielectricMatrix << '\n' <<  std::endl;
 
     //reciprocalUnitCell /= reciprocalUnitCell(0, 0); 
+    //std::cout << "recip cell \n" << reciprocalUnitCell << std::endl;
+    //std::cout << "unit cell \n" << directUnitCell << std::endl;
 
-    int debugVec; 
+    //int debugVec; 
 
     gVectors.resize(3,numG);
     {
@@ -99,7 +106,7 @@ PhononH0::PhononH0(Crystal &crystal,
             gVectors(2, ig) = double(m1) * reciprocalUnitCell(2, 0) + double(m2) * reciprocalUnitCell(2, 1) + double(m3) * reciprocalUnitCell(2, 2);
             ++ig;
             //std::cout << gVectors(0, ig-1) << " " << gVectors(1, ig-1) << " "<< gVectors(2, ig-1) << std::endl;
-            //if(m1 == 0 && m2 == 2 && m3 == 1) {
+            //if(m1 == 0 && m2 == 0 && m3 == 1) {
             //  std::cout << gVectors(0, ig-1) << " " << gVectors(1, ig-1) << " "<< gVectors(2, ig-1) << std::endl;
             //  debugVec = ig-1; 
             //}
@@ -168,14 +175,13 @@ PhononH0::PhononH0(Crystal &crystal,
             }
           }
         }
-        if(ig == debugVec) {
+        //if(ig == debugVec) {
         //  std::cout << "g vector " << ig << " vec " << g.transpose()<<  std::endl; // / 1.05550515 << std::endl;
-          std::cout << "geg " << std::scientific << geg << std::endl;
-          std::cout << "norm G " << normG << " norm " << norm << '\n' << std::endl;
+        //  std::cout << "geg " << std::scientific << geg << std::endl;
+        //  std::cout << "norm G " << normG << " norm " << norm << '\n' << std::endl;
         //  std::cout << " fnAt " << fnAt << std::endl;
         //  std::cout << " gZ " << gZ << std::endl;
-        }
-
+        //}
       }
     }
   }
@@ -272,10 +278,12 @@ PhononH0::PhononH0(Crystal &crystal,
 PhononH0::PhononH0(const PhononH0 &that)
     : particle(that.particle), crystal(that.crystal), hasDielectric(that.hasDielectric),
       numAtoms(that.numAtoms), numBands(that.numBands),
+      alpha(that.alpha), alat(that.alat),
       volumeUnitCell(that.volumeUnitCell), atomicSpecies(that.atomicSpecies),
       speciesMasses(that.speciesMasses), atomicPositions(that.atomicPositions),
       dielectricMatrix(that.dielectricMatrix), bornCharges(that.bornCharges),
       qCoarseGrid(that.qCoarseGrid),
+      directUnitCell(that.directUnitCell), 
       numBravaisVectors(that.numBravaisVectors),
       bravaisVectors(that.bravaisVectors), weights(that.weights),
       mat2R(that.mat2R), gVectors(that.gVectors),
@@ -309,6 +317,10 @@ PhononH0 &PhononH0::operator=(const PhononH0 &that) {
     dielectricMatrix = that.dielectricMatrix;
     bornCharges = that.bornCharges;
     qCoarseGrid = that.qCoarseGrid;
+    directUnitCell = that.directUnitCell;
+    dimensionality = that.dimensionality;
+    alat = that.alat;
+    alpha = that.alpha;
     numBravaisVectors = that.numBravaisVectors;
     bravaisVectors = that.bravaisVectors;
     weights = that.weights;
@@ -383,7 +395,6 @@ PhononH0::diagonalizeFromCoordinates(Eigen::Vector3d &q,
   }
 
   // once everything is ready, here we scale by masses and diagonalize
-
   auto tup = dynDiagonalize(dyn);
   auto energies = std::get<0>(tup);
   auto eigenvectors = std::get<1>(tup);
@@ -413,6 +424,7 @@ FullBandStructure PhononH0::populate(Points &points,
                                      const bool &withEigenvectors,
                                      const bool isDistributed) {
   return cpuPopulate(points, withVelocities, withEigenvectors, isDistributed);
+  //return kokkosPopulate(points, withVelocities, withEigenvectors, isDistributed);
 }
 
 FullBandStructure PhononH0::cpuPopulate(Points &points, const bool &withVelocities,
@@ -467,6 +479,8 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
 
   Kokkos::Profiling::pushRegion("PhononH0::addLongRangeTerm");
 
+  //std::cout << " alpha   alat   twoPi/alat " << alpha << " " << alat << " " << twoPi/alat << std::endl;
+
   for (int na = 0; na < numAtoms; na++) {
     for (int j : {0, 1, 2}) {
       for (int i : {0, 1, 2}) {
@@ -483,10 +497,8 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
     // fac = (sign * e2 * tpi) / (omega * bg(3, 3) / alat)
     reff = dielectricMatrix * 0.5 * directUnitCell(2,2);
   } else {
-    norm = e2 * fourPi / volumeUnitCell;
+    norm = 4 * fourPi / volumeUnitCell;
   }
-
-  //Eigen::Matrix3d reciprocalUnitCell = crystal.getReciprocalUnitCell();
 
   for (int ig=0; ig<gVectors.cols(); ++ig) {
     Eigen::Vector3d gq = gVectors.col(ig) + q;

@@ -34,7 +34,7 @@ const double kBoltzmannRy = kBoltzmannSi / rydbergSi;
 const double electronMassSi = 9.10938215e-31; // in Kg
 const double amuSi = 1.660538782e-27;         // in Kg
 
-const double e2 = 2.;
+//const double e2 = 2.; // TODO I think this is an issue, it's e^2 not e*2, which is 1 in AU!
 
 //
 // conversion
@@ -70,6 +70,7 @@ const double mobilityAuToSi = electronSi / hBarSi * bohrRadiusSi * bohrRadiusSi;
 const double thermopowerAuToSi = kBoltzmannRy / electronSi * rydbergSi;
 
 // cutoffs 
-const double phEnergyCutoff = 0.1 / ryToCmm1; // in Cmm1
+// TODO make this smaller!
+const double phEnergyCutoff = 3.5 / ryToCmm1; // in Cmm1
 
 #endif

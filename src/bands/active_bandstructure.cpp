@@ -254,7 +254,7 @@ int ActiveBandStructure::getNumStates() { return numStates; }
 const double &ActiveBandStructure::getEnergy(StateIndex &is) {
   int stateIndex = is.get();
   if (energies.empty()) {
-    Error("ActiveBandStructure energies haven't been populated");
+    DeveloperError("ActiveBandStructure energies haven't been populated");
   }
   return energies[stateIndex];
 }
@@ -272,14 +272,14 @@ Eigen::VectorXd ActiveBandStructure::getEnergies(WavevectorIndex &ik) {
 
 double ActiveBandStructure::getMaxEnergy() {
   if(getIsDistributed())
-    Error("Developer error: getMaxEnergy not implemented when activeBS is distributed.");
+    DeveloperError("getMaxEnergy not implemented when activeBS is distributed.");
   return *std::max_element(std::begin(energies), std::end(energies));
 }
 
 Eigen::Vector3d ActiveBandStructure::getGroupVelocity(StateIndex &is) {
   int stateIndex = is.get();
   if (velocities.empty()) {
-    Error("ActiveBandStructure velocities haven't been populated");
+    DeveloperError("ActiveBandStructure velocities haven't been populated");
   }
   auto tup = comb2Bloch(stateIndex);
   auto ik = std::get<0>(tup);

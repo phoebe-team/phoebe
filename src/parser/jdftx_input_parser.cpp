@@ -180,7 +180,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
     HighFive::DataSet dnElec = file.getDataSet("/numElectrons");
     HighFive::DataSet dnBands = file.getDataSet("/numElBands");
     HighFive::DataSet dnSpin = file.getDataSet("/numSpin");
-    HighFive::DataSet dmu = file.getDataSet("/chemicalPotential");
+    //HighFive::DataSet dmu = file.getDataSet("/chemicalPotential");
 
     // read in the data 
     dHwannier.read(HWannier);
@@ -189,7 +189,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
     dnElec.read(nElectrons);
     dnBands.read(nBands);
     dnSpin.read(spinFactor);
-    dmu.read(fermiLevel);
+    //dmu.read(fermiLevel);
 
     nCells = HWannier.size(); 
     nWannier = HWannier[0].size(); 
@@ -230,8 +230,8 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   context.setNumOccupiedStates(nElectrons);
 
   // if the user didn't set the Fermi level, we do it here.
-  if (std::isnan(context.getFermiLevel()))
-    context.setFermiLevel(fermiLevel);
+  //if (std::isnan(context.getFermiLevel()))
+  //  context.setFermiLevel(fermiLevel);
 
   // copy the HWannier and cell Map into Eigen containers for the ElectronWannierH0 constructor
   Eigen::MatrixXd cellMapReformat(3,nCells);

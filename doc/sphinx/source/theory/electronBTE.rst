@@ -47,13 +47,13 @@ with
    \times
    \bigg[
    (1-\bar{f}_{\boldsymbol{k}'b'} + \bar{n}_{\boldsymbol{q}\nu})
-   \delta(\epsilon_{\boldsymbol{k}b} - \epsilon_{\boldsymbol{k}'b'} - \hbar \omega_{\boldsymbol{q}\nu}) \\ 
+   \delta(\epsilon_{\boldsymbol{k}b} - \epsilon_{\boldsymbol{k}'b'} - \hbar \omega_{\boldsymbol{q}\nu}) \\
    &+
    (\bar{f}_{\boldsymbol{k}'b'} + \bar{n}_{\boldsymbol{q}\nu})
    \delta(\epsilon_{\boldsymbol{k}b} - \epsilon_{\boldsymbol{k}'b'} + \hbar \omega_{\boldsymbol{q}\nu})
    \bigg]
-   \delta(\boldsymbol{k}-\boldsymbol{k}'+\boldsymbol{q}). 
-   
+   \delta(\boldsymbol{k}-\boldsymbol{k}'+\boldsymbol{q}).
+
 This scattering matrix requires us to know the phonon and electron energies, as well as the electron-phonon coupling on a fine (interpolated) mesh.
 
 Please note that, for convenience, here we use a coupling defined as
@@ -84,7 +84,7 @@ which results in the matrix with diagonal matrix elements:
    \Omega_{\lambda \lambda} = \frac{1}{\tau_{\boldsymbol{k}b}}
 
 and for the off-diagonal terms:
-   
+
 .. math::
    \tilde{\Omega}_{\boldsymbol{k}b,\boldsymbol{k}'b'} =&
    -
@@ -102,11 +102,11 @@ This matrix is symmetric and has a number of interesting physical properties (e.
 Computationally, the symmetric matrix can be used in a conjugate gradient method that maximises the electrical and thermal conductivity, and guarantees the existence of eigenvalues.
 
 In Phoebe, instead of solving the original BTE problem in the form :math:`\sum_{\lambda'} \Omega_{\lambda,\lambda'} \delta f_{\lambda'} = b_{\lambda}`, we solve the symmetrized problem:
-   
+
 .. math::
    \sum_{\lambda'} \tilde{\Omega}_{\lambda,\lambda'} \delta \tilde{f}_{\lambda'} = \tilde{b}_{\lambda}
 
-with 
+with
 
 .. math::
    \delta f_{\lambda} = ( \bar{f}_{\lambda} (1-\bar{f}_{\lambda}) )^{-\frac{1}{2}} \delta f_{\lambda}
@@ -117,12 +117,12 @@ and
    \tilde{b}_{\lambda} = ( \bar{f}_{\lambda} (1-\bar{f}_{\lambda}) )^{-\frac{1}{2}} b_{\lambda}
 
 
-   
+
 
 Onsager coefficients
 --------------------
 
-In the electronic case, there are a handful of transport coefficients we'd like to solve the BTE to find, such as the electrical conductivity, :math:`\sigma`, the electronic part of the thermal conductivity, :math:`\kappa_e`, and the Seebeck coeffieint, :math:`S`. These quantities are defined in terms of the Onsager coefficients. 
+In the electronic case, there are a handful of transport coefficients we'd like to solve the BTE to find, such as the electrical conductivity, :math:`\sigma`, the electronic part of the thermal conductivity, :math:`\kappa_e`, and the Seebeck coeffieint, :math:`S`. These quantities are defined in terms of the Onsager coefficients.
 
 We assume that the response to the applied electric field and thermal gradient is linear in these external fields:
 
@@ -142,7 +142,7 @@ and
 
 where :math:`g_s` is the spin degeneracy.
 
-We can decompose these to write, 
+We can decompose these to write,
 
 .. math::
    \boldsymbol{J} = L_{EE} \boldsymbol{E} + L_{ET} \boldsymbol{\nabla} T
@@ -171,7 +171,7 @@ where :math:`d` is the carriers' doping concentration.
 Solutions of the electron BTE
 --------------------------------------
 
-Largely, these solvers follow the equivalent section in the phonon BTE section, where they may be described in more detail. For further details and references on any specific solver, we suggest you visit the equivalent phonon sections, as well. Here, we again establish methods of finding the solution vector to the BTE, :math:`f`, but in this case, we have two: :math:`f^T` and :math:`f^E`, for each field. 
+Largely, these solvers follow the equivalent section in the phonon BTE section, where they may be described in more detail. For further details and references on any specific solver, we suggest you visit the equivalent phonon sections, as well. Here, we again establish methods of finding the solution vector to the BTE, :math:`f`, but in this case, we have two: :math:`f^T` and :math:`f^E`, for each field.
 
 
 RTA Solution
@@ -205,7 +205,7 @@ Iterative solution: Omini-Sparavigna method
 .. note::
    Generally, we recommend the variational method over this.
 
-This is an adaptation of the Omini-Sparavigna method to electrons. To better understand this method, please have a look first at the counterpart phonon section. 
+This is an adaptation of the Omini-Sparavigna method to electrons. To better understand this method, please have a look first at the counterpart phonon section.
 
 In short, the electron BTE consists in two linear algebra problems:
 
@@ -347,23 +347,23 @@ The related transport coefficients are defined as:
 
 .. math::
    L_{EE}^{ij} =
-   \frac{e g_s}{V N_k} \sum_{\boldsymbol{k}b} \frac{1}{2} \Big\{ v^i(\boldsymbol{k}) , f^{E_j}(\boldsymbol{k}) \Big\}_{bb}
+   \frac{e g_s}{V N_k} \sum_{\boldsymbol{k}b} \frac{1}{2} \Big\{ v^i(\boldsymbol{k}) , f^{E_j}(\boldsymbol{k}) \Big\}_{bb'}
 
 .. math::
    L_{ET}^{ij} =
-   \frac{e g_s}{V N_k} \sum_{\boldsymbol{k}b} \frac{1}{2} \Big\{ v^i(\boldsymbol{k}) , f^{T_j}(\boldsymbol{k}) \Big\}_{bb}
+   \frac{e g_s}{V N_k} \sum_{\boldsymbol{k}b} \frac{1}{2} \Big\{ v^i(\boldsymbol{k}) , f^{T_j}(\boldsymbol{k}) \Big\}_{bb'}
 
 .. math::
    L_{TE}^{ij} =
    \frac{g_s}{V N_k}
    \sum_{\boldsymbol{k}b}
    \big( \epsilon_{b}(\boldsymbol{k})-\mu \big)
-   \frac{1}{2} \Big\{ v^i(\boldsymbol{k}) , f^{E_j}(\boldsymbol{k}) \Big\}_{bb}
+   \frac{1}{2} \Big\{ v^i(\boldsymbol{k}) , f^{E_j}(\boldsymbol{k}) \Big\}_{bb'}
 
 .. math::
    L_{TT}^{ij} =
    \frac{g_s}{V N_k}
    \sum_{\boldsymbol{k}b}
    \big( \epsilon_{b}(\boldsymbol{k})-\mu \big)
-   \frac{1}{2} \Big\{ v^i(\boldsymbol{k}) , f^{T_j}(\boldsymbol{k}) \Big\} _{bb}
+   \frac{1}{2} \Big\{ v^i(\boldsymbol{k}) , f^{T_j}(\boldsymbol{k}) \Big\} _{bb'}
 

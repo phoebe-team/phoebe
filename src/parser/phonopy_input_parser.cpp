@@ -89,7 +89,7 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
 
     // check that cell map matches number of atoms
     if(int(cellMap.size()) != numAtoms) {
-      Error("Developer error: p2s_map from phono3py does not match numAtoms."
+      DeveloperError("p2s_map from phono3py does not match numAtoms."
                 "\nyaml file and HDF5 file are somehow mismatched.");
     }
 
@@ -230,9 +230,6 @@ void parseBornEffectiveCharges(Context& context, Eigen::Matrix3d& dielectricMatr
   // skip reading in born charges if file name is not set
   if (!fileName.empty()) {
 
-    infile.clear();
-    infile.open(fileName);
-
     if (!infile.is_open()) {
       Error("BORN file " + fileName + " cannot be read.");
     }
@@ -246,11 +243,11 @@ void parseBornEffectiveCharges(Context& context, Eigen::Matrix3d& dielectricMatr
     // we're ignoring this for now, as these conversions do not appear right for us.
     // in fact, BECs are almost always in units of e, so that had better be what the
     // user uses. For now, we read this line to skip it
-    getline(infile,line);
-
+    std::getline(infile,line);
+    
     bool readDielectric = false;
     int iat = 0;
-    while (getline(infile,line)) {
+    while (std::getline(infile,line)) {
 
       // make sure it's not a comment
       if(line.find("#") != std::string::npos) continue;

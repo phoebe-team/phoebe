@@ -211,7 +211,7 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
   Eigen::MatrixXd bravaisVectors = std::get<1>(tup);
   Eigen::VectorXd weights = std::get<2>(tup);
 
-  PhononH0 dynamicalMatrix(crystal, matFC2, qCoarseGrid, bravaisVectors, weights);
+  PhononH0 dynamicalMatrix(crystal, matFC2, qCoarseGrid, bravaisVectors, weights, PhononH0::mediumRange);
 
   Kokkos::Profiling::popRegion();
   return std::make_tuple(crystal, dynamicalMatrix);

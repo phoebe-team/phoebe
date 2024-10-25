@@ -117,9 +117,11 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   Eigen::VectorXd cellWeights(nCells);
   cellWeights.setConstant(1.);
 
+  // TODO fix this -- "2" at the end is a fictional force constant range!
+  // it just avoids all the polar corrections to phonon frequency
   PhononH0 dynamicalMatrix(crystal, 
                            forceConstants, qMesh,
-                           cellMapReformat, cellWeights);
+                           cellMapReformat, cellWeights, 2);
 
   // no need to apply a sum rule, as the JDFTx matrix elements have already
   // had one applied internally

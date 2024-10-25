@@ -274,6 +274,7 @@ void parseBornEffectiveCharges(Context& context, Eigen::Matrix3d& dielectricMatr
       }
     }
     // print the charge matrices
+    // TODO move this print to Crystal's print method
     if(mpi->mpiHead()) {
 
       std::cout << "Dielectric matrix read as:" << std::endl;

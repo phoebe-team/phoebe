@@ -861,6 +861,8 @@ void Context::printInputSummary(const std::string &fileName) {
     if (appName.find("elPh") != std::string::npos || appName == "electronLifetimes" ||
         appName == "electronWannierTransport") {
 
+      if(qMesh.prod() != 0) std::cout << "qMesh = [" << qMesh(0) << ", " << qMesh(1) << ", " << qMesh(2) << " ]" << std::endl;
+
       std::cout << "elphFileName = " << elphFileName << std::endl;
       if (!elPhInterpolation.empty())
         std::cout << "elPhInterpolation = " << elPhInterpolation << std::endl;
@@ -928,11 +930,11 @@ void Context::printInputSummary(const std::string &fileName) {
         }
       } else {
         if(g2PlotStyle == "qFixed") {
-          std::cout << "kMesh = " << kMesh(0) << " " << kMesh(1) << " " << kMesh(2)
+          std::cout << "kMesh = [" << kMesh(0) << ", " << kMesh(1) << ", " << kMesh(2) << " ]"
                 << std::endl;
         }
         else if(g2PlotStyle == "kFixed") {
-          std::cout << "qMesh = " << qMesh(0) << " " << qMesh(1) << " " << qMesh(2)
+          std::cout << "qMesh = [" << qMesh(0) << ", " << qMesh(1) << ", " << qMesh(2) << " ]"
                 << std::endl;
         }
       }
@@ -949,7 +951,7 @@ void Context::printInputSummary(const std::string &fileName) {
       appName.find("Lifetimes") != std::string::npos) {
 
     if (appName.find("honon") != std::string::npos || appName.find("elPh") != std::string::npos) {
-      std::cout << "qMesh = " << qMesh(0) << " " << qMesh(1) << " " << qMesh(2) << std::endl;
+          std::cout << "qMesh = [" << qMesh(0) << ", " << qMesh(1) << ", " << qMesh(2) << " ]" << std::endl;
       if(!getElphFileName().empty()) {
         std::cout << "electronH0Name = " << electronH0Name << std::endl;
         std::cout << "hasSpinOrbit = " << hasSpinOrbit << std::endl;
@@ -958,7 +960,7 @@ void Context::printInputSummary(const std::string &fileName) {
     }
     if (appName.find("lectron") != std::string::npos || appName.find("elPh") != std::string::npos
                         || (appName.find("honon") != std::string::npos && !getElphFileName().empty())) {
-         std::cout << "kMesh = " << kMesh(0) << " " << kMesh(1) << " " << kMesh(2) << std::endl;
+         std::cout << "kMesh = [" << kMesh(0) << ", " << kMesh(1) << ", " << kMesh(2) << " ]" << std::endl;
     }
 
     if (!std::isnan(constantRelaxationTime))
@@ -1101,7 +1103,7 @@ void Context::printInputSummary(const std::string &fileName) {
     std::cout << "epaFileName = " << epaFileName << std::endl;
     std::cout << "electronH0Name = " << electronH0Name << std::endl;
     std::cout << "hasSpinOrbit = " << hasSpinOrbit << std::endl;
-    std::cout << "kMesh = " << kMesh(0) << " " << kMesh(1) << " " << kMesh(2)
+    std::cout << "kMesh = [" << kMesh(0) << ", " << kMesh(1) << ", " << kMesh(2) << " ]"
               << std::endl;
     if (!std::isnan(epaEnergyRange))
       std::cout << "epaEnergyRange = " << epaEnergyRange * energyRyToEv << " eV"

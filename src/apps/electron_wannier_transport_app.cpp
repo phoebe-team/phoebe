@@ -64,7 +64,7 @@ void ElectronWannierTransportApp::run(Context &context) {
   // This is a less dense K mesh of final states for RTA, the mesh 
   // corresponds to what we will use for the phonon sampling
   // In the RTA only case () 
-  std::shared_ptr<BaseBandStructure> innerBandStructure;  
+  std::shared_ptr<ActiveBandStructure> innerBandStructure;  
 
   if(!context.getScatteringMatrixInMemory()) {
 
@@ -94,7 +94,7 @@ void ElectronWannierTransportApp::run(Context &context) {
   }
 
   ElScatteringMatrix scatteringMatrix(context, statisticsSweep, 
-                                      *innerBandStructure, bandStructure,
+                                      *innerBandStructure.get(), bandStructure,
                                       phononH0, &couplingElPh);
 
   scatteringMatrix.setup();

@@ -21,6 +21,23 @@ Points::Points(Crystal &crystalObj_, const Eigen::Vector3i &mesh_,
   setupGVectors();
 }
 
+// comparison operator 
+bool Points::operator==(const Points &that) const {
+
+  bool isSame = true;
+  if(&crystalObj != &that.crystalObj) isSame = false; 
+  if(mesh != that.mesh) isSame = false; 
+  if(offset != that.offset) isSame = false; 
+  if(numPoints != that.numPoints) isSame = false; 
+  if(gVectors != that.gVectors) isSame = false; 
+  if(explicitlyStored != that.explicitlyStored) isSame = false; 
+  if(isPointsListSorted != that.isPointsListSorted) isSame = false; 
+  if(pointsList != that.pointsList) isSame = false; 
+  if(filteredToFullIndices != that.filteredToFullIndices) isSame = false; 
+  return isSame; 
+
+}
+
 void Points::setupGVectors() {
   // This block allows the folding to the wigner seitz zone
   int nGx = 2;

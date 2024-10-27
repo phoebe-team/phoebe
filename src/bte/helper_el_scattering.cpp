@@ -34,8 +34,8 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
   }
 
   // bandstructure are the same and are unfiltered 
-  if ((&innerBandStructure == &outerBandStructure) && (offset.norm() == 0.) &&
-      innerBandStructure.hasWindow() == 0) {
+  if ((outerBandStructure.getPoints() == innerBandStructure.getPoints()) 
+      && (offset.norm() == 0.) && innerBandStructure.hasWindow() == 0) {
 
     storedAllQ3 = true;
     storedAllQ3Case = storedAllQ3Case1;
@@ -60,7 +60,7 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     bandStructure3 = std::make_unique<FullBandStructure>(bs);
 
   // bandstructures the same, no offset, filtered bands 
-  } else if ((&innerBandStructure == &outerBandStructure) &&
+  } else if ((outerBandStructure.getPoints() == innerBandStructure.getPoints()) &&
              (offset.norm() == 0.) && innerBandStructure.hasWindow() != 0) {
 
     storedAllQ3 = true;

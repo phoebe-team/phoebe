@@ -102,6 +102,13 @@ public:
   Points(Crystal &crystal_, const Eigen::Tensor<double, 3> &pathExtrema,
          const double &delta);
 
+  /** default equals operator 
+   * ! cannot currently be defined because of reference member
+   * once crystal ref is converted to non ref, use default instead
+   */
+  //bool operator==(const Points& points) const = default;
+  bool operator==(const Points& points) const; 
+
   /** Constructor for Active Points
    * @param filter: a vector of integers of "filtered" points, i.e. the
    * indices of the wavevectors in parentPoints that we want to keep.
@@ -293,6 +300,7 @@ public:
 
 protected:
   void setMesh(const Eigen::Vector3i &mesh_, const Eigen::Vector3d &offset_);
+
   Crystal &crystalObj;
   Eigen::Vector3i mesh;
   Eigen::Vector3d offset;

@@ -374,7 +374,7 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
 
  #ifdef HDF5_AVAIL
 
-  fileName = context.getElectronH0Name();
+  fileName = context.getPhFC2FileName();
   if (fileName.empty()) {
     Error("Check your path, jdftx.elph.phoebe.hdf5 not found at " + fileName);
   }

@@ -178,14 +178,7 @@ void CoupledTransportApp::checkRequirements(Context &context) {
     throwErrorIfUnset(context.getKMesh(), "kMesh");
     if (context.getDopings().size() == 0 &&
         context.getChemicalPotentials().size() == 0) {
-      Error("Either chemical potentials or dopings must be set.");
+      Error("Either chemical potentials or dopings must be set");
     }
-  }
-
-  if(useSymmetries) {
-    Error("Coupled transport app cannot be run with symmetries.");
-  }
-  if( kMesh(0)%qMesh(0) != 0 || kMesh(1)%qMesh(1) != 0 || kMesh(2)%qMesh(2) != 0 ) {
-    Error("For coupled relaxons solution, k and q meshes must be commensurate!");
   }
 }

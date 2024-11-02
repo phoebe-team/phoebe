@@ -9,6 +9,7 @@
 #include "exceptions.h"
 #include "points.h"
 #include "utilities.h"
+#include <KokkosBlas2_gemv.hpp>
 
 #ifdef HDF5_AVAIL
 #include <highfive/H5Easy.hpp>
@@ -783,34 +784,32 @@ void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
   for (int iR = 0; iR < numBravaisVectors; iR++) {
     Eigen::Vector3d r = bravaisVectors.col(iR);
     double arg = q.dot(r);
-    phases[iR] = exp(-complexI * arg); // {cos(arg), -sin(arg)};
+    phases[iR] = exp(-complexI * arg) * weights(iR); // {cos(arg), -sin(arg)};
   }
 
-//int previousNumThreads = Eigen::nbThreads();
-//Eigen::setNbThreads(1);
-
-#pragma omp declare reduction (+: Eigen::Tensor<std::complex<double>, 4>: omp_out+=omp_in)\
+//#pragma omp declare reduction (+: Eigen::Tensor<std::complex<double>, 4>: omp_out+=omp_in)\
 initializer(omp_priv=Eigen::Tensor<std::complex<double>, 4>(omp_orig.dimension(0),omp_orig.dimension(1),omp_orig.dimension(2),omp_orig.dimension(3)).setZero())
 
-//#pragma omp parallel for collapse(5) default(none) reduction (+:dyn) shared(mat2R, phases, weights, numAtoms, numBravaisVectors) 
-//Eigen::Tensor<std::complex<double>, 4> tmpDyn(3,3,numAtoms,numAtoms);
-//std::vector<std::vector<std::vector<std::vector<std::complex<double>>>> tmpDyn(3, std::vector<int>(cols, 0)
-//tmpDyn.setZero();
-
- #pragma omp parallel for collapse(5) default(none) reduction(+:dyn) shared(mat2R, phases, weights, numAtoms, numBravaisVectors) 
-  for (int iR = 0; iR < numBravaisVectors; iR++) {
+#pragma omp parallel for collapse(4) default(none) shared(mat2R, dyn, phases, numAtoms, numBravaisVectors) 
     for (int nb = 0; nb < numAtoms; nb++) {
       for (int na = 0; na < numAtoms; na++) {
         for (int j : {0, 1, 2}) {
           for (int i : {0, 1, 2}) {
-            dyn(i, j, na, nb) +=  mat2R(i, j, na, nb, iR) * phases[iR] * weights(iR);
+            std::complex<double> tmp;
+            for (int iR = 0; iR < numBravaisVectors; iR++) {
+              tmp += mat2R(i, j, na, nb, iR) * phases[iR];
+            }
+            dyn(i, j, na, nb) = tmp;
           }
         }
       }
-    }
-  } 
-  // Restore the previous number of threads
-  //Eigen::setNbThreads(previousNumThreads);
+    }  
+
+  // TODO: the better way to do this might be a kokkos gemv
+  // Either this, or we should make it so that helper_el (the case where the q grid is not the same)
+  // utilizes kokkos batched diagonalize as well
+  // read me about gemv https://github.com/kokkos/kokkos-kernels/wiki/BLAS-2%3A%3Agemv
+
 
   Kokkos::Profiling::popRegion();
 }

@@ -318,6 +318,8 @@ void HelperElScattering::prepare(const Eigen::Vector3d &k1,
 
       Eigen::Vector3d q3 = k2 - k1;
 
+      // TODO this whole thing should be converted to kokkos 
+      // batched diagonalize from coordinates
       auto t1 = h0.diagonalizeFromCoordinates(q3);
       auto energies3 = std::get<0>(t1);
       auto eigenVectors3 = std::get<1>(t1);
@@ -329,6 +331,7 @@ void HelperElScattering::prepare(const Eigen::Vector3d &k1,
 
       for (int iCalc = 0; iCalc < statisticsSweep.getNumCalculations(); iCalc++) {
         double temp = statisticsSweep.getCalcStatistics(iCalc).temperature;
+        #pragma omp parallel for default(none) shared(bose3Data,iCalc,nb3,particle,energies3,temp)
         for (int ib3 = 0; ib3 < nb3; ib3++) {
           bose3Data(iCalc, ib3) = particle.getPopulation(energies3(ib3), temp);
         }

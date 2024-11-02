@@ -795,11 +795,11 @@ initializer(omp_priv=Eigen::Tensor<std::complex<double>, 4>(omp_orig.dimension(0
       for (int na = 0; na < numAtoms; na++) {
         for (int j : {0, 1, 2}) {
           for (int i : {0, 1, 2}) {
-            std::complex<double> tmp;
+            std::complex<double> tmp{0,0};
             for (int iR = 0; iR < numBravaisVectors; iR++) {
               tmp += mat2R(i, j, na, nb, iR) * phases[iR];
             }
-            dyn(i, j, na, nb) = tmp;
+            dyn(i, j, na, nb) += tmp;
           }
         }
       }

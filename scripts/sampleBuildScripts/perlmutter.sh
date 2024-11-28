@@ -12,7 +12,7 @@ make PREFIX=$HOME/.local install
 cd ../
 
 # clone phoebe
-git clone --recursive https://github.com/mir-group/phoebe.git
+git clone --recursive https://github.com/phoebe-team/phoebe.git
 cd phoebe
 mkdir build
 cd build

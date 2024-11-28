@@ -34,7 +34,7 @@ PHOEBE_DIR="phoebe/"
 # pull down the code
 if ${BUILD}
 then
-  git clone git@github.com:mir-group/phoebe.git
+  git clone git@github.com:phoebe-team/phoebe.git
   cd phoebe
   git submodule update --init
   mkdir build
@@ -49,7 +49,7 @@ fi
 if ${DOWNLOAD}
 then
   cd phoebe
-  wget github.com/mir-group/phoebe-data/archive/master.zip
+  wget github.com/phoebe-team/phoebe-data/archive/master.zip
   unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-phonons/*" -d "example/Silicon-ph/qe-phonons"
   unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-ph-anharmonic/*" -d "example/Silicon-ph/thirdorder.py-anharmonic"
   unzip -j master.zip "phoebe-data-master/example/Silicon-el/qe-elph/*" -d "example/Silicon-el/qe-elph"

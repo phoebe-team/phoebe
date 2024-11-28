@@ -1,4 +1,4 @@
-![Build and Test](https://github.com/mir-group/phoebe/workflows/Build%20and%20Test/badge.svg)
+![Build and Test](https://github.com/phoebe-team/phoebe/workflows/Build%20and%20Test/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/phoebe/badge/?version=develop)](https://phoebe.readthedocs.io/en/develop/?badge=develop)
 
 # Phoebe <img src="doc/sphinx/source/_static/icon.png" width="25"/>
@@ -16,7 +16,7 @@ For more details, see:
   [DOI:10.1088/2515-7639/ac86f6](https://doi.org/10.1088/2515-7639/ac86f6).
 
 Tutorials, documentation of functionality and underlying theory can be found at:
-  * [Homepage](https://mir-group.github.io/phoebe/)
+  * [Homepage](https://phoebe-team.github.io/phoebe/)
   * [Tutorials/Documentation](https://phoebe.readthedocs.io/en/develop/introduction.html)
 
 For further questions and feature requests, please post on the discussions page for the git repo.

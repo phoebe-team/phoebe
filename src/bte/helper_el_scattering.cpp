@@ -8,13 +8,12 @@
 HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
                                BaseBandStructure &outerBandStructure_,
                                StatisticsSweep &statisticsSweep_,
-                               const int &smearingType_, PhononH0 &h0_, 
+                               const int &smearingType_, PhononH0 &h0_,
                                InteractionElPhWan *coupling)
           : innerBandStructure(innerBandStructure_),
             outerBandStructure(outerBandStructure_),
             statisticsSweep(statisticsSweep_),
-            smearingType(smearingType_),
-            h0(h0_),
+            smearingType(smearingType_), h0(h0_),
             couplingElPhWan(coupling) {
 
   // three conditions must be met to avoid recomputing q3
@@ -33,8 +32,8 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     std::cout << "Computing phonon band structure." << std::endl;
   }
 
-  // bandstructure are the same and are unfiltered 
-  if ((outerBandStructure.getPoints() == innerBandStructure.getPoints()) 
+  // bandstructure are the same and are unfiltered
+  if ((outerBandStructure.getPoints() == innerBandStructure.getPoints())
       && (offset.norm() == 0.) && innerBandStructure.hasWindow() == 0) {
 
     storedAllQ3 = true;
@@ -59,7 +58,7 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     FullBandStructure bs = h0.populate(*fullPoints3, withVelocities, withEigenvectors);
     bandStructure3 = std::make_unique<FullBandStructure>(bs);
 
-  // bandstructures the same, no offset, filtered bands 
+  // bandstructures the same, no offset, filtered bands
   } else if ((outerBandStructure.getPoints() == innerBandStructure.getPoints()) &&
              (offset.norm() == 0.) && innerBandStructure.hasWindow() != 0) {
 
@@ -283,7 +282,7 @@ std::tuple<Eigen::Vector3d, Eigen::VectorXd, int, Eigen::MatrixXcd,
     int ik2Counter = ik2 - cacheOffset;
     Eigen::VectorXd energies3 = cacheEnergies[ik2Counter];
     Eigen::MatrixXcd eigenVectors3 = cacheEigenVectors[ik2Counter];
-    Eigen::MatrixXd v3s; 
+    Eigen::MatrixXd v3s;
     if (smearingType == DeltaFunction::adaptiveGaussian) {
       v3s = cacheVelocity[ik2Counter];
     }
@@ -303,7 +302,7 @@ void HelperElScattering::prepare(const Eigen::Vector3d &k1,
     cacheEigenVectors.resize(numPoints);
     cacheBose.resize(numPoints);
     cachePolarData.resize(numPoints);
-    if (smearingType == DeltaFunction::adaptiveGaussian) { 
+    if (smearingType == DeltaFunction::adaptiveGaussian) {
       cacheVelocity.resize(numPoints);
     }
     cacheOffset = k2Indexes[0];
@@ -318,7 +317,7 @@ void HelperElScattering::prepare(const Eigen::Vector3d &k1,
 
       Eigen::Vector3d q3 = k2 - k1;
 
-      // TODO this whole thing should be converted to kokkos 
+      // TODO this whole thing should be converted to kokkos
       // batched diagonalize from coordinates
       auto t1 = h0.diagonalizeFromCoordinates(q3);
       auto energies3 = std::get<0>(t1);

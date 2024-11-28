@@ -22,7 +22,7 @@ To do this, we must compile a new copy of Quantum ESPRESSO.
 From an installation folder of your choice, type::
 
     # download the patched version
-    git clone https://github.com/mir-group/phoebe-quantum-espresso.git
+    git clone https://github.com/phoebe-team/phoebe-quantum-espresso.git
     cd phoebe-quantum-espresso
     # install it
     git checkout phoebe-qe-7.0

@@ -1,7 +1,6 @@
 #ifndef EL_SCATTERING_H
 #define EL_SCATTERING_H
 
-#include "electron_h0_wannier.h"
 #include "interaction_elph.h"
 #include "phonon_h0.h"
 #include "scattering.h"

@@ -64,9 +64,26 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
   numStates = numFullBands * numPoints;
   hasEigenvectors = withEigenvectors;
 
-  energies.resize(numPoints * numFullBands, 0.);
-  if(withVelocities) velocities.resize(numPoints * numFullBands * numFullBands * 3, complexZero);
-  if(withEigenvectors) eigenvectors.resize(numPoints * numFullBands * numFullBands, complexZero);
+  energies.resize(size_t(numPoints) * size_t(numFullBands), 0.);
+
+  if (withVelocities) {
+    try {
+      size_t size = size_t(numPoints) * size_t(numFullBands) * size_t(numFullBands) * size_t(3);
+      velocities.resize(size);
+    } catch(std::bad_alloc &) {
+      Error("Failed to allocate band structure velocities.\n"
+        "You are likely running out of memory.");
+    }
+  }
+  if (withEigenvectors) {
+    try {
+      size_t size = size_t(numPoints) * size_t(numFullBands) * size_t(numFullBands);
+      eigenvectors.resize(size);
+    } catch(std::bad_alloc &) {
+      Error("Failed to allocate band structure eignevectors.\n"
+        "You are likely running out of memory.");
+    }
+  }
 
   windowMethod = Window::nothing;
   buildIndices();
@@ -652,10 +669,10 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
   // this isn't a constant number.
   // Also, we look for the size of the arrays containing band structure.
   numBands = Eigen::VectorXi::Zero(numPoints);
-  int numEnStates = 0;
-  int numVelStates = 0;
-  int numEigStates = 0;
-  for (int ik = 0; ik < numPoints; ik++) {
+  size_t numEnStates = 0;
+  size_t numVelStates = 0;
+  size_t numEigStates = 0;
+  for (size_t ik = 0; ik < numPoints; ik++) {
     numBands(ik) = filteredBands(ik, 1) - filteredBands(ik, 0) + 1;
     numEnStates += numBands(ik);
     numVelStates += 3 * numBands(ik) * numBands(ik);
@@ -945,9 +962,9 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   // this isn't a constant number.
   // Also, we look for the size of the arrays containing band structure.
   numBands = Eigen::VectorXi::Zero(numPoints);
-  int numEnStates = 0;
-  int numVelStates = 0;
-  int numEigStates = 0;
+  size_t numEnStates = 0;
+  size_t numVelStates = 0;
+  size_t numEigStates = 0;
   for (int ik = 0; ik < numPoints; ik++) {
     numBands(ik) = filteredBands(ik, 1) - filteredBands(ik, 0) + 1;
     numEnStates += numBands(ik);

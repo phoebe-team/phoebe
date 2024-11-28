@@ -213,6 +213,11 @@ Eigen::VectorXd FullBandStructure::getEnergies(WavevectorIndex &ik) {
   return x;
 }
 
+double FullBandStructure::getMaxEnergy() {
+  Error("Developer error: getMaxEnergy not implemented for fullbandstructure.");
+  return 0;
+}
+
 Eigen::Vector3d FullBandStructure::getGroupVelocity(StateIndex &is) {
   int stateIndex = is.get();
   auto tup = decompress2Indices(stateIndex, numPoints, numBands);

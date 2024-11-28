@@ -58,18 +58,45 @@ void ElectronWannierTransportApp::run(Context &context) {
     std::cout << "Done computing electronic band structure.\n" << std::endl;
   }
 
-  // Old code for using all the band structure
-  //  bool withVelocities = true;
-  //  bool withEigenvectors = true;
-  //  FullBandStructure bandStructure = electronH0.populate(
-  //      fullPoints, withVelocities, withEigenvectors);
-  //  // set the chemical potentials to zero, load temperatures
-  //  StatisticsSweep statisticsSweep(context, &bandStructure);
-
   // build/initialize the scattering matrix and the smearing
   Kokkos::Profiling::pushRegion("ETapp.setupScatteringMatrix");
-  ElScatteringMatrix scatteringMatrix(context, statisticsSweep, bandStructure,
-                                      bandStructure, phononH0, &couplingElPh);
+
+  // This is a less dense K mesh of final states for RTA, the mesh 
+  // corresponds to what we will use for the phonon sampling
+  // In the RTA only case () 
+  std::shared_ptr<ActiveBandStructure> innerBandStructure;  
+
+  if(!context.getScatteringMatrixInMemory()) {
+
+    Eigen::Vector3i qMesh = context.getQMesh();
+    Eigen::Vector3i kMesh = context.getKMesh();
+
+    if(qMesh.prod() == 0 || qMesh == kMesh ) {
+      Warning("When running RTA, if qMesh is not set, we default to using the kMesh,\n"
+              "This may be more expensive than needed.");
+
+      // use the same bandstructure
+      innerBandStructure = std::make_shared<ActiveBandStructure>(bandStructure);
+    
+    } else { // check that the k and q meshes are commensurate 
+
+      if( kMesh(0)%qMesh(0) != 0 || kMesh(1)%qMesh(1) != 0 || kMesh(2)%qMesh(2) != 0 ) {
+        Error("k and q meshes must be commensurate.");
+      }
+      // if everything is ok, we setup the second different band structure 
+      Points fullPointsRTA(crystal, context.getQMesh());
+      auto tuple = ActiveBandStructure::builder(context, electronH0, fullPointsRTA);
+      innerBandStructure = std::make_shared<ActiveBandStructure>(std::get<0>(tuple));
+    }
+  } else {
+    // non-RTA case always needs matching bandstructures
+    innerBandStructure = std::make_shared<ActiveBandStructure>(bandStructure);  
+  }
+
+  ElScatteringMatrix scatteringMatrix(context, statisticsSweep, 
+                                      *innerBandStructure.get(), bandStructure,
+                                      phononH0, &couplingElPh);
+
   scatteringMatrix.setup();
   scatteringMatrix.outputToJSON("rta_el_relaxation_times.json");
   Kokkos::Profiling::popRegion();

@@ -14,10 +14,10 @@
  */
 class BaseBandStructure {
  public:
- 
+
   /** Base destructor for bandstructure class, silences warnings */
   virtual ~BaseBandStructure() = default;
- 
+
   /** Get the Particle object associated with this class
    * @return particle: a Particle object, describing e.g. whether this
    * is a phonon or electron bandStructure
@@ -110,6 +110,12 @@ class BaseBandStructure {
    */
   virtual const double &getEnergy(StateIndex &is) = 0;
   virtual Eigen::VectorXd getEnergies(WavevectorIndex &ik) = 0;
+
+  /** Return the maximum energy of a bandstructure.
+  * Used when ph energy maximum is a cutoff for phel scattering.
+  * @return maxEnergy: maximum energy value of bandstructure in Ry
+  */
+  virtual double getMaxEnergy() = 0;
 
   /** Returns the energy of a quasiparticle from its Bloch index
    * Used for accessing the band structure in the BTE.
@@ -307,7 +313,7 @@ class FullBandStructure : public BaseBandStructure {
                     bool withEigenvectors, Points &points_,
                     bool isDistributed_ = false);
 
-  FullBandStructure();
+  //FullBandStructure();
 
   /** Copy constructor
    */
@@ -446,6 +452,12 @@ class FullBandStructure : public BaseBandStructure {
    * chemical potential computed by StatisticsSweep. In rydberg units.
    */
   Eigen::VectorXd getEnergies(WavevectorIndex &ik) override;
+
+  /** Return the maximum energy of a bandstructure.
+  * Used when ph energy maximum is a cutoff for phel scattering.
+  * @return maxEnergy: maximum energy value of bandstructure in Ry
+  */
+  double getMaxEnergy() override;
 
   /** Returns the group velocity of a quasiparticle from its Bloch index.
    * Used for accessing the band structure in the BTE.
@@ -675,7 +687,7 @@ protected:
   bool hasVelocities = false;
 
   // matrices storing the raw data
-  Matrix<double> energies;       // size(bands,points)
+  Matrix<double> energies;                    // size(bands,points)
   Matrix<std::complex<double>> velocities;    // size(3*bands^2,points)
   Matrix<std::complex<double>> eigenvectors;  // size(bands^2,points)
 

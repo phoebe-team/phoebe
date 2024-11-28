@@ -9,6 +9,7 @@
 #include "exceptions.h"
 #include "points.h"
 #include "utilities.h"
+#include <KokkosBlas2_gemv.hpp>
 
 #ifdef HDF5_AVAIL
 #include <highfive/H5Easy.hpp>
@@ -249,8 +250,8 @@ PhononH0::PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
 
 // copy constructor
 PhononH0::PhononH0(const PhononH0 &that)
-    : particle(that.particle), hasDielectric(that.hasDielectric),
-      numAtoms(that.numAtoms), numBands(that.numBands), crystal(that.crystal),
+    : particle(that.particle), crystal(that.crystal), hasDielectric(that.hasDielectric),
+      numAtoms(that.numAtoms), numBands(that.numBands),
       volumeUnitCell(that.volumeUnitCell), atomicSpecies(that.atomicSpecies),
       speciesMasses(that.speciesMasses), atomicPositions(that.atomicPositions),
       dielectricMatrix(that.dielectricMatrix), bornCharges(that.bornCharges),
@@ -779,36 +780,37 @@ void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
   Kokkos::Profiling::pushRegion("phononH0.shortRangeTerm");
 
   std::vector<std::complex<double>> phases(numBravaisVectors);
+#pragma omp parallel for default(none) shared(numBravaisVectors, bravaisVectors, q, complexI, phases, weights)
   for (int iR = 0; iR < numBravaisVectors; iR++) {
     Eigen::Vector3d r = bravaisVectors.col(iR);
     double arg = q.dot(r);
-    phases[iR] = exp(-complexI * arg); // {cos(arg), -sin(arg)};
-    //printf("old = %.16e %.16e\n", phases[iR].real(), phases[iR].imag());
-    //for(int i = 0; i < 3; i++)
-    //  printf("old = %.16e\n", r[i]);
+    phases[iR] = exp(-complexI * arg) * weights(iR); // {cos(arg), -sin(arg)};
   }
 
-  for (int iR = 0; iR < numBravaisVectors; iR++) {
+//#pragma omp declare reduction (+: Eigen::Tensor<std::complex<double>, 4>: omp_out+=omp_in)\
+initializer(omp_priv=Eigen::Tensor<std::complex<double>, 4>(omp_orig.dimension(0),omp_orig.dimension(1),omp_orig.dimension(2),omp_orig.dimension(3)).setZero())
+
+#pragma omp parallel for collapse(4) default(none) shared(mat2R, dyn, phases, numAtoms, numBravaisVectors) 
     for (int nb = 0; nb < numAtoms; nb++) {
       for (int na = 0; na < numAtoms; na++) {
         for (int j : {0, 1, 2}) {
           for (int i : {0, 1, 2}) {
-            dyn(i, j, na, nb) +=
-                mat2R(i, j, na, nb, iR) * phases[iR] * weights(iR);
+            std::complex<double> tmp{0,0};
+            for (int iR = 0; iR < numBravaisVectors; iR++) {
+              tmp += mat2R(i, j, na, nb, iR) * phases[iR];
+            }
+            dyn(i, j, na, nb) += tmp;
           }
         }
       }
-    }
-  }
-    //for (int nb = 0; nb < numAtoms; nb++) {
-    //  for (int na = 0; na < numAtoms; na++) {
-    //    for (int j : {0, 1, 2}) {
-    //      for (int i : {0, 1, 2}) {
-    //        printf("old = %.16e %.16e\n", dyn(i,j,na,nb).real(), dyn(i,j,na,nb).imag());
-    //      }
-    //    }
-    //  }
-    //}
+    }  
+
+  // TODO: the better way to do this might be a kokkos gemv
+  // Either this, or we should make it so that helper_el (the case where the q grid is not the same)
+  // utilizes kokkos batched diagonalize as well
+  // read me about gemv https://github.com/kokkos/kokkos-kernels/wiki/BLAS-2%3A%3Agemv
+
+
   Kokkos::Profiling::popRegion();
 }
 

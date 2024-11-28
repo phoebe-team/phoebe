@@ -60,7 +60,7 @@ jobs:
       - name: Download test data
         if: ${{ matrix.compiler == 'GCC 10' }}
         run: |
-          wget github.com/mir-group/phoebe-data/archive/master.zip
+          wget github.com/phoebe-team/phoebe-data/archive/master.zip
           unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-phonons/*" -d "example/Silicon-ph/qe-phonons"
           unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-ph-anharmonic/*" -d "example/Silicon-ph/thirdorder.py-anharmonic"
           unzip -j master.zip "phoebe-data-master/example/Silicon-el/qe-elph/*" -d "example/Silicon-el/qe-elph"

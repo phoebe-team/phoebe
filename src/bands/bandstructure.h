@@ -14,10 +14,10 @@
  */
 class BaseBandStructure {
  public:
- 
+
   /** Base destructor for bandstructure class, silences warnings */
-  //virtual ~BaseBandStructure() = default;
- 
+  virtual ~BaseBandStructure() = default;
+
   /** Get the Particle object associated with this class
    * @return particle: a Particle object, describing e.g. whether this
    * is a phonon or electron bandStructure

@@ -112,7 +112,10 @@ for spin in spinPostFix:
         print(spin + " Nelectrons = ", dV * np.sum(n))
         print("mu:", mu)
 
-    hf = h5py.File('jdftx.'+spin+'.elph.phoebe.hdf5', 'w')
+        hf = h5py.File('jdftx.'+spin+'.elph.phoebe.hdf5', 'w')
+    else:
+        hf = h5py.File('jdftx.elph.phoebe.hdf5', 'w')
+
     hf.create_dataset('phaseConvention',data=phaseConvention)
 
     cellMap = np.loadtxt("wannier.mlwfCellMap"+spin)[:,0:3].astype(int)

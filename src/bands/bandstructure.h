@@ -76,7 +76,7 @@ class BaseBandStructure {
    * @param wavevectorIndex: strong-typed index on wavevector
    * @return stateIndex: integer from 0 to numStates-1=numBands*numPoints-1
    */
-  virtual int getIndex(const WavevectorIndex &ik, const BandIndex &ib) = 0;
+  virtual size_t getIndex(const WavevectorIndex &ik, const BandIndex &ib) = 0;
 
   /** Given a Bloch state index, finds the corresponding wavevector and band
    * index.
@@ -394,7 +394,7 @@ class FullBandStructure : public BaseBandStructure {
    * @param wavevectorIndex: strong-typed index on wavevector
    * @return stateIndex: integer from 0 to numStates-1=numBands*numPoints-1
    */
-  int getIndex(const WavevectorIndex &ik, const BandIndex &ib) override;
+  size_t getIndex(const WavevectorIndex &ik, const BandIndex &ib) override;
 
   /** Given a Bloch state index, finds the corresponding wavevector and band
    * index.

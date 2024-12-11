@@ -157,8 +157,8 @@ void BaseBandStructure::printBandStructureStateInfo(const int& fullNumBands) {
     }
     if(useSym) {
       std::cout << "Symmetries reduced " << particleName << " band structure from "
-        << getNumStates() << " to "
-        << irrStateIterator().size() << " states." << std::endl;
+        << irrStateIterator().size() << " to "
+        << getNumStates() << " states." << std::endl;
     }
   }
 }
@@ -300,7 +300,7 @@ bool FullBandStructure::getIsDistributed() { return isDistributed; }
 
 bool FullBandStructure::getHasEigenvectors() { return hasEigenvectors; }
 
-int FullBandStructure::getIndex(const WavevectorIndex &ik,
+size_t FullBandStructure::getIndex(const WavevectorIndex &ik,
                                  const BandIndex &ib) {
   return ik.get() * numBands + ib.get();
 }
@@ -624,7 +624,7 @@ BteIndex FullBandStructure::stateToBte(StateIndex &isIndex) {
     Error("stateToBte is used on a non-irreducible point");
   }
   auto ik2Idx = WavevectorIndex(ikBte);
-  int iBte = getIndex(ik2Idx,ibIdx);
+  size_t iBte = getIndex(ik2Idx,ibIdx);
   auto iBteIdx = BteIndex(iBte);
   return iBteIdx;
 }

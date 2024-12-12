@@ -233,7 +233,7 @@ This file shows results as well as a report of the calculation progress. The str
 
 * Calculation of the thermal conductivity within the relaxation time approximation.
 
-* Calculation of Wigner thermal conductivity, obtained including off-diagonal contributions of the flux operator, estimated within the relaxation time approximation. **Note: though we output the Wigner correction + the RTA thermal conductivity, the Wigner correction to the lattice thermal conductivity is additive, and can be applied to any solver's output thermal conductivity. Therfore, if you want Wigner+iterative thermal conductivity, you should take** :math:`\kappa_{Wigner+RTA} - \kappa_{RTA} + \kappa_{Omini}`.
+* Calculation of Wigner thermal conductivity, obtained including off-diagonal contributions of the flux operator calculated from the RTA level linewidths. 
 
 * Calculation of the thermal viscosity tensor within the relaxation time approximation.
 

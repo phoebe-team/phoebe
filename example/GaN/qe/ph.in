@@ -8,6 +8,6 @@ phonons of GaN
   nq3 = 4
   outdir = "./out"
   fildyn = "gan.dyn"
-  fildvscf = "silicon.dvscf"
+  fildvscf = "gan.dvscf"
   electron_phonon = "epa"
 /

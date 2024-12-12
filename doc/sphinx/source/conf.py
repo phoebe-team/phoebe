@@ -17,11 +17,11 @@
 # -- Project information -----------------------------------------------------
 
 project = 'Phoebe'
-copyright = '2023, Phoebe team'
+copyright = '2024, Phoebe team'
 author = 'Phoebe team'
 
 # The full version, including alpha/beta/rc tags
-release = '1.0.0'
+release = '1.1.0'
 
 
 # -- General configuration ---------------------------------------------------

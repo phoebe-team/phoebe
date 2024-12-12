@@ -1024,7 +1024,7 @@ checkNegativeRelaxons
 distributedElPhCoupling
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-* **Description:** If true, the electron-phonon coupling in the Wannier representation is distributed over MPI processes in the QE to Phoebe application (the transform of the el-ph matrix elements to the real-space Wannier basis), helping reducing the memory requirements of a run. The MPI parallelization takes place over the number of irreducible q-points of the phonon calculation (which sets the upper number of MPI processes that can be used). If false, the electron-phonon coupling tensor is not distributed over MPI processes: calculations will be faster, but in exchange for a much larger memory requirement that can cause segmentation faults for some large use cases. The maximum possible distribution is num MPI processes = num dyn files. 
+* **Description:** If true, the electron-phonon coupling in the Wannier representation is distributed over MPI processes in the QE to Phoebe application (the transform of the el-ph matrix elements to the real-space Wannier basis), helping reducing the memory requirements of a run. The MPI parallelization takes place over the number of irreducible q-points of the phonon calculation (which sets the upper number of MPI processes that can be used). If false, the electron-phonon coupling tensor is not distributed over MPI processes: calculations will be faster, but in exchange for a much larger memory requirement that can cause segmentation faults for some large use cases. The maximum possible distribution is num MPI processes = num dyn files.
 
 * **Format:** *bool*
 
@@ -1053,10 +1053,11 @@ windowType
 ^^^^^^^^^^
 
 * **Description:** Enables the window used to discard phonon or electron states that don't contribute to transport. For phonon transport, we discard phonon states, and for electron transport, we discard electron states. Possible values are "nothing", "population" and "energy".
-  * "nothing" means window is not applied.
-  * "population" means phonon states are discarded if :math:`\frac{\partial \bar{n}}{\partial T} <` windowPopulationLimit, where :math:`\frac{\partial \bar{n}}{\partial T}` is the Bose--Einstein distribution derivative, with the same procedure used for electronic transport, just instead with a Fermi--Dirac function.
-  * "energy" discards states which fall outside the :ref:`windowEnergyLimit`. States are removed at each wavevector point, which means each wavevector can have a different number of bands. Here, the user specifies with :ref:`windowEnergyLimit` the energy range desired using absolute energies, not those relative to the chemical potential.
-  * "muCenteredEnergy" works almost identically to the "energy" window -- however, in this case, the user uses :ref:`windowEnergyLimit` to specify the energy range relative to the chemical potential. For example, if :math:`mu = 2` eV, and :ref:`windowEnergyLimit` = [-0.1, 0.1], only states with energies in the range [1.9, 2.1] eV would be included in the calculation.
+
+* "nothing" means window is not applied.
+* "population" means phonon states are discarded if :math:`\frac{\partial \bar{n}}{\partial T} <` windowPopulationLimit, where :math:`\frac{\partial \bar{n}}{\partial T}` is the Bose--Einstein distribution derivative, with the same procedure used for electronic transport, just instead with a Fermi--Dirac function.
+* "energy" discards states which fall outside the :ref:`windowEnergyLimit`. States are removed at each wavevector point, which means each wavevector can have a different number of bands. Here, the user specifies with :ref:`windowEnergyLimit` the energy range desired using absolute energies, not those relative to the chemical potential.
+* "muCenteredEnergy" works almost identically to the "energy" window -- however, in this case, the user uses :ref:`windowEnergyLimit` to specify the energy range relative to the chemical potential. For example, if :math:`mu = 2` eV, and :ref:`windowEnergyLimit` = [-0.1, 0.1], only states with energies in the range [1.9, 2.1] eV would be included in the calculation.
 
 * **Format:** *string*
 
@@ -1122,7 +1123,7 @@ convergenceThresholdBTE
 dimensionality
 ^^^^^^^^^^^^^^
 
-* **Description:** Input the dimensionality of the material. As a result, transport coefficient tensors will be of size (dim x dim), and units will be suitably scaled for the desired dimensionality. For 2D materials, note that Phoebe assumes the material is oriented in x-y, with height in z. 
+* **Description:** Input the dimensionality of the material. As a result, transport coefficient tensors will be of size (dim x dim), and units will be suitably scaled for the desired dimensionality. For 2D materials, note that Phoebe assumes the material is oriented in x-y, with height in z.
 
 * **Format:** *int*
 
@@ -1136,7 +1137,7 @@ dimensionality
 thickness
 ^^^^^^^^^^^^^^
 
-* **Description:** Input the thickness of a 2D material. This is only used if :ref:`dimensionality` = 2, and results in a scaling factor of (cell height/thickness) applied to the transport results. 
+* **Description:** Input the thickness of a 2D material. This is only used if :ref:`dimensionality` = 2, and results in a scaling factor of (cell height/thickness) applied to the transport results.
 
 * **Format:** *double*
 
@@ -1150,7 +1151,7 @@ thickness
 constantRelaxationTime
 ^^^^^^^^^^^^^^^^^^^^^^
 
-* **Description:** If specified, we solve the BTE with the constant relaxation time approximation, where the electron or phonon lifetime is set to this input value. (Fast but inaccurate!)
+* **Description:** If specified, we solve the BTE with the constant relaxation time approximation, where the electron or phonon lifetime is set to this input value. (Fast but inaccurate, essentially only appropriate for the prediction of the Seebeck coeffient in materials where bandstructure effects dominate S!)
 
 * **Format:** *double+units*
 
@@ -1521,7 +1522,7 @@ numOccupiedStates
 
 * **Description:** Determines the number of occupied Kohn-Sham states at the ground state. The default value might be read from the :ref:`electronH0Name` (when this is the Quantum-ESPRESSO xml file) or the file with the el-ph interaction (so, the user may not need to specify it for transport calculations). This value controls where the Fermi level is set. The user alternatively can specify the :ref:`fermiLevel` (and :ref:`numOccupiedStates` will be computed from the Fermi level).
 
-Be aware that this is essentially the number of filled bands -- so if the number of electrons in the DFT calculation is say, 27, and the calculation is not spin polarized, then the numOccupiedStates should be set as 13.5. In general, it's good to ensure that the value of :math:`E_F` found in the DFT calculation matches the one calculated by Phoebe. 
+Be aware that this is essentially the number of filled bands -- so if the number of electrons in the DFT calculation is say, 27, and the calculation is not spin polarized, then the numOccupiedStates should be set as 13.5. In general, it's good to ensure that the value of :math:`E_F` found in the DFT calculation matches the one calculated by Phoebe.
 
 * **Format:** *double*
 

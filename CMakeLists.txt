@@ -4,12 +4,12 @@ if(NOT CMAKE_BUILD_TYPE)
 endif(NOT CMAKE_BUILD_TYPE)
 
 # set cmake version
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.18)
 # set cpp standard flags
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-project(Phoebe LANGUAGES C CXX Fortran VERSION 1.0)
+project(Phoebe LANGUAGES C CXX Fortran VERSION 1.1.0)
 
 configure_file(src/main.h.in ../src/main.h)
 

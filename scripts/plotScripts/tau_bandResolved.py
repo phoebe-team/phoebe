@@ -48,7 +48,7 @@ if __name__ == "__main__":
     # also corresponds to the index for the temperature
     # and chemical potential of that calculation as stored
     # in those arrays.
-    calcIndex = args.calcIndex
+    calcIndex = int(args.calcIndex)
     energies = energies[calcIndex]
     tau = tau[calcIndex]
     mu = mu[calcIndex]

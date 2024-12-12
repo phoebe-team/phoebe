@@ -25,7 +25,7 @@ From an installation folder of your choice, type::
     git clone https://github.com/phoebe-team/phoebe-quantum-espresso.git
     cd phoebe-quantum-espresso
     # install it
-    git checkout phoebe-qe-7.0
+    git checkout phoebe-qe-7.3
     ./configure MPIF90=mpif90 --with-scalapack=yes
     make pw pp ph w90
 
@@ -306,7 +306,8 @@ Step 7: QE to Phoebe conversion
 
 Now that we have generated all the necessary outputs of QE and Wannier90, we can get started with Phoebe.
 In this section, we read all the information scattered throughout the files created above and prepare the electron-phonon coupling for the transport calculation.
-In this step, we transform the electron-phonon coupling matrix elements from the Bloch to the Wannier representation.
+In this step, we transform the electron-phonon coupling matrix elements from the Bloch to the Wannier representation. 
+You should do this in the direction containing all of the Wannier90 outputs, as a number of these files are needed. 
 
 To understand how this works, let's look at the input file ``qeToPhoebeWannier.in``::
 

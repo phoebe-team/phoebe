@@ -7,7 +7,7 @@ As explained in the theory section about the electron-phonon coupling with Wanni
 The code is modified on a separate git repository available [at this link](https://github.com/phoebe-team/phoebe-quantum-espresso/).
 This repository is a fork from the official QE repository.
 To develop a new patch or update it to the latest QE version, remember to pull from the remote quantum espresso repository.
-For the first Phoebe release, we only patched the latest QE 6.6 version, although a retrofit should be doable.
+Currently we have patched QE versions 6.6, 6.7, 7.0 and 7.3 version, although we will continue to update this. These exist on separate branches of the above repo. 
 
 **Files changed**
 
@@ -36,9 +36,7 @@ Two of these are easy:
 3. `elphon.f90` is a bigger modification, but not too difficult. The first time our subroutine `elphfil_phoebe` is called we analyze the symmetries of the q-point grid. This subroutine is called once for every q-point calculation. Next, we unfold the symmetries of the g coupling. Note that we also need to put it in a cartesian basis. Then, we write to file the quantity \f$ g(k,q^*) \f$, where k runs on the full grid of k-points, and \f$ q^* \f$ is the star of points that are symmetry equivalent to the current irreducible q point that is being computed. These output files are those that are passed as input to phoebe.
 
 
-
-
-@section CREATEPATCH Create+apply the patch
+@section CREATEPATCH Create a patch for a new version of QE
 
 **Code modifications**
 
@@ -53,66 +51,7 @@ git fetch --tags upstream
 git push -f --tags origin master
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-
-
-Checkout the branch with the version of QE that we want to patch, for example, v6.6 is stored in the branch `qe-6.6`.
-Create a new branch from `qe-6.6`, which we call `patched-qe-6.6`, and modify the source code with the lines of code needed by phoebe.
+Checkout the branch with the version of QE that we want to patch, for example, v7.3 is stored in the branch `qe-7.3`.
+Create a new branch from `qe-7.3`, which we call `patched-qe-7.3`, and modify the source code with the lines of code needed by phoebe.
 Alternatively, you may create the new branch `patched-qe-6.6` from an older patched branch, e.g. `patched-qe-6.5`, and pull the new commits of `qe-6.6` into `patched-qe-6.6`.
-
-**Patch creation**
-
-Assume now that the source code in branch `patched-qe-6.6` is ready to be distributed.
-To create the patch, we simply save the `git diff` between our branch and the original branch released by the QE community.
-Simply type
-~~~~~~~~~~~~~~~~~~~~~~~~~~~{.c}
-git diff qe-6.6..patched-qe-6.6 > patchfile.txt
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-This will create the file `"patchfile.txt"`, containing the patch.
-You may inspect this file to make sure it didn't add unnecessary modifications.
-Currently only 4 files are modified by the patch.
-
-
-**Patch application**
-
-To apply the patch, go to a folder with a copy of quantum espresso to be patched. In that folder, copy `"patchfile.txt"` and execute the command
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~{.c}
-patch -p1 < patchfile.txt
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The command executes successfully if the output looks like:
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~{.c}
-patching file PHonon/PH/elphon.f90
-patching file PHonon/PH/phq_readin.f90
-Hunk #1 succeeded at 911 (offset 4 lines).
-patching file PHonon/PH/run_nscf.f90
-patching file PW/src/c_bands.f90
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-After the patch is successfully applied, compile QE and use as described in the tutorials.
-The patch is tested to work in QE v6.5 and v6.6.
-The first patch has been developed with Quantum ESPRESSO v6.6.
-The patch thus may or may not work with older versions, we don't provide any support with that.
-
-Note also, the user could also directly download the source code of branch `patched-qe-6.6` and use that.
-
-
-
-**Troubleshooting**
-
-The patch fails if the output looks like this:
-
-~~~~~~~~~~~~~~~~~~~~~~~~~~~{.c}
-patching file PHonon/PH/elphon.f90
-Hunk #1 succeeded at 1444 (offset -85 lines).
-Hunk #2 succeeded at 1458 (offset -85 lines).
-patching file PHonon/PH/phq_readin.f90
-Hunk #1 FAILED at 907.
-1 out of 1 hunk FAILED -- saving rejects to file PHonon/PH/phq_readin.f90.rej
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-In this case, one should manually open the `"*.f90.rej"` file and manually apply the modification in the file `"*.f90"`.
-Note that the patch consists in added code. In the file c_bands.f90, we simply add a new subroutine and its call. In the phonon code, we modify the behavior of the 'epa' calculation so that data are written in phoebe format.
-Generally, we only added new lines to the code or added new variables, so, as a guideline to fix a failed patch, add the extra lines/variables that appear in the diff. Do so for every file where the patch has failed.
 

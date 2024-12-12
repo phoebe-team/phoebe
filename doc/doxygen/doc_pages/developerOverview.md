@@ -8,14 +8,13 @@ This section of the manual covers more technical details useful to a developer.
 The main program does very few things: intializes the paralllel environment, loads a subprogram (App) using an AppFactory, and launches it. Currently, supported apps are:
 * PhononTransportApp
 * ElectronWannierTransportApp
-* ElectronEPATransportApp
+* TransportEpa
 * PhononDosApp
 * ElectronWannierDosApp
 * ElectronFourierDosApp
 * PhononBandsApp
 * ElectronWannierBandsApp
 * ElectronFourierBandsApp
-* ElectronPolarizationApp
 
 @section scheme Code schematics
 

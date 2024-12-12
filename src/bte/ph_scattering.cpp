@@ -64,6 +64,7 @@ void PhScatteringMatrix::builder(VectorBTE *linewidth,
   //        - processes are (1+3)->2 and (3+2)->1
 
   const double energyCutoff = 0.001 / ryToCmm1; // discard states with small
+  const double pathLinewidthCutoff = 0.000001 / ryToCmm1; 
   // energies (smaller than 0.001 cm^-1
 
   // auxiliary variable for deciding how to apply low energy cutoff
@@ -348,7 +349,7 @@ void PhScatteringMatrix::builder(VectorBTE *linewidth,
                   continue;
                 }
               } else {
-                if (enProd < energyCutoff) {
+                if (enProd < pathLinewidthCutoff) {
                   continue;
                 }
               }
@@ -472,14 +473,11 @@ void PhScatteringMatrix::builder(VectorBTE *linewidth,
               //    offset. Note anyway that the difference between the two
               //    criteria should disappear when huge q-meshes are used
               if (outerEqualInnerMesh) {
-                if (en1 < energyCutoff || en2 < energyCutoff ||
-                    en3Minus < energyCutoff) {
+                if (en1 < energyCutoff || en2 < energyCutoff || en3Minus < energyCutoff) {
                   continue;
                 }
               } else {
-                if (enProd < energyCutoff) {
-                  continue;
-                }
+                if (enProd < pathLinewidthCutoff) {  continue;  }
               }
 
               double deltaMinus1, deltaMinus2;
@@ -497,12 +495,9 @@ void PhScatteringMatrix::builder(VectorBTE *linewidth,
                 deltaMinus2 = smearing->getSmearing(en1 - en3Minus, is2Idx);
               }
 
-              if (deltaMinus1 <= 0. && deltaMinus2 <= 0.)
-                continue;
-              if (deltaMinus1 < 0.)
-                deltaMinus1 = 0.;
-              if (deltaMinus2 < 0.)
-                deltaMinus2 = 0.;
+              if (deltaMinus1 <= 0. && deltaMinus2 <= 0.)  continue;
+              if (deltaMinus1 < 0.)  deltaMinus1 = 0.;
+              if (deltaMinus2 < 0.)  deltaMinus2 = 0.;
 
               for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
                 double bose1 = outerBose(iCalc, iBte1);
@@ -540,8 +535,7 @@ void PhScatteringMatrix::builder(VectorBTE *linewidth,
                     }
                   } else {
                     if (theMatrix.indicesAreLocal(iBte1, iBte2)) {
-                      linewidth->operator()(iCalc, 0, iBte1) +=
-                          0.5 * (rateMinus1 + rateMinus2);
+                      linewidth->operator()(iCalc, 0, iBte1) +=  0.5 * (rateMinus1 + rateMinus2);
                     }
                     theMatrix(iBte1, iBte2) -= rateMinus1 + rateMinus2;
                   }
@@ -702,7 +696,6 @@ void PhScatteringMatrix::builder(VectorBTE *linewidth,
               termIso += std::norm(zzIso) * massVariance(iat);
             }
             termIso *= pi * 0.5 * norm * en1 * en2 * deltaIso;
-
 
             for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
               double bose1 = outerBose(iCalc, iBte1);

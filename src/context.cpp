@@ -986,7 +986,7 @@ void Context::printInputSummary(const std::string &fileName) {
       std::cout << "convergenceThresholdBTE = " << convergenceThresholdBTE << std::endl;
       std::cout << "maxIterationsBTE = " << maxIterationsBTE << std::endl;
     } else {
-      std::cout << "solverBTE = RTA";
+      std::cout << "solverBTE = RTA" << std::endl;
     }
 
       std::cout << "scatteringMatrixInMemory = " << scatteringMatrixInMemory

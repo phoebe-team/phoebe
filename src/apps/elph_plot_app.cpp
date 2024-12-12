@@ -89,6 +89,10 @@ void ElPhCouplingPlotApp::run(Context &context) {
     }
   }
 
+  if(pointsPairs.size() < mpi->getSize()) {
+    Error("The plot app cannot be run with more pairs than mpi processes!");
+  }
+
   // band ranges to calculate the coupling for -----------------------------
   std::pair<int, int> g2PlotEl1Bands = context.getG2PlotEl1Bands();
   std::pair<int, int> g2PlotEl2Bands = context.getG2PlotEl2Bands();

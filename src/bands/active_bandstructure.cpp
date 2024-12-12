@@ -25,7 +25,7 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
   }
   numStates = numFullBands * numPoints;
   hasEigenvectors = withEigenvectors;
-  hasVelocities = withEigenvectors;
+  hasVelocities = withVelocities;
 
   if (mpi->mpiHead()) { // print info on memory
     // count up the total memory use
@@ -62,7 +62,8 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
   try {
     size_t size = numPoints;
     size *= numFullBands; 
-    size *= numFullBands * 3; 
+    size *= size_t(numFullBands) * size_t(3); 
+    if(mpi->mpiHead()) std::cout << "size " << size << std::endl;
     if(withVelocities) velocities.resize(size, complexZero);
   } catch(std::bad_alloc& e) {
     Error("Failed to allocate band structure velocities.\n"
@@ -228,7 +229,7 @@ int ActiveBandStructure::hasWindow() { return windowMethod; }
 
 bool ActiveBandStructure::getIsDistributed() { return false; }
 
-int ActiveBandStructure::getIndex(const WavevectorIndex &ik,
+size_t ActiveBandStructure::getIndex(const WavevectorIndex &ik,
                                   const BandIndex &ib) {
   return bloch2Comb(ik.get(), ib.get());
 }
@@ -264,7 +265,7 @@ Eigen::VectorXd ActiveBandStructure::getEnergies(WavevectorIndex &ik) {
   int nb = numBands(ikk);
   Eigen::VectorXd x(nb);
   for (int ib = 0; ib < nb; ib++) {
-    int ind = bloch2Comb(ikk, ib);
+    size_t ind = bloch2Comb(ikk, ib);
     x(ib) = energies[ind];
   }
   return x;
@@ -325,7 +326,7 @@ Eigen::MatrixXcd ActiveBandStructure::getEigenvectors(WavevectorIndex &ik) {
   eigenVectors_.setZero();
   for (int ib1 = 0; ib1 < numFullBands; ib1++) {
     for (int ib2 = 0; ib2 < nb; ib2++) {
-      int ind = eigBloch2Comb(ikk, ib1, ib2);
+      size_t ind = eigBloch2Comb(ikk, ib1, ib2);
       eigenVectors_(ib1, ib2) = eigenvectors[ind];
     }
   }
@@ -394,24 +395,25 @@ void ActiveBandStructure::setVelocities(
   for (int ib1 = 0; ib1 < velocities_.dimension(0); ib1++) {
     for (int ib2 = 0; ib2 < velocities_.dimension(1); ib2++) {
       for (int j : {0, 1, 2}) {
-        int index = velBloch2Comb(ik, ib1, ib2, j);
+        size_t index = velBloch2Comb(ik, ib1, ib2, j);
+        if(mpi->mpiHead() && index < 0) std::cout << "index " << index << std::endl;
         velocities[index] = velocities_(ib1, ib2, j);
       }
     }
   }
 }
 
-int ActiveBandStructure::velBloch2Comb(const int &ik, const int &ib1,
+size_t ActiveBandStructure::velBloch2Comb(const int &ik, const int &ib1,
                                        const int &ib2, const int &i) {
   return cumulativeKbbOffset(ik) + ib1 * numBands(ik) * 3 + ib2 * 3 + i;
 }
 
-int ActiveBandStructure::eigBloch2Comb(const int &ik, const int &ib1,
+size_t ActiveBandStructure::eigBloch2Comb(const int &ik, const int &ib1,
                                        const int &ib2) {
   return cumulativeKbOffset(ik) * numFullBands + ib1 * numBands(ik) + ib2;
 }
 
-int ActiveBandStructure::bloch2Comb(const int &ik, const int &ib) {
+size_t ActiveBandStructure::bloch2Comb(const int &ik, const int &ib) {
   return cumulativeKbOffset(ik) + ib;
 }
 
@@ -419,7 +421,7 @@ std::tuple<int, int> ActiveBandStructure::comb2Bloch(const int &is) {
   return std::make_tuple(auxBloch2Comb(is, 0), auxBloch2Comb(is, 1));
 }
 
-int ActiveBandStructure::bteBloch2Comb(const int &ik, const int &ib) {
+size_t ActiveBandStructure::bteBloch2Comb(const int &ik, const int &ib) {
   return bteCumulativeKbOffset(ik) + ib;
 }
 
@@ -1206,7 +1208,7 @@ BteIndex ActiveBandStructure::stateToBte(StateIndex &isIndex) {
   if (ikBte < 0) {
     Error("Developer error: stateToBte is used on a point outside the mesh.");
   }
-  int iBte = bteBloch2Comb(ikBte, ibIdx.get());
+  size_t iBte = bteBloch2Comb(ikBte, ibIdx.get());
   return BteIndex(iBte);
 }
 

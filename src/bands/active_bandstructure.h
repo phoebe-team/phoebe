@@ -101,7 +101,7 @@ public:
    * has different range for every wavevector
    * @return stateIndex: integer from 0 to numStates-1
    */
-  int getIndex(const WavevectorIndex &ik, const BandIndex &ib) override;
+  size_t getIndex(const WavevectorIndex &ik, const BandIndex &ib) override;
 
   /** Given a Bloch state index, finds the corresponding wavevector and band
    * index.
@@ -424,13 +424,13 @@ public:
   //void symmetrize(Context &context, const bool& withVelocities);
 
   // utilities to convert Bloch indices into internal indices
-  int velBloch2Comb(const int &ik, const int &ib1, const int &ib2,
+  size_t velBloch2Comb(const int &ik, const int &ib1, const int &ib2,
                      const int &i);
-  int eigBloch2Comb(const int &ik, const int &ibFull, const int &ibRed);
-  int bloch2Comb(const int &k, const int &b);
+  size_t eigBloch2Comb(const int &ik, const int &ibFull, const int &ibRed);
+  size_t bloch2Comb(const int &k, const int &b);
   std::tuple<int, int> comb2Bloch(const int &is);
 
-  int bteBloch2Comb(const int &k, const int &b);
+  size_t bteBloch2Comb(const int &k, const int &b);
   std::tuple<int, int> bteComb2Bloch(const int &is);
 
   void buildOnTheFly(Window &window, Points points_, HarmonicHamiltonian &h0,

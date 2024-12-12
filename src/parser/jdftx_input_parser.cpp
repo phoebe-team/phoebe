@@ -165,7 +165,8 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   // the path to wannier jdftx file 
   std::string fileName = context.getElectronH0Name();
   if (fileName.empty()) {
-    Error("Check your path, jdftx.elph.phoebe.hdf5 not found at " + fileName);
+    Error("To read wannier information from JDFTx, specify"
+    "\nthe path to jdftx.elph.phoebe.hdf5 using electronH0Name.");
   }
   if (mpi->mpiHead())
     std::cout << "Reading in " + fileName + "." << std::endl;
@@ -411,8 +412,6 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
       }
     }
   }
-
-  dielectricMatrix = dielectricMatrix*0.25; 
 
   // Now we do postprocessing
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,

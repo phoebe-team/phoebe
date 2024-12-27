@@ -63,7 +63,7 @@ if(HDF5_AVAIL)
   ExternalProject_Add(highfive_dep
       SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/highfive_src
       GIT_REPOSITORY https://github.com/BlueBrain/HighFive.git
-      GIT_TAG v2.x
+      GIT_TAG v3.0.0-beta2
       UPDATE_COMMAND ""
       CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release

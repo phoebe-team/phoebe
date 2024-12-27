@@ -439,6 +439,7 @@ void writeHeaderHDF5(
       dElDegeneracies.write(elDegeneracies);
     }
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue writing elph Wannier header to hdf5.");
   }
 }

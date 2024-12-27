@@ -485,8 +485,6 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
 
         HighFive::File file(fileName, HighFive::File::ReadOnly);
 
-        std::cout << "trying single pool HDF5 read" << std::endl;
-
         // Set up dataset for gWannier
         HighFive::DataSet dgWannier = file.getDataSet("/gWannier");
         // Read in the elements for this process
@@ -628,6 +626,7 @@ InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal,
       mpi->bcast(&couplingWannier_);
     }
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue reading elph Wannier representation from hdf5.");
   }
 

@@ -111,6 +111,13 @@ class BaseBandStructure {
   virtual const double &getEnergy(StateIndex &is) = 0;
   virtual Eigen::VectorXd getEnergies(WavevectorIndex &ik) = 0;
 
+  /** Returns the maximum energy value. This can be useful when
+   * setting energy scales based on which phonons are discarded
+   * (as in the phel scattering, where the window is set relative
+   * to the maximum phonon energies)
+  */
+  virtual double getMaxEnergy() = 0;
+
   /** Returns the energy of a quasiparticle from its Bloch index
    * Used for accessing the band structure in the BTE.
    * @param stateIndex: an integer index in range [0,numStates[
@@ -446,6 +453,14 @@ class FullBandStructure : public BaseBandStructure {
    * chemical potential computed by StatisticsSweep. In rydberg units.
    */
   Eigen::VectorXd getEnergies(WavevectorIndex &ik) override;
+
+  /** Returns the maximum energy value. This can be useful when
+   * setting energy scales based on which phonons are discarded
+   * (as in the phel scattering, where the window is set relative
+   * to the maximum phonon energies)
+   * Currently not implemented for fullBandStructure -- blocked. 
+  */
+  double getMaxEnergy() override;
 
   /** Returns the group velocity of a quasiparticle from its Bloch index.
    * Used for accessing the band structure in the BTE.

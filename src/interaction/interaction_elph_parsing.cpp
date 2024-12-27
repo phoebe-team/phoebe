@@ -160,6 +160,7 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
 
 std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     Eigen::VectorXd, Eigen::VectorXd> parseHeaderHDF5(Context &context) {
+      
   std::string fileName = context.getElphFileName();
 
   int numElectrons, numSpin;
@@ -257,6 +258,7 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     mpi->bcast(&phBravaisVectors_, mpi->interPoolComm);
     mpi->bcast(&phBravaisVectorsDegeneracies_, mpi->interPoolComm);
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue reading elph Wannier representation header data from hdf5.");
   }
 
@@ -352,8 +354,8 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
     }
 
     // Reopen the HDF5 ElPh file for parallel read of eph matrix elements
-    HighFive::FileAccessProps fapl = HighFive::FileAccessProps{};
-    fapl.add(HighFive::MPIOFileAccess<MPI_Comm, MPI_Info>(mpi->getComm(comm), MPI_INFO_NULL));
+    HighFive::FileAccessProps fapl;
+    fapl.add(HighFive::MPIOFileAccess{mpi->getComm(), MPI_INFO_NULL});
     HighFive::File file(fileName, HighFive::File::ReadOnly, fapl);
 
     // Set up dataset for gWannier
@@ -477,10 +479,12 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
     // or because we forced HDF5 to run in serial.
 
     // Set up buffer to receive full matrix data
-    std::vector<std::complex<double>> gWanFlat(totElems);
+    //std::vector<std::complex<double>> gWanFlat(totElems);
+    Eigen::VectorXcd gWanFlat(totElems);
 
     if (mpi->getSize(mpi->intraPoolComm) == 1) {
       if (mpi->mpiHead()) {
+
         HighFive::File file(fileName, HighFive::File::ReadOnly);
 
         // Set up dataset for gWannier
@@ -513,6 +517,7 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
 #endif
 
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue reading elph Wannier representation from hdf5.");
   }
 
@@ -623,6 +628,7 @@ InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal,
       mpi->bcast(&couplingWannier_);
     }
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue reading elph Wannier representation from hdf5.");
   }
 

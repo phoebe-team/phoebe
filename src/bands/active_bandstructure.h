@@ -163,7 +163,7 @@ public:
    * (as in the phel scattering, where the window is set relative
    * to the maximum phonon energies)
   */
-  double getMaxEnergy();
+  double getMaxEnergy() override;
 
   /** Returns the group velocity of a quasiparticle from its Bloch index.
    * Used for accessing the band structure in the BTE.

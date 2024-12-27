@@ -193,7 +193,7 @@ for spin in spinPostFix:
     HePhWannier = np.einsum('RraxWw,a->RraxWw',HePhWannier,np.sqrt(massAmuToRy * np.array(masses)))
 
     # write to file
-    HePhWannier = HePhWannier.flatten(order='C')*2.  # convert Ha->Ry
+    HePhWannier = HePhWannier.flatten(order='C')*2.*np.sqrt(2)  # convert Ha->Ry, where the extra sqrt(2) is because these are raw g, without 1/sqrt(om) applied yet
     HePhWannier = HePhWannier.astype(complex)
     hf.create_dataset('gWannier', data=HePhWannier.reshape(1,HePhWannier.shape[0]))
 

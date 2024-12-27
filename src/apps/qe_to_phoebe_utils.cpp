@@ -618,6 +618,7 @@ void writeElPhCouplingHDF5v1(
     }
 #endif
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue writing elph Wannier representation to hdf5.");
   }
 

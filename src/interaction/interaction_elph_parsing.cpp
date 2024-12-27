@@ -477,11 +477,15 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
     // or because we forced HDF5 to run in serial.
 
     // Set up buffer to receive full matrix data
-    std::vector<std::complex<double>> gWanFlat(totElems);
+    //std::vector<std::complex<double>> gWanFlat(totElems);
+    Eigen::VectorXcd gWanFlat(totElems);
 
     if (mpi->getSize(mpi->intraPoolComm) == 1) {
       if (mpi->mpiHead()) {
+
         HighFive::File file(fileName, HighFive::File::ReadOnly);
+
+        std::cout << "trying single pool HDF5 read" << std::endl;
 
         // Set up dataset for gWannier
         HighFive::DataSet dgWannier = file.getDataSet("/gWannier");
@@ -513,6 +517,7 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
 #endif
 
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue reading elph Wannier representation from hdf5.");
   }
 

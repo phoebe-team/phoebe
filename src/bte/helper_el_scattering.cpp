@@ -48,7 +48,7 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     auto offset2 = std::get<1>(t2);
 
     fullPoints3 = std::make_unique<Points>(innerBandStructure.getPoints().getCrystal(), mesh2, offset2);
-    bool withVelocities = true;
+    bool withVelocities = (smearingType == DeltaFunction::symAdaptiveGaussian); // this is only used with sym adaptive
     bool withEigenvectors = true;
     if(mpi->mpiHead()) {
       std::cout << "Allocating the band structure of intermediate phonon states." << std::endl;
@@ -152,7 +152,7 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
 
     // build band structure
     bool withEigenvectors = true;
-    bool withVelocities = true;
+    bool withVelocities = (smearingType == DeltaFunction::symAdaptiveGaussian); // this is only used with sym adaptive
     // note: bandStructure3 stores a copy of ap3: can't pass unique_ptr
     if(mpi->mpiHead()) {
       std::cout << "Allocating the band structure of intermediate phonon states." << std::endl;
@@ -240,7 +240,7 @@ std::tuple<Eigen::Vector3d, Eigen::VectorXd, int, Eigen::MatrixXcd,
     // note: 3rdBandStructure might still be different from inner/outer bs.
     // so, we must use the points from 3rdBandStructure to get the values
 
-    int iq3;
+    size_t iq3;
     if (storedAllQ3Case == storedAllQ3Case1) {  // we use innerBandStructure
       Eigen::Vector3d crystalPoints = fullPoints3->cartesianToCrystal(q3);
       iq3 = fullPoints3->getIndex(crystalPoints);
@@ -254,7 +254,7 @@ std::tuple<Eigen::Vector3d, Eigen::VectorXd, int, Eigen::MatrixXcd,
     Eigen::MatrixXcd eigenVectors3 = bandStructure3->getEigenvectors(iq3Index);
     Eigen::MatrixXd v3s;
     // These later are used by the adaptive schemes
-    if (smearingType == DeltaFunction::adaptiveGaussian || smearingType == DeltaFunction::symAdaptiveGaussian) {
+    if (smearingType == DeltaFunction::symAdaptiveGaussian) {
       v3s = bandStructure3->getGroupVelocities(iq3Index);
     }
     int nb3 = int(energies3.size());

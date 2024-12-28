@@ -892,6 +892,8 @@ PhononH0::diagonalizeVelocity(Point &point) {
   return diagonalizeVelocityFromCoordinates(coordinates);
 }
 
+// TODO I think it would be easier to 
+// apply these phases to the dynmat during the transform
 Eigen::Tensor<std::complex<double>, 3>
 PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
 
@@ -901,34 +903,37 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
   velocity.setZero();
 
   bool withMassScaling = false;
-    //for(int i = 0; i < 3; i++){
-    //  printf("old = %.16e\n", coordinates(i));
-    //}
 
   // get the eigenvectors and the energies of the q-point
   auto tup = diagonalizeFromCoordinates(coordinates, withMassScaling);
   auto energies = std::get<0>(tup);
   auto eigenvectors = std::get<1>(tup);
 
-  //for(int i = 0; i < numBands; i++) printf("old = %.16e\n", energies(i));
-  //for(int i = 0; i < numBands; i++)
-  //  for(int j = 0; j < numBands; j++)
-  //    printf("old = %.16e %.16e\n", eigenvectors(i,j).real(), eigenvectors(i,j).imag());
+  Eigen::MatrixXcd eigenvectors_bar(numBands, numBands);
+  Eigen::MatrixXcd eigenvectors_bar_minus(numBands, numBands);
+  Eigen::MatrixXcd eigenvectors_bar_plus(numBands, numBands);
+  eigenvectors_bar.setZero();
+  eigenvectors_bar_minus.setZero();
+  eigenvectors_bar_plus.setZero();
 
-  // now we compute the velocity operator, diagonalizing the expectation
-  // value of the derivative of the dynamical matrix.
-  // This works better than doing finite differences on the frequencies.
+  Eigen::VectorXcd matrix_U(numBands);
+  Eigen::VectorXcd matrix_U_plus(numBands);
+  Eigen::VectorXcd matrix_U_minus(numBands);
+  matrix_U.setZero();
+  matrix_U_plus.setZero();
+  matrix_U_minus.setZero();
+
+  // now we compute the velocity operator
   double deltaQ = 1.0e-8;
+  // kx, ky, kz directions 
   for (int i : {0, 1, 2}) {
+
     // define q+ and q- from finite differences.
+    Eigen::Vector3d qcenter = coordinates;
     Eigen::Vector3d qPlus = coordinates;
     Eigen::Vector3d qMinus = coordinates;
     qPlus(i) += deltaQ;
     qMinus(i) -= deltaQ;
-
-    //for(int i = 0; i < 3; i++){
-    //  printf("old = %.16e %.16e\n", qPlus(i), qMinus(i));
-    //}
 
     // diagonalize the dynamical matrix at q+ and q-
     auto tup2 = diagonalizeFromCoordinates(qPlus, withMassScaling);
@@ -937,14 +942,27 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
     auto tup1 = diagonalizeFromCoordinates(qMinus, withMassScaling);
     auto enMinus = std::get<0>(tup1);
     auto eigMinus = std::get<1>(tup1);
-    //for(int i = 0; i < numBands; i++) printf("old = %.16e\n", enPlus(i));
-    //for(int i = 0; i < numBands; i++) printf("old = %.16e\n", enMinus(i));
-    //for(int i = 0; i < numBands; i++)
-    //  for(int j = 0; j < numBands; j++)
-    //    printf("old = %.16e %.16e\n", eigPlus(i,j).real(), eigPlus(i,j).imag());
-    //for(int i = 0; i < numBands; i++)
-    //  for(int j = 0; j < numBands; j++)
-    //    printf("old = %.16e %.16e\n", eigMinus(i,j).real(), eigMinus(i,j).imag());
+
+    // apply the Wallace phase 
+    for (int iat = 0; iat < numAtoms; iat++){
+      for (int i : {0, 1, 2}) {
+        auto ip = i + iat * 3;
+        double arg = qcenter.dot(atomicPositions.row(iat));
+        matrix_U(ip) = exp(-complexI*arg);
+        arg = qPlus.dot(atomicPositions.row(iat));
+        matrix_U_plus(ip) = exp(-complexI*arg);
+        arg = qMinus.dot(atomicPositions.row(iat));
+        matrix_U_minus(ip) = exp(-complexI*arg);
+      }
+    }
+
+    for(int i = 0; i < numBands; i++){
+      for(int j = 0; j < numBands; j++){
+        eigenvectors_bar(i,j) = matrix_U(i) * eigenvectors(i,j);
+        eigenvectors_bar_plus(i,j) = matrix_U_plus(i) * eigPlus(i,j);
+        eigenvectors_bar_minus(i,j) = matrix_U_minus(i) * eigMinus(i,j);
+      }
+    }
 
     // build diagonal matrices with frequencies
     Eigen::MatrixXd enPlusMat(numBands, numBands);
@@ -957,114 +975,25 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
     // build the dynamical matrix at the two wavevectors
     // since we diagonalized it before, A = M.U.M*
     Eigen::MatrixXcd sqrtDPlus(numBands, numBands);
-    sqrtDPlus = eigPlus * enPlusMat * eigPlus.adjoint();
+    sqrtDPlus = eigenvectors_bar_plus * enPlusMat * eigenvectors_bar_plus.adjoint();
     Eigen::MatrixXcd sqrtDMinus(numBands, numBands);
-    sqrtDMinus = eigMinus * enMinusMat * eigMinus.adjoint();
+    sqrtDMinus = eigenvectors_bar_minus * enMinusMat * eigenvectors_bar_minus.adjoint();
 
     // now we can build the velocity operator
     Eigen::MatrixXcd der(numBands, numBands);
     der = (sqrtDPlus - sqrtDMinus) / (2. * deltaQ);
 
-    //for(int i = 0; i < numBands; i++){
-    //  for(int j = 0; j < numBands; j++){
-    //    auto x = der(i,j);
-    //    printf("old = %.16e %.16e\n", x.real(), x.imag());
-    //  }
-    //}
-    //for(int i = 0; i < numBands; i++){
-    //  for(int j = 0; j < numBands; j++){
-    //    auto x = sqrtDPlus(i,j);
-    //    printf("old = %.16e %.16e\n", x.real(), x.imag());
-    //  }
-    //}
-    //for(int i = 0; i < numBands; i++){
-    //  for(int j = 0; j < numBands; j++){
-    //    auto x = sqrtDMinus(i,j);
-    //    printf("old = %.16e %.16e\n", x.real(), x.imag());
-    //  }
-    //}
-
-    // and to be safe, we reimpose hermiticity
-    der = 0.5 * (der + der.adjoint());
-
-    // now we rotate in the basis of the eigenvectors at q.
-    der = eigenvectors.adjoint() * der * eigenvectors;
+    // option below can probably be decommented, this will enforce hermiticity numerically, 
+    // results should be equivalent within numerical noise
+    //der = 0.5 * (der + der.adjoint()); 
+    der = eigenvectors_bar.adjoint() * der * eigenvectors_bar;
 
     for (int ib2 = 0; ib2 < numBands; ib2++) {
       for (int ib1 = 0; ib1 < numBands; ib1++) {
         velocity(ib1, ib2, i) = der(ib1, ib2);
-        //auto x = velocity(ib1,ib2,i);
-        //printf("old = %.16e %.16e\n", x.real(), x.imag());
       }
     }
   }
-
-  // turns out that the above algorithm has problems with degenerate bands
-  // so, we diagonalize the velocity operator in the degenerate subspace,
-
-  for (int ib = 0; ib < numBands; ib++) {
-    // first, we check if the band is degenerate, and the size of the
-    // degenerate subspace
-    int sizeSubspace = 1;
-    for (int ib2 = ib + 1; ib2 < numBands; ib2++) {
-      // I consider bands degenerate if their frequencies are the same
-      // within 0.0001 cm^-1
-      if (abs(energies(ib) - energies(ib2)) > 0.0001 / ryToCmm1) {
-        break;
-      }
-      sizeSubspace += 1;
-    }
-
-    if (sizeSubspace > 1) {
-      Eigen::MatrixXcd subMat(sizeSubspace, sizeSubspace);
-      // we have to repeat for every direction
-      for (int iCart : {0, 1, 2}) {
-        // take the velocity matrix of the degenerate subspace
-        for (int j = 0; j < sizeSubspace; j++) {
-          for (int i = 0; i < sizeSubspace; i++) {
-            subMat(i, j) = velocity(ib + i, ib + j, iCart);
-          }
-        }
-
-        // reinforce hermiticity
-        subMat = 0.5 * (subMat + subMat.adjoint());
-
-        // diagonalize the subMatrix
-        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> eigenSolver(subMat);
-        Eigen::MatrixXcd newEigenVectors = eigenSolver.eigenvectors();
-        //newEigenVectors = 3*subMat; // TODO: undo
-
-        // rotate the original matrix in the new basis
-        // that diagonalizes the subspace.
-        subMat = newEigenVectors.adjoint() * subMat * newEigenVectors;
-
-        // reinforce hermiticity
-        subMat = 0.5 * (subMat + subMat.adjoint());
-
-        // substitute back
-        for (int j = 0; j < sizeSubspace; j++) {
-          for (int i = 0; i < sizeSubspace; i++) {
-            velocity(ib + i, ib + j, iCart) = subMat(i, j);
-          }
-        }
-      }
-    }
-
-    // we skip the bands in the subspace, since we corrected them already
-    ib += sizeSubspace - 1;
-  }
-  // if we are working at gamma, we set all velocities to zero.
-  if (coordinates.norm() < 1.0e-6) {
-    velocity.setZero();
-  }
-  //for(int i = 0; i < 3; i++){
-  //  for (int ib2 = 0; ib2 < numBands; ib2++) {
-  //    for (int ib1 = 0; ib1 < numBands; ib1++) {
-  //      auto x = velocity(ib1,ib2,i);
-  //      printf("old = %.16e %.16e\n", x.real(), x.imag());
-  //    }
-  //  }
-  //}
   Kokkos::Profiling::popRegion();
   return velocity;
 }

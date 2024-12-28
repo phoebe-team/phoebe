@@ -45,7 +45,6 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
         dynamicalMatrices(iK, m, n) = tmp;
       });
   Kokkos::realloc(phases_d, 0, 0);
-  //print3DComplex("new = ", dynamicalMatrices);
 
   if (hasDielectric) {
     auto longRangeCorrection1_d = this->longRangeCorrection1_d;
@@ -137,7 +136,6 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
             }
           });
         });
-  //print3DComplex("new = ", dynamicalMatrices);
   }
 
 
@@ -167,7 +165,6 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
         DD(iK, m, n) /= sqrt(atomicMasses_d(m) * atomicMasses_d(n));
       });
 
-  //print3DComplex("new = ", DD);
   return DD;
 }
 
@@ -180,7 +177,6 @@ std::tuple<DoubleView2D, StridedComplexView3D> PhononH0::kokkosBatchedDiagonaliz
   // create the Hamiltonians
   StridedComplexView3D dynamicalMatrices =
       kokkosBatchedBuildBlochHamiltonian(cartesianCoordinates);
-  //print3DComplex("new = ", dynamicalMatrices);
 
   int numK = dynamicalMatrices.extent(0);
   int numBands = this->numBands;
@@ -199,8 +195,6 @@ std::tuple<DoubleView2D, StridedComplexView3D> PhononH0::kokkosBatchedDiagonaliz
           frequencies(iK, m) = -sqrt(-frequencies(iK, m));
         }
       });
-  //print2D("new = ", frequencies);
-  //print3DComplex("new = ", dynamicalMatrices);
 
   if(withMassScaling) kokkosBatchedScaleEigenvectors(dynamicalMatrices);
   return std::make_tuple(frequencies, dynamicalMatrices);
@@ -386,15 +380,19 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
   int numK = cartesianCoordinates.extent(0);
 
   double delta = 1.0e-8;
+  Kokkos::complex<double> complexI(0.0, 1.0);
 
   // prepare all the wavevectors at which we need the hamiltonian,
   // (kx, ky, kz), (kx+dk, ky, kz), (kx - dk, ky, kz), (kx, ky + dk, kz), etc.
+  // 7 here is for the seven possible k+/- values
   DoubleView2D allVectors("wavevectors_k", numK * 7, 3);
   Kokkos::parallel_for(
-      "elHamiltonianShifted_d", numK, KOKKOS_LAMBDA(int iK) {
+      "phHamiltonianShifted_d", numK, KOKKOS_LAMBDA(int iK) {
+        // central points, i = x,y,z
         for (int i = 0; i < 3; ++i) {
           allVectors(iK * 7, i) = cartesianCoordinates(iK, i);
         }
+        // iDir for each kx, ky, kz +/-, i = x,y,z
         for (int iDir = 0; iDir < 3; ++iDir) {
           for (int i = 0; i < 3; ++i) {
             allVectors(iK * 7 + iDir * 2 + 1, i) = cartesianCoordinates(iK, i);
@@ -407,49 +405,80 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
         }
       });
 
-  //print2D("new = ", allVectors);
-
   // compute the electronic properties at all wavevectors
   auto t = kokkosBatchedDiagonalizeFromCoordinates(allVectors, false);
   DoubleView2D allEnergies = std::get<0>(t);
   StridedComplexView3D allEigenvectors = std::get<1>(t);
 
-    //print2D("new = ", allEnergies);
-
   int numBands = allEnergies.extent(1);
-
-  //print2D("new = ", allEnergies);
-  //print3DComplex("new = ", allEigenvectors);
 
   Kokkos::LayoutStride eigenvectorLayout(
       numK, numBands*numBands,
       numBands, 1,
       numBands, numBands);
 
-  // save energies and eigenvectors to results
-  DoubleView2D resultEnergies("energies", numK, numBands);
   StridedComplexView3D resultEigenvectors("eigenvectors", eigenvectorLayout);
   ComplexView4D resultVelocities("velocities", numK, numBands, numBands, 3);
+  ComplexView2D phases("wallacePhases", numK, numBands);
 
+  // copy slice of eigenvectors, energies into views 
+  Kokkos::parallel_for(
+      "phase", Range3D({0, 0, 0}, {numK, numAtoms, 3}), KOKKOS_LAMBDA(int iK, int iat, int i) {
+        // prepare the Wallace phase 
+          int m = i + iat * 3;  // generate the band index 
+          auto R = atomicPositions.row(iat); // TODO need atomic positions as a view... 
+
+          // i for each kx, ky, kz +/-, j = x,y,z
+          double arg = 0.0;
+          for(int j = 0; j < 3; ++j) {
+            arg += R(j) * allVectors(iK * 7 + i * 2 + 1, j); 
+          }
+          phases(iK,m) = exp( -complexI * arg );
+        });
+  // apply phases -- here we use the results eigenvectors container 
+  // to hold phase * U(k), to be replaced with standard ones before return 
   Kokkos::parallel_for(
       "der", Range2D({0, 0}, {numK, numBands}), KOKKOS_LAMBDA(int iK, int m) {
-        auto E = Kokkos::subview(allEnergies, iK * 7, Kokkos::ALL);
+
         auto X = Kokkos::subview(allEigenvectors, iK * 7, Kokkos::ALL, Kokkos::ALL);
-        resultEnergies(iK, m) = E(m);
+
+        // copy resultEigenvectors to return at the end
         for (int n=0; n<numBands; ++n) {
-          resultEigenvectors(iK, m, n) = X(m, n);
+          resultEigenvectors(iK, m, n) = phases(iK, m) * X(m, n);
         }
       });
 
-  //print3DComplex("new = ", resultEigenvectors);
+  Kokkos::resize(phases, 0, 0); // deallocate
 
   // Views for intermediate results
   ComplexView3D der("der", numK, numBands, numBands);
   ComplexView3D tmpV("tmpV", numK, numBands, numBands);
-  //ComplexView3D plus("plus", numK, numBands, numBands);
-  //ComplexView3D minus("plus", numK, numBands, numBands);
 
+  // kx, ky, kz directions 
   for (int i = 0; i < 3; ++i) {
+
+    // TODO will these go out of scope? 
+    ComplexView2D phasesPlus("wallacePhasesPlus", numK, numBands);
+    ComplexView2D phasesMinus("wallacePhasesMinus", numK, numBands);
+
+    // precalc +/- phases 
+    Kokkos::parallel_for(
+        "phasePlusMinus", Range3D({0, 0, 0}, {numK, numAtoms, 3}), KOKKOS_LAMBDA(int iK, int iat, int i) {
+          // prepare the Wallace phase 
+
+          int m = i + iat * 3;  // generate the band index 
+          auto R = atomicPositions.row(iat); // TODO need atomic positions as a view... 
+
+          // i for each kx, ky, kz +/-, j = x,y,z
+          double argPlus = 0.0;
+          double argMinus = 0.0;
+          for(int j = 0; j < 3; ++j) {
+            argPlus += R(j) * allVectors(iK * 7 + i * 2 + 1, j); 
+            argMinus += R(j) * allVectors(iK * 7 + i * 2 + 2, j); 
+          }
+          phasesPlus(iK,m) = exp( -complexI * argPlus );
+          phasesMinus(iK,m) = exp( -complexI * argMinus );
+        });
 
     // To build the velocity operator, we first compute the matrix
     // der = dH/dk = ( H(k+dk)-H(k-dk) ) / 2dk
@@ -457,49 +486,52 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
     Kokkos::parallel_for(
         "der", Range3D({0, 0, 0}, {numK, numBands, numBands}),
         KOKKOS_LAMBDA(int iK, int m, int n) {
+
           auto XPlus = Kokkos::subview(allEigenvectors, iK * 7 + i * 2 + 1, Kokkos::ALL, Kokkos::ALL);
           auto XMins = Kokkos::subview(allEigenvectors, iK * 7 + i * 2 + 2, Kokkos::ALL, Kokkos::ALL);
+
           DoubleView1D EPlus = Kokkos::subview(allEnergies, iK * 7 + i * 2 + 1, Kokkos::ALL);
           DoubleView1D EMins = Kokkos::subview(allEnergies, iK * 7 + i * 2 + 2, Kokkos::ALL);
+
           Kokkos::complex<double> x(0.,0.);
-          //Kokkos::complex<double> p(0.,0.);
-          //Kokkos::complex<double> pm(0.,0.);
           for (int l=0; l<numBands; ++l) {
-            x += XPlus(m,l) * EPlus(l) * Kokkos::conj(XPlus(n,l))
-                - XMins(m,l) * EMins(l) * Kokkos::conj(XMins(n,l));
-            //p += XPlus(m,l) * EPlus(l) * Kokkos::conj(XPlus(n,l));
-            //pm += XMins(m,l) * EMins(l) * Kokkos::conj(XMins(n,l));
+            // TODO check that these dimensions are right for band indices 
+            x += phasesPlus(iK,m) * XPlus(m,l) * EPlus(l) * Kokkos::conj(phasesPlus(iK,n) * XPlus(n,l))
+                -  phasesMinus(iK,m) * XMins(m,l) * EMins(l) * Kokkos::conj(phasesMinus(iK,n) * XMins(n,l));
           }
           der(iK, m, n) = x/(2*delta);
-          //plus(iK,m,n) = p;
-          //minus(iK,m,n) = pm;
         });
     Kokkos::fence();
-    //print2D("new = ", resultEnergies);
-    //print3DComplex("new = ", der);
-    //print3DComplex("new = ", plus);
-    //print3DComplex("new = ", minus);
+
+    Kokkos::resize(phasesPlus, 0, 0); // deallocate
+    Kokkos::resize(phasesMinus, 0, 0); // deallocate
 
     // Now we complete the Hellman-Feynman theorem
     // and compute the velocity as v = U(k)^* der * U(k)
+
+    // first applying v1 = U(k)^* der
     Kokkos::parallel_for(
         "tmpV", Range3D({0, 0, 0}, {numK, numBands, numBands}),
         KOKKOS_LAMBDA(int iK, int m, int n) {
-          auto L = Kokkos::subview(resultEigenvectors, iK, Kokkos::ALL, Kokkos::ALL);
-          auto R = Kokkos::subview(der, iK, Kokkos::ALL, Kokkos::ALL);
-          auto A = Kokkos::subview(tmpV, iK, Kokkos::ALL, Kokkos::ALL);
+          auto U = Kokkos::subview(resultEigenvectors, iK, Kokkos::ALL, Kokkos::ALL);
+          auto dER = Kokkos::subview(der, iK, Kokkos::ALL, Kokkos::ALL);
+          auto tempV = Kokkos::subview(tmpV, iK, Kokkos::ALL, Kokkos::ALL);
           Kokkos::complex<double> tmp(0.,0.);
           for (int l = 0; l < numBands; ++l) {
-            tmp += Kokkos::conj(L(l,m)) * 0.5 * (R(l, n) + Kokkos::conj(R(n, l)));
+            // average (der^* + der / 2) to enforce Hermiticity 
+            //tmp += Kokkos::conj(L(l,m)) * 0.5 * (R(l, n) + Kokkos::conj(R(n, l)));
+            tmp += Kokkos::conj(U(l,m)) * dER(l, n);
           }
-          A(m, n) = tmp;
+          tempV(m, n) = tmp;
         });
     Kokkos::fence();
 
+    // then applying v_final = v1 * U(k)
     Kokkos::parallel_for(
         "vel", Range3D({0, 0, 0}, {numK, numBands, numBands}),
         KOKKOS_LAMBDA(int iK, int m, int n) {
           double norm = 0.;
+          // TODO why skip gamma here but not above?
           for (int i=0; i<3; ++i) {
             norm += cartesianCoordinates(iK,i) * cartesianCoordinates(iK,i);
           }
@@ -517,13 +549,23 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
   Kokkos::resize(der, 0, 0, 0);
   Kokkos::resize(tmpV, 0, 0, 0);
 
-  //print4DComplex("new = ", resultVelocities);
+   // copy resultEigenvectors and energies to return 
+  DoubleView2D resultEnergies("energies", numK, numBands);
+  Kokkos::parallel_for(
+      "copyEigenvectors", Range2D({0, 0}, {numK, numBands}), KOKKOS_LAMBDA(int iK, int m) {
+        auto E = Kokkos::subview(allEnergies, iK * 7, Kokkos::ALL);
+        auto X = Kokkos::subview(allEigenvectors, iK * 7, Kokkos::ALL, Kokkos::ALL);
+
+       resultEnergies(iK, m) = E(m);
+
+        for (int n=0; n<numBands; ++n) {
+          resultEigenvectors(iK, m, n) = X(m, n);
+        }
+  });
 
   // deal with velocity issues and degenerate bands
   kokkosBatchedTreatDegenerateVelocities(cartesianCoordinates, resultEnergies,
                                          resultVelocities, 0.0001 / ryToCmm1);
-
-  //print4DComplex("new = ", resultVelocities);
 
 // TODO: this is the only difference from the ElectronH0 kokkosPopulate()
 // can we unify the two?

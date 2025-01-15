@@ -86,7 +86,7 @@ PhononH0::PhononH0(Crystal &crystal,
       // fac = (sign * tpi) / (omega * bg(3, 3) / alat)
       reff = dielectricMatrix * 0.5 * directUnitCell(2,2);
     } else {
-      norm = 4 * fourPi / volumeUnitCell;
+      norm = 2 * fourPi / volumeUnitCell;
     }
 
     int numG = (2*nr1x+1) * (2*nr2x+1) * (2*nr3x+1);
@@ -484,7 +484,7 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
     // fac = (sign * e2 * tpi) / (omega * bg(3, 3) / alat)
     reff = dielectricMatrix * 0.5 * directUnitCell(2,2);
   } else {
-    norm = 4 * fourPi / volumeUnitCell;
+    norm = 2 * fourPi / volumeUnitCell;
   }
 
   for (int ig=0; ig<gVectors.cols(); ++ig) {

@@ -59,7 +59,7 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
         });
     Kokkos::fence();
 
-    double norm = 4 * fourPi / volumeUnitCell;
+    double norm = 2 * fourPi / volumeUnitCell;
     int numG = gVectors_d.extent(0);
 
     auto gVectors_d = this->gVectors_d;

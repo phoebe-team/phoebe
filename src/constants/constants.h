@@ -9,8 +9,9 @@
 const double pi = 3.14159265358979323846;
 const double sqrtPi = sqrt(3.14159265358979323846);
 const double sqrtTwo = sqrt(2.);
+const double piSquared = pi * pi; 
 const double twoPi = 2. * pi;
-const double fourPi = 2. * pi;
+const double fourPi = 4. * pi;
 const double one = 1.;
 const double zero = 0.;
 const std::complex<double> complexZero = {0., 0.}; /* NOLINT */
@@ -69,8 +70,8 @@ const double elConductivityAuToSi = electronSi * electronSi / hBarSi / bohrRadiu
 const double mobilityAuToSi = electronSi / hBarSi * bohrRadiusSi * bohrRadiusSi;
 const double thermopowerAuToSi = kBoltzmannRy / electronSi * rydbergSi;
 
-// cutoffs 
+// cutoffs
 // TODO make this smaller!
-const double phEnergyCutoff = 3.5 / ryToCmm1; // in Cmm1
+const double phEnergyCutoff = 5 / ryToCmm1; // in Cmm1
 
 #endif

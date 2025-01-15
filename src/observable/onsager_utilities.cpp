@@ -32,13 +32,8 @@ void onsagerToTransportCoeffs(StatisticsSweep& statisticsSweep, int& dimensional
       }
     }
 
-    // seebeck = - matmul(L_EE_inv, L_ET)
-    Eigen::MatrixXd thisSeebeck = -(thisLEE.inverse()) * thisLET;
-    // note: in the unit conversion, I have to consider that S, proportional
-    // to 1/e, gets a negative sign coming from the negative electron charge
-    // Note that below, the correction on kappa is always positive (L_TE L_ET
-    // carries a factor e^2)
-    thisSeebeck *= -1;
+    // seebeck = matmul(L_EE_inv, L_ET)
+    Eigen::MatrixXd thisSeebeck = (thisLEE.inverse()) * thisLET;
 
     // k = L_tt - L_TE L_EE^-1 L_ET
     Eigen::MatrixXd thisKappa = thisLTE * (thisLEE.inverse());

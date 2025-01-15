@@ -60,6 +60,16 @@ class InteractionElPhWan {
 
 public:
 
+  // phase convention options -- TODO switch to ENUM
+  // Giustino uses Re, Rp for R vectors
+  // JDFTx uses Re, Re' R vectors 
+  static const int GiustinoPhaseConvention = 0; 
+  static const int JdftxPhaseConvention = 1; 
+  
+  // spin types -- TODO switch to ENUM
+  static const int spinNonPolarized = 1; 
+  static const int spinPolarizedOrSOC = 2; 
+
   /** Main constructor
    * @param crystal_: object describing the crystal unit cell.
    * @param couplingWannier_: matrix elements of the electron phonon
@@ -185,7 +195,6 @@ public:
    */
   static InteractionElPhWan parse(Context &context, Crystal &crystal,
                                   PhononH0& phononH0_);
-
 
   // Helper functions --------------------------------
 

@@ -12,7 +12,7 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
 
   std::string fileName = context.getElphFileName();
 
-  int numElectrons, numSpin;
+  int numElectrons, spinType;
   int numElBands, numElBravaisVectors, numPhBands, numPhBravaisVectors;
   numElBravaisVectors = 0; // suppress initialization warning
   Eigen::MatrixXd phBravaisVectors_, elBravaisVectors_;
@@ -27,7 +27,7 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
     }
 
     // Read the bravais lattice vectors info for q mesh.
-    infile >> numElectrons >> numSpin;
+    infile >> numElectrons >> spinType;
 
     int kx, ky, kz;
     int qx, qy, qz;
@@ -124,14 +124,14 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
   } // mpiHead done reading file
 
   mpi->bcast(&numElectrons);
-  mpi->bcast(&numSpin);
+  mpi->bcast(&spinType);
 
   mpi->bcast(&numElBands);
   mpi->bcast(&numPhBands);
   mpi->bcast(&numElBravaisVectors, mpi->interPoolComm);
   mpi->bcast(&numPhBravaisVectors);
 
-  if (numSpin == 2) {
+  if (spinType == InteractionElPhWan::spinPolarizedOrSOC) {
     Error("Spin-polarized and spin-non-colinear calculations are not currently supported.");
   }
   context.setNumOccupiedStates(numElectrons);
@@ -152,7 +152,7 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
 
   // there is no JDFTx parsing option for this function, so we will always have
   // phase convention 0, in which we use Re and Rp
-  int phaseConvention_ = 0;
+  int phaseConvention_ = InteractionElPhWan::GiustinoPhaseConvention;
 
   InteractionElPhWan output(crystal, couplingWannier_, elBravaisVectors_,
                             elBravaisVectorsDegeneracies_, phBravaisVectors_,
@@ -169,7 +169,7 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
 
   // Here, phase convention corresponds to using
   // g(Re,Rp) (phase convention = 1) or g(Re',Re) (phase convention = 2)
-  int numElectrons, numSpin, phaseConvention;
+  int numElectrons, spinType, phaseConvention;
   int numElBands, numElBravaisVectors, totalNumElBravaisVectors, numPhBands, numPhBravaisVectors;
   // suppress initialization warning
   numElBravaisVectors = 0; totalNumElBravaisVectors = 0; numPhBravaisVectors = 0;
@@ -192,9 +192,11 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
 
         // read in the number of electrons and the spin
         HighFive::DataSet dnelec = file.getDataSet("/numElectrons");
-        HighFive::DataSet dnspin = file.getDataSet("/numSpin");
+        // this is the spinType, but I don't want to change it to avoid making a mess wrt using older hdf5 files
+        HighFive::DataSet dnspin = file.getDataSet("/numSpin"); 
         dnelec.read(numElectrons);
-        dnspin.read(numSpin);
+        std::cout << "read numElectrons " << numElectrons << std::endl; // TODO remove me
+        dnspin.read(spinType);
 
         // read in the number of phonon and electron bands
         HighFive::DataSet dnElBands = file.getDataSet("/numElBands");
@@ -208,7 +210,7 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
           HighFive::DataSet dPhaseConvention = file.getDataSet("/phaseConvention");
           dPhaseConvention.read(phaseConvention);
         } catch (std::exception &error) {
-          phaseConvention = 0;
+          phaseConvention = InteractionElPhWan::GiustinoPhaseConvention;
         }
 
         std::string datasetPhBravaisVectors = "/phBravaisVectors";
@@ -219,7 +221,7 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
         // if this is a jdftx elph file, we need to read in elphBravaisVectors
         // here, instead of el and ph bravais vectors, we just have one set of R
         // vectors saved under elphBravaisVectors
-        if(phaseConvention == 1) {
+        if(phaseConvention == InteractionElPhWan::JdftxPhaseConvention) {
           datasetPhBravaisVectors = "/elphBravaisVectors";
           datasetPhDegeneracies = "/elphDegeneracies";
           datasetElBravaisVectors = "/elphBravaisVectors";
@@ -261,7 +263,7 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     }
     // broadcast to all MPI processes
     mpi->bcast(&numElectrons);
-    mpi->bcast(&numSpin);
+    mpi->bcast(&spinType);
     mpi->bcast(&numPhBands);
     mpi->bcast(&numPhBravaisVectors);
     mpi->bcast(&numElBands);
@@ -270,13 +272,18 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     mpi->bcast(&numElBravaisVectors, mpi->interPoolComm);
     mpi->bcast(&phaseConvention);
 
-    // phase convention 1 is used by JDFTx, which supports spin
-    if (numSpin == 2 && phaseConvention == 0) {
+    // JDFTx supports spin, QE does not. 
+    // spinType 2 = SOC or spin-pol. Both will have a spin factor of 1
+    if (spinType == InteractionElPhWan::spinPolarizedOrSOC 
+          && phaseConvention == InteractionElPhWan::GiustinoPhaseConvention) {
       Error("Spin is not currently supported when using QE.");
-    } else if (numSpin == 2 && phaseConvention == 1) { // this is spin polarized JDFTx
+    } else if (spinType == InteractionElPhWan::spinPolarizedOrSOC 
+          && phaseConvention == InteractionElPhWan::JdftxPhaseConvention) { 
       Warning("Spin-polarized JDFTx calculations should be closely monitored, as they are not well tested!");
-      bool spinOrbit = true;
-      context.setHasSpinOrbit(spinOrbit);
+      context.setHasSpinOrbit(true);
+      context.setSpinDegeneracyFactor(1); // TODO switch everywhere to using spinDegeneracyFactor
+    } else { 
+      context.setSpinDegeneracyFactor(2); // spin non polarized, gs = 2
     }
     context.setNumOccupiedStates(numElectrons);
 
@@ -323,7 +330,7 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
   int numPhBravaisVectors = phBravaisVectorsDegeneracies_.size();
   int phaseConvention = std::get<8>(t);
 
-  if(numElBravaisVectors < mpi->getSize() && phaseConvention == 1) {
+  if(numElBravaisVectors < mpi->getSize() && phaseConvention == InteractionElPhWan::JdftxPhaseConvention) {
     Error("JDFTx input files cannot be used when nMPI processes > numElBravaisVectors = "
      + std::to_string(numElBravaisVectors));
   }
@@ -587,7 +594,7 @@ InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal, PhononH0 &pho
   int numElBravaisVectors = elBravaisVectorsDegeneracies_.size();
   int numPhBravaisVectors = phBravaisVectorsDegeneracies_.size();
   int phaseConvention = std::get<8>(t);
-  if(phaseConvention == 1) {
+  if(phaseConvention == InteractionElPhWan::JdftxPhaseConvention) {
     DeveloperError("There is no phaseConvention=1 possibility for parseHDF5 version 2!");
   }
 

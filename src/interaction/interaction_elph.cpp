@@ -1,6 +1,6 @@
 #include "interaction_elph.h"
-#include <Kokkos_Core.hpp>
 #include <KokkosBlas2_gemv.hpp>
+#include <Kokkos_Core.hpp>
 
 #ifdef HDF5_AVAIL
 #include <Kokkos_ScatterView.hpp>
@@ -8,15 +8,14 @@
 
 // constructor
 InteractionElPhWan::InteractionElPhWan(
-    const Crystal& crystal_,
+    const Crystal &crystal_,
     const Eigen::Tensor<std::complex<double>, 5> &couplingWannier_,
     const Eigen::MatrixXd &wsR1Vectors_,
     const Eigen::VectorXd &wsR1VectorsDegeneracies_,
     const Eigen::MatrixXd &wsR2Vectors_,
-    const Eigen::VectorXd &wsR2VectorsDegeneracies_,
-    const int& phaseConvention, const PhononH0& phononH0_)
+    const Eigen::VectorXd &wsR2VectorsDegeneracies_, const int &phaseConvention,
+    const PhononH0 &phononH0_)
     : crystal(crystal_), phononH0(phononH0_), phaseConvention(phaseConvention) {
-
 
   numElBands = int(couplingWannier_.dimension(0));
   numPhBands = int(couplingWannier_.dimension(2));
@@ -25,38 +24,43 @@ InteractionElPhWan::InteractionElPhWan(
 
   usePolarCorrection = false;
   Eigen::Matrix3d epsilon = phononH0.getDielectricMatrix();
-  if (epsilon.squaredNorm() > 1.0e-10) {// i.e. if epsilon wasn't computed
-    if (crystal.getNumSpecies() > 1) {  // otherwise polar correction = 0
+  if (epsilon.squaredNorm() > 1.0e-10) { // i.e. if epsilon wasn't computed
+    if (crystal.getNumSpecies() > 1) {   // otherwise polar correction = 0
       usePolarCorrection = true;
     }
   }
 
   // TODO REMOVE TEMPORARY VARS
-  //wsR1Vectors = wsR1Vectors_;
-  //wsR1VectorsDegeneracies = wsR1VectorsDegeneracies_;
-  //wsR2Vectors = wsR2Vectors_;
-  //wsR2VectorsDegeneracies = wsR2VectorsDegeneracies_;
-  //cachedK1.setConstant(-1000);
-  //couplingWannier = couplingWannier_;
+  // wsR1Vectors = wsR1Vectors_;
+  // wsR1VectorsDegeneracies = wsR1VectorsDegeneracies_;
+  // wsR2Vectors = wsR2Vectors_;
+  // wsR2VectorsDegeneracies = wsR2VectorsDegeneracies_;
+  // cachedK1.setConstant(-1000);
+  // couplingWannier = couplingWannier_;
 
   // in the first call to this function, we must copy the el-ph tensor
   // from the CPU to the accelerator
   {
-    Kokkos::realloc(couplingWannier_k, numWsR1Vectors, numWsR2Vectors, numPhBands, numElBands, numElBands);
+    Kokkos::realloc(couplingWannier_k, numWsR1Vectors, numWsR2Vectors,
+                    numPhBands, numElBands, numElBands);
     Kokkos::realloc(wsR1VectorsDegeneracies_k, numWsR1Vectors);
     Kokkos::realloc(wsR2VectorsDegeneracies_k, numWsR2Vectors);
     Kokkos::realloc(wsR1Vectors_k, numWsR1Vectors, 3);
     Kokkos::realloc(wsR2Vectors_k, numWsR2Vectors, 3);
 
     // note that Eigen has left layout while kokkos has right layout
-    HostComplexView5D couplingWannier_h((Kokkos::complex<double> *) couplingWannier_.data(),
-                                        numWsR1Vectors, numWsR2Vectors,
-                                        numPhBands, numElBands, numElBands);
-    HostDoubleView1D wsR1VectorsDegeneracies_h((double *) wsR1VectorsDegeneracies_.data(), numWsR1Vectors);
-    HostDoubleView1D wsR2VectorsDegeneracies_h((double *) wsR2VectorsDegeneracies_.data(), numWsR2Vectors);
+    HostComplexView5D couplingWannier_h(
+        (Kokkos::complex<double> *)couplingWannier_.data(), numWsR1Vectors,
+        numWsR2Vectors, numPhBands, numElBands, numElBands);
+    HostDoubleView1D wsR1VectorsDegeneracies_h(
+        (double *)wsR1VectorsDegeneracies_.data(), numWsR1Vectors);
+    HostDoubleView1D wsR2VectorsDegeneracies_h(
+        (double *)wsR2VectorsDegeneracies_.data(), numWsR2Vectors);
 
-    HostDoubleView2D wsR1Vectors_h((double *) wsR1Vectors_.data(), numWsR1Vectors, 3);
-    HostDoubleView2D wsR2Vectors_h((double *) wsR2Vectors_.data(), numWsR2Vectors, 3);
+    HostDoubleView2D wsR1Vectors_h((double *)wsR1Vectors_.data(),
+                                   numWsR1Vectors, 3);
+    HostDoubleView2D wsR2Vectors_h((double *)wsR2Vectors_.data(),
+                                   numWsR2Vectors, 3);
 
     Kokkos::deep_copy(couplingWannier_k, couplingWannier_h);
     Kokkos::deep_copy(wsR2Vectors_k, wsR2Vectors_h);
@@ -69,21 +73,19 @@ InteractionElPhWan::InteractionElPhWan(
   }
 }
 
-void InteractionElPhWan::resetK1() {
-    cachedK1.setConstant(-1000);
-}
+void InteractionElPhWan::resetK1() { cachedK1.setConstant(-1000); }
 
 InteractionElPhWan::~InteractionElPhWan() {
-  if(couplingWannier_k.use_count()==1){
+  if (couplingWannier_k.use_count() == 1) {
     double memory = getDeviceMemoryUsage();
     kokkosDeviceMemory->removeDeviceMemoryUsage(memory);
   }
 }
 
-Eigen::Tensor<double, 3>&
+Eigen::Tensor<double, 3> &
 InteractionElPhWan::getCouplingSquared(const int &ik2) {
-  //cacheCoupling[ik2].setConstant(1.); // for testing
-  //cacheCoupling[ik2] = 4. * cacheCoupling[ik2];
+  // cacheCoupling[ik2].setConstant(1.); // for testing
+  // cacheCoupling[ik2] = 4. * cacheCoupling[ik2];
   return cacheCoupling[ik2];
 }
 
@@ -101,19 +103,18 @@ Eigen::Tensor<std::complex<double>, 3> InteractionElPhWan::getPolarCorrection(
 // wavevectors in a given bandstucture.
 //
 // * NOTE: this could be changed to calculate it for a specific q list if needed
-// * TODO additionally, could store this polar correction internally and use it directly
-// when calcCouplingSquared is called. However, for now we let the external
-// scattering rate calculation class handle it and pass it back to the calcCoupling
-// function. This is because currently in el-ph coupling, the polar data is
-// calculated by the external pointsHelper class, rather than as a precomputation
-// over q at the start of the scattering rate calculation/
+// * TODO additionally, could store this polar correction internally and use it
+// directly when calcCouplingSquared is called. However, for now we let the
+// external scattering rate calculation class handle it and pass it back to the
+// calcCoupling function. This is because currently in el-ph coupling, the polar
+// data is calculated by the external pointsHelper class, rather than as a
+// precomputation over q at the start of the scattering rate calculation/
 Eigen::MatrixXcd InteractionElPhWan::precomputeQDependentPolar(
-                                            BaseBandStructure &phBandStructure,
-                                            const bool useMinusQ) {
+    BaseBandStructure &phBandStructure, const bool useMinusQ) {
 
-  if(!phBandStructure.getParticle().isPhonon()) {
+  if (!phBandStructure.getParticle().isPhonon()) {
     Error("Developer error: cannot use electron bands to "
-                "precompute q-dept part of polar correction.");
+          "precompute q-dept part of polar correction.");
   }
 
   // precompute the q-dependent part of the polar correction ---------
@@ -127,18 +128,18 @@ Eigen::MatrixXcd InteractionElPhWan::precomputeQDependentPolar(
   // Fine to divide over qpoints as all processes have pairs k1, allQpoints
   std::vector<size_t> qIterator = mpi->divideWorkIter(numQPoints);
 #pragma omp parallel for
-  for(size_t iiq = 0; iiq < size_t(qIterator.size()); iiq++) {
+  for (size_t iiq = 0; iiq < size_t(qIterator.size()); iiq++) {
     size_t iq = qIterator[iiq];
     WavevectorIndex iqIdx(iq);
     auto qC = phBandStructure.getWavevector(iqIdx);
     auto evQ = phBandStructure.getEigenvectors(iqIdx);
-    if(useMinusQ) {
+    if (useMinusQ) {
       qC = qC * -1.;
       evQ = evQ.conjugate(); // u_{-q} = u_{q}^*, see 2017 giustino review eq 18
     }
     // prepare part of the correction for this q point
     Eigen::VectorXcd thisPolar = polarCorrectionPart1(qC, evQ);
-    for (int i=0; i<thisPolar.size(); ++i) {
+    for (int i = 0; i < thisPolar.size(); ++i) {
       polarData(iq, i) = thisPolar(i);
     }
   }
@@ -146,8 +147,9 @@ Eigen::MatrixXcd InteractionElPhWan::precomputeQDependentPolar(
   return polarData;
 }
 
-Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1(const Eigen::Vector3d &q3,
-							  const Eigen::MatrixXcd &ev3) {
+Eigen::VectorXcd
+InteractionElPhWan::polarCorrectionPart1(const Eigen::Vector3d &q3,
+                                         const Eigen::MatrixXcd &ev3) {
 
   // gather variables
   double volume = crystal.getVolumeUnitCell();
@@ -159,8 +161,9 @@ Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1(const Eigen::Vector3d 
   Eigen::MatrixXd atomicPositions = crystal.getAtomicPositions();
   Eigen::Vector3i qCoarseMesh = phononH0.getCoarseGrid();
 
-  return polarCorrectionPart1Static(q3, ev3, volume, reciprocalUnitCell, epsilon,
-		  		bornCharges, atomicPositions, qCoarseMesh, dimensionality);
+  return polarCorrectionPart1Static(q3, ev3, volume, reciprocalUnitCell,
+                                    epsilon, bornCharges, atomicPositions,
+                                    qCoarseMesh, dimensionality);
 }
 
 // compute g_L for block->wannierTransform
@@ -170,13 +173,13 @@ InteractionElPhWan::getPolarCorrectionStatic(
     const Eigen::Vector3d &q3, const Eigen::MatrixXcd &ev1,
     const Eigen::MatrixXcd &ev2, const Eigen::MatrixXcd &ev3,
     const double &volume, const Eigen::Matrix3d &reciprocalUnitCell,
-    const Eigen::Matrix3d &epsilon,
-    const Eigen::Tensor<double, 3> &bornCharges,
-    const Eigen::MatrixXd &atomicPositions,
-    const Eigen::Vector3i &qCoarseMesh, const int dimensionality) {
+    const Eigen::Matrix3d &epsilon, const Eigen::Tensor<double, 3> &bornCharges,
+    const Eigen::MatrixXd &atomicPositions, const Eigen::Vector3i &qCoarseMesh,
+    const int dimensionality) {
 
-  Eigen::VectorXcd x = polarCorrectionPart1Static(q3, ev3, volume, reciprocalUnitCell, epsilon,
-		  		bornCharges, atomicPositions, qCoarseMesh, dimensionality);
+  Eigen::VectorXcd x = polarCorrectionPart1Static(
+      q3, ev3, volume, reciprocalUnitCell, epsilon, bornCharges,
+      atomicPositions, qCoarseMesh, dimensionality);
   return polarCorrectionPart2(ev1, ev2, x);
 }
 
@@ -187,7 +190,6 @@ Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1Static(
     const Eigen::Matrix3d &epsilon, const Eigen::Tensor<double, 3> &bornCharges,
     const Eigen::MatrixXd &atomicPositions, const Eigen::Vector3i &qCoarseMesh,
     const int dimensionality) {
-
 
   // for 3D:
   // doi:10.1103/physRevLett.115.176401, Eq. 4, is implemented here
@@ -201,15 +203,15 @@ Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1Static(
   Eigen::VectorXcd x(numPhBands);
   x.setZero();
 
-  if(dimensionality == 3) {
+  if (dimensionality == 3) {
 
     // auxiliary terms
     double gMax = 14.;
-    double chargeSquare = 2.;// = e^2/4/Pi/eps_0 in atomic units
+    double chargeSquare = 2.; // = e^2/4/Pi/eps_0 in atomic units
     std::complex<double> factor = chargeSquare * fourPi / volume * complexI;
 
     // build a list of (q+G) vectors
-    std::vector<Eigen::Vector3d> gVectors;// here we insert all (q+G)
+    std::vector<Eigen::Vector3d> gVectors; // here we insert all (q+G)
     for (int m1 = -qCoarseMesh(0); m1 <= qCoarseMesh(0); m1++) {
       for (int m2 = -qCoarseMesh(1); m2 <= qCoarseMesh(1); m2++) {
         for (int m3 = -qCoarseMesh(2); m3 <= qCoarseMesh(2); m3++) {
@@ -237,45 +239,56 @@ Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1Static(
           // e^-(G+q).r ? TODO what is this phase...
           double arg = -gVector.dot(atomicPositions.row(iAt));
           std::complex<double> phase = {cos(arg), sin(arg)};
-          // factor 3 = (4pi*i/V) * (e^2/(4pi*eps0) * e^(-qEq / 4.) / qEq  * e^-i(G+q).r
+          // factor 3 = (4pi*i/V) * (e^2/(4pi*eps0) * e^(-qEq / 4.) / qEq  *
+          // e^-i(G+q).r
           std::complex<double> factor3 = factor2 * phase;
 
           for (int iPol : {0, 1, 2}) {
 
-            double gqDotZ = gVector(0) * bornCharges(iAt, 0, iPol)
-                          + gVector(1) * bornCharges(iAt, 1, iPol)
-                          + gVector(2) * bornCharges(iAt, 2, iPol);
+            double gqDotZ = gVector(0) * bornCharges(iAt, 0, iPol) +
+                            gVector(1) * bornCharges(iAt, 1, iPol) +
+                            gVector(2) * bornCharges(iAt, 2, iPol);
             int k = PhononH0::getIndexEigenvector(iAt, iPol, numAtoms);
 
             for (int ib3 = 0; ib3 < numPhBands; ib3++) {
-              //  x = (4pi*i/V) * (e^2/(4pi*eps0) * e^(-qEq / 4.) / qEq  * e^-i(G+q).r  * (q+G)*Z * ph_eig
+              //  x = (4pi*i/V) * (e^2/(4pi*eps0) * e^(-qEq / 4.) / qEq  *
+              //  e^-i(G+q).r  * (q+G)*Z * ph_eig
               x(ib3) += factor3 * gqDotZ * ev3(k, ib3);
             }
           }
         }
       }
     }
-  }
-  else if(dimensionality == 2) {
+  } else if (dimensionality == 2) {
 
-    if(mpi->mpiHead()) Warning("El-ph polar correction for 2D materials implemented but not tested!");
+    if (mpi->mpiHead())
+      Warning("El-ph polar correction for 2D materials implemented but not "
+              "tested!");
 
-    // TODO in phoebe is volume when dim = 2 used actually S? I think so, let's check.
-    double S = volume; // ! ESPECIALLY check that this is the case in the call from B->W !
+    // TODO in phoebe is volume when dim = 2 used actually S? I think so, let's
+    // check.
+    double S = volume; // ! ESPECIALLY check that this is the case in the call
+                       // from B->W !
     double qNorm = q3.norm(); // TODO do I need to sqrt this
     double L = 1.; // TODO check how to optimize this, it's an "arbitrary" param
-    double fq = 1. - tanh(qNorm * L / 2.); // TODO check if there is a numerically smarter tanh
+    double fq =
+        1. - tanh(qNorm * L /
+                  2.); // TODO check if there is a numerically smarter tanh
     double vq = twoPi * fq / qNorm;
-    // "The macroscopic in-plane polarizability can be obtained from the in-plane
-    // dielectric constant eps_ab of an artificially periodic stack of
-    // monolayers with spacing c through alphaPar(q) = (c/4pi) sum_ab q*a(eps_ab − delta_ab)*q*b TODO Norma?
-    double alphaPar = 1.; // TODO how to determine this? -- the macroscopic in-plane polarizability
+    // "The macroscopic in-plane polarizability can be obtained from the
+    // in-plane dielectric constant eps_ab of an artificially periodic stack of
+    // monolayers with spacing c through alphaPar(q) = (c/4pi) sum_ab q*a(eps_ab
+    // − delta_ab)*q*b TODO Norma?
+    double alphaPar = 1.; // TODO how to determine this? -- the macroscopic
+                          // in-plane polarizability
     double epsPar_q = 1. + vq * alphaPar;
-    Eigen::Tensor<double, 3> Zpar = bornCharges; // TODO later add in quadrupoles
+    Eigen::Tensor<double, 3> Zpar =
+        bornCharges; // TODO later add in quadrupoles
 
-    // TODO -- how to handle this form factor? Eq. 3 -- to start, maybe leave this as 1?
+    // TODO -- how to handle this form factor? Eq. 3 -- to start, maybe leave
+    // this as 1?
 
-    double prefactor = 1./S * vq;
+    double prefactor = 1. / S * vq;
 
     for (int iAt = 0; iAt < numAtoms; iAt++) {
 
@@ -285,10 +298,9 @@ Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1Static(
 
       for (int iPol : {0, 1, 2}) {
 
-        std::complex<double> iqDotZ = complexI *
-                       (q3(0) * Zpar(iAt, 0, iPol)
-                      + q3(1) * Zpar(iAt, 1, iPol)
-                      + q3(2) * Zpar(iAt, 2, iPol));
+        std::complex<double> iqDotZ = complexI * (q3(0) * Zpar(iAt, 0, iPol) +
+                                                  q3(1) * Zpar(iAt, 1, iPol) +
+                                                  q3(2) * Zpar(iAt, 2, iPol));
         // get combined eigenvector index for atom + polarization
         int kappa = PhononH0::getIndexEigenvector(iAt, iPol, numAtoms);
 
@@ -297,29 +309,33 @@ Eigen::VectorXcd InteractionElPhWan::polarCorrectionPart1Static(
         }
       }
     }
-  }
-  else { //(dimensionality == 1)
-    if(mpi->mpiHead()) Warning("El-ph polar correction for 1D materials not implemented. Let us know if you need this!");
+  } else { //(dimensionality == 1)
+    if (mpi->mpiHead())
+      Warning("El-ph polar correction for 1D materials not implemented. Let us "
+              "know if you need this!");
   }
 
-  Kokkos::Profiling::popRegion(); // interaction elph polar correction part1 static
+  Kokkos::Profiling::popRegion(); // interaction elph polar correction part1
+                                  // static
 
   return x;
 }
 
-// regardless of the use case, this calculates <psi|e^{i(G+q).r}|psi> part of polar correction
-Eigen::Tensor<std::complex<double>, 3> InteractionElPhWan::polarCorrectionPart2(
-							const Eigen::MatrixXcd &ev1,
-							const Eigen::MatrixXcd &ev2,
-							const Eigen::VectorXcd &x) {
+// regardless of the use case, this calculates <psi|e^{i(G+q).r}|psi> part of
+// polar correction
+Eigen::Tensor<std::complex<double>, 3>
+InteractionElPhWan::polarCorrectionPart2(const Eigen::MatrixXcd &ev1,
+                                         const Eigen::MatrixXcd &ev2,
+                                         const Eigen::VectorXcd &x) {
 
   // overlap = <U^+_{b2 k+q}|U_{b1 k}>
   //         = <psi_{b2 k+q}|e^{i(q+G)r}|psi_{b1 k}>
-  Eigen::MatrixXcd overlap = ev2.adjoint() * ev1;// matrix size (nb2,nb1)
-  overlap = overlap.transpose();                 // matrix size (nb1,nb2)
+  Eigen::MatrixXcd overlap = ev2.adjoint() * ev1; // matrix size (nb2,nb1)
+  overlap = overlap.transpose();                  // matrix size (nb1,nb2)
 
   int numPhBands = x.rows();
-  Eigen::Tensor<std::complex<double>, 3> v(overlap.rows(), overlap.cols(), numPhBands);
+  Eigen::Tensor<std::complex<double>, 3> v(overlap.rows(), overlap.cols(),
+                                           numPhBands);
   v.setZero();
   for (int ib3 = 0; ib3 < numPhBands; ib3++) {
     for (int i = 0; i < overlap.rows(); i++) {
@@ -331,33 +347,32 @@ Eigen::Tensor<std::complex<double>, 3> InteractionElPhWan::polarCorrectionPart2(
   return v;
 }
 
-void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
-                   			        const std::vector<Eigen::MatrixXcd> &eigvecs2,
-                         		    const std::vector<Eigen::MatrixXcd> &eigvecs3,
-                         		    const std::vector<Eigen::Vector3d>  &q3Cs,
-                                const Eigen::Vector3d &k1C,
-                         		    const std::vector<Eigen::VectorXcd> &polarData) {
+void InteractionElPhWan::calcCouplingSquared(
+    const Eigen::MatrixXcd &eigvec1,
+    const std::vector<Eigen::MatrixXcd> &eigvecs2,
+    const std::vector<Eigen::MatrixXcd> &eigvecs3,
+    const std::vector<Eigen::Vector3d> &q3Cs, const Eigen::Vector3d &k1C,
+    const std::vector<Eigen::VectorXcd> &polarData) {
 
   Kokkos::Profiling::pushRegion("calcCouplingSquared");
   int numWannier = numElBands;
   int nb1 = int(eigvec1.cols());
-  int numLoops = int(eigvecs2.size()); // the number of k2 and q points 
+  int numLoops = int(eigvecs2.size()); // the number of k2 and q points
 
 #ifdef MPI_AVAIL
   int pool_rank = mpi->getRank(mpi->intraPoolComm);
   int pool_size = mpi->getSize(mpi->intraPoolComm);
-  if(pool_size > 1 && mpi_requests[0] != MPI_REQUEST_NULL){
+  if (pool_size > 1 && mpi_requests[0] != MPI_REQUEST_NULL) {
 
-      //Kokkos::Profiling::pushRegion("wait for reductions");
-      // wait for MPI_Ireduces from cacheCoupling
-      //MPI_Waitall(pool_size, mpi_requests.data(), MPI_STATUSES_IGNORE);
-      //Kokkos::Profiling::popRegion();
+    // Kokkos::Profiling::pushRegion("wait for reductions");
+    //  wait for MPI_Ireduces from cacheCoupling
+    // MPI_Waitall(pool_size, mpi_requests.data(), MPI_STATUSES_IGNORE);
+    // Kokkos::Profiling::popRegion();
 
-      Kokkos::Profiling::pushRegion("copy to GPU");
-      this->elPhCached = Kokkos::create_mirror_view_and_copy(
-          Kokkos::DefaultExecutionSpace(), elPhCached_hs[pool_rank]
-      );
-      Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::pushRegion("copy to GPU");
+    this->elPhCached = Kokkos::create_mirror_view_and_copy(
+        Kokkos::DefaultExecutionSpace(), elPhCached_hs[pool_rank]);
+    Kokkos::Profiling::popRegion();
   }
 #endif
 
@@ -382,8 +397,9 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
 
   // Polar corrections are computed on the CPU and then transferred to GPU
   IntView1D usePolarCorrections("usePolarCorrections", numLoops);
-  ComplexView4D polarCorrections(Kokkos::ViewAllocateWithoutInitializing("polarCorrections"),
-                                 numLoops, numPhBands, nb1, nb2max);
+  ComplexView4D polarCorrections(
+      Kokkos::ViewAllocateWithoutInitializing("polarCorrections"), numLoops,
+      numPhBands, nb1, nb2max);
   auto usePolarCorrections_h = Kokkos::create_mirror_view(usePolarCorrections);
   auto polarCorrections_h = Kokkos::create_mirror_view(polarCorrections);
 
@@ -430,7 +446,10 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
     auto eigvecs3_h = Kokkos::create_mirror_view(eigvecs3_k);
     auto q3Cs_h = Kokkos::create_mirror_view(q3Cs_k);
 
-#pragma omp parallel for default(none) shared(eigvecs3_h, eigvecs2Dagger_h, nb2s_h, q3Cs_h, q3Cs_k, q3Cs, k1C, numLoops, numWannier, numPhBands, eigvecs2Dagger_k, eigvecs3_k, eigvecs2, eigvecs3, phaseConvention)
+#pragma omp parallel for default(none)                                         \
+    shared(eigvecs3_h, eigvecs2Dagger_h, nb2s_h, q3Cs_h, q3Cs_k, q3Cs, k1C,    \
+               numLoops, numWannier, numPhBands, eigvecs2Dagger_k, eigvecs3_k, \
+               eigvecs2, eigvecs3, phaseConvention)
     for (int ik = 0; ik < numLoops; ik++) {
 
       for (int i = 0; i < numWannier; i++) {
@@ -443,24 +462,25 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
       for (int i = 0; i < numPhBands; i++) {
         for (int j = 0; j < numPhBands; j++) {
           // if JDFTx is used so that phaseConvention = 1, q should be negated
-          if(phaseConvention == 1) {   // i,j flipped here due to row/col major,
-		  	                               // this is intentionally a * not a dagger
-                                       // e(-q) = e(q)^*
-	          eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i));
-	        } else {
+          if (phaseConvention == JdftxPhaseConvention) { // i,j flipped here due to row/col major,
+                                      // this is intentionally a * not a dagger
+                                      // e(-q) = e(q)^*
+            eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i));
+          } else {
             eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
-	        }
+          }
         }
       }
       for (int i = 0; i < 3; i++) {
 
         // in the JDFTx case we have to use k' in the place of q in phase2
         // we also have to remember q = k-k'
-        // Here we are playing an unclear trick, and replacing q -> q + k1, which in
-        // phaseConvention=0, k2 = q + k1, and using that for phase 2
-	      if(phaseConvention == 1) {
-          q3Cs_h(ik, i) = (q3Cs[ik](i) + k1C(i)); // k' wavevector stored here in this case
-	      } else {
+        // Here we are playing an unclear trick, and replacing q -> q + k1,
+        // which in phaseConvention=0, k2 = q + k1, and using that for phase 2
+        if (phaseConvention == JdftxPhaseConvention) {
+          q3Cs_h(ik, i) =
+              (q3Cs[ik](i) + k1C(i)); // k' wavevector stored here in this case
+        } else {
           q3Cs_h(ik, i) = q3Cs[ik](i);
         }
       }
@@ -477,20 +497,23 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   ComplexView2D phases("phases", numLoops, numWsR2Vectors);
   Kokkos::complex<double> complexI(0.0, 1.0);
   Kokkos::parallel_for(
-      "Interaction elph: calculate phase 2", Range2D({0, 0}, {numLoops, numWsR2Vectors}),
+      "Interaction elph: calculate phase 2",
+      Range2D({0, 0}, {numLoops, numWsR2Vectors}),
       KOKKOS_LAMBDA(int iq, int irP) {
         double arg = 0.0;
         for (int j = 0; j < 3; j++) {
           arg += q3Cs_k(iq, j) * wsR2Vectors_k(irP, j);
         }
         phases(iq, irP) = exp(complexI * arg) / wsR2VectorsDegeneracies_k(irP);
-     });
-   Kokkos::fence();
+      });
+  Kokkos::fence();
 
   // apply phases
-  ComplexView4D g3(Kokkos::ViewAllocateWithoutInitializing("g3"), numLoops, numPhBands, nb1, numWannier);
+  ComplexView4D g3(Kokkos::ViewAllocateWithoutInitializing("g3"), numLoops,
+                   numPhBands, nb1, numWannier);
   Kokkos::parallel_for(
-      "Interaction elph: apply phase 2", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, numWannier}),
+      "Interaction elph: apply phase 2",
+      Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, numWannier}),
       KOKKOS_LAMBDA(int iq, int nu, int ib1, int iw2) {
         Kokkos::complex<double> tmp(0., 0.);
         for (int irP = 0; irP < numWsR2Vectors; irP++) {
@@ -501,29 +524,38 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   Kokkos::realloc(phases, 0, 0);
 
   // rotate using phonon eigenvectors
-  ComplexView4D g4(Kokkos::ViewAllocateWithoutInitializing("g4"), numLoops, numPhBands, nb1, numWannier);
+  ComplexView4D g4(Kokkos::ViewAllocateWithoutInitializing("g4"), numLoops,
+                   numPhBands, nb1, numWannier);
   Kokkos::parallel_for(
-      "Interaction elph: rotate using phonon eigenvectors", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, numWannier}),
+      "Interaction elph: rotate using phonon eigenvectors",
+      Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, numWannier}),
       KOKKOS_LAMBDA(int iq, int nu2, int ib1, int iw2) {
         Kokkos::complex<double> tmp(0., 0.);
         for (int nu = 0; nu < numPhBands; nu++) {
           tmp += g3(iq, nu, ib1, iw2) * eigvecs3_k(iq, nu2, nu);
-          //if((nu == 3 && nu2 == 6) && if(ib1 == 4 && iw2 ==3)
-          //if(ib1 == 4 && iw2 ==3 && nu2 == 8) std::cout << "ib1 nu nu2 iw2 Uq " << ib1 << " " << nu << " " << nu2 << " " << iw2 << " " << eigvecs3_k(iq, nu2, nu) << " " << g3(iq, nu, ib1, iw2) << std::endl;
+          // if((nu == 3 && nu2 == 6) && if(ib1 == 4 && iw2 ==3)
+          // if(ib1 == 4 && iw2 ==3 && nu2 == 8) std::cout << "ib1 nu nu2 iw2 Uq
+          // " << ib1 << " " << nu << " " << nu2 << " " << iw2 << " " <<
+          // eigvecs3_k(iq, nu2, nu) << " " << g3(iq, nu, ib1, iw2) <<
+          // std::endl;
         }
         g4(iq, nu2, ib1, iw2) = tmp;
       });
   Kokkos::realloc(g3, 0, 0, 0, 0);
 
   // rotate using U^dagger eigenvectors
-  ComplexView4D gFinal(Kokkos::ViewAllocateWithoutInitializing("gFinal"), numLoops, numPhBands, nb1, nb2max);
+  ComplexView4D gFinal(Kokkos::ViewAllocateWithoutInitializing("gFinal"),
+                       numLoops, numPhBands, nb1, nb2max);
   Kokkos::parallel_for(
-      "Interaction elph: rotate using U^dagger eigenvectors", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, nb2max}),
+      "Interaction elph: rotate using U^dagger eigenvectors",
+      Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb1, nb2max}),
       KOKKOS_LAMBDA(int ik, int nu, int ib1, int ib2) {
         Kokkos::complex<double> tmp(0., 0.);
         for (int iw2 = 0; iw2 < numWannier; iw2++) {
           tmp += eigvecs2Dagger_k(ik, iw2, ib2) * g4(ik, nu, ib1, iw2);
-            //std::cout << "ib1 nu iw2 ib2 Uk " << ib1 << " " << nu << " " << iw2 << " " << ib2 << " " << eigvecs2Dagger_k(ik, ib2, iw2) << " " << g4(ik, nu, ib1, iw2) << std::endl;
+          // std::cout << "ib1 nu iw2 ib2 Uk " << ib1 << " " << nu << " " << iw2
+          // << " " << ib2 << " " << eigvecs2Dagger_k(ik, ib2, iw2) << " " <<
+          // g4(ik, nu, ib1, iw2) << std::endl;
         }
         gFinal(ik, nu, ib1, ib2) = tmp;
       });
@@ -541,14 +573,17 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   Kokkos::realloc(polarCorrections, 0, 0, 0, 0);
 
   // finally, compute |g|^2 from g
-  DoubleView4D coupling_k(Kokkos::ViewAllocateWithoutInitializing("gSq"), numLoops, numPhBands, nb2max, nb1);
+  DoubleView4D coupling_k(Kokkos::ViewAllocateWithoutInitializing("gSq"),
+                          numLoops, numPhBands, nb2max, nb1);
   Kokkos::parallel_for(
-      "Interaction elph: modulus coupling", Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb2max, nb1}),
+      "Interaction elph: modulus coupling",
+      Range4D({0, 0, 0, 0}, {numLoops, numPhBands, nb2max, nb1}),
       KOKKOS_LAMBDA(int ik, int nu, int ib2, int ib1) {
         // notice the flip of 1 and 2 indices is intentional
         // coupling is |<k+q,ib2 | dV_nu | k,ib1>|^2
         auto tmp = gFinal(ik, nu, ib1, ib2);
-        //std::cout << "nu ib1 ib2 " << nu << " " << ib1 << " " << ib2 << " " << gFinal(ik, nu, ib1, ib2) << std::endl;
+        // std::cout << "nu ib1 ib2 " << nu << " " << ib1 << " " << ib2 << " "
+        // << gFinal(ik, nu, ib1, ib2) << std::endl;
         coupling_k(ik, nu, ib2, ib1) =
             tmp.real() * tmp.real() + tmp.imag() * tmp.imag();
       });
@@ -560,7 +595,8 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
   auto coupling_h = Kokkos::create_mirror_view(coupling_k);
   Kokkos::deep_copy(coupling_h, coupling_k);
 
-#pragma omp parallel for default(none) shared(numLoops, cacheCoupling, coupling_h, nb1, nb2s_h, numPhBands)
+#pragma omp parallel for default(none)                                         \
+    shared(numLoops, cacheCoupling, coupling_h, nb1, nb2s_h, numPhBands)
   for (int ik = 0; ik < numLoops; ik++) {
     Eigen::Tensor<double, 3> coupling(nb1, nb2s_h(ik), numPhBands);
     for (int nu = 0; nu < numPhBands; nu++) {
@@ -573,7 +609,7 @@ void InteractionElPhWan::calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
     // and we save the coupling |g|^2 for later
     cacheCoupling[ik] = coupling;
   }
-  Kokkos::Profiling::popRegion(); //calcCouplingSquared
+  Kokkos::Profiling::popRegion(); // calcCouplingSquared
 }
 
 Eigen::VectorXi InteractionElPhWan::getCouplingDimensions() {
@@ -600,7 +636,8 @@ int InteractionElPhWan::estimateNumBatches(const int &nk2, const int &nb1) {
   double coupling = 16 * nb1 * maxNb2 * numPhBands;
   double polar = 16 * numPhBands * nb1 * maxNb2;
   double maxUsage =
-      nk2 * (evs + polar + std::max({phase + g3, g3 + g4, g4 + gFinal, gFinal + coupling}));
+      nk2 * (evs + polar +
+             std::max({phase + g3, g3 + g4, g4 + gFinal, gFinal + coupling}));
 
   // the number of batches needed
   int numBatches = std::ceil(maxUsage / availableMemory);
@@ -618,7 +655,8 @@ int InteractionElPhWan::estimateNumBatches(const int &nk2, const int &nb1) {
   return numBatches;
 }
 
-void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen::Vector3d &k1C) {
+void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1,
+                                   const Eigen::Vector3d &k1C) {
 
   Kokkos::Profiling::pushRegion("cacheElPh");
 
@@ -648,7 +686,7 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
 #endif
 
   ComplexView4D g1(Kokkos::ViewAllocateWithoutInitializing("g1"),
-      numWsR2Vectors, numPhBands, numElBands, numElBands);
+                   numWsR2Vectors, numPhBands, numElBands, numElBands);
 
   // note: this loop is a parallelization over the group (Pool) of MPI
   // processes, which together contain all the el-ph coupling tensor
@@ -670,7 +708,7 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
     Eigen::MatrixXcd poolEigvec1 = Eigen::MatrixXcd::Zero(poolNb1, numElBands);
     if (iPool == pool_rank) {
       poolK1C = k1C;
-      if(phaseConvention == 1) // jdftx convention needs this phase to be -k
+      if (phaseConvention == JdftxPhaseConvention) // jdftx convention needs this phase to be -k
         poolK1C = -k1C;
       poolEigvec1 = eigvec1;
     }
@@ -682,7 +720,8 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
     ComplexView2D eigvec1_k("ev1", poolNb1, numElBands);
     DoubleView1D poolK1C_k("k", 3);
     {
-      HostComplexView2D eigvec1_h((Kokkos::complex<double> *) poolEigvec1.data(), poolNb1, numElBands);
+      HostComplexView2D eigvec1_h((Kokkos::complex<double> *)poolEigvec1.data(),
+                                  poolNb1, numElBands);
       HostDoubleView1D poolK1C_h(poolK1C.data(), 3);
       Kokkos::deep_copy(eigvec1_k, eigvec1_h);
       Kokkos::deep_copy(poolK1C_k, poolK1C_h);
@@ -692,12 +731,12 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
     ComplexView5D couplingWannier_k = this->couplingWannier_k;
     DoubleView2D wsR1Vectors_k = this->wsR1Vectors_k;
     DoubleView1D wsR1VectorsDegeneracies_k = this->wsR1VectorsDegeneracies_k;
-    //Kokkos::Profiling::popRegion(); // cache setup
+    // Kokkos::Profiling::popRegion(); // cache setup
 
     // first we precompute the phases
     ComplexView1D phases_k("phases", numWsR1Vectors);
-    Kokkos::parallel_for("phases_k", numWsR1Vectors,
-        KOKKOS_LAMBDA(int irE) {
+    Kokkos::parallel_for(
+        "phases_k", numWsR1Vectors, KOKKOS_LAMBDA(int irE) {
           double arg = 0.0;
           for (int j = 0; j < 3; j++) {
             arg += poolK1C_k(j) * wsR1Vectors_k(irE, j);
@@ -726,33 +765,36 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
           }
           g1(irP, nu, iw1, iw2) = tmp;
         });
-   Kokkos::fence();
+    Kokkos::fence();
 #else
 
-  // Here we create a view to the elph matrix elements which represents it
-  // in 2D, so that we can use a matrix-vector product with the phases to accelerate
-  // an otherwise very expensive loop
-  //
-  // tutorial description of this gemv function:
-  // https://youtu.be/_qD4X66MQF8?t=2434
-  // read me about gemv https://github.com/kokkos/kokkos-kernels/wiki/BLAS-2%3A%3Agemv
+    // Here we create a view to the elph matrix elements which represents it
+    // in 2D, so that we can use a matrix-vector product with the phases to
+    // accelerate an otherwise very expensive loop
+    //
+    // tutorial description of this gemv function:
+    // https://youtu.be/_qD4X66MQF8?t=2434
+    // read me about gemv
+    // https://github.com/kokkos/kokkos-kernels/wiki/BLAS-2%3A%3Agemv
 
-  // product of phase factor with g
-  Kokkos::View<Kokkos::complex<double>*> g1_1D(g1.data(), numWsR2Vectors*numPhBands*numElBands*numElBands);
-  Kokkos::View<Kokkos::complex<double>**, Kokkos::LayoutRight> coupling_2D(couplingWannier_k.data(), numWsR1Vectors, numWsR2Vectors*numPhBands*numElBands*numElBands);
-  KokkosBlas::gemv("T", Kokkos::complex<double>(1.0), coupling_2D, phases_k, Kokkos::complex<double>(0.0), g1_1D);
+    // product of phase factor with g
+    Kokkos::View<Kokkos::complex<double> *> g1_1D(
+        g1.data(), numWsR2Vectors * numPhBands * numElBands * numElBands);
+    Kokkos::View<Kokkos::complex<double> **, Kokkos::LayoutRight> coupling_2D(
+        couplingWannier_k.data(), numWsR1Vectors,
+        numWsR2Vectors * numPhBands * numElBands * numElBands);
+    KokkosBlas::gemv("T", Kokkos::complex<double>(1.0), coupling_2D, phases_k,
+                     Kokkos::complex<double>(0.0), g1_1D);
 
 /*
   // Previous method -- slower than the gemv call
     Kokkos::deep_copy(g1, Kokkos::complex<double>(0.0, 0.0));
-    Kokkos::Experimental::ScatterView<Kokkos::complex<double> ****> g1scatter(g1);
-    Kokkos::parallel_for(
-        "g1",
-        Range5D({0, 0, 0, 0, 0},
-                {numWsR1Vectors, numWsR2Vectors, numPhBands, numElBands, numElBands}),
-        KOKKOS_LAMBDA(int irE, int irP, int nu, int iw1, int iw2) {
-          auto g1 = g1scatter.access();
-          g1(irP, nu, iw1, iw2) += couplingWannier_k(irE, irP, nu, iw1, iw2) * phases_k(irE);
+    Kokkos::Experimental::ScatterView<Kokkos::complex<double> ****>
+  g1scatter(g1); Kokkos::parallel_for( "g1", Range5D({0, 0, 0, 0, 0},
+                {numWsR1Vectors, numWsR2Vectors, numPhBands, numElBands,
+  numElBands}), KOKKOS_LAMBDA(int irE, int irP, int nu, int iw1, int iw2) { auto
+  g1 = g1scatter.access(); g1(irP, nu, iw1, iw2) += couplingWannier_k(irE, irP,
+  nu, iw1, iw2) * phases_k(irE);
         });
     Kokkos::Experimental::contribute(g1, g1scatter);
 */
@@ -765,7 +807,8 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
     // elPhCached. Otherwise, we need to do an MPI reduction
 
     if (pool_size == 1) {
-      Kokkos::realloc(elPhCached, numWsR2Vectors, numPhBands, poolNb1, numElBands);
+      Kokkos::realloc(elPhCached, numWsR2Vectors, numPhBands, poolNb1,
+                      numElBands);
 
       Kokkos::parallel_for(
           "elPhCached",
@@ -775,7 +818,10 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
             Kokkos::complex<double> tmp(0.0);
             for (int iw1 = 0; iw1 < numElBands; iw1++) {
               tmp += g1(irP, nu, iw1, iw2) * eigvec1_k(ib1, iw1);
-              //if(irP == 2 && nu == 3) std::cout << "Re' nu iw1 iw2 ib1 g1 Uk " << irP << " " << nu << " " <<iw1<< " " << iw2 << " " <<ib1 << " " << eigvec1_k(ib1, iw1) << " " << g1(irP, nu, iw1, iw2) << std::endl;
+              // if(irP == 2 && nu == 3) std::cout << "Re' nu iw1 iw2 ib1 g1 Uk
+              // " << irP << " " << nu << " " <<iw1<< " " << iw2 << " " <<ib1 <<
+              // " " << eigvec1_k(ib1, iw1) << " " << g1(irP, nu, iw1, iw2) <<
+              // std::endl;
             }
             elPhCached(irP, nu, ib1, iw2) = tmp;
           });
@@ -783,26 +829,27 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
 
     } else {
 
-      ComplexView4D poolElPhCached_k(Kokkos::ViewAllocateWithoutInitializing("poolElPhCached"),
-                                   numWsR2Vectors, numPhBands, poolNb1, numElBands);
+      ComplexView4D poolElPhCached_k(
+          Kokkos::ViewAllocateWithoutInitializing("poolElPhCached"),
+          numWsR2Vectors, numPhBands, poolNb1, numElBands);
 
       Kokkos::parallel_for(
-        "elPhCached",
-        Range4D({0, 0, 0, 0},
-                {numWsR2Vectors, numPhBands, poolNb1, numElBands}),
-        KOKKOS_LAMBDA(int irP, int nu, int ib1, int iw2) {
-          Kokkos::complex<double> tmp(0.0);
-          for (int iw1 = 0; iw1 < numElBands; iw1++) {
-            tmp += g1(irP, nu, iw1, iw2) * eigvec1_k(ib1, iw1);
-          }
-          poolElPhCached_k(irP, nu, ib1, iw2) = tmp;
-      });
+          "elPhCached",
+          Range4D({0, 0, 0, 0},
+                  {numWsR2Vectors, numPhBands, poolNb1, numElBands}),
+          KOKKOS_LAMBDA(int irP, int nu, int ib1, int iw2) {
+            Kokkos::complex<double> tmp(0.0);
+            for (int iw1 = 0; iw1 < numElBands; iw1++) {
+              tmp += g1(irP, nu, iw1, iw2) * eigvec1_k(ib1, iw1);
+            }
+            poolElPhCached_k(irP, nu, ib1, iw2) = tmp;
+          });
 
       // note: we do the reduction after the rotation, so that the tensor
       // may be a little smaller when windows are applied (nb1<numWannier)
 
       // do a mpi->allReduce across the pool
-      //mpi->allReduceSum(&poolElPhCached_h, mpi->intraPoolComm);
+      // mpi->allReduceSum(&poolElPhCached_h, mpi->intraPoolComm);
 
       Kokkos::Profiling::pushRegion("copy elPhCached to CPU");
       // copy from accelerator to CPU
@@ -816,18 +863,25 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
       // start reduction for current iteration
       Kokkos::Profiling::pushRegion("call MPI_reduce");
       // previously, we had tried non-blocking collectives here.
-      // However, this resulted in some segfaults, so we fell back to standard reduce.
+      // However, this resulted in some segfaults, so we fell back to standard
+      // reduce.
       if (pool_rank == iPool) {
-        //MPI_Ireduce(MPI_IN_PLACE, poolElPhCached_h.data(), poolElPhCached_h.size(), MPI_COMPLEX16, MPI_SUM, iPool, mpi->getComm(mpi->intraPoolComm), &mpi_requests[iPool]);
-        MPI_Reduce(MPI_IN_PLACE, poolElPhCached_h.data(), poolElPhCached_h.size(), MPI_COMPLEX16, MPI_SUM, iPool, mpi->getComm(mpi->intraPoolComm)); //, &mpi_requests[iPool]);
-      }
-      else{
-        MPI_Reduce(poolElPhCached_h.data(), poolElPhCached_h.data(), poolElPhCached_h.size(), MPI_COMPLEX16, MPI_SUM, iPool, mpi->getComm(mpi->intraPoolComm)); //, &mpi_requests[iPool]);
-        //MPI_Ireduce(poolElPhCached_h.data(), poolElPhCached_h.data(), poolElPhCached_h.size(), MPI_COMPLEX16, MPI_SUM, iPool, mpi->getComm(mpi->intraPoolComm), &mpi_requests[iPool]);
+        // MPI_Ireduce(MPI_IN_PLACE, poolElPhCached_h.data(),
+        // poolElPhCached_h.size(), MPI_COMPLEX16, MPI_SUM, iPool,
+        // mpi->getComm(mpi->intraPoolComm), &mpi_requests[iPool]);
+        MPI_Reduce(MPI_IN_PLACE, poolElPhCached_h.data(),
+                   poolElPhCached_h.size(), MPI_COMPLEX16, MPI_SUM, iPool,
+                   mpi->getComm(mpi->intraPoolComm)); //, &mpi_requests[iPool]);
+      } else {
+        MPI_Reduce(poolElPhCached_h.data(), poolElPhCached_h.data(),
+                   poolElPhCached_h.size(), MPI_COMPLEX16, MPI_SUM, iPool,
+                   mpi->getComm(mpi->intraPoolComm)); //, &mpi_requests[iPool]);
+        // MPI_Ireduce(poolElPhCached_h.data(), poolElPhCached_h.data(),
+        // poolElPhCached_h.size(), MPI_COMPLEX16, MPI_SUM, iPool,
+        // mpi->getComm(mpi->intraPoolComm), &mpi_requests[iPool]);
       }
       Kokkos::Profiling::popRegion();
 #endif
-
     }
   }
   this->elPhCached = elPhCached;
@@ -837,17 +891,16 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen:
 }
 
 double InteractionElPhWan::getDeviceMemoryUsage() {
-  double x = 16 * (this->elPhCached.size() + couplingWannier_k.size())
-      + 8 * (wsR2VectorsDegeneracies_k.size() + wsR2Vectors_k.size() + wsR1Vectors_k.size() + wsR1VectorsDegeneracies_k.size());
+  double x = 16 * (this->elPhCached.size() + couplingWannier_k.size()) +
+             8 * (wsR2VectorsDegeneracies_k.size() + wsR2Vectors_k.size() +
+                  wsR1Vectors_k.size() + wsR1VectorsDegeneracies_k.size());
   return x;
 }
-
 
 void InteractionElPhWan::oldCalcCouplingSquared(
     const Eigen::MatrixXcd &eigvec1,
     const std::vector<Eigen::MatrixXcd> &eigvecs2,
-    const std::vector<Eigen::MatrixXcd> &eigvecs3,
-    const Eigen::Vector3d &k1C,
+    const std::vector<Eigen::MatrixXcd> &eigvecs3, const Eigen::Vector3d &k1C,
     const std::vector<Eigen::Vector3d> &k2Cs,
     const std::vector<Eigen::Vector3d> &q3Cs) {
 
@@ -870,7 +923,6 @@ void InteractionElPhWan::oldCalcCouplingSquared(
     for (int irE = 0; irE < numWsR1Vectors; irE++) {
       double arg = k1C.dot(wsR1Vectors.col(irE));
       phases[irE] = exp(complexI * arg) / double(wsR1VectorsDegeneracies(irE));
-
     }
     for (int irE = 0; irE < numWsR1Vectors; irE++) {
       for (int irP = 0; irP < numWsR2Vectors; irP++) {
@@ -894,7 +946,8 @@ void InteractionElPhWan::oldCalcCouplingSquared(
         for (int iw1 = 0; iw1 < numWannier; iw1++) {
           for (int ib1 = 0; ib1 < nb1; ib1++) {
             for (int iw2 = 0; iw2 < numWannier; iw2++) {
-              elPhCached_old(iw2, ib1, nu, irP) += g1(iw2, iw1, nu, irP) * eigvec1(iw1, ib1);
+              elPhCached_old(iw2, ib1, nu, irP) +=
+                  g1(iw2, iw1, nu, irP) * eigvec1(iw1, ib1);
             }
           }
         }
@@ -914,8 +967,7 @@ void InteractionElPhWan::oldCalcCouplingSquared(
     std::vector<std::complex<double>> phases(numWsR2Vectors);
     for (int irP = 0; irP < numWsR2Vectors; irP++) {
       double arg = q3C.dot(wsR2Vectors.col(irP));
-      phases[irP] =
-          exp(complexI * arg) / double(wsR2VectorsDegeneracies(irP));
+      phases[irP] = exp(complexI * arg) / double(wsR2VectorsDegeneracies(irP));
     }
     for (int irP = 0; irP < numWsR2Vectors; irP++) {
       for (int nu = 0; nu < numPhBands; nu++) {

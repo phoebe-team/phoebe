@@ -16,13 +16,9 @@ OnsagerCoefficients::OnsagerCoefficients(StatisticsSweep &statisticsSweep_,
     : statisticsSweep(statisticsSweep_), crystal(crystal_),
       bandStructure(bandStructure_), context(context_) {
 
-  if (context.getHasSpinOrbit()) {
-    spinFactor = 1.;
-  } else {
-    // TODO: for spin polarized calculations, we will have to set this
-    // to 1.
-    spinFactor = 2.;
-  }
+  // TODO : change this to use the context getSpinDegeneracyFactor 
+  if (context.getHasSpinOrbit()) { spinFactor = 1.;
+  } else { spinFactor = 2.; }
 
   dimensionality = crystal.getDimensionality();
   numCalculations = statisticsSweep.getNumCalculations();

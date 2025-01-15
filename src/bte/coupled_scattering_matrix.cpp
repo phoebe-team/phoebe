@@ -171,11 +171,12 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   if (!std::isnan(context.getBoundaryLength())) {
     if (context.getBoundaryLength() > 0.) {
       // phonon boundary scattering
-      addBoundaryScattering(*this, context, inPopulations, outPopulations,
-                            switchCase, innerBandStructure, linewidth);
+      //addBoundaryScattering(*this, context, inPopulations, outPopulations,
+      //                      switchCase, innerBandStructure, linewidth);
+      //std::cout << std::endl;
       // electron boundary scattering
-      addBoundaryScattering(*this, context, inPopulations, outPopulations,
-                            switchCase, outerBandStructure, linewidth);
+      //addBoundaryScattering(*this, context, inPopulations, outPopulations,
+      //                      switchCase, outerBandStructure, linewidth);
     }
   }
 

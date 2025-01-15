@@ -44,7 +44,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
 
   if ( // innerBandStructure != outerBandStructure &&
      smearing->getType() == DeltaFunction::tetrahedron) {
-    Error("Developer error: Tetrahedron smearing for transport untested and thus blocked");
+    DeveloperError("Tetrahedron smearing for transport untested and thus blocked");
     // May work for linewidths. Although this should be double-checked
   }
 

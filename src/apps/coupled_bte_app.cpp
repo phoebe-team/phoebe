@@ -144,16 +144,18 @@ void CoupledTransportApp::run(Context &context) {
     SpecificHeat elSpecificHeat(context, elStatisticsSweep, crystal, elBandStructure);
     elSpecificHeat.calc();
 
+    // output relaxation times (the eigenvalues)
+    // note this must come before the transport calculation below, as
+    // we will 
+    // TODO also write the relaxons visulation function?
+    scatteringMatrix.relaxonsToJSON("coupled_relaxons_relaxation_times.json", eigenvalues);
+
     // calculate the transport properties and viscosity
     coupledCoeffs.calcFromRelaxons(scatteringMatrix, phSpecificHeat, elSpecificHeat, eigenvalues, eigenvectors);
     coupledCoeffs.print();
     // note: viscosities are output by default internally in calcFromRelaxons
     coupledCoeffs.outputToJSON("coupled_relaxons_transport_coeffs.json");
     coupledCoeffs.symmetrize3x3Tensors();
-
-    // output relaxation times (the eigenvalues)
-    // TODO also write the relaxons visulation function?
-    scatteringMatrix.relaxonsToJSON("coupled_relaxons_relaxation_times.json", eigenvalues);
 
     if (mpi->mpiHead()) {
       std::cout << "Finished relaxons BTE solver\n\n";

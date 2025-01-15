@@ -1533,6 +1533,7 @@ std::vector<int> ScatteringMatrix::getExcludeIndices(BaseBandStructure& bandStru
 }
 
 /* probably never called on regular Scattering matrix, but this is here just in case */
+// TODO we should make this a function which does nothing if it's not the coupled calculation 
 std::tuple<int,int> ScatteringMatrix::shiftToCoupledIndices(
             const int& iBte1, const int& iBte2, const Particle& p1, const Particle& p2) {
 

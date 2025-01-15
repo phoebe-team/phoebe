@@ -88,7 +88,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
   // set up the loopPrint object which prints out progress
   std::string dragName = (dragTermType == Del) ? "el-ph" : "ph-el";
-  LoopPrint loopPrint("computing " + dragName + " drag terms ",
+  LoopPrint loopPrint("computing " + dragName + " drag terms",
                                      "k,q pairs", int(kqPairIterator.size()));
 
   // loop over final and initial state pairs

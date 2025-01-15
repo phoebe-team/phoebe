@@ -8,12 +8,9 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
                                          Crystal &crystal_, Context &context_)
     : statisticsSweep(statisticsSweep_), crystal(crystal_), context(context_) {
 
-  if (context.getHasSpinOrbit()) {
-    spinFactor = 1.;
-  } else {
-    // TODO: for spin polarized calculations, we will have to set this to 1.
-    spinFactor = 2.;
-  }
+  // TODO : change this to use the context getSpinDegeneracyFactor 
+  if (context.getHasSpinOrbit()) { spinFactor = 1.;
+  } else {  spinFactor = 2.; }
 
   // matrix had to be in memory for this calculation.
   // therefore, we can only ever have one numCalc
@@ -89,7 +86,7 @@ void CoupledCoefficients::calcFromRelaxons(
 
   // coupled transport only allowed with matrix in memory
   if (numCalculations > 1) {
-    Error("Developer error: coupled relaxons only possible with one T value.");
+    DeveloperError("Coupled relaxons only possible with one T value.");
   }
 
   int numElStates = int(elBandStructure->irrStateIterator().size());
@@ -130,6 +127,8 @@ void CoupledCoefficients::calcFromRelaxons(
   Eigen::Tensor<double, 3> Vphi(numRelaxons, 3, 3);
   dragVphi.setZero(); elVphi.setZero(); phVphi.setZero(); Vphi.setZero();
 
+
+
   // sum over the alpha and v states that this process owns
   for (auto tup : eigenvectors.getAllLocalStates()) {
 
@@ -147,6 +146,15 @@ void CoupledCoefficients::calcFromRelaxons(
 
     StateIndex isIdx(0);
     Eigen::Vector3d v;
+    // set tau, avoiding div by zero issues
+    double tau = abs(1./eigenvalues(gamma));
+    if(eigenvalues(gamma) < 1e-10) tau = 0; 
+
+    // if boundary length isn't set, set a giant one
+    double sqrtL = 1e12;
+    if(!std::isnan(context.getBoundaryLength())) sqrtL = sqrt(context.getBoundaryLength() / sqrt(2.)); 
+
+    if(context.getBoundaryLength() <= 0) Error("Boundary length should not be zero or less!");
 
     if(is < numElStates) { // electronic state
 
@@ -155,13 +163,21 @@ void CoupledCoefficients::calcFromRelaxons(
       v = elBandStructure->getGroupVelocity(isIdx);
 
       for (auto j : {0, 1, 2}) {
-        elV0(gamma, j) += eigenvectors(is,gamma) * v(j) * theta0(is);
-        elVe(gamma, j) += eigenvectors(is,gamma) * v(j) * theta_e(is);
+
+        // supress mean free paths which are greater than the sample width
+        double lambdaSqrt = sqrt(abs(v(j)) * tau);
+        double vSqrt = std::copysign(1.0, v(j)) * sqrt(abs(v(j))); 
+        if(lambdaSqrt > sqrtL) {
+          lambdaSqrt = sqrtL; 
+        }
+
+        elV0(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta0(is);
+        elVe(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta_e(is);
 
         // for viscosity, we have to skip the special eigenvectors
         if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
-            elVphi(gamma, i, j) += eigenvectors(is,gamma) * v(j) * phi(i, is);
+            elVphi(gamma, i, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * phi(i, is);
           }
         }
       }
@@ -173,24 +189,44 @@ void CoupledCoefficients::calcFromRelaxons(
       if (energy < phEnergyCutoff) { continue; }
 
       for (auto j : {0, 1, 2}) {
-        phV0(gamma, j) += eigenvectors(is,gamma) * v(j) * theta0(is);
-        phVe(gamma, j) += eigenvectors(is,gamma) * v(j) * theta_e(is);
+
+        // supress mean free paths which are greater than the sample width
+        double lambdaSqrt = sqrt(abs(v(j)) * tau);
+        double vSqrt = std::copysign(1.0, v(j)) * sqrt(abs(v(j))); 
+        if(lambdaSqrt > sqrtL) {
+          lambdaSqrt = sqrtL; 
+        }
+
+        //if(mpi->mpiHead()) std::cout << "lambda " << lambdaSqrt << " " << vSqrt << std::endl;
+
+        phV0(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta0(is);
+        phVe(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta_e(is);
 
         // for viscosity, we have to skip the special eigenvectors
         if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
-            phVphi(gamma, i, j) += eigenvectors(is,gamma) * v(j) * phi(i, is);
+            phVphi(gamma, i, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * phi(i, is);
           }
         }
       }
     }
     // also collect total Vs to check that the separation of electron and phonon states is ok
     for (auto j : {0, 1, 2}) {
-      V0(gamma, j) += eigenvectors(is,gamma) * v(j) * theta0(is);
-      Ve(gamma, j) += eigenvectors(is,gamma) * v(j) * theta_e(is);
+
+      // supress mean free paths which are greater than the sample width
+      double lambdaSqrt = sqrt(abs(v(j)) * tau);
+      double vSqrt = std::copysign(1.0, v(j)) * sqrt(abs(v(j))); 
+      if(lambdaSqrt > sqrtL) {
+        lambdaSqrt = sqrtL; 
+      }
+
+      V0(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta0(is);
+      Ve(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta_e(is);
+
       for(auto i : {0, 1, 2}) {
+
         if(gamma != alpha0 && gamma != alpha_e) {
-          Vphi(gamma, i, j) += eigenvectors(is,gamma) * v(j) * phi(i, is);
+          Vphi(gamma, i, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * phi(i, is);
         }
       }
     }
@@ -228,19 +264,19 @@ void CoupledCoefficients::calcFromRelaxons(
         // viscosities
           if(gamma != alpha0 && gamma != alpha_e) { // important -- including theta_0 or theta_e will lead to a wrong answer!
 
-            double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * 1./eigenvalues(gamma);
-            double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1) * 1./eigenvalues(gamma);
+            double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0);// * 1./eigenvalues(gamma);
+            double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1);// * 1./eigenvalues(gamma);
             iiiiContrib[gamma] += (xxxx + yyyy)/2.;
           }
 
-          sigmaContrib(gamma,i,j) += U * Ve(gamma,i) * Ve(gamma,j) * 1./eigenvalues(gamma);
-          sigmaSContrib(gamma,i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j) * 1./eigenvalues(gamma);
-          kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * 1./eigenvalues(gamma);
+          sigmaContrib(gamma,i,j) += U * Ve(gamma,i) * Ve(gamma,j); // * 1./eigenvalues(gamma);
+          sigmaSContrib(gamma,i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j);// * 1./eigenvalues(gamma);
+          kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j);// * 1./eigenvalues(gamma);
         }
       }
     }
 
-    double tau = abs(1./eigenvalues(gamma));
+    //double tau = abs(1./eigenvalues(gamma));
 
     for (int i = 0; i<dimensionality; i++) {
       for (int j = 0; j<dimensionality; j++) {
@@ -249,37 +285,37 @@ void CoupledCoefficients::calcFromRelaxons(
         if(gamma == alpha0 || gamma == alpha_e) continue; 
 
         // sigma
-        sigmaLocal(i,j) += U * elVe(gamma,i) * elVe(gamma,j) * tau;
-        totalSigmaLocal(i,j) += U * Ve(gamma,i) * Ve(gamma,j) * tau;
-        sigmaContrib(gamma,i,j) += U * Ve(gamma,i) * Ve(gamma,j) * tau;
+        sigmaLocal(i,j) += U * elVe(gamma,i) * elVe(gamma,j);// * tau;
+        totalSigmaLocal(i,j) += U * Ve(gamma,i) * Ve(gamma,j);// * tau;
+        sigmaContrib(gamma,i,j) += U * Ve(gamma,i) * Ve(gamma,j);// * tau;
 
         // sigmaS
-        selfSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * elV0(gamma,j) * tau;
-        dragSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * phV0(gamma,j) * tau;
-        totalSigmaS(i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j) * tau;
-        sigmaSContrib(gamma,i,j) += 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j) * tau;
+        selfSigmaS(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * elV0(gamma,j);// * tau;
+        dragSigmaS(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * phV0(gamma,j);// * tau;
+        totalSigmaS(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j);// * tau;
+        sigmaSContrib(gamma,i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j);//* tau;
 
         // alpha
-        alphaEl(0,i,j) += sqrt(Ctot * U * T) * elV0(gamma,i) * elVe(gamma,j) * tau;
-        alphaPh(0,i,j) += sqrt(Ctot * U * T) * phV0(gamma,i) * elVe(gamma,j) * tau;
+        alphaEl(0,i,j) += sqrt(Ctot * U * T) * elV0(gamma,i) * elVe(gamma,j);// * tau;
+        alphaPh(0,i,j) += sqrt(Ctot * U * T) * phV0(gamma,i) * elVe(gamma,j);// * tau;
 
         // thermal conductivity
-        kappaEl(0,i,j) += Ctot / kBoltzmannRy * tau * (elV0(gamma,i) * elV0(gamma,j));
-        kappaPh(0,i,j) += Ctot / kBoltzmannRy * tau * (phV0(gamma,i) * phV0(gamma,j));
-        kappaDrag(0,i,j) += Ctot / kBoltzmannRy * tau * (elV0(gamma,i) * phV0(gamma,j) + phV0(gamma,i) * elV0(gamma,j));
-        kappaTotal(0,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * tau;
-        kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * tau;
+        kappaEl(0,i,j) += Ctot / kBoltzmannRy * (elV0(gamma,i) * elV0(gamma,j)); // * tau 
+        kappaPh(0,i,j) += Ctot / kBoltzmannRy * (phV0(gamma,i) * phV0(gamma,j)); // * tau 
+        kappaDrag(0,i,j) += Ctot / kBoltzmannRy * (elV0(gamma,i) * phV0(gamma,j) + phV0(gamma,i) * elV0(gamma,j)); // tau *
+        kappaTotal(0,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j);// * tau;
+        kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) ;//* tau;
 
         // viscosities
-        double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * tau;
-        double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1) * tau;
+        double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0);// * tau;
+        double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1);// * tau;
         iiiiContrib[gamma] += (xxxx + yyyy)/2.;
 
         for(auto k : {0, 1, 2}) {
           for(auto l : {0, 1, 2}) {
-            phViscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * phVphi(gamma,i,j) * phVphi(gamma,l,k) * tau;
-            elViscosity(0,i,j,k,l) += sqrt(G(i) * G(k)) * elVphi(gamma,i,j) * elVphi(gamma,l,k) * tau;
-            dragViscosity(0,i,j,k,l) += sqrt(A(i) * G(k)) * phVphi(gamma,i,j) * elVphi(gamma,l,k) * tau; 
+            phViscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * phVphi(gamma,i,j) * phVphi(gamma,l,k);// * tau;
+            elViscosity(0,i,j,k,l) += sqrt(G(i) * G(k)) * elVphi(gamma,i,j) * elVphi(gamma,l,k);// * tau;
+            dragViscosity(0,i,j,k,l) += sqrt(A(i) * G(k)) * phVphi(gamma,i,j) * elVphi(gamma,l,k);// * tau; 
                                                                 //(elVphi(gamma,i,j) * phVphi(gamma,l,k)
                                                                 // + phVphi(gamma,i,j) * elVphi(gamma,l,k)) * 1./eigenvalues(gamma);
             //totalViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * 1./eigenvalues(gamma);
@@ -289,10 +325,10 @@ void CoupledCoefficients::calcFromRelaxons(
     }
   }
 
-  // need to apply a negative to S here for convention
-  Eigen::Matrix3d seebeckSelfLocal = -sigmaLocal.inverse() * selfSigmaS;
-  Eigen::Matrix3d seebeckDragLocal = -sigmaLocal.inverse() * dragSigmaS;
-  Eigen::Matrix3d totalSeebeckLocal = -totalSigmaLocal.inverse() * totalSigmaS;
+  // seebeck = matmul(L_EE_inv, L_ET)
+  Eigen::Matrix3d seebeckSelfLocal = sigmaLocal.inverse() * selfSigmaS;
+  Eigen::Matrix3d seebeckDragLocal = sigmaLocal.inverse() * dragSigmaS;
+  Eigen::Matrix3d totalSeebeckLocal = totalSigmaLocal.inverse() * totalSigmaS;
 
   // copy S and sigma into final tensors to be printed
   // convert sigma -> mobility
@@ -331,9 +367,9 @@ void CoupledCoefficients::calcFromRelaxons(
       if(kappa(0,i,j) != kappaTotal(0,i,j))     { kappaFail = true; }
     }
   }
-  if(seebeckFail) Warning("Developer error: Seebeck cross + self does not equal Seebeck total.");
-  if(sigmaFail) Warning("Developer error: Sigma el does not equal sigma total.");
-  if(kappaFail) Warning("Developer error: Kappa cross + selfEl + selfPh does not equal kappa total.");
+  if(seebeckFail) Warning("Developer warning: Seebeck cross + self does not equal Seebeck total.");
+  if(sigmaFail) Warning("Developer warning: Sigma el does not equal sigma total.");
+  if(kappaFail) Warning("Developer warning: Kappa cross + selfEl + selfPh does not equal kappa total.");
 
   // dump the participation ratios to file here, 
   // maybe this should be a designated function 

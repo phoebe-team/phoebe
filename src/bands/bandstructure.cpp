@@ -157,8 +157,8 @@ void BaseBandStructure::printBandStructureStateInfo(const int& fullNumBands) {
     }
     if(useSym) {
       std::cout << "Symmetries reduced " << particleName << " band structure from "
-        << irrStateIterator().size() << " to "
-        << getNumStates() << " states." << std::endl;
+        << getNumStates() << " to " << irrStateIterator().size()
+        << " states." << std::endl;
     }
   }
 }

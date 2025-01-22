@@ -6,7 +6,7 @@ endif(NOT CMAKE_BUILD_TYPE)
 # set cmake version
 cmake_minimum_required(VERSION 3.16)
 # set cpp standard flags
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 project(Phoebe LANGUAGES C CXX Fortran VERSION 1.0)

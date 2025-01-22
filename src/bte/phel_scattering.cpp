@@ -98,9 +98,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   double norm = spinFactor / double(context.getKMesh().prod());
 
   // if this is a coupled calculation, we need to remove the spin factor and Nk here, it will be reapplied later
-  //if(context.getAppName().find("coupled") != std::string::npos ) { 
-  //  norm = 1. / double(context.getQMesh().prod()); 
-  //}
+  if(context.getAppName().find("coupled") != std::string::npos ) { 
+    norm = 1. / double(context.getQMesh().prod()); 
+  }
 
   // Here, we use a smearing corresponding to electrons, as this needs
   // to match up with the drag terms and also with the electron quadrant

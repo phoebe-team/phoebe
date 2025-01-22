@@ -84,6 +84,9 @@ void CoupledCoefficients::calcFromRelaxons(
   BaseBandStructure* phBandStructure = scatteringMatrix.getPhBandStructure();
   BaseBandStructure* elBandStructure = scatteringMatrix.getElBandStructure();
 
+  double Nk = double(context.getKMesh().prod());
+  double Nq = double(context.getQMesh().prod());
+
   // coupled transport only allowed with matrix in memory
   if (numCalculations > 1) {
     DeveloperError("Coupled relaxons only possible with one T value.");
@@ -160,7 +163,7 @@ void CoupledCoefficients::calcFromRelaxons(
 
       BteIndex iBteIdx(is);
       isIdx = elBandStructure->bteToState(iBteIdx);
-      v = elBandStructure->getGroupVelocity(isIdx);
+      v = elBandStructure->getGroupVelocity(isIdx) * (Nk/Nq);
 
       for (auto j : {0, 1, 2}) {
 
@@ -285,19 +288,19 @@ void CoupledCoefficients::calcFromRelaxons(
         if(gamma == alpha0 || gamma == alpha_e) continue; 
 
         // sigma
-        sigmaLocal(i,j) += U * elVe(gamma,i) * elVe(gamma,j);// * tau;
-        totalSigmaLocal(i,j) += U * Ve(gamma,i) * Ve(gamma,j);// * tau;
-        sigmaContrib(gamma,i,j) += U * Ve(gamma,i) * Ve(gamma,j);// * tau;
+        sigmaLocal(i,j) += (Nq/Nk) * U * elVe(gamma,i) * elVe(gamma,j);// * tau;
+        totalSigmaLocal(i,j) += (Nq/Nk) * U * Ve(gamma,i) * Ve(gamma,j);// * tau;
+        sigmaContrib(gamma,i,j) += (Nq/Nk) * U * Ve(gamma,i) * Ve(gamma,j);// * tau;
 
         // sigmaS
-        selfSigmaS(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * elV0(gamma,j);// * tau;
-        dragSigmaS(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * phV0(gamma,j);// * tau;
-        totalSigmaS(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j);// * tau;
-        sigmaSContrib(gamma,i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j);//* tau;
+        selfSigmaS(i,j) -= (Nq/Nk) * 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * elV0(gamma,j);// * tau;
+        dragSigmaS(i,j) -= (Nq/Nk) * 1. / kBoltzmannRy * sqrt(Ctot * U / T) * elVe(gamma,i) * phV0(gamma,j);// * tau;
+        totalSigmaS(i,j) -= (Nq/Nk) * 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j);// * tau;
+        sigmaSContrib(gamma,i,j) -= (Nq/Nk) * 1. / kBoltzmannRy * sqrt(Ctot * U / T) * Ve(gamma,i) * V0(gamma,j);//* tau;
 
         // alpha
-        alphaEl(0,i,j) += sqrt(Ctot * U * T) * elV0(gamma,i) * elVe(gamma,j);// * tau;
-        alphaPh(0,i,j) += sqrt(Ctot * U * T) * phV0(gamma,i) * elVe(gamma,j);// * tau;
+        alphaEl(0,i,j) += sqrt(Nq/Nk) * sqrt(Ctot * U * T) * elV0(gamma,i) * elVe(gamma,j);// * tau;
+        alphaPh(0,i,j) += sqrt(Nq/Nk) * sqrt(Ctot * U * T) * phV0(gamma,i) * elVe(gamma,j);// * tau;
 
         // thermal conductivity
         kappaEl(0,i,j) += Ctot / kBoltzmannRy * (elV0(gamma,i) * elV0(gamma,j)); // * tau 
@@ -307,15 +310,15 @@ void CoupledCoefficients::calcFromRelaxons(
         kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) ;//* tau;
 
         // viscosities
-        double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0);// * tau;
-        double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1);// * tau;
+        double xxxx = (Nq/Nk) * sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0);// * tau;
+        double yyyy = (Nq/Nk) * sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1);// * tau;
         iiiiContrib[gamma] += (xxxx + yyyy)/2.;
 
         for(auto k : {0, 1, 2}) {
           for(auto l : {0, 1, 2}) {
-            phViscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * phVphi(gamma,i,j) * phVphi(gamma,l,k);// * tau;
-            elViscosity(0,i,j,k,l) += sqrt(G(i) * G(k)) * elVphi(gamma,i,j) * elVphi(gamma,l,k);// * tau;
-            dragViscosity(0,i,j,k,l) += sqrt(A(i) * G(k)) * phVphi(gamma,i,j) * elVphi(gamma,l,k);// * tau; 
+            phViscosity(0,i,j,k,l) += (Nq/Nk) * sqrt(A(i) * A(k)) * phVphi(gamma,i,j) * phVphi(gamma,l,k);// * tau;
+            elViscosity(0,i,j,k,l) += (Nq/Nk) * sqrt(G(i) * G(k)) * elVphi(gamma,i,j) * elVphi(gamma,l,k);// * tau;
+            dragViscosity(0,i,j,k,l) += (Nq/Nk) * sqrt(A(i) * G(k)) * phVphi(gamma,i,j) * elVphi(gamma,l,k);// * tau; 
                                                                 //(elVphi(gamma,i,j) * phVphi(gamma,l,k)
                                                                 // + phVphi(gamma,i,j) * elVphi(gamma,l,k)) * 1./eigenvalues(gamma);
             //totalViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * 1./eigenvalues(gamma);
@@ -653,7 +656,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   }
   Cph *= 1./(volume * Nq * kBT * T);
   Cel *= spinFactor/(volume * Nk * kBT * T);
-  Ctot = Cel + Cph;
+  Ctot = (Nq/Nk) * Cel + Cph;
 
   // normalization coeff U (summed up below)
   // U = D/(V*Nk) * (1/kT) sum_km F(1-F)
@@ -685,7 +688,7 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   phi = Eigen::MatrixXd::Zero(3, numStates);
 
   // spin degen vector
-  Eigen::VectorXd ds = Eigen::VectorXd::Zero(numStates);
+  //Eigen::VectorXd ds = Eigen::VectorXd::Zero(numStates);
 
   for(int is = 0; is < numStates; is++) {
 
@@ -703,16 +706,16 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
       // note, this function expects kBT
       sqrtPopTerm = sqrt(electron.getPopPopPm1(energy, kBT, chemPot));
 
-      ds(is) = sqrt( spinFactor / Nk );
+      //ds(is) = sqrt( spinFactor / Nk );
 
       U += sqrtPopTerm * sqrtPopTerm;
       for(int i : {0,1,2} ) {
         G(i) += k(i) * k(i) * sqrtPopTerm * sqrtPopTerm;
-        phi(i, is) = sqrtPopTerm * ds(is) * k(i);
+        phi(i, is) = sqrtPopTerm * k(i); //ds(is) * 
       }
 
-      theta0(is) = sqrtPopTerm * (energy - chemPot) * ds(is);
-      theta_e(is) = sqrtPopTerm * ds(is);
+      theta0(is) = sqrt(spinFactor * Nq) / Nk * sqrtPopTerm * (energy - chemPot);// * ds(is);
+      theta_e(is) = sqrtPopTerm;// * ds(is);
 
     } else { // second part of the vector is phonon quantities
 
@@ -728,13 +731,13 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
       q = phBandStructure->getPoints().bzToWs(q,Points::cartesianCoordinates);
       sqrtPopTerm = sqrt(phonon.getPopPopPm1(energy, kBT, 0));
 
-      ds(is) = sqrt( 1. / Nq );
+      //ds(is) = sqrt( 1. / Nq );
 
       for(int i : {0,1,2} ) {
         A(i) += q(i) * q(i) * sqrtPopTerm * sqrtPopTerm;
-        phi(i, is) = sqrtPopTerm * ds(is) * q(i);
+        phi(i, is) = sqrtPopTerm * q(i); // ds(is) *
       }
-      theta0(is) = sqrtPopTerm * energy * ds(is);
+      theta0(is) = 1./sqrt(Nq) * sqrtPopTerm * energy; // * ds(is);
     }
   }
   
@@ -745,22 +748,22 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
   //M = G + A;
 
   // apply the normalization to theta_e
-  theta_e *= 1./sqrt(kBT * U * volume);
+  theta_e *= sqrt(spinFactor / (volume * Nk)) * 1. / sqrt(kBT * U);
   // apply normalization to theta0
-  theta0 *= 1./sqrt(kBT * T * volume * Ctot);
+  theta0 *= 1./sqrt(kBT * T * Ctot * volume);
   // apply normalization to phi
   for(int is = 0; is < numStates; is++) {
     for(int i : {0,1,2}) {
       if(is < numElStates) { // electrons
-        phi(i,is) *= 1./sqrt(kBT * volume * G(i));
+        phi(i,is) *= sqrt(spinFactor /(volume * Nk)) * 1./sqrt(kBT * G(i));
       } else { // phonons
-        phi(i,is) *= 1./sqrt(kBT * volume * A(i));
+        phi(i,is) *= 1./sqrt(volume * Nq) / sqrt(kBT * A(i));
       }
     }
   }
 
   // check the norm of phi
-/*
+
   if(mpi->mpiHead()) {
     for(int i : {0,1,2}) {
       double phiTot = 0;
@@ -770,9 +773,10 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
       std::cout << "phi norm " << i << " " << phiTot << std::endl;;
     }
   }
-*/
+
   // throw errors if normalization fails
   if( abs(theta_e.dot(theta_e) - 1.) > 1e-4 || abs(theta0.dot(theta0) - 1.) > 1e-4) {
+    std::cout << theta_e.dot(theta_e) << " " << theta0.dot(theta0) << std::endl;
     Warning("Developer error: Your energy or charge conservation eigenvectors do not"
                 " normalize to 1.\nThis indicates something has gone very wrong "
                 "with your relaxons solve (or your mesh is super small), please report this.");
@@ -784,6 +788,9 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
   BaseBandStructure* phBandStructure = coupledScatteringMatrix.getPhBandStructure();
   BaseBandStructure* elBandStructure = coupledScatteringMatrix.getElBandStructure();
+
+  double Nk = double(context.getKMesh().prod());
+  double Nq = double(context.getQMesh().prod());
 
   int numElStates = int(elBandStructure->irrStateIterator().size());
   auto calcStat = statisticsSweep.getCalcStatistics(0); // only one calc for relaxons
@@ -829,14 +836,14 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
           DuEl(i, j) += upperTriangleFactor * duContribution;
         // phonon only quadrant case
         } else if ( is1 >= numElStates && is2 >= numElStates ) {
-          DuPh(i, j) += upperTriangleFactor * duContribution;
+          DuPh(i, j) += std::pow((Nk/(spinFactor * Nq)),2) * upperTriangleFactor * duContribution;
         // drag term contribution (never has upper triangle factor, only in 1 quadrant)
         // use the upper quandrant, (el,ph) as this is always filled because it's in the upper triangle
         } else if ( is1 < numElStates && is2 >= numElStates) { // upper triangle 
-          DuDragPh(i, j) += duContribution;
+          DuDragPh(i, j) += std::pow((Nk/(spinFactor * Nq)),1.5) * duContribution;
 
         } else if ( is1 >= numElStates && is2 < numElStates) { // lower triangle part 
-          DuDragEl(i, j) += duContribution;
+          DuDragEl(i, j) += std::pow((Nk/(spinFactor * Nq)),1.5) * duContribution;
         }
       }
     }

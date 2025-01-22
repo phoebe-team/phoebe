@@ -315,7 +315,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
 
   // apply the spin degen factors
-  //reweightQuadrants();
+  reweightQuadrants();
 
   // reinforce the condition that the scattering matrix is symmetric
   // A -> ( A^T + A ) / 2
@@ -626,13 +626,14 @@ void CoupledScatteringMatrix::reweightQuadrants() {
   double Nk = double(context.getKMesh().prod());
   double Nq = double(context.getQMesh().prod());
   //double Nkq = (Nk + Nq)/2.;
+  double Nk_div_Nq = (Nk / Nq); 
 
   for(int iBte = 0; iBte < numStates; iBte++)  {
     if(iBte < numElStates) { // electron
-      internalDiagonal->data(0,iBte) *= 1.; 
+      internalDiagonal->data(0,iBte) *= Nk_div_Nq; 
     }
     if(iBte >= numElStates) { // phonon 
-      internalDiagonal->data(0,iBte) *= spinFactor * ( Nq / Nk ); 
+      internalDiagonal->data(0,iBte) *= 1; 
     }
   }
 
@@ -644,20 +645,20 @@ void CoupledScatteringMatrix::reweightQuadrants() {
     int iMat2 = std::get<1>(matrixState);
 
     // if it's the el-el one, s1 = el, s2 = el, 
-    if (iMat1 < numElStates && iMat2 < numElStates) { // 2 / Nk
-      theMatrix(iMat1, iMat2) *= 1.; 
+    if (iMat1 < numElStates && iMat2 < numElStates) { 
+      theMatrix(iMat1, iMat2) *= Nk_div_Nq; 
     }
     // quadrant el-ph drag, upper right. s1 = el, s2 = ph
-    else if(iMat1 < numElStates && iMat2 >= numElStates) {  // sqrt(Nk/(2*Nq))
-      theMatrix(iMat1, iMat2) *= 1.; // /sqrt(spinFactor * ( Nq / Nk ));
+    else if(iMat1 < numElStates && iMat2 >= numElStates) { 
+      theMatrix(iMat1, iMat2) *= 1.; 
     }
     // quadrant ph-el drag, lower left. s1 = ph, s2 = el
-    else if(iMat1 >= numElStates && iMat2 < numElStates) { // sqrt(Nk/(2*Nq))
-      theMatrix(iMat1, iMat2) *= 1.; // /sqrt(spinFactor * ( Nq / Nk ));
+    else if(iMat1 >= numElStates && iMat2 < numElStates) { 
+      theMatrix(iMat1, iMat2) *= 1.; 
     }
     // quadrant ph self, lower right. s1 = ph, s2 = ph
-    else if(iMat1 >= numElStates && iMat2 >= numElStates) { // 2 / Nk
-      theMatrix(iMat1, iMat2) *= spinFactor * ( Nq / Nk ); 
+    else if(iMat1 >= numElStates && iMat2 >= numElStates) { 
+      theMatrix(iMat1, iMat2) *= 1.;
     }
     else {
       DeveloperError("Somehow we found an out of bounds coupled matrix state in reweight.");

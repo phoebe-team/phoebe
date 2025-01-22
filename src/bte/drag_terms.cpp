@@ -16,7 +16,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
   // throw errors if wrong bandstructure types are provided
   if(!phononBandStructure.getParticle().isPhonon() || !electronBandStructure.getParticle().isElectron()) {
-    Error("Developer error: either ph or el bandstructure supplied to the "
+    DeveloperError("Either ph or el bandstructure supplied to the "
                 "drag calculation is the wrong type!");
   }
 
@@ -76,7 +76,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
   //if (dragTermType == Del) { norm = sqrt(spinFactor) / (sqrt( double(context.getKMesh().prod()) ) * sqrt(double(context.getQMesh().prod()))); }
   //else { norm = sqrt(spinFactor) / (sqrt(double(context.getQMesh().prod())) * sqrt(double(context.getKMesh().prod()))); }
-  norm = spinFactor/(double(context.getKMesh().prod()));
+  norm = 1./(double(context.getQMesh().prod()));
 
   // TODO change this to the same in phel scattering as well
   // precompute the q-dependent part of the polar correction

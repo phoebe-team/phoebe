@@ -28,7 +28,7 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
 
   numStates = internalDiagonal->getNumStates();
   numPhStates = int(innerBandStructure.getNumStates());
-  numElStates = int(outerBandStructure.getNumStates()); 
+  numElStates = int(outerBandStructure.getNumStates());
   isCoupled = true;
   // TODO this is only actually true after we call phononOnlyA2Omega at the bottom of the scattering
   // process addition section.
@@ -125,9 +125,9 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   std::vector<std::tuple<std::vector<int>, int>> qkPairIterator = allPairIterators[2];
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator = allPairIterators[3];
 
-  // TODO we should let this go out of scope 
-  // read in elph coupling 
-  InteractionElPhWan couplingElPh = 
+  // TODO we should let this go out of scope
+  // read in elph coupling
+  InteractionElPhWan couplingElPh =
         InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
 
   // add el-ph scattering ----------------------------------------------
@@ -144,11 +144,11 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 */
 
   // add ph-ph scattering ----------------------------------------------
-  { 
-  // read this in and let it go out of scope afterwards 
-    Interaction3Ph coupling3Ph = 
+  {
+  // read this in and let it go out of scope afterwards
+    Interaction3Ph coupling3Ph =
         IFC3Parser::parse(context, innerBandStructure.getPoints().getCrystal());
-     
+
     addPhPhScattering(*this, context, inPopulations, outPopulations,
                                     switchCase, qPairIterator,
                                     boseOccupations, boseOccupations,
@@ -164,7 +164,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                             innerBandStructure, innerBandStructure, linewidth);
   }
 
-  // TODO check boundary scattering addition 
+  // TODO check boundary scattering addition
   // Add boundary scattering ----------------------
   // Call this twice for each section of the diagonal,
   // in one case handing it the phonon bands, in the other the electron bands.
@@ -212,31 +212,31 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
 
-    addPhElScattering(*this, context, 
-                      innerBandStructure, outerBandStructure, 
-                      statisticsSweep, 
+    addPhElScattering(*this, context,
+                      innerBandStructure, outerBandStructure,
+                      statisticsSweep,
                       couplingElPh, postSymLinewidths);
     mpi->barrier();
 
-    // all reduce the calculated phel linewidths 
+    // all reduce the calculated phel linewidths
     mpi->allReduceSum(&postSymLinewidths->data);
-    // TODO maybe output these phel linewidths? 
+    // TODO maybe output these phel linewidths?
 
     // Add drag terms ----------------------------------------------
-    if(context.getUseDragTerms()) { 
+    if(context.getUseDragTerms()) {
 
-      // first add the el drag term 
-      // TODO replace these 0 and 1s with something smarter 
-      addDragTerm(*this, context, kqPairIterator, 0, 
+      // first add the el drag term
+      // TODO replace these 0 and 1s with something smarter
+      addDragTerm(*this, context, kqPairIterator, 0,
                          couplingElPh, innerBandStructure, outerBandStructure);
       // now the ph drag term
       addDragTerm(*this, context, qkPairIterator, 1,
                          couplingElPh, innerBandStructure, outerBandStructure);
 
-      // use drag ASR to correct the drag terms and recompute the phel linewidths 
+      // use drag ASR to correct the drag terms and recompute the phel linewidths
       //phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
       //                              outerBandStructure,   // electron bands
-      //                              innerBandStructure);  // phonon bands 
+      //                              innerBandStructure);  // phonon bands
     }
 
     // Add in the phel contribution
@@ -315,7 +315,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
 
   // apply the spin degen factors
-  reweightQuadrants();
+  //reweightQuadrants();
 
   // reinforce the condition that the scattering matrix is symmetric
   // A -> ( A^T + A ) / 2
@@ -323,9 +323,9 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     symmetrize();
   }
 
-  // use the off diagonals to calculate the linewidths, 
-  // to ensure the special eigenvectors can be found/preserve conservation of momentum 
-  // that might be ruined by the delta functions 
+  // use the off diagonals to calculate the linewidths,
+  // to ensure the special eigenvectors can be found/preserve conservation of momentum
+  // that might be ruined by the delta functions
   //reinforceLinewidths();
 
   // TODO debug the "replaceLinewidths" function and use it instead
@@ -362,7 +362,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   //this->outputToHDF5("coupled_matrix.hdf5");
 
   if(context.getEnforcePositiveSemiDefinite()) {
-    theMatrix.enforcePositiveSemiDefinite(); 
+    theMatrix.enforcePositiveSemiDefinite();
   }
 
 }
@@ -431,19 +431,19 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
   // because the internalDiaognal is already reduced and is
   // the same on each process, we need to apply the symmetrization
   // term to each of the states separately
-  for(size_t is = numElStates; is < size_t(numStates); is++) { 
+  for(size_t is = numElStates; is < size_t(numStates); is++) {
 
     // the phonon bandstructure index
     StateIndex isShiftPh(is - numElStates);
     double en = innerBandStructure.getEnergy(isShiftPh);
     double term = particle.getPopPopPm1(en, temp, chemPot);
 
-    internalDiagonal->operator()(0, 0, is) /= term;   
+    internalDiagonal->operator()(0, 0, is) /= term;
   }
 }
 
-// each process will /term for some subset of the internal diagonal. 
-// however, this should be applied to all of them. 
+// each process will /term for some subset of the internal diagonal.
+// however, this should be applied to all of them.
 
 /* return irr k index from a matrix state index
  * helper function to simplify the below function */
@@ -626,14 +626,13 @@ void CoupledScatteringMatrix::reweightQuadrants() {
   double Nk = double(context.getKMesh().prod());
   double Nq = double(context.getQMesh().prod());
   //double Nkq = (Nk + Nq)/2.;
-  double Nk_div_Nq = (Nk / Nq); 
 
   for(int iBte = 0; iBte < numStates; iBte++)  {
     if(iBte < numElStates) { // electron
-      internalDiagonal->data(0,iBte) *= Nk_div_Nq; 
+      internalDiagonal->data(0,iBte) *= 1.;
     }
-    if(iBte >= numElStates) { // phonon 
-      internalDiagonal->data(0,iBte) *= 1; 
+    if(iBte >= numElStates) { // phonon
+      internalDiagonal->data(0,iBte) *= spinFactor * ( Nq / Nk );
     }
   }
 
@@ -644,21 +643,21 @@ void CoupledScatteringMatrix::reweightQuadrants() {
     int iMat1 = std::get<0>(matrixState);
     int iMat2 = std::get<1>(matrixState);
 
-    // if it's the el-el one, s1 = el, s2 = el, 
-    if (iMat1 < numElStates && iMat2 < numElStates) { 
-      theMatrix(iMat1, iMat2) *= Nk_div_Nq; 
+    // if it's the el-el one, s1 = el, s2 = el,
+    if (iMat1 < numElStates && iMat2 < numElStates) { // 2 / Nk
+      theMatrix(iMat1, iMat2) *= 1.;
     }
     // quadrant el-ph drag, upper right. s1 = el, s2 = ph
-    else if(iMat1 < numElStates && iMat2 >= numElStates) { 
-      theMatrix(iMat1, iMat2) *= 1.; 
+    else if(iMat1 < numElStates && iMat2 >= numElStates) {  // sqrt(Nk/(2*Nq))
+      theMatrix(iMat1, iMat2) *= 1.; // /sqrt(spinFactor * ( Nq / Nk ));
     }
     // quadrant ph-el drag, lower left. s1 = ph, s2 = el
-    else if(iMat1 >= numElStates && iMat2 < numElStates) { 
-      theMatrix(iMat1, iMat2) *= 1.; 
+    else if(iMat1 >= numElStates && iMat2 < numElStates) { // sqrt(Nk/(2*Nq))
+      theMatrix(iMat1, iMat2) *= 1.; // /sqrt(spinFactor * ( Nq / Nk ));
     }
     // quadrant ph self, lower right. s1 = ph, s2 = ph
-    else if(iMat1 >= numElStates && iMat2 >= numElStates) { 
-      theMatrix(iMat1, iMat2) *= 1.;
+    else if(iMat1 >= numElStates && iMat2 >= numElStates) { // 2 / Nk
+      theMatrix(iMat1, iMat2) *= spinFactor * ( Nq / Nk );
     }
     else {
       DeveloperError("Somehow we found an out of bounds coupled matrix state in reweight.");

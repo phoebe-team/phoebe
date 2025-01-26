@@ -76,7 +76,8 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
   //if (dragTermType == Del) { norm = sqrt(spinFactor) / (sqrt( double(context.getKMesh().prod()) ) * sqrt(double(context.getQMesh().prod()))); }
   //else { norm = sqrt(spinFactor) / (sqrt(double(context.getQMesh().prod())) * sqrt(double(context.getKMesh().prod()))); }
-  norm = 1./(double(context.getQMesh().prod()));
+  //norm = spinFactor/(double(context.getKMesh().prod()));
+  norm = sqrt(spinFactor) / (sqrt( double(context.getKMesh().prod()) * double(context.getQMesh().prod())));
 
   // TODO change this to the same in phel scattering as well
   // precompute the q-dependent part of the polar correction
@@ -205,9 +206,9 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
         batchTotal += batchSize;
         size_t revisedBatchSize = 0; // increment this each time we find a useful kp point
 
-        // first, we will determine which kp points actually matter, and build a list 
+        // first, we will determine which kp points actually matter, and build a list
         // of the important kp and q points
-        std::vector<int> filteredQIndices; 
+        std::vector<int> filteredQIndices;
 
         // temp container for the list of kp wavevectors
         std::vector<Eigen::Vector3d> allKpCartesian;
@@ -225,8 +226,8 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
         Kokkos::Profiling::pushRegion("drag preprocessing loop: q states");
 
         // do prep work for all values of q in the current batch
-        // TODO OMP is nasty when we are pushing back... can we figure out how to use this still? 
-        // TODO perhaps a critical block around the push back? 
+        // TODO OMP is nasty when we are pushing back... can we figure out how to use this still?
+        // TODO perhaps a critical block around the push back?
         #pragma omp parallel for default(none) shared(iQIndexes, batchSize,revisedBatchSize, kCartesian, start, isKpMinus, phononBandStructure,filteredQIndices, polarDataQMinus, polarDataQPlus, electronBandStructure, allKpCartesian, allPolarData, allStateEnergiesKp, allVKps, allEigenVectorsKp, allQCartesian, allStateEnergiesQ, allVQs, allEigenVectorsQ)
         for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
 
@@ -265,21 +266,21 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
             kpPolarData = polarDataQMinus.row(iQBatch);   // TODO check that this is the right syntax vs the old version
           }
 
-          // check if this point is on the mesh or not 
+          // check if this point is on the mesh or not
           Eigen::Vector3d kpCrys = electronBandStructure.getPoints().cartesianToCrystal(kpCartesian);
           if(electronBandStructure.getPointIndex(kpCrys, true) == -1) {// if point is not on the mesh, continue
-            continue; 
+            continue;
           }
 
           // if this kp point is on the el bandstructure, here we save all the ph and el' information
-          #pragma omp critical 
+          #pragma omp critical
           {
 
             revisedBatchSize++;
             filteredQIndices.push_back(iQ);
 
             WavevectorIndex ikpIdx = WavevectorIndex(electronBandStructure.getPointIndex(kpCrys));
-            allKpCartesian.push_back(kpCartesian);                                      // kP wavevector 
+            allKpCartesian.push_back(kpCartesian);                                      // kP wavevector
             allPolarData.push_back(kpPolarData);                                        // long range polar data
             allStateEnergiesKp.push_back(electronBandStructure.getEnergies(ikpIdx));     // el Kp energies
             allVKps.push_back(electronBandStructure.getGroupVelocities(ikpIdx));         // el Kp vels in cartesian
@@ -422,24 +423,24 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   double kT = statisticsSweep.getCalcStatistics(iCalc).temperature;
                   double chemPot = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
                   double coshKp = 1./(2. * cosh(0.5 * (enKp - chemPot) / kT));
-                  
+
                   double dragRate = 0;
                   //Eigen::Vector3d qCrysM = phononBandStructure.getPoints().cartesianToCrystal(-qCartesian);
                   //WavevectorIndex iQidxM(phononBandStructure.getPointIndex(qCrysM));
                   //int isQM = phononBandStructure.getIndex(iQidxM, BandIndex(ibQ));
-      
+
                   if(!isKpMinus) { // g+ part
 
                     dragRate = norm * //1./(enK) *
                           couplingSq(ibK,ibKp,ibQ) * pi / enQ *  // 1/sqrt(omega)^2, g_SE factor
-                          coshKp * delta * ( (enKp + enK - enQ)/ ( 2. * enK ) ); 
+                          coshKp * delta * ( (enKp + enK - enQ)/ ( 2. * enK ) );
 
                   } else if(isKpMinus) { // g- part
 
                     dragRate = -norm * // 1./(enK) *
                           couplingSq(ibK,ibKp,ibQ) * pi / enQ *  // 1/sqrt(omega)
-                          coshKp * delta * ( (enKp + enK + enQ)/ ( 2. * enK ) ); 
-                    
+                          coshKp * delta * ( (enKp + enK + enQ)/ ( 2. * enK ) );
+
                   }
 
   		            // add this contribution to the matrix -------------------------------------

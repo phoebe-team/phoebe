@@ -26,8 +26,8 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                                  PhononH0& phononH0,
                                  Interaction3Ph& coupling3Ph,
                                  std::shared_ptr<VectorBTE> linewidth) {
-  if(mpi->mpiHead()) 
-    std::cout << "------------- Phonon-phonon scattering -------------\n" << std::endl; 
+  if(mpi->mpiHead())
+    std::cout << "------------- Phonon-phonon scattering -------------\n" << std::endl;
 
   // notes: + process is (1+2) -> 3
   //        - processes are (1+3)->2 and (3+2)->1
@@ -37,7 +37,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
   auto excludeIndices = matrix.excludeIndices;
   bool outputUNTimes = matrix.outputUNTimes;
   Particle particle = innerBandStructure.getParticle();
-  const double pathLinewidthCutoff = 0.000001 / ryToCmm1; 
+  const double pathLinewidthCutoff = 0.000001 / ryToCmm1;
 
   // setup smearing using phonon band structure
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, innerBandStructure);
@@ -764,7 +764,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
               } else {
                 if (matrix.theMatrix.indicesAreLocal(iBte1Shift, iBte2Shift)) {
 
-   	          linewidth->operator()(iCalc, 0, iBte1Shift) += rateIso; 
+   	          linewidth->operator()(iCalc, 0, iBte1Shift) += rateIso;
                   // if we're not symmetrizing the matrix, and we have
                   // dropped down to only using the upper triangle of the matrix, we must fill
                   // in linewidths twice, using detailed balance, in order to get the right ratest
@@ -790,7 +790,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
 		  // off diagonals
       		  if (is1 != is2Irr) {
                     outPopulations[iInput](iCalc, i, iBte1) -= rateIso * inPopRot(i);
-                  } // diagonals 
+                  } // diagonals
                   outPopulations[iInput](iCalc, i, iBte1) +=
                       rateIso * inPopulations[iInput](iCalc, i, iBte1);
                 }

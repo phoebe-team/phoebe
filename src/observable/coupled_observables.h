@@ -123,12 +123,6 @@ protected:
   Eigen::Tensor<double, 3> sigmaSContrib;
   std::vector<double> iiiiContrib;
 
-  /** Helper function to simplify outputing 3x3 transport tensors to json
-  */
-  void appendTransportTensorForOutput(Eigen::Tensor<double, 3>& tensor,
-                        double& unitConv, int& iCalc,
-                        std::vector<std::vector<std::vector<double>>>& outFormat);
-
   void symmetrize(Eigen::Tensor<double,3>& allTransportCoeffs);
   void symmetrize(Eigen::Matrix3d& transportCoeffs);
 

@@ -395,22 +395,6 @@ void CoupledCoefficients::print() {
 
 }
 
-// helper function to simplify code for printing transport to output
-void CoupledCoefficients::appendTransportTensorForOutput(
-                        Eigen::Tensor<double, 3>& tensor, double& unitConv, int& iCalc,
-                        std::vector<std::vector<std::vector<double>>>& outFormat) {
-
-    std::vector<std::vector<double>> rows;
-    for (int i = 0; i < dimensionality; i++) {
-      std::vector<double> cols;
-      for (int j = 0; j < dimensionality; j++) {
-        cols.push_back(tensor(iCalc, i, j) * unitConv);
-      }
-      rows.push_back(cols);
-    }
-    outFormat.push_back(rows);
-}
-
 void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 
   if (!mpi->mpiHead()) return;
@@ -492,25 +476,25 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
     chemPots.push_back(chemPot * energyRyToEv); // output in eV
 
     // store the electrical conductivity for output
-    appendTransportTensorForOutput(sigmaTotal, convSigma, iCalc, sigmaTotalOut);
+    appendTransportTensorForOutput(sigmaTotal, dimensionality, convSigma, iCalc, sigmaTotalOut);
 
     // store the carrier mobility for output
     // Note: in metals, one has conductivity without doping
     // and the mobility = sigma / doping-density is ill-defined
     if (abs(doping) > 0.) {
-      appendTransportTensorForOutput(mobilityTotal, convMobility, iCalc, mobilityTotalOut);
+      appendTransportTensorForOutput(mobilityTotal, dimensionality, convMobility, iCalc, mobilityTotalOut);
     }
 
     // store thermal conductivity for output
-    appendTransportTensorForOutput(kappaPh, convKappa, iCalc, kappaPhOut);
-    appendTransportTensorForOutput(kappaEl, convKappa, iCalc, kappaElOut);
-    appendTransportTensorForOutput(kappaDrag, convKappa, iCalc, kappaDragOut);
-    appendTransportTensorForOutput(kappaTotal, convKappa, iCalc, kappaTotalOut);
+    appendTransportTensorForOutput(kappaPh, dimensionality, convKappa, iCalc, kappaPhOut);
+    appendTransportTensorForOutput(kappaEl, dimensionality, convKappa, iCalc, kappaElOut);
+    appendTransportTensorForOutput(kappaDrag, dimensionality, convKappa, iCalc, kappaDragOut);
+    appendTransportTensorForOutput(kappaTotal, dimensionality, convKappa, iCalc, kappaTotalOut);
 
     // store seebeck coefficient for output
-    appendTransportTensorForOutput(seebeckDrag, convSeebeck, iCalc, seebeckDragOut);
-    appendTransportTensorForOutput(seebeckSelf, convSeebeck, iCalc, seebeckSelfOut);
-    appendTransportTensorForOutput(seebeckTotal, convSeebeck, iCalc, seebeckTotalOut);
+    appendTransportTensorForOutput(seebeckDrag, dimensionality, convSeebeck, iCalc, seebeckDragOut);
+    appendTransportTensorForOutput(seebeckSelf, dimensionality, convSeebeck, iCalc, seebeckSelfOut);
+    appendTransportTensorForOutput(seebeckTotal, dimensionality, convSeebeck, iCalc, seebeckTotalOut);
 
   }
 
@@ -560,11 +544,11 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
     iiiiContrib[gamma] *= convViscosity;
 
     // store the electrical conductivity for output
-    appendTransportTensorForOutput(sigmaContrib, convSigma, gamma, sigmaContribOut);
+    appendTransportTensorForOutput(sigmaContrib, dimensionality, convSigma, gamma, sigmaContribOut);
     // store thermal conductivity for output
-    appendTransportTensorForOutput(kappaContrib, convKappa, gamma, kappaContribOut);
+    appendTransportTensorForOutput(kappaContrib, dimensionality, convKappa, gamma, kappaContribOut);
     // store seebeck coefficient for output
-    appendTransportTensorForOutput(sigmaSContrib, convSigmaS, gamma, sigmaSContribOut);
+    appendTransportTensorForOutput(sigmaSContrib, dimensionality, convSigmaS, gamma, sigmaSContribOut);
 
   }
 

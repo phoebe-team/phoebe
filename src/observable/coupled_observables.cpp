@@ -68,6 +68,10 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
   dragViscosity.setZero();
   //totalViscosity.setZero();
 
+  sigma_mom.setZero();
+  seebeck_mom.setZero();
+  kappa_mom.setZero();
+
 }
 
 void CoupledCoefficients::calcFromRelaxons(
@@ -130,6 +134,7 @@ void CoupledCoefficients::calcFromRelaxons(
   // special eigenvector overlaps with phi, for momentum subtraction 
   // here the dimensions are (i=3, alpha = 6), where alpha is the 6 phis -- broken into el and ph 
   Eigen::MatrixXd theta_e_phi(3,6), theta0_phi(3,6);
+  theta_e_phi.setZero();  theta0_phi.setZero();
 
   // sum over the alpha and v states that this process owns
   for (auto tup : eigenvectors.getAllLocalStates()) {
@@ -246,12 +251,11 @@ void CoupledCoefficients::calcFromRelaxons(
   // momentum eigenvector / special eigenvector overlaps
   mpi->allReduceSum(&theta0_phi); mpi->allReduceSum(&theta_e_phi);
 
-
   // Calculate the transport coefficients -------------------------------------------------
 
   // local copies for linear algebra ops with eigen
-  Eigen::Matrix3d sigmaLocal, totalSigmaLocal, selfSigmaS, dragSigmaS, totalSigmaS;
-  sigmaLocal.setZero(); totalSigmaLocal.setZero(), selfSigmaS.setZero(); dragSigmaS.setZero(); totalSigmaS.setZero();
+  Eigen::Matrix3d sigmaLocal, totalSigmaLocal, selfSigmaS, dragSigmaS, totalSigmaS, sigmaS_mom;
+  sigmaLocal.setZero(); totalSigmaLocal.setZero(), selfSigmaS.setZero(); dragSigmaS.setZero(); totalSigmaS.setZero(); sigmaS_mom.setZero();
 
   // containers to calculate the specific contributions to the transport tensors
   kappaContrib.resize(numRelaxons, 3, 3);    kappaContrib.setZero();
@@ -336,9 +340,9 @@ void CoupledCoefficients::calcFromRelaxons(
   for (int i = 0; i<dimensionality; i++) {
     for (int j = 0; j<dimensionality; j++) {
       for (int alpha = 0; alpha<6; alpha++) {
-        sigma_mom(i,j) += theta_e_phi(i,alpha) * theta_e_phi(j,alpha);
-        sigmaS_mom(i,j) += theta_e_phi(i,alpha) * theta_0_phi(j,alpha);
-        kappa_mom(i,j) += theta_0_phi(i,alpha) * theta_0_phi(j,alpha);
+        sigma_mom(i,j) += U * theta_e_phi(i,alpha) * theta_e_phi(j,alpha);
+        sigmaS_mom(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * theta_e_phi(i,alpha) * theta0_phi(j,alpha);
+        kappa_mom(i,j) += Ctot / kBoltzmannRy * theta0_phi(i,alpha) * theta0_phi(j,alpha);
       }
     }
   }
@@ -347,6 +351,7 @@ void CoupledCoefficients::calcFromRelaxons(
   Eigen::Matrix3d seebeckSelfLocal = sigmaLocal.inverse() * selfSigmaS;
   Eigen::Matrix3d seebeckDragLocal = sigmaLocal.inverse() * dragSigmaS;
   Eigen::Matrix3d totalSeebeckLocal = totalSigmaLocal.inverse() * totalSigmaS;
+  Eigen::Matrix3d seebeck_mom = sigma_mom.inverse() * sigmaS_mom;
 
   // copy S and sigma into final tensors to be printed
   // convert sigma -> mobility
@@ -472,21 +477,10 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
   std::string unitsSeebeck = "muV / K";
 
   std::vector<double> temps, dopings, chemPots;
-  std::vector<std::vector<std::vector<double>>> sigmaOut;
-  std::vector<std::vector<std::vector<double>>> sigmaTotalOut;
-  std::vector<std::vector<std::vector<double>>> mobilityOut;
-  std::vector<std::vector<std::vector<double>>> mobilityTotalOut;
-
-  std::vector<std::vector<std::vector<double>>> kappaOut;
-  std::vector<std::vector<std::vector<double>>> kappaPhOut;
-  std::vector<std::vector<std::vector<double>>> kappaElOut;
-  std::vector<std::vector<std::vector<double>>> kappaDragOut;
-  std::vector<std::vector<std::vector<double>>> kappaTotalOut;
-
-  std::vector<std::vector<std::vector<double>>> seebeckOut;
-  std::vector<std::vector<std::vector<double>>> seebeckDragOut;
-  std::vector<std::vector<std::vector<double>>> seebeckSelfOut;
-  std::vector<std::vector<std::vector<double>>> seebeckTotalOut;
+  std::vector<std::vector<std::vector<double>>> sigmaOut, sigmaTotalOut, mobilityOut, mobilityTotalOut;
+  std::vector<std::vector<std::vector<double>>> kappaOut, kappaPhOut, kappaElOut, kappaDragOut, kappaTotalOut;
+  std::vector<std::vector<std::vector<double>>> seebeckOut, seebeckDragOut,seebeckSelfOut,seebeckTotalOut;
+  std::vector<std::vector<double>> sigmaMomOut, seebeckMomOut, kappaMomOut; 
 
   for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
 
@@ -522,6 +516,16 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 
   }
 
+  // convert momentum contributions 
+  sigma_mom *= convSigma; 
+  seebeck_mom *= convSeebeck; 
+  kappa_mom *= convKappa; 
+  for(auto i : {0,1,2}) {
+    sigmaMomOut.push_back({sigma_mom(i,0), sigma_mom(i,1), sigma_mom(i,2)});
+    seebeckMomOut.push_back({seebeck_mom(i,0), seebeck_mom(i,1), seebeck_mom(i,2)});
+    kappaMomOut.push_back({kappa_mom(i,0), kappa_mom(i,1), kappa_mom(i,2)});
+  }
+
   { // so that the output json goes out of scope and it can be reused below
 
     // output to json
@@ -548,6 +552,10 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
     output["selfElSeebeckCoefficient"] = seebeckSelfOut;
     output["totalSeebeckCoefficient"] = seebeckTotalOut;
     output["seebeckCoefficientUnit"] = unitsSeebeck;
+
+    output["momentumElectricalConductivity"] = sigmaMomOut; 
+    output["momentumSeebeck"] = seebeckMomOut; 
+    output["momentumThermalConductivity"] = kappaMomOut; 
 
     std::ofstream o(outFileName);
     o << std::setw(3) << output << std::endl;

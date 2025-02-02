@@ -127,6 +127,10 @@ void CoupledCoefficients::calcFromRelaxons(
   Eigen::Tensor<double, 3> Vphi(numRelaxons, 3, 3);
   dragVphi.setZero(); elVphi.setZero(); phVphi.setZero(); Vphi.setZero();
 
+  // special eigenvector overlaps with phi, for momentum subtraction 
+  // here the dimensions are (i=3, alpha = 6), where alpha is the 6 phis -- broken into el and ph 
+  Eigen::MatrixXd theta_e_phi(3,6), theta0_phi(3,6);
+
   // sum over the alpha and v states that this process owns
   for (auto tup : eigenvectors.getAllLocalStates()) {
 
@@ -176,6 +180,8 @@ void CoupledCoefficients::calcFromRelaxons(
         if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
             elVphi(gamma, i, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * phi(i, is);
+            theta0_phi(i,j) += theta0(is) * lambdaSqrt * vSqrt * phi(i,is);
+            theta_e_phi(i,j) += theta_e(is) * lambdaSqrt * vSqrt * phi(i,is);
           }
         }
       }
@@ -202,6 +208,9 @@ void CoupledCoefficients::calcFromRelaxons(
         if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
             phVphi(gamma, i, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * phi(i, is);
+            // +3 is an offset to set the second 3 of 6 values for phi, which are el ones
+            theta0_phi(i,j+3) += theta0(is) * lambdaSqrt * vSqrt * phi(i,is);
+            theta_e_phi(i,j+3) += theta_e(is) * lambdaSqrt * vSqrt * phi(i,is);
           }
         }
       }
@@ -234,6 +243,9 @@ void CoupledCoefficients::calcFromRelaxons(
   mpi->allReduceSum(&Vphi); mpi->allReduceSum(&phVphi); mpi->allReduceSum(&elVphi);
   // participation ratios
   mpi->allReduceSum(&phPR); mpi->allReduceSum(&elPR);
+  // momentum eigenvector / special eigenvector overlaps
+  mpi->allReduceSum(&theta0_phi); mpi->allReduceSum(&theta_e_phi);
+
 
   // Calculate the transport coefficients -------------------------------------------------
 
@@ -320,6 +332,17 @@ void CoupledCoefficients::calcFromRelaxons(
     }
   }
 
+  // calculate part of transport coefficients due to momentum eigenvectors
+  for (int i = 0; i<dimensionality; i++) {
+    for (int j = 0; j<dimensionality; j++) {
+      for (int alpha = 0; alpha<6; alpha++) {
+        sigma_mom(i,j) += theta_e_phi(i,alpha) * theta_e_phi(j,alpha);
+        sigmaS_mom(i,j) += theta_e_phi(i,alpha) * theta_0_phi(j,alpha);
+        kappa_mom(i,j) += theta_0_phi(i,alpha) * theta_0_phi(j,alpha);
+      }
+    }
+  }
+
   // seebeck = matmul(L_EE_inv, L_ET)
   Eigen::Matrix3d seebeckSelfLocal = sigmaLocal.inverse() * selfSigmaS;
   Eigen::Matrix3d seebeckDragLocal = sigmaLocal.inverse() * dragSigmaS;
@@ -331,6 +354,7 @@ void CoupledCoefficients::calcFromRelaxons(
   doping *= pow(distanceBohrToCm, dimensionality); // from cm^-3 to bohr^-3
   for (int i = 0; i < dimensionality; i++) {
     for(auto j : {0, 1, 2} ) {
+
       seebeckSelf(0,i,j) = seebeckSelfLocal(i,j);
       seebeckDrag(0,i,j) = seebeckDragLocal(i,j);
       seebeckTotal(0,i,j) = totalSeebeckLocal(i,j);
@@ -367,7 +391,7 @@ void CoupledCoefficients::calcFromRelaxons(
   if(kappaFail) Warning("Developer warning: Kappa cross + selfEl + selfPh does not equal kappa total.");
 
   // dump the participation ratios to file here,
-  // maybe this should be a designated function
+  // TODO this should be a designated function
   nlohmann::json output;
 
   std::vector<double> chemPots = { calcStat.chemicalPotential };
@@ -762,6 +786,8 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
 void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatteringMatrix, Context& context,
 						bool isSymmetrized) {
 
+  // Calculate real space quantities (Du, W) --------------------------------------------------
+
   BaseBandStructure* phBandStructure = coupledScatteringMatrix.getPhBandStructure();
   BaseBandStructure* elBandStructure = coupledScatteringMatrix.getElBandStructure();
 
@@ -771,16 +797,12 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
   // write D to file before diagonalizing, as the scattering matrix
   // will be destroyed by scalapack
-  Eigen::Matrix3d Du; Du.setZero();
-  Eigen::Matrix3d DuEl; DuEl.setZero();
-  Eigen::Matrix3d DuDragEl; DuDragEl.setZero();
-  Eigen::Matrix3d DuDragPh; DuDragPh.setZero();
-  Eigen::Matrix3d DuPh; DuPh.setZero();
+  Eigen::Matrix3d Du, DuEl, DuDragEl, DuDragPh, DuPh; 
+  Du.setZero(); DuPh.setZero(); DuDragPh.setZero(); 
+  DuDragEl.setZero(); DuEl.setZero();
 
-  Eigen::Matrix3d Wjie; Wjie.setZero();
-  Eigen::Matrix3d Wji0; Wji0.setZero();
-  Eigen::Matrix3d elWji0; elWji0.setZero();
-  Eigen::Matrix3d phWji0; phWji0.setZero();
+  Eigen::Matrix3d Wjie, Wji0, elWji0, phWji0; 
+  Wjie.setZero(); Wji0.setZero(); elWji0.setZero(); phWji0.setZero();
 
   // sum over the alpha and v states that this process owns
   for (auto tup : coupledScatteringMatrix.getAllLocalStates()) {
@@ -822,10 +844,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     }
   }
   mpi->allReduceSum(&Du);
-  mpi->allReduceSum(&DuEl);
-  mpi->allReduceSum(&DuPh);
-  mpi->allReduceSum(&DuDragPh);
-  mpi->allReduceSum(&DuDragEl);
+  mpi->allReduceSum(&DuEl);     mpi->allReduceSum(&DuPh);
+  mpi->allReduceSum(&DuDragPh); mpi->allReduceSum(&DuDragEl);
 
   if(context.getUseUpperTriangle()) {
     DuDragEl = DuDragPh;
@@ -862,8 +882,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     }
   }
   mpi->allReduceSum(&Wji0); mpi->allReduceSum(&Wjie);
-  mpi->allReduceSum(&phWji0);
-  mpi->allReduceSum(&elWji0);
+  mpi->allReduceSum(&phWji0); mpi->allReduceSum(&elWji0);
 
   // TODO we're going to block band structure sym here,
   // but we may still want to call this...
@@ -882,15 +901,9 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   // NOTE we cannot use nested vectors from the start, as
   // vector<vector> is not necessarily contiguous and MPI
   // cannot all reduce on it
-  std::vector<std::vector<double>> vecDu;
-  std::vector<std::vector<double>> vecDuEl;
-  std::vector<std::vector<double>> vecDuPh;
-  std::vector<std::vector<double>> vecDuDragPh;
-  std::vector<std::vector<double>> vecDuDragEl;
-  std::vector<std::vector<double>> vecWji0;
-  std::vector<std::vector<double>> vecWji0_el;
-  std::vector<std::vector<double>> vecWji0_ph;
-  std::vector<std::vector<double>> vecWjie;
+  std::vector<std::vector<double>> vecDu, vecDuEl, vecDuPh, vecDuDragPh, vecDuDragEl;
+  std::vector<std::vector<double>> vecWji0, vecWji0_el, vecWji0_ph, vecWjie;
+
   for (auto i : {0, 1, 2}) {
     std::vector<double> t1,t2,t3,t4,t5,t6,t7,t8,t9;
     for (auto j : {0, 1, 2}) {

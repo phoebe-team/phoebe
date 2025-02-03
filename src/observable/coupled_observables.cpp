@@ -860,8 +860,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
         elWji0(j,i) += phi(i,is) * v(j) * theta0(is);
         Wjie(j,i) += phi(i,is) * v(j) * theta_e(is);
 
-        theta0_phi(i,j) += theta0(is) * v_sqrtTau(v(j), invDuEl(i,i)) * phi(i,is);  
-        theta_e_phi(i,j) += theta_e(is) * v_sqrtTau(v(j), invDuEl(i,i)) * phi(i,is);
+        theta0_phi(j,i) += theta0(is) * v_sqrtTau(v(j), invDuEl(i,i)) * phi(i,is);  
+        theta_e_phi(j,i) += theta_e(is) * v_sqrtTau(v(j), invDuEl(i,i)) * phi(i,is);
       }
     }
   }
@@ -882,8 +882,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
         Wjie(j,i) += phi(i,is+numElStates) * v(j) * theta_e(is+numElStates);
 
         // +3 is an offset to set the second 3 of 6 values for phi, which are el ones
-        theta0_phi(i,j+3) += theta0(is+numElStates) * v_sqrtTau(v(j), invDuPh(i,i)) * phi(i,is+numElStates);
-        theta_e_phi(i,j+3) += theta_e(is+numElStates) * v_sqrtTau(v(j), invDuPh(i,i)) * phi(i,is+numElStates);
+        theta0_phi(j,i+3) += theta0(is+numElStates) * v_sqrtTau(v(j), invDuPh(i,i)) * phi(i,is+numElStates);
+        theta_e_phi(j,i+3) += theta_e(is+numElStates) * v_sqrtTau(v(j), invDuPh(i,i)) * phi(i,is+numElStates);
       }
     }
   }

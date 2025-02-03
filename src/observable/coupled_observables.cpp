@@ -34,10 +34,7 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
   seebeckTotal.resize(numCalculations, dimensionality, dimensionality);
   kappaTotal.resize(numCalculations, dimensionality, dimensionality);
   mobilityTotal.resize(numCalculations, dimensionality, dimensionality);
-  sigmaTotal.setZero();
-  seebeckTotal.setZero();
-  kappaTotal.setZero();
-  mobilityTotal.setZero();
+  sigmaTotal.setZero(); seebeckTotal.setZero(); kappaTotal.setZero(); mobilityTotal.setZero();
 
   // initialize the separate components
   seebeckSelf.resize(numCalculations, dimensionality, dimensionality);
@@ -50,13 +47,9 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
   kappaPh.resize(numCalculations, dimensionality, dimensionality);
   kappaDrag.resize(numCalculations, dimensionality, dimensionality);
 
-  seebeckDrag.setZero();
-  seebeckSelf.setZero();
-  alphaEl.setZero();
-  alphaPh.setZero();
-  kappaEl.setZero();
-  kappaPh.setZero();
-  kappaDrag.setZero();
+  seebeckDrag.setZero(); seebeckSelf.setZero();
+  alphaEl.setZero(); alphaPh.setZero();
+  kappaEl.setZero(); kappaPh.setZero(); kappaDrag.setZero();
 
   // intialize viscosities
   phViscosity = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
@@ -67,10 +60,6 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
   elViscosity.setZero();
   dragViscosity.setZero();
   //totalViscosity.setZero();
-
-  sigma_mom.setZero();
-  seebeck_mom.setZero();
-  kappa_mom.setZero();
 
 }
 
@@ -131,11 +120,6 @@ void CoupledCoefficients::calcFromRelaxons(
   Eigen::Tensor<double, 3> Vphi(numRelaxons, 3, 3);
   dragVphi.setZero(); elVphi.setZero(); phVphi.setZero(); Vphi.setZero();
 
-  // special eigenvector overlaps with phi, for momentum subtraction 
-  // here the dimensions are (i=3, alpha = 6), where alpha is the 6 phis -- broken into el and ph 
-  Eigen::MatrixXd theta_e_phi(3,6), theta0_phi(3,6);
-  theta_e_phi.setZero();  theta0_phi.setZero();
-
   // sum over the alpha and v states that this process owns
   for (auto tup : eigenvectors.getAllLocalStates()) {
 
@@ -185,8 +169,8 @@ void CoupledCoefficients::calcFromRelaxons(
         if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
             elVphi(gamma, i, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * phi(i, is);
-            theta0_phi(i,j) += theta0(is) * lambdaSqrt * vSqrt * phi(i,is);
-            theta_e_phi(i,j) += theta_e(is) * lambdaSqrt * vSqrt * phi(i,is);
+            //theta0_phi(i,j) += theta0(is) * lambdaSqrt * vSqrt * phi(i,is);
+            //theta_e_phi(i,j) += theta_e(is) * lambdaSqrt * vSqrt * phi(i,is);
           }
         }
       }
@@ -213,9 +197,6 @@ void CoupledCoefficients::calcFromRelaxons(
         if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
             phVphi(gamma, i, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * phi(i, is);
-            // +3 is an offset to set the second 3 of 6 values for phi, which are el ones
-            theta0_phi(i,j+3) += theta0(is) * lambdaSqrt * vSqrt * phi(i,is);
-            theta_e_phi(i,j+3) += theta_e(is) * lambdaSqrt * vSqrt * phi(i,is);
           }
         }
       }
@@ -248,14 +229,12 @@ void CoupledCoefficients::calcFromRelaxons(
   mpi->allReduceSum(&Vphi); mpi->allReduceSum(&phVphi); mpi->allReduceSum(&elVphi);
   // participation ratios
   mpi->allReduceSum(&phPR); mpi->allReduceSum(&elPR);
-  // momentum eigenvector / special eigenvector overlaps
-  mpi->allReduceSum(&theta0_phi); mpi->allReduceSum(&theta_e_phi);
 
   // Calculate the transport coefficients -------------------------------------------------
 
   // local copies for linear algebra ops with eigen
-  Eigen::Matrix3d sigmaLocal, totalSigmaLocal, selfSigmaS, dragSigmaS, totalSigmaS, sigmaS_mom;
-  sigmaLocal.setZero(); totalSigmaLocal.setZero(), selfSigmaS.setZero(); dragSigmaS.setZero(); totalSigmaS.setZero(); sigmaS_mom.setZero();
+  Eigen::Matrix3d sigmaLocal, totalSigmaLocal, selfSigmaS, dragSigmaS, totalSigmaS;
+  sigmaLocal.setZero(); totalSigmaLocal.setZero(), selfSigmaS.setZero(); dragSigmaS.setZero(); totalSigmaS.setZero(); 
 
   // containers to calculate the specific contributions to the transport tensors
   kappaContrib.resize(numRelaxons, 3, 3);    kappaContrib.setZero();
@@ -336,22 +315,10 @@ void CoupledCoefficients::calcFromRelaxons(
     }
   }
 
-  // calculate part of transport coefficients due to momentum eigenvectors
-  for (int i = 0; i<dimensionality; i++) {
-    for (int j = 0; j<dimensionality; j++) {
-      for (int alpha = 0; alpha<6; alpha++) {
-        sigma_mom(i,j) += U * theta_e_phi(i,alpha) * theta_e_phi(j,alpha);
-        sigmaS_mom(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * theta_e_phi(i,alpha) * theta0_phi(j,alpha);
-        kappa_mom(i,j) += Ctot / kBoltzmannRy * theta0_phi(i,alpha) * theta0_phi(j,alpha);
-      }
-    }
-  }
-
   // seebeck = matmul(L_EE_inv, L_ET)
   Eigen::Matrix3d seebeckSelfLocal = sigmaLocal.inverse() * selfSigmaS;
   Eigen::Matrix3d seebeckDragLocal = sigmaLocal.inverse() * dragSigmaS;
   Eigen::Matrix3d totalSeebeckLocal = totalSigmaLocal.inverse() * totalSigmaS;
-  Eigen::Matrix3d seebeck_mom = sigma_mom.inverse() * sigmaS_mom;
 
   // copy S and sigma into final tensors to be printed
   // convert sigma -> mobility
@@ -802,6 +769,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   int numElStates = int(elBandStructure->irrStateIterator().size());
   auto calcStat = statisticsSweep.getCalcStatistics(0); // only one calc for relaxons
   double kBT = calcStat.temperature;
+  double T = calcStat.temperature / kBoltzmannRy;
 
   // write D to file before diagonalizing, as the scattering matrix
   // will be destroyed by scalapack
@@ -844,7 +812,6 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
         // use the upper quandrant, (el,ph) as this is always filled because it's in the upper triangle
         } else if ( is1 < numElStates && is2 >= numElStates) { // upper triangle
           DuDragPh(i, j) += duContribution;
-
         } else if ( is1 >= numElStates && is2 < numElStates) { // lower triangle part
           DuDragEl(i, j) += duContribution;
         }
@@ -859,16 +826,42 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     DuDragEl = DuDragPh;
   }
 
+  Eigen::Matrix3d invDuEl = DuEl.inverse();          // Du_ee
+  Eigen::Matrix3d invDuDragPh = DuDragPh.inverse();  // Du_pe
+  Eigen::Matrix3d invDuPh = DuPh.inverse();          // Du_pp
+  Eigen::Matrix3d invDuDragEl = DuDragEl.inverse();  // Du_ep
+  Eigen::MatrixXd theta0_phi(3,6), theta_e_phi(3,6);
+  theta0_phi.setZero(); theta_e_phi.setZero();
+
+  // if boundary length isn't set, set a giant one
+  double sqrtL = 1e12;
+  if(!std::isnan(context.getBoundaryLength())) sqrtL = sqrt(context.getBoundaryLength() / sqrt(2.));
+  if(context.getBoundaryLength() <= 0) Error("Boundary length should not be zero or less!");
+
+  // TODO lambda function to calculate vSqrt(tau), associated with supression function 
+  // replace where lambda is defined everywhere, and move to constructor or free function 
+  auto v_sqrtTau = [sqrtL] (double vj,double tau) { 
+    // supress mean free paths which are greater than the sample width
+    double lambdaSqrt = sqrt(abs(vj) * tau);
+    double vSqrt = std::copysign(1.0, vj) * sqrt(abs(vj));
+    if(lambdaSqrt > sqrtL) { lambdaSqrt = sqrtL; }
+    return lambdaSqrt * vSqrt; 
+  };
+
   // Calculate and write to file Wji0, Wjie, Wj0i, Wjei --------------------------------
   for (int is : elBandStructure->parallelStateIterator()) {
     auto isIdx = StateIndex(is);
     auto v = elBandStructure->getGroupVelocity(isIdx);
+
     for (auto j : {0, 1, 2}) {
       for (auto i : {0, 1, 2}) {
         // calculate quantities for the real-space solve
         Wji0(j,i) += phi(i,is) * v(j) * theta0(is);
         elWji0(j,i) += phi(i,is) * v(j) * theta0(is);
         Wjie(j,i) += phi(i,is) * v(j) * theta_e(is);
+
+        theta0_phi(i,j) += theta0(is) * v_sqrtTau(v(j), invDuEl(i,i)) * phi(i,is);  
+        theta_e_phi(i,j) += theta_e(is) * v_sqrtTau(v(j), invDuEl(i,i)) * phi(i,is);
       }
     }
   }
@@ -878,6 +871,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
     // discard acoustic phonon modes
     if (en < phEnergyCutoff) { continue; }
     auto v = phBandStructure->getGroupVelocity(isIdx);
+
     for (auto j : {0, 1, 2}) {
       for (auto i : {0, 1, 2}) {
         // note: phi and theta here are elStates long, so we need to shift the state
@@ -886,25 +880,38 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
         Wji0(j,i) += phi(i,is+numElStates) * v(j) * theta0(is+numElStates);
         phWji0(j,i) += phi(i,is+numElStates) * v(j) * theta0(is+numElStates);
         Wjie(j,i) += phi(i,is+numElStates) * v(j) * theta_e(is+numElStates);
+
+        // +3 is an offset to set the second 3 of 6 values for phi, which are el ones
+        theta0_phi(i,j+3) += theta0(is+numElStates) * v_sqrtTau(v(j), invDuPh(i,i)) * phi(i,is+numElStates);
+        theta_e_phi(i,j+3) += theta_e(is+numElStates) * v_sqrtTau(v(j), invDuPh(i,i)) * phi(i,is+numElStates);
       }
     }
   }
   mpi->allReduceSum(&Wji0); mpi->allReduceSum(&Wjie);
   mpi->allReduceSum(&phWji0); mpi->allReduceSum(&elWji0);
+  mpi->allReduceSum(&theta0_phi); mpi->allReduceSum(&theta_e_phi);
 
-  // TODO we're going to block band structure sym here,
-  // but we may still want to call this...
+  // TODO we should fix this all 
   if(isSymmetrized) {
-    symmetrize(Du);
-    symmetrize(DuEl);
-    symmetrize(DuPh);
-    symmetrize(DuDragPh);
-    symmetrize(DuDragEl);
-    symmetrize(Wji0);
-    symmetrize(elWji0);
-    symmetrize(phWji0);
-    symmetrize(Wjie);
+    symmetrize(Du); symmetrize(DuEl); symmetrize(DuPh);
+    symmetrize(DuDragPh); symmetrize(DuDragEl);
+    symmetrize(Wji0); symmetrize(elWji0); symmetrize(phWji0); symmetrize(Wjie);
   }
+
+  // calculate part of transport coefficients due to momentum eigenvectors
+  Eigen::Matrix3d sigmaS_mom;  
+  sigma_mom.setZero(); kappa_mom.setZero(); sigmaS_mom.setZero();
+  for (int i = 0; i<dimensionality; i++) {
+    for (int j = 0; j<dimensionality; j++) {
+      for (int alpha = 0; alpha<6; alpha++) {
+        sigma_mom(i,j) += U * theta_e_phi(i,alpha) * theta_e_phi(j,alpha);
+        sigmaS_mom(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * theta_e_phi(i,alpha) * theta0_phi(j,alpha);
+        kappa_mom(i,j) += Ctot / kBoltzmannRy * theta0_phi(i,alpha) * theta0_phi(j,alpha);
+      }
+    }
+  }
+  seebeck_mom = sigma_mom.inverse() * sigmaS_mom;
+
 
   // NOTE we cannot use nested vectors from the start, as
   // vector<vector> is not necessarily contiguous and MPI

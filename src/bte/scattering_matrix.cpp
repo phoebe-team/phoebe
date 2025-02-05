@@ -1808,15 +1808,6 @@ void ScatteringMatrix::reinforceLinewidths() {
       initialD *= 2.0;
     }
 
-    // avoid issues with nan coming from very small denominators
-    //if(abs(sqrt(initialFFm1) * initialD * initialEn) < 1e-15) continue;
-
-    //if(ibte1 == 14194) { 
-      //double contrib = (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
-      //                           / (sqrt(initialFFm1) * initialD * initialEn);
-      //std::cout << "contrib " << contrib << " " << theMatrix(ibte1,ibte2) << " " << sqrt(finalFFm1) << " "<< finalD << " " << finalEn << " | denom " << sqrt(initialFFm1) << " " << initialD << " " << initialEn << std::endl;
-    //}
-
     // remove accoustic phonons
     if((initialParticle.isPhonon() && initialEn < 1e-9)) continue;
     if((finalParticle.isPhonon() && finalEn < 1e-9)) continue;
@@ -1824,13 +1815,11 @@ void ScatteringMatrix::reinforceLinewidths() {
     // calculate the new linewidths
     newLinewidths(0,ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
                                  / (sqrt(initialFFm1) * initialD * initialEn) ;
-    //newLinewidths(0,ibte1) += theMatrix(ibte1,ibte2); 
   }
   loopPrint.close();
 
   // sum the element contributions from all processes
   mpi->allReduceSum(&newLinewidths);
-
 
   if(mpi->mpiHead()) {
     std::cout << "Checking the quality of ph states:" << innerBandStructure.getPoints().getCrystal().getVolumeUnitCell() << std::endl;

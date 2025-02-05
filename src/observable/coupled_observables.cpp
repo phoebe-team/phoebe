@@ -143,7 +143,7 @@ void CoupledCoefficients::calcFromRelaxons(
 
     // if boundary length isn't set, set a giant one
     double sqrtL = 1e12;
-    if(!std::isnan(context.getBoundaryLength())) sqrtL = sqrt(context.getBoundaryLength() / sqrt(2.));
+    if(!std::isnan(context.getBoundaryLength())) sqrtL = sqrt(context.getBoundaryLength() / sqrt(3.));
 
     if(context.getBoundaryLength() <= 0) Error("Boundary length should not be zero or less!");
 
@@ -835,7 +835,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
   // if boundary length isn't set, set a giant one
   double sqrtL = 1e12;
-  if(!std::isnan(context.getBoundaryLength())) sqrtL = sqrt(context.getBoundaryLength() / sqrt(2.));
+  if(!std::isnan(context.getBoundaryLength())) sqrtL = sqrt(context.getBoundaryLength() / sqrt(3.));
   if(context.getBoundaryLength() <= 0) Error("Boundary length should not be zero or less!");
 
   // TODO lambda function to calculate vSqrt(tau), associated with supression function 

@@ -120,6 +120,17 @@ void CoupledCoefficients::calcFromRelaxons(
   Eigen::Tensor<double, 3> Vphi(numRelaxons, 3, 3);
   dragVphi.setZero(); elVphi.setZero(); phVphi.setZero(); Vphi.setZero();
 
+  // if boundary length isn't set, set a giant one
+  double suppressionLength = 1e12; 
+  if(!std::isnan(context.getBoundaryLength())) suppressionLength = context.getBoundaryLength() / sqrt(3.);
+  if(context.getBoundaryLength() <= 0) Error("Boundary length should not be zero or less!");
+
+  auto v_sqrtTau = [&] (double vj, double tau) {
+    double vSqrt = std::copysign(1.0, vj) * sqrt(twoPi* abs(vj));
+    double lambdaSqrt=sqrt( 1.0/ (1.0/(abs(twoPi*vj) * tau) + (1./ (twoPi*suppressionLength))) );
+    return lambdaSqrt * vSqrt/twoPi; 
+  };
+
   // sum over the alpha and v states that this process owns
   for (auto tup : eigenvectors.getAllLocalStates()) {
 
@@ -141,12 +152,6 @@ void CoupledCoefficients::calcFromRelaxons(
     double tau = abs(1./eigenvalues(gamma));
     if(eigenvalues(gamma) < 1e-10) tau = 0;
 
-    // if boundary length isn't set, set a giant one
-    double sqrtL = 1e12;
-    if(!std::isnan(context.getBoundaryLength())) sqrtL = sqrt(context.getBoundaryLength() / sqrt(3.));
-
-    if(context.getBoundaryLength() <= 0) Error("Boundary length should not be zero or less!");
-
     if(is < numElStates) { // electronic state
 
       BteIndex iBteIdx(is);
@@ -155,20 +160,13 @@ void CoupledCoefficients::calcFromRelaxons(
 
       for (auto j : {0, 1, 2}) {
 
-        // supress mean free paths which are greater than the sample width
-        double lambdaSqrt = sqrt(abs(v(j)) * tau);
-        double vSqrt = std::copysign(1.0, v(j)) * sqrt(abs(v(j)));
-        if(lambdaSqrt > sqrtL) {
-          lambdaSqrt = sqrtL;
-        }
-
-        elV0(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta0(is);
-        elVe(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta_e(is);
+        elV0(gamma, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * theta0(is);
+        elVe(gamma, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * theta_e(is);
 
         // for viscosity, we have to skip the special eigenvectors
         if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
-            elVphi(gamma, i, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * phi(i, is);
+            elVphi(gamma, i, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * phi(i, is);
             //theta0_phi(i,j) += theta0(is) * lambdaSqrt * vSqrt * phi(i,is);
             //theta_e_phi(i,j) += theta_e(is) * lambdaSqrt * vSqrt * phi(i,is);
           }
@@ -182,21 +180,14 @@ void CoupledCoefficients::calcFromRelaxons(
       if (energy < phEnergyCutoff) { continue; }
 
       for (auto j : {0, 1, 2}) {
-
-        // supress mean free paths which are greater than the sample width
-        double lambdaSqrt = sqrt(abs(v(j)) * tau);
-        double vSqrt = std::copysign(1.0, v(j)) * sqrt(abs(v(j)));
-        if(lambdaSqrt > sqrtL) {
-          lambdaSqrt = sqrtL;
-        }
-
-        phV0(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta0(is);
-        phVe(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta_e(is);
+ 
+        phV0(gamma, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * theta0(is);
+        phVe(gamma, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * theta_e(is);
 
         // for viscosity, we have to skip the special eigenvectors
         if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
-            phVphi(gamma, i, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * phi(i, is);
+            phVphi(gamma, i, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * phi(i, is);
           }
         }
       }
@@ -204,19 +195,12 @@ void CoupledCoefficients::calcFromRelaxons(
     // also collect total Vs to check that the separation of electron and phonon states is ok
     for (auto j : {0, 1, 2}) {
 
-      // supress mean free paths which are greater than the sample width
-      double lambdaSqrt = sqrt(abs(v(j)) * tau);
-      double vSqrt = std::copysign(1.0, v(j)) * sqrt(abs(v(j)));
-      if(lambdaSqrt > sqrtL) {
-        lambdaSqrt = sqrtL;
-      }
-
-      V0(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta0(is);
-      Ve(gamma, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * theta_e(is);
+      V0(gamma, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau)* theta0(is);
+      Ve(gamma, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * theta_e(is);
 
       for(auto i : {0, 1, 2}) {
         if(gamma != alpha0 && gamma != alpha_e) {
-          Vphi(gamma, i, j) += eigenvectors(is,gamma) * lambdaSqrt * vSqrt * phi(i, is);
+          Vphi(gamma, i, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * phi(i, is);
         }
       }
     }
@@ -834,18 +818,14 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   theta0_phi.setZero(); theta_e_phi.setZero();
 
   // if boundary length isn't set, set a giant one
-  double sqrtL = 1e12;
-  if(!std::isnan(context.getBoundaryLength())) sqrtL = sqrt(context.getBoundaryLength() / sqrt(3.));
+  double suppressionLength = 1e12; 
+  if(!std::isnan(context.getBoundaryLength())) suppressionLength = context.getBoundaryLength() / sqrt(3.);
   if(context.getBoundaryLength() <= 0) Error("Boundary length should not be zero or less!");
 
-  // TODO lambda function to calculate vSqrt(tau), associated with supression function 
-  // replace where lambda is defined everywhere, and move to constructor or free function 
-  auto v_sqrtTau = [sqrtL] (double vj,double tau) { 
-    // supress mean free paths which are greater than the sample width
-    double lambdaSqrt = sqrt(abs(vj) * tau);
-    double vSqrt = std::copysign(1.0, vj) * sqrt(abs(vj));
-    if(lambdaSqrt > sqrtL) { lambdaSqrt = sqrtL; }
-    return lambdaSqrt * vSqrt; 
+  auto v_sqrtTau = [&] (double vj, double tau) {
+    double vSqrt = std::copysign(1.0, vj) * sqrt(twoPi* abs(vj));
+    double lambdaSqrt=sqrt( 1.0/ (1.0/(abs(twoPi*vj) * tau) + (1./ (twoPi*suppressionLength))) );
+    return lambdaSqrt * vSqrt/twoPi; 
   };
 
   // Calculate and write to file Wji0, Wjie, Wj0i, Wjei --------------------------------

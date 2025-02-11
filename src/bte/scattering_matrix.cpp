@@ -1792,13 +1792,13 @@ void ScatteringMatrix::reinforceLinewidths() {
     // self electronic term -- here we do not use energies, as we want to enforce
     // the charge eigenvector in the electron only case 
     if(initialParticle.isElectron() && finalParticle.isElectron()) {
-      initialEn = 1; //initialBandStructure->getEnergy(sIdx1); //initialChemicalPotential;
-      finalEn = 1; //finalBandStructure->getEnergy(sIdx2); //finalChemicalPotential;
+      initialEn = initialBandStructure->getEnergy(sIdx1);
+      finalEn = finalBandStructure->getEnergy(sIdx2);
     }
     // phonon linewidth from drag
     if(initialParticle.isPhonon() && finalParticle.isElectron()) {
-      initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential;
-      finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;
+      initialEn = initialBandStructure->getEnergy(sIdx1);
+      finalEn = finalBandStructure->getEnergy(sIdx2);
       finalD = sqrt(spinFactor*Nq/Nk);
     }
     // electron linewidth from drag
@@ -1806,9 +1806,10 @@ void ScatteringMatrix::reinforceLinewidths() {
       // let's try not including drag contributions to el linewidths
       // this is needed to reconstruct charge eigenvector 
       continue; 
-      initialEn = initialBandStructure->getEnergy(sIdx1); 
-      finalEn = finalBandStructure->getEnergy(sIdx2); 
-    }
+      initialEn = initialBandStructure->getEnergy(sIdx1) ; 
+      finalEn = finalBandStructure->getEnergy(sIdx2);   // sqrt(Nq)/sqrt(Nk)
+      finalD = sqrt(Nk/(spinFactor*Nq)); 
+    } 
 
     if(context.getUseUpperTriangle()) {
       initialD *= 2.0;
@@ -1831,8 +1832,8 @@ void ScatteringMatrix::reinforceLinewidths() {
       // don't print zeros 
       if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue; 
 
-      newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
-      continue; 
+      //newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
+      //continue; 
 
       if(newLinewidths(0,i) < 0 || std::isnan(newLinewidths(0,i))) {
         StateIndex sIdx(i-numElStates);
@@ -1854,8 +1855,8 @@ void ScatteringMatrix::reinforceLinewidths() {
     std::cout << "Checking quality of el states: " << std::endl;
     for (int i = 0; i<numElStates; i++) {
 
-      newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
-      continue;
+      //newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
+      //continue;
 
       if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue;
 

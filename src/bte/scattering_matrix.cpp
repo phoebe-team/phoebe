@@ -1772,15 +1772,22 @@ void ScatteringMatrix::reinforceLinewidths() {
     // chemical potential must be zero if it's a phonon, else = mu
     double initialChemicalPotential = (initialParticle.isPhonon()) ? 0 : chemicalPotential;
     double finalChemicalPotential = (finalParticle.isPhonon()) ? 0 : chemicalPotential;
-
-    
+  
     double initialEn = initialBandStructure->getEnergy(sIdx1);// - initialChemicalPotential; /
     double finalEn = finalBandStructure->getEnergy(sIdx2);// - finalChemicalPotential;
+
+    // remove accoustic phonons
+    if((initialParticle.isPhonon() && initialEn < 1e-9)) continue;
+    if((finalParticle.isPhonon() && finalEn < 1e-9)) continue;
 
     // calculate f(1-f) or n(n+1)
     // do not shift E by mu because we use this below in the getPop function which assumes it's unshifted
     double initialFFm1 = initialParticle.getPopPopPm1(initialEn, kBT, initialChemicalPotential);
     double finalFFm1 = finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
+
+    // spin degeneracy info -- TODO may need to put spin factors here
+    double initialD = 1; 
+    double finalD = 1; 
 
     // self electronic term -- here we do not use energies, as we want to enforce
     // the charge eigenvector in the electron only case 
@@ -1790,27 +1797,22 @@ void ScatteringMatrix::reinforceLinewidths() {
     }
     // phonon linewidth from drag
     if(initialParticle.isPhonon() && finalParticle.isElectron()) {
-      initialEn = initialBandStructure->getEnergy(sIdx1); //- initialChemicalPotential;
-      finalEn = finalBandStructure->getEnergy(sIdx2); //- finalChemicalPotential;
+      initialEn = initialBandStructure->getEnergy(sIdx1) - initialChemicalPotential;
+      finalEn = finalBandStructure->getEnergy(sIdx2) - finalChemicalPotential;
+      finalD = sqrt(spinFactor*Nq/Nk);
     }
     // electron linewidth from drag
     if(initialParticle.isElectron() && finalParticle.isPhonon()) {
-      continue; // let's try not including drag contributions to el linewidths
+      // let's try not including drag contributions to el linewidths
+      // this is needed to reconstruct charge eigenvector 
+      continue; 
       initialEn = initialBandStructure->getEnergy(sIdx1); 
       finalEn = finalBandStructure->getEnergy(sIdx2); 
     }
 
-    // spin degeneracy info -- TODO may need to put spin factors here
-    double initialD = 1; 
-    double finalD = 1; 
-
     if(context.getUseUpperTriangle()) {
       initialD *= 2.0;
     }
-
-    // remove accoustic phonons
-    if((initialParticle.isPhonon() && initialEn < 1e-9)) continue;
-    if((finalParticle.isPhonon() && finalEn < 1e-9)) continue;
 
     // calculate the new linewidths
     newLinewidths(0,ibte1) -= (theMatrix(ibte1,ibte2) * sqrt(finalFFm1) * finalD * finalEn )
@@ -1829,6 +1831,9 @@ void ScatteringMatrix::reinforceLinewidths() {
       // don't print zeros 
       if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue; 
 
+      newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
+      continue; 
+
       if(newLinewidths(0,i) < 0 || std::isnan(newLinewidths(0,i))) {
         StateIndex sIdx(i-numElStates);
         std::cout << std::setprecision(4) << "Found a negative ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << internalDiagonal->data(0,i) << " " << newLinewidths(0,i) << std::endl;
@@ -1836,17 +1841,21 @@ void ScatteringMatrix::reinforceLinewidths() {
         newLinewidths(0,i) = internalDiagonal->data(0, i); 
       }
       // flag bad linewidth ratios 
-      else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.5 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.5) {
+      else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.25 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.75) {
         //StateIndex sIdx(i-numElStates);
         //auto tup = innerBandStructure.getIndex(sIdx);
         //BandIndex band = std::get<1>(tup);
         // " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " 
         if(mpi->mpiHead()) std::cout << "Found a bad ph linewidth ratio: state, new, old, new/old " << i << " " << newLinewidths(0,i) << " / " << internalDiagonal->data(0,i) << " = " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;
+        //newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
       }
     }
 
     std::cout << "Checking quality of el states: " << std::endl;
     for (int i = 0; i<numElStates; i++) {
+
+      newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
+      continue;
 
       if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue;
 
@@ -1855,7 +1864,7 @@ void ScatteringMatrix::reinforceLinewidths() {
         if(mpi->mpiHead()) std::cout << "Replacing a negative el linewidth for state: " << i << " " << outerBandStructure.getEnergy(sIdx) << " " << outerBandStructure.getPoints().cartesianToCrystal(outerBandStructure.getWavevector(sIdx)).transpose() << " old v. new " << internalDiagonal->data(0,i) << " " << newLinewidths(0,i) << std::endl;
         newLinewidths(0,i) = internalDiagonal->data(0, i);
       }
-      else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.5 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.5) {
+      else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.25 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.75) {
         //StateIndex sIdx(i);
         if(mpi->mpiHead()) std::cout << "Found a bad el linewidth ratio: state, new, old, new/old " << i << " " << newLinewidths(0,i) << " / " << internalDiagonal->data(0,i) << " = " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;
         //newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));

@@ -104,7 +104,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
   // linewidths have to be a certain shape here
   if ((linewidth != nullptr) && (linewidth->dimensionality != 1)) {
-    DeveloperError("Developer error: The linewidths shouldn't have dimensionality!");
+    DeveloperError("The linewidths shouldn't have dimensionality!");
   }
 
   // add in the different scattering contributions -------------------
@@ -153,7 +153,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                     switchCase, qPairIterator,
                                     boseOccupations, boseOccupations,
                                     innerBandStructure, innerBandStructure,
-                                    *phononH0, coupling3Ph, linewidth);
+                                    *phononH0, coupling3Ph, linewidth); 
   }
 
   // Isotope scattering ------------------------------------------------
@@ -234,9 +234,9 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                          couplingElPh, innerBandStructure, outerBandStructure);
 
       // use drag ASR to correct the drag terms and recompute the phel linewidths
-      //phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
-      //                              outerBandStructure,   // electron bands
-      //                              innerBandStructure);  // phonon bands
+      phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
+                                    outerBandStructure,   // electron bands
+                                    innerBandStructure);  // phonon bands
     }
 
     // Add in the phel contribution
@@ -326,7 +326,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // use the off diagonals to calculate the linewidths,
   // to ensure the special eigenvectors can be found/preserve conservation of momentum
   // that might be ruined by the delta functions
-  //reinforceLinewidths();
+  reinforceLinewidths();
 
   // TODO debug the "replaceLinewidths" function and use it instead
   // we place the linewidths back in the diagonal of the scattering matrix

@@ -491,17 +491,13 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
   // el statistics sweep should be stored in the coupled matrix
   StatisticsSweep& elStatisticsSweep = matrix.statisticsSweep;
 
-  size_t Nq = phBandStructure.getNumPoints();
-  size_t Nk = elBandStructure.getNumPoints();
-  double Nkq = (Nk + Nq)/2.;
+  //size_t Nq = phBandStructure.getNumPoints();
+  //size_t Nk = elBandStructure.getNumPoints();
   size_t numPhStates = phBandStructure.getNumStates();
   size_t numElStates = elBandStructure.getNumStates();
 
-  double spinFactor = 2.; // non spin pol = 2
-  if (context.getHasSpinOrbit()) { spinFactor = 1.; }
-
-  double volume = phBandStructure.getPoints().getCrystal().getVolumeUnitCell();
-  double norm = 1./(Nkq * volume) * sqrt(spinFactor * Nkq / double(Nk));
+  //double spinFactor = 2.; // non spin pol = 2
+  //if (context.getHasSpinOrbit()) { spinFactor = 1.; }
 
   // this is for coupled matrices, only one temperature and mu value
   int iCalc = 0;
@@ -511,8 +507,6 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
 
   // Rqs = sum_km D_phel_qs,km sqrt(f(1-f))
   std::vector<double> Rqs(numPhStates);
-  // used in the next step, sum_km step_fn(|Delph| - 1e-16)
-  std::vector<double> weightDenominator(numPhStates);
 
   // calculate Rqs and look at how far it is from zero
   for(auto matrixState : matrix.getAllLocalStates()) {
@@ -521,11 +515,9 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
     size_t iMat1 = std::get<0>(matrixState);
     size_t iMat2 = std::get<1>(matrixState);
 
-    // check if this is a drag-related index
-    // if iMat1 is electron, iMat2 is phonon
-    // ( we only sum over one quadrant for now)
-    if(( iMat1 < numElStates && iMat2 >= numElStates)) { //||
-       		//(iMat1 > numElStates && iMat2 < numElStates) ) {
+    // check if this is a drag-related index, iMat1 is electron, iMat2 is phonon
+    // ( we only need to sum over one quadrant)
+    if(( iMat1 < numElStates && iMat2 >= numElStates)) { 
 
        size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index
 
@@ -535,13 +527,9 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
        double energy = elBandStructure.getEnergy(is1);
        double f1mf = elBandStructure.getParticle().getPopPopPm1(energy, kBT, mu);
        Rqs[iMat2Ph] += matrix(iMat1,iMat2) * sqrt(f1mf);
-       // here we're summing over sum_km step_fn(|Delph| - 1e-16), where
-       // if the argument is positive, the value is 1, and if it's <= 0 it's 0
-       weightDenominator[iMat2Ph] += abs(matrix(iMat1,iMat2)) - 1e-16 > 0. ? 1. : 0;
     }
   }
   mpi->allReduceSum(&Rqs);
-  mpi->allReduceSum(&weightDenominator);
 
   //if(mpi->mpiHead()) std::cout << "Sum of the Rqs components: " << std::endl; //<< std::accumulate(Rqs.begin(),Rqs.end(),0) << std::endl;
   //for (auto i: Rqs) {
@@ -553,34 +541,45 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
   //}
 
   // now correct the drag terms by calculating
-  // w_qs,km = step_fn (Delph - 1e-16) / sum_km step_fn(|Delph| - 1e-16)
-  // and then
-  // Dphel_qs,km^corrected = Dphel_qs,km - w_qs,km * Rqs / sqrt(f(1-f)
+  // Dphel_qs,km^corrected = Dphel_qs,km -  Rqs / sqrt(f(1-f) / Nk
   for(auto matrixState : matrix.getAllLocalStates()) {
 
     // unpack the state info into matrix indices
     size_t iMat1 = std::get<0>(matrixState);
     size_t iMat2 = std::get<1>(matrixState);
 
-    // if iMat1 is electron, iMat2 is phonon (upper quadrant only for now)
+    // if iMat1 is electron, iMat2 is phonon 
     if(( iMat1 < numElStates && iMat2 >= numElStates)) {
 
-      size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index
+      size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon band index
 
       // here because symmetries are not used, we can directly use
       // the matrix indices without converting iBte/iMat -> iState
       StateIndex is1(iMat1);
-      double energy = elBandStructure.getEnergy(is1);
-      double f1mf = elBandStructure.getParticle().getPopPopPm1(energy, kBT, mu);
+      double en = elBandStructure.getEnergy(is1);
+      double f1mf = elBandStructure.getParticle().getPopPopPm1(en, kBT, mu);
 
-      if(weightDenominator[iMat2Ph] == 0) continue; // avoid nan
       if(sqrt(f1mf) < 1e-16) continue; // avoid nan
 
-      double weightNumerator = abs(matrix(iMat1,iMat2)) - 1e-16 > 0. ? 1. : 0;
-      double weight  = weightNumerator / weightDenominator[iMat2Ph];
+      // replace the matrix elements with the corrected ones
+      matrix(iMat1, iMat2) = matrix(iMat1, iMat2) - (1./numElStates) * Rqs[iMat2Ph] / sqrt(f1mf);
+
+    }
+    // if iMat1 is phonon, iMat2 is electron 
+    if(( iMat1 >= numElStates && iMat2 < numElStates)) {
+
+      size_t iMat1Ph = iMat1 - numElStates; // shift back to phonon band index
+
+      // here because symmetries are not used, we can directly use
+      // the matrix indices without converting iBte/iMat -> iState
+      StateIndex is2(iMat2);
+      double en = elBandStructure.getEnergy(is2);
+      double f1mf = elBandStructure.getParticle().getPopPopPm1(en, kBT, mu);
+
+      if(sqrt(f1mf) < 1e-16) continue; // avoid nan
 
       // replace the matrix elements with the corrected ones
-      matrix(iMat1, iMat2) = matrix(iMat1, iMat2) - weight * Rqs[iMat2Ph] / sqrt(f1mf);
+      matrix(iMat1, iMat2) = matrix(iMat1, iMat2) - (1./numElStates) * Rqs[iMat1Ph] / sqrt(f1mf);
 
     }
   }

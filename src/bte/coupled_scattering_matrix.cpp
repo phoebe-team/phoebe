@@ -232,11 +232,6 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
       // now the ph drag term
       addDragTerm(*this, context, qkPairIterator, 1,
                          couplingElPh, innerBandStructure, outerBandStructure);
-
-      // use drag ASR to correct the drag terms and recompute the phel linewidths
-      phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
-                                    outerBandStructure,   // electron bands
-                                    innerBandStructure);  // phonon bands
     }
 
     // Add in the phel contribution
@@ -322,6 +317,15 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   if ( context.getSymmetrizeMatrix() ) {
     symmetrize();
   }
+
+   // drag sum rule ----------------------------------------------
+   if(context.getUseDragTerms()) {
+
+    // use drag ASR to correct the drag terms and recompute the phel linewidths
+    phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
+                                  outerBandStructure,   // electron bands
+                                  innerBandStructure);  // phonon bands
+  }  
 
   // use the off diagonals to calculate the linewidths,
   // to ensure the special eigenvectors can be found/preserve conservation of momentum

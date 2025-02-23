@@ -212,10 +212,10 @@ FullBandStructure::FullBandStructure(int numBands_, Particle &particle_,
   // Initialize data structures depending on memory distribution.
   // If is distributed is true, numBlockCols is used to column/wavevector
   // distribute the internal matrices
-  int numBlockCols = std::min((int)mpi->getSize(), numPoints);
+  int numBlockCols = int(std::min((size_t)mpi->getSize(), numPoints));
 
   // this will cause a crash from BLACS
-  if(mpi->getSize() > numPoints) {
+  if(size_t(mpi->getSize()) > numPoints) {
     Error("Phoebe cannot run with more MPI processes than points. Increase mesh sampling \n"
         "or decrease number of processes.");
   }
@@ -293,6 +293,7 @@ int FullBandStructure::getNumBands() { return numBands; }
 int FullBandStructure::getNumBands([[maybe_unused]] WavevectorIndex &ik) {
   return numBands;
 }
+int FullBandStructure::getFullNumBands() { return numBands; }
 
 int FullBandStructure::hasWindow() { return 0; }
 

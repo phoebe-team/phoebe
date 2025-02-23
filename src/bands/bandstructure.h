@@ -47,6 +47,7 @@ class BaseBandStructure {
    * If the number of bands is not constant, calls an error.
    */
   virtual int getNumBands() = 0;
+  virtual int getFullNumBands() = 0;
 
   /** Returns the number of bands. If the band structure is active,
    * and there are a different number of bands at each wavevector, this function
@@ -375,6 +376,8 @@ class FullBandStructure : public BaseBandStructure {
    * @return numBands: the total number of bands in the bandStructure.
    */
   int getNumBands() override;
+  int getFullNumBands() override;
+
   /** Returns the number of bands, to provide flexibility in cases where
    * full or activeBandStructure could be used.
    * @return numBands: the total number of bands in the bandStructure.
@@ -732,7 +735,7 @@ protected:
   // auxiliary variables
   int numBands = 0;
   int numAtoms = 0;
-  int numPoints = 0;
+  size_t numPoints = 0;
   int numLocalPoints = 0;
 
   // method to find the index of the point, from its crystal coordinates

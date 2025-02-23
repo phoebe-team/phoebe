@@ -77,7 +77,9 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
   //if (dragTermType == Del) { norm = sqrt(spinFactor) / (sqrt( double(context.getKMesh().prod()) ) * sqrt(double(context.getQMesh().prod()))); }
   //else { norm = sqrt(spinFactor) / (sqrt(double(context.getQMesh().prod())) * sqrt(double(context.getKMesh().prod()))); }
   //norm = spinFactor/(double(context.getKMesh().prod()));
-  norm = sqrt(spinFactor) / (sqrt( double(context.getKMesh().prod()) * double(context.getQMesh().prod())));
+  double Nk = double(context.getKMesh().prod()); 
+  double Nq = double(context.getQMesh().prod()); 
+  norm = sqrt(spinFactor) / (sqrt( Nk * Nq));
 
   // TODO change this to the same in phel scattering as well
   // precompute the q-dependent part of the polar correction
@@ -341,7 +343,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
           //Eigen::Vector3d kCrys = electronBandStructure.getPoints().cartesianToCrystal(kCartesian);
           //Eigen::Vector3d kpCrys = electronBandStructure.getPoints().cartesianToCrystal(kpCartesian);
-          //Eigen::Vector3d qCrys = phononBandStructure.getPoints().cartesianToCrystal(qCartesian);
+          Eigen::Vector3d qCrys = phononBandStructure.getPoints().cartesianToCrystal(qCartesian);
 
           // Calculate the scattering rate  -------------------------------------------
           // Loop over state bands
@@ -398,7 +400,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   // always want a population mesh, and tetrahedron cannot be used with non-uniform mesh
                   // we actually block this for transport in the parent scattering matrix obj
                   // Therefore, I merely here again throw an error if this is used
-                  Error("Developer error: Tetrahedron not implemented for CBTE.");
+                  DeveloperError("Tetrahedron not implemented for CBTE.");
                 }
 
                 // if nothing contributes, go to the next triplet
@@ -429,15 +431,21 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   //WavevectorIndex iQidxM(phononBandStructure.getPointIndex(qCrysM));
                   //int isQM = phononBandStructure.getIndex(iQidxM, BandIndex(ibQ));
 
+                  double normTemp = norm; 
+                  if( (enQ < 0.007 / energyRyToEv)) { // && (qCrys.norm() < 1e-1)) {
+                    normTemp = sqrt(spinFactor) / ( Nk );
+                    //std::cout << " imode omega q " << ibQ << " " << enQ << " " << qCrys.transpose() << std::endl;
+                  }
+
                   if(!isKpMinus) { // g+ part
 
-                    dragRate = norm * //1./(enK) *
+                    dragRate = normTemp * //1./(enK) *
                           couplingSq(ibK,ibKp,ibQ) * pi / enQ *  // 1/sqrt(omega)^2, g_SE factor
                           coshKp * delta * ( (enKp + enK - enQ)/ ( 2. * enK ) );
 
                   } else if(isKpMinus) { // g- part
 
-                    dragRate = -norm * // 1./(enK) *
+                    dragRate = -normTemp * // 1./(enK) *
                           couplingSq(ibK,ibKp,ibQ) * pi / enQ *  // 1/sqrt(omega)
                           coshKp * delta * ( (enKp + enK + enQ)/ ( 2. * enK ) );
 

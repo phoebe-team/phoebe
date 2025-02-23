@@ -4,6 +4,7 @@
 #include "mpiHelper.h"
 #include "window.h"
 #include "common_kokkos.h"
+#include <cstddef>
 #include <iomanip>
 
 ActiveBandStructure::ActiveBandStructure(Particle &particle_, Points &points_)
@@ -221,9 +222,13 @@ int ActiveBandStructure::getNumBands() {
   }
 }
 
+int ActiveBandStructure::getFullNumBands() { return numFullBands; }
+
 int ActiveBandStructure::getNumBands(WavevectorIndex &ik) {
   return numBands(ik.get());
 }
+
+
 
 int ActiveBandStructure::hasWindow() { return windowMethod; }
 
@@ -391,12 +396,12 @@ void ActiveBandStructure::setEigenvectors(Point &point,
 
 void ActiveBandStructure::setVelocities(
     Point &point, Eigen::Tensor<std::complex<double>, 3> &velocities_) {
-  int ik = point.getIndex();
+  size_t ik = point.getIndex();
   for (int ib1 = 0; ib1 < velocities_.dimension(0); ib1++) {
     for (int ib2 = 0; ib2 < velocities_.dimension(1); ib2++) {
       for (int j : {0, 1, 2}) {
         size_t index = velBloch2Comb(ik, ib1, ib2, j);
-        if(mpi->mpiHead() && index < 0) std::cout << "index " << index << std::endl;
+        //if(mpi->mpiHead() && index < 0) std::cout << "index " << index << std::endl;
         velocities[index] = velocities_(ib1, ib2, j);
       }
     }
@@ -690,10 +695,10 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
   // this isn't a constant number.
   // Also, we look for the size of the arrays containing band structure.
   numBands = Eigen::VectorXi::Zero(numPoints);
-  int numEnStates = 0;
-  int numVelStates = 0;
-  int numEigStates = 0;
-  for (int ik = 0; ik < numPoints; ik++) {
+  size_t numEnStates = 0;
+  size_t numVelStates = 0;
+  size_t numEigStates = 0;
+  for (size_t ik = 0; ik < size_t(numPoints); ik++) {
     numBands(ik) = filteredBands(ik, 1) - filteredBands(ik, 0) + 1;
     numEnStates += numBands(ik);
     numVelStates += 3 * numBands(ik) * numBands(ik);
@@ -1021,10 +1026,10 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   // this isn't a constant number.
   // Also, we look for the size of the arrays containing band structure.
   numBands = Eigen::VectorXi::Zero(numPoints);
-  int numEnStates = 0;
-  int numVelStates = 0;
-  int numEigStates = 0;
-  for (int ik = 0; ik < numPoints; ik++) {
+  size_t numEnStates = 0;
+  size_t numVelStates = 0;
+  size_t numEigStates = 0;
+  for (size_t ik = 0; ik < size_t(numPoints); ik++) {
     numBands(ik) = filteredBands(ik, 1) - filteredBands(ik, 0) + 1;
     numEnStates += numBands(ik);
     numVelStates += 3 * numBands(ik) * numBands(ik);

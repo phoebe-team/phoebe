@@ -76,6 +76,7 @@ public:
    *    (only returned in the case where the bands have not been filtered.)
    */
   int getNumBands() override;
+  int getFullNumBands() override;
 
   /** Returns the number of bands at a given wavevector.
    * @return numBands: the number of bands at the requested ik.

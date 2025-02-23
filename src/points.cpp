@@ -45,7 +45,7 @@ Points::Points(Crystal &crystal_, const Eigen::Tensor<double, 3> &pathExtrema,
                const double &delta)
     : crystalObj(crystal_) {
 
-  const double epsilon8 = 1.0e-8;
+  const double epsilon8 = 1.0e-10;
 
   explicitlyStored = true;
 
@@ -289,12 +289,12 @@ int innermostPointsBinarySearch(const Eigen::MatrixXd& pointsList,
     // If the element is present at the middle itself
     double diff = pointsList(direction,mid) - x(direction);
 
-    if ( abs(diff) < 1.0e-6 ) {
+    if ( abs(diff) < 1.0e-8 ) {
       return mid;
     }
 
     // If element is smaller than mid, then it can only be in left subarray
-    if ( diff > 1.0e-6 ) {
+    if ( diff > 1.0e-8 ) {
       return innermostPointsBinarySearch(pointsList, left, mid - 1, x, direction);
     }
 
@@ -347,7 +347,7 @@ std::pair<int,int> internalPointsBinarySearch(const Eigen::MatrixXd& pointsList,
     }
 
     // if still the same point at a lower index, save
-    if ( abs(diff) < 1.0e-6) {
+    if ( abs(diff) < 1.0e-8) {
       idxMin -= 1;
     } else {
       break; // exit if point is different
@@ -361,7 +361,7 @@ std::pair<int,int> internalPointsBinarySearch(const Eigen::MatrixXd& pointsList,
       diff += diff2 * diff2;
     }
     // if still the same point at a lower index, save
-    if ( abs(diff) < 1.0e-6) {
+    if ( abs(diff) < 1.0e-8) {
       idxMax += 1;
     } else {
       break; // exit if point is different
@@ -705,7 +705,7 @@ void Points::setIrreduciblePoints(
     std::vector<Eigen::MatrixXd> *groupVelocities) {
   // go through the list of wavevectors and find the irreducible points
 
-  const double epsilon = 1.0e-5;
+  const double epsilon = 1.0e-8;
 
   equiv.resize(numPoints);
   for (int i = 0; i < numPoints; i++) {

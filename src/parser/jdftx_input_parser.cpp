@@ -230,7 +230,8 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   //if (!spinOrbit) { // the case of spin orbit
   //  nElectrons /= 2;  // apparently this is unneeded and problematic
   //}
-  context.setNumOccupiedStates(nElectrons);
+  // only set this if the user did not
+  if(std::isnan(context.getNumOccupiedStates())) context.setNumOccupiedStates(nElectrons);
 
   // if the user didn't set the Fermi level, we do it here.
   //if (std::isnan(context.getFermiLevel()))

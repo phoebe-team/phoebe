@@ -56,6 +56,7 @@ class Context {
   double fermiLevel = std::numeric_limits<double>::quiet_NaN();
   double numOccupiedStates = std::numeric_limits<double>::quiet_NaN();
   bool hasSpinOrbit = false;
+  double spinDegeneracyFactor = 2.; 
 
   int dimensionality = 3;
   double thickness = 1.; // material thickness or cross area for lower dimensions
@@ -81,6 +82,10 @@ class Context {
   // for custom masses and custom isotope scattering
   Eigen::VectorXd customIsotopeCouplings;
   Eigen::VectorXd customMasses;
+
+  // the C coefficient as in the ee self energy for a Fermi liquid
+  // will be internally stored in 1/Ry
+  double eeFermiLiquidCoefficient = 0; 
 
   // add RTA boundary scattering in scattering matrix
   double boundaryLength = std::numeric_limits<double>::quiet_NaN();
@@ -335,6 +340,9 @@ public:
   bool getHasSpinOrbit() const;
   void setHasSpinOrbit(const bool &x);
 
+  double getSpinDegeneracyFactor() const;
+  void setSpinDegeneracyFactor(const double &x);
+
   int getSmearingMethod() const;
 
   double getSmearingWidth() const;
@@ -367,6 +375,7 @@ public:
   Eigen::VectorXd getMasses();
   Eigen::VectorXd getIsotopeCouplings();
 
+  double getEeFermiLiquidCoefficient() const; 
   double getBoundaryLength() const;
 
   // EPA:

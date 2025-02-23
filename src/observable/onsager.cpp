@@ -130,79 +130,11 @@ void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
   LTT.setZero();
 
   auto points = bandStructure.getPoints();
-
   std::vector<int> states = bandStructure.parallelIrrStateIterator();
   int numStates = states.size();
 
-  // kokkos version of the below code
-  /*
-  Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-      LEE_k(LEE.data(), numCalculations, 3, 3);
-  Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-      LET_k(LET.data(), numCalculations, 3, 3);
-  Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-      LTE_k(LTE.data(), numCalculations, 3, 3);
-  Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>>
-      LTT_k(LTT.data(), numCalculations, 3, 3);
-  Kokkos::Experimental::ScatterView<double***, Kokkos::LayoutLeft,
-                                    Kokkos::HostSpace> scatter_LEE_k(LEE_k);
-  Kokkos::Experimental::ScatterView<double***, Kokkos::LayoutLeft,
-                                    Kokkos::HostSpace> scatter_LET_k(LET_k);
-  Kokkos::Experimental::ScatterView<double***, Kokkos::LayoutLeft,
-                                    Kokkos::HostSpace> scatter_LTE_k(LTE_k);
-  Kokkos::Experimental::ScatterView<double***, Kokkos::LayoutLeft,
-                                    Kokkos::HostSpace> scatter_LTT_k(LTT_k);
-  Kokkos::parallel_for("onsager_coefficients",
-                       Kokkos::RangePolicy<Kokkos::HostSpace::execution_space>(0, numStates),
-                       [&] (int iis) {
-
-    auto LEE_private = scatter_LEE_k.access();
-    auto LET_private = scatter_LET_k.access();
-    auto LTE_private = scatter_LTE_k.access();
-    auto LTT_private = scatter_LTT_k.access();
-
-    int is = states[iis];
-
-    StateIndex isIdx(is);
-    double energy = bandStructure.getEnergy(isIdx);
-    Eigen::Vector3d velIrr = bandStructure.getGroupVelocity(isIdx);
-    int iBte = bandStructure.stateToBte(isIdx).get();
-    auto rotations = bandStructure.getRotationsStar(isIdx);
-
-    for (int iCalc = 0; iCalc < statisticsSweep.getNumCalculations(); iCalc++) {
-      auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
-      double en = energy - calcStat.chemicalPotential;
-
-      for (const Eigen::Matrix3d& r : rotations) {
-        Eigen::Vector3d thisNE = Eigen::Vector3d::Zero();
-        Eigen::Vector3d thisNT = Eigen::Vector3d::Zero();
-        for (int i : {0, 1, 2}) {
-          thisNE(i) += nE(iCalc, i, iBte);
-          thisNT(i) += nT(iCalc, i, iBte);
-        }
-        thisNE = r * thisNE;
-        thisNT = r * thisNT;
-        Eigen::Vector3d vel = r * velIrr;
-
-        for (int i : {0, 1, 2}) {
-          for (int j : {0, 1, 2}) {
-            LEE_private(iCalc, i, j) += thisNE(i) * vel(j) * norm;
-            LET_private(iCalc, i, j) += thisNT(i) * vel(j) * norm;
-            LTE_private(iCalc, i, j) += thisNE(i) * vel(j) * en * norm;
-            LTT_private(iCalc, i, j) += thisNT(i) * vel(j) * en * norm;
-          }
-        }
-      }
-    }
-  });
-  // safely sum the contribution to tensors from all different threads
-  Kokkos::Experimental::contribute(LEE_k, scatter_LEE_k);
-  Kokkos::Experimental::contribute(LET_k, scatter_LET_k);
-  Kokkos::Experimental::contribute(LTE_k, scatter_LTE_k);
-  Kokkos::Experimental::contribute(LTT_k, scatter_LTT_k);
-*/
-
   for (int is : bandStructure.parallelIrrStateIterator()) {
+
     StateIndex isIdx(is);
     double energy = bandStructure.getEnergy(isIdx);
     Eigen::Vector3d velIrr = bandStructure.getGroupVelocity(isIdx);
@@ -235,8 +167,6 @@ void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
       }
     }
   }
-
-  // lastly, the states were distributed with MPI
   mpi->allReduceSum(&LEE);
   mpi->allReduceSum(&LTE);
   mpi->allReduceSum(&LET);

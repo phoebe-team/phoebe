@@ -580,9 +580,9 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "fermiLevel") {
         fermiLevel = parseDoubleWithUnits(val);
       }
-      if (parameterName == "hasSpinOrbit") {
-        hasSpinOrbit = parseBool(val);
-      }
+      //if (parameterName == "hasSpinOrbit") { // TODO this should be detected at parsing phase
+      //  hasSpinOrbit = parseBool(val);
+      //}
       if (parameterName == "distributedElPhCoupling") {
         distributedElPhCoupling = parseBool(val);
       }
@@ -676,6 +676,11 @@ void Context::setupFromInput(const std::string &fileName) {
       }
       if (parameterName == "boundaryLength") {
         boundaryLength = parseDoubleWithUnits(val);
+      }
+      // we assume this is in 1/eV, and convert to 1/Ry
+      if (parameterName == "eeFermiLiquidCoefficient") {
+        eeFermiLiquidCoefficient = parseDouble(val);
+        eeFermiLiquidCoefficient *= energyRyToEv;
       }
 
       // EPA
@@ -912,6 +917,10 @@ void Context::printInputSummary(const std::string &fileName) {
       if (!quantumEspressoPrefix.empty())
         std::cout << "quantumEspressoPrefix = " << quantumEspressoPrefix
                   << std::endl;
+      if(eeFermiLiquidCoefficient != 0) {
+        std::cout << "eeFermiLiquidCoefficient = " << 
+          eeFermiLiquidCoefficient * 1./energyRyToEv << " 1/eV" << std::endl;
+      }
     }
     // EPA specific parameters
     if (elPhInterpolation == "epa") {
@@ -1376,6 +1385,9 @@ void Context::setNumOccupiedStates(const double &x) { numOccupiedStates = x; }
 bool Context::getHasSpinOrbit() const { return hasSpinOrbit; }
 void Context::setHasSpinOrbit(const bool &x) { hasSpinOrbit = x; }
 
+double Context::getSpinDegeneracyFactor() const { return spinDegeneracyFactor; }
+void Context::setSpinDegeneracyFactor(const double &x) { spinDegeneracyFactor = x; } 
+
 int Context::getSmearingMethod() const { return smearingMethod; }
 
 double Context::getSmearingWidth() const { return smearingWidth; }
@@ -1445,6 +1457,8 @@ Eigen::VectorXd Context::getMasses() { return customMasses; }
 Eigen::VectorXd Context::getIsotopeCouplings() { return customIsotopeCouplings; }
 
 bool Context::getWithIsotopeScattering() const { return withIsotopeScattering; }
+
+double Context::getEeFermiLiquidCoefficient() const { return eeFermiLiquidCoefficient; }
 
 double Context::getBoundaryLength() const { return boundaryLength; }
 

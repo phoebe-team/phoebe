@@ -53,6 +53,22 @@ void onsagerToTransportCoeffs(StatisticsSweep& statisticsSweep, int& dimensional
   Kokkos::Profiling::popRegion();
 }
 
+// helper function to simplify code for printing transport to output
+void appendTransportTensorForOutput(
+                        Eigen::Tensor<double, 3>& tensor, int dimensionality, double& unitConv, int& iCalc,
+                        std::vector<std::vector<std::vector<double>>>& outFormat) {
+
+    std::vector<std::vector<double>> rows;
+    for (int i = 0; i < dimensionality; i++) {
+      std::vector<double> cols;
+      for (int j = 0; j < dimensionality; j++) {
+        cols.push_back(tensor(iCalc, i, j) * unitConv);
+      }
+      rows.push_back(cols);
+    }
+    outFormat.push_back(rows);
+}
+
 void printHelper(StatisticsSweep& statisticsSweep, int& dimensionality,
                                 Eigen::Tensor<double, 3>& kappa,
                                 Eigen::Tensor<double, 3>& sigma,

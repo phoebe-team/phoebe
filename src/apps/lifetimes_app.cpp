@@ -2,12 +2,14 @@
 #include "bands_app.h"
 #include "bandstructure.h"
 #include "context.h"
-#include "el_scattering_matrix.h"
+#include "el_scattering.h"
 #include "exceptions.h"
 #include "ifc3_parser.h"
 #include "points.h"
-#include "ph_scattering_matrix.h"
+#include "ph_scattering.h"
 #include "parser.h"
+#include "wigner_electron.h"
+#include "drift.h"
 
 void ElectronLifetimesApp::run(Context &context) {
   context.setScatteringMatrixInMemory(false);
@@ -53,6 +55,18 @@ void ElectronLifetimesApp::run(Context &context) {
   scatteringMatrix.outputToJSON("path_el_relaxation_times.json");
   outputBandsToJSON(pathBandStructure, context, pathKPoints,
                     "path_el_bandstructure.json");
+
+  // developer note: uncomment to open up Wigner output on bands
+/*   if(statisticsSweep.getNumCalculations()) {
+    // compute the Wigner transport coefficients
+    BulkEDrift driftE(statisticsSweep, pathBandStructure, 3);
+    BulkTDrift driftT(statisticsSweep, pathBandStructure, 3);
+    VectorBTE relaxationTimes = scatteringMatrix.getSingleModeTimes();
+    VectorBTE nERTA = -driftE * relaxationTimes;
+    VectorBTE nTRTA = -driftT * relaxationTimes;
+    WignerElCoefficients wignerCoefficients(statisticsSweep, crystal, pathBandStructure, context, relaxationTimes);
+    wignerCoefficients.outputContributionsToJSON("path_rta_wigner_contributions.json");
+  }  */
 
   mpi->barrier();
 }

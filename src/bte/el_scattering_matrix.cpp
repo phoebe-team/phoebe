@@ -87,8 +87,13 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 */
   // TODO was there previously an all reduce between these two on
   //the linewidths? why is that?
+  // probably because boundary scattering was earlier not distributed 
 
-  // Add boundary scattering
+  // add DMFT fermi liquid contribution  -------------------
+  // currently we don't add ee time to linewidthMR. I think this is correct. 
+  //add_eeDMFT(*this, context, switchCase, outerBandStructure, linewidth);
+
+  // Add boundary scattering ------------------------------------
   if (!std::isnan(context.getBoundaryLength())) {
     if (context.getBoundaryLength() > 0.) {
       addBoundaryScattering(*this, context, inPopulations, outPopulations,
@@ -123,7 +128,7 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // use the off diagonals to calculate the linewidths,
   // to ensure the special eigenvectors can be found/preserve conservation of momentum
   // that might be ruined by the delta functions
-  //reinforceLinewidths();
+  reinforceLinewidths();
 
  // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths

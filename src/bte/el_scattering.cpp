@@ -47,7 +47,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
   bool withSymmetries = context.getUseSymmetries();
   int numCalculations = statisticsSweep.getNumCalculations();
 
-  // spin factor not applied to scattering rate, but later in Onsager coefficients 
+  // spin factor not applied to scattering rate, but later in Onsager coefficients
   //double spinFactor = 2.; // nonspin pol = 2
   //if (context.getHasSpinOrbit()) { spinFactor = 1.; }
   double norm = 1. / context.getKMesh().prod(); // we sum over q here, but the two meshes are the same
@@ -234,6 +234,10 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
 
               if (delta1 <= 0. && delta2 <= 0.) { continue; } // doesn't contribute
 
+              // compute the extra 1-cosTheta term needed for MRTA
+              double cosTheta = 1. - (v1s.row(ib1).dot(v2s.row(ib2))
+                    / (v1s.row(ib1).norm() * v2s.row(ib2).norm()));
+
               // loop on temperature
               for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
 
@@ -241,21 +245,19 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                 double fermi2 = innerFermi(iCalc, iBte2);
                 double bose3 = bose3Data(iCalc, ib3);
                 double bose3Symm = sinh3Data(ib3, iCalc); // 1/2/sinh() term
+                //double mu = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
 
                 // Calculate transition probability W+
                 double rate = 
                     coupling(ib1, ib2, ib3) * ((fermi2 + bose3) * delta1
                        + (1. - fermi2 + bose3) * delta2) * norm / en3 * pi;
 
-                // compute the extra 1-cosTheta term needed for MRTA
-                double cosTheta = 1. - (v1s.row(ib1).dot(v2s.row(ib2))
-                      / (v1s.row(ib1).norm() * v2s.row(ib2).norm()));
                 double rateMR = rate * cosTheta;
 
                 double rateOffDiagonal = -
                       coupling(ib1, ib2, ib3) * bose3Symm * (delta1 + delta2)
                       * norm / en3 * pi;
-                      
+
                 if (switchCase == 0) {
 
                   if (withSymmetries) {
@@ -485,7 +487,7 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
                       if (i == 0 && j == 0) {
                         linewidth->operator()(iCalc, 0, iBte1) += rate;
                         matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
-		      }
+		                  }
                       if (is1 != is2Irr) {
                         matrix.theMatrix(iMat1, iMat2) += rotation.inverse()(i, j) * rate;
                       }
@@ -496,16 +498,16 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
                 if (matrix.theMatrix.indicesAreLocal(iBte1, iBte2)) {
                   linewidth->operator()(iCalc, 0, iBte1) += rate;
                   matrix.linewidthMR->operator()(iCalc, 0, iBte1) += rateMR;
-		  matrix.theMatrix(iBte1, iBte2) += rate;
+		              matrix.theMatrix(iBte1, iBte2) += rate;
 
                   // if we're not symmetrizing the matrix, and we have
                   // dropped down to only using the upper triangle of the matrix, we must fill
                   // in linewidths twice, using detailed balance, in order to get the right ratest
                   if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
                     linewidth->operator()(iCalc, 0, iBte2) += rate;
-		    matrix.linewidthMR->operator()(iCalc, 0, iBte2) += rateMR;
+		                matrix.linewidthMR->operator()(iCalc, 0, iBte2) += rateMR;
 
-		  }
+		              }
                 }
               }
             } else if (switchCase == 1) { // case of matrix-vector multiplication
@@ -541,3 +543,53 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
   Kokkos::Profiling::popRegion();
 }
 
+// TODO do we need to do this differently in the iterative/variational case?
+void add_eeDMFT(BaseElScatteringMatrix &matrix, const Context &context,
+                //std::vector<VectorBTE> &inPopulations,
+                //std::vector<VectorBTE> &outPopulations,
+                const int &switchCase,
+                BaseBandStructure &outerBandStructure,
+                std::shared_ptr<VectorBTE> linewidth) {
+
+  // from a DMFT calculation, we have a linewidth of the form
+  //    Gamma_ee = 2 C (omega^2 + pi^2 T^2)
+  // where C is a user defined coefficient determined from DMFT
+
+  // we need to iterate over the linewidths held on this process, and add this scattering
+  // rate to the matrix. Because we do this with the parallel state iterator,
+  // we will have to call an allReduceSum after this is called.
+
+  StatisticsSweep &statisticsSweep = matrix.statisticsSweep;
+  bool withSymmetries = context.getUseSymmetries();
+  int numCalculations = statisticsSweep.getNumCalculations();
+
+  // C coefficient in Ry^-1
+  double Cx2 = 2. * context.getEeFermiLiquidCoefficient();
+  //double kBInv = 1./kBoltzmannRy; // avoid repeated division
+
+  // TODO OMP here
+  for( auto is : outerBandStructure.parallelIrrStateIterator() ) {
+
+    // get state energies at this kpt
+    StateIndex isIdx(is);
+    double Ek = outerBandStructure.getEnergy(isIdx);
+
+    for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+
+      //Eigen::MatrixXd &innerFermi,
+      //double fermi = outerFermi(iCalc, iBte);  // TODO Does the diagonal need fermi term?
+
+      // get calculation temperature
+      double mu = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
+      double EkSquared = (Ek-mu) * (Ek-mu);
+      double piTSquared = piSquared * std::pow(statisticsSweep.getCalcStatistics(iCalc).temperature, 2);
+      double rate = Cx2 * ( EkSquared + piTSquared );
+
+      int iBte = outerBandStructure.stateToBte(isIdx).get();
+
+      // simply add this to the linewidth
+      linewidth->operator()(iCalc, 0, iBte) += rate;
+
+    }
+  }
+}

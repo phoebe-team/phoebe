@@ -87,6 +87,13 @@ protected:
                        BaseBandStructure &outerBandStructure,
                        std::shared_ptr<VectorBTE> linewidth);
 
+  friend void add_eeDMFT(BaseElScatteringMatrix &matrix, const Context &context,
+                      //std::vector<VectorBTE> &inPopulations,
+                      //std::vector<VectorBTE> &outPopulations,
+                      const int &switchCase,
+                      BaseBandStructure &outerBandStructure,
+                      std::shared_ptr<VectorBTE> linewidth); 
+
 };
 
 #endif

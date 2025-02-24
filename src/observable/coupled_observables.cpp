@@ -1,5 +1,6 @@
 #include "coupled_observables.h"
 #include "onsager_utilities.h"
+#include <functional>
 #include <nlohmann/json.hpp>
 #include "viscosity_io.h"
 #include "io.h"
@@ -76,6 +77,10 @@ void CoupledCoefficients::calcFromRelaxons(
 
   BaseBandStructure* phBandStructure = scatteringMatrix.getPhBandStructure();
   BaseBandStructure* elBandStructure = scatteringMatrix.getElBandStructure();
+  std::vector<BaseBandStructure*> bands = {elBandStructure,phBandStructure};
+
+  // output the 10 biggest to HDF5
+  //outputRelaxonsToHDF5(eigenvectors, eigenvalues, bands, theta0, theta_e, phi);
 
   // coupled transport only allowed with matrix in memory
   if (numCalculations > 1) {
@@ -97,7 +102,7 @@ void CoupledCoefficients::calcFromRelaxons(
   // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
   Particle electron = elBandStructure->getParticle();
-  genericRelaxonEigenvectorsCheck(eigenvectors, numRelaxons, electron, theta0, theta_e, alpha0, alpha_e);
+  genericRelaxonEigenvectorsCheck(eigenvectors, numRelaxons, electron, theta0, theta_e, phi, alpha0, alpha_e);
 
   // calculate the V components -----------------------------------------------------------
   // Here we have "ph" and "el" components, which are summed only
@@ -1094,4 +1099,3 @@ void CoupledCoefficients::symmetrize(Eigen::Tensor<double, 3>& allTransportCoeff
     }
   }
 }
-

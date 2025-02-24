@@ -1,6 +1,7 @@
 #include "interaction_elph.h"
 #include <KokkosBlas2_gemv.hpp>
 #include <Kokkos_Core.hpp>
+#include <sys/types.h>
 
 #ifdef HDF5_AVAIL
 #include <Kokkos_ScatterView.hpp>
@@ -441,6 +442,7 @@ void InteractionElPhWan::calcCouplingSquared(
   DoubleView2D q3Cs_k("q3", numLoops, 3);
   ComplexView3D eigvecs2Dagger_k("ev2Dagger", numLoops, numWannier, nb2max),
       eigvecs3_k("ev3", numLoops, numPhBands, numPhBands);
+
   {
     auto eigvecs2Dagger_h = Kokkos::create_mirror_view(eigvecs2Dagger_k);
     auto eigvecs3_h = Kokkos::create_mirror_view(eigvecs3_k);
@@ -449,8 +451,8 @@ void InteractionElPhWan::calcCouplingSquared(
 #pragma omp parallel for default(none)                                         \
     shared(eigvecs3_h, eigvecs2Dagger_h, nb2s_h, q3Cs_h, q3Cs_k, q3Cs, k1C,    \
                numLoops, numWannier, numPhBands, eigvecs2Dagger_k, eigvecs3_k, \
-               eigvecs2, eigvecs3, phaseConvention)
-    for (int ik = 0; ik < numLoops; ik++) {
+               eigvecs2, eigvecs3, phaseConvention, std::cout)
+    for (size_t ik = 0; ik < size_t(numLoops); ik++) {
 
       for (int i = 0; i < numWannier; i++) {
         for (int j = 0; j < nb2s_h(ik); j++) {
@@ -459,13 +461,13 @@ void InteractionElPhWan::calcCouplingSquared(
       }
 
       // copy in the phonon eigenvectors
-      for (int i = 0; i < numPhBands; i++) {
-        for (int j = 0; j < numPhBands; j++) {
+      for (int i = 0; i < eigvecs3[ik].cols() ; i++) {
+        for (int j = 0; j < eigvecs3[ik].rows(); j++) {
           // if JDFTx is used so that phaseConvention = 1, q should be negated
           if (phaseConvention == JdftxPhaseConvention) { // i,j flipped here due to row/col major,
                                       // this is intentionally a * not a dagger
                                       // e(-q) = e(q)^*
-            eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i));
+            eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i)); 
           } else {
             eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
           }

@@ -47,7 +47,7 @@ void PhononTransportApp::run(Context &context) {
   // we always do this, as it's the cheapest solver and is required to know
   // the diagonal for the exact method.
   if (mpi->mpiHead()) {
-    std::cout << "\n" << std::string(20, '=')  
+    std::cout << "\n" << std::string(20, '=')
               << " Starting BTE solvers. " << std::string(20, '=')
               << "\n\n"
               << "Solving BTE within the relaxation time approximation."

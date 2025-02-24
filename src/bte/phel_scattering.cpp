@@ -438,6 +438,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 //    * norm / temperatures(iCalc) * pi * k1Weight;
 
                 if (smearingValues(ib1, ib2, ib3) <= 0.) { continue; }
+                //if(smearingValues(ib1,ib2,ib3) > en3) { 
+                //  smearingValues(ib1,ib2,ib3) = en3; 
+                //}
 
                 double rate =
                     coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)
@@ -583,115 +586,5 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
 
     }
   }
-  /*
-  // sanity check the correction
-  std::vector<double> RqsSanity(numPhStates);
-  for(auto matrixState : matrix.getAllLocalStates()) {
-
-    // unpack the state info into matrix indices.
-    size_t iMat1 = std::get<0>(matrixState);
-    size_t iMat2 = std::get<1>(matrixState);
-
-    // check if this is a drag-related index
-    // if iMat1 is electron, iMat2 is phonon
-    if(( iMat1 < numElStates && iMat2 >= numElStates)) {
-
-      size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index
-
-      // here because symmetries are not used, we can directly use
-      // the matrix indices without converting iBte/iMat -> iState
-      StateIndex is1(iMat1);
-      double energy = elBandStructure.getEnergy(is1);
-      double f1mf = elBandStructure.getParticle().getPopPopPm1(energy, kBT, mu);
-      RqsSanity[iMat2Ph] += matrix(iMat1,iMat2) * sqrt(f1mf);
-    }
-  }
-  mpi->allReduceSum(&RqsSanity);
-
-  if(mpi->mpiHead()) std::cout << "Rqs sanity check: " << std::endl; //<< std::accumulate(Rqs.begin(),Rqs.end(),0) << std::endl;
-  for (auto i: RqsSanity) {
-    std::cout << i << ' ';
-  }
-  */
-  /*
-  // compute the corrected phel linewidths
-  if(size_t(phElLinewidths->data.cols()) != numPhStates + numElStates) {
-    DeveloperError("Attempting to use ph-el ASR on a "
-		    "linewidths vector of the wrong size!");
-  }
-  // we will replace vectorBTE's data internal matrix with this
-  Eigen::MatrixXd newPhElLinewidths(phElLinewidths->data.rows(),
-	  			                          phElLinewidths->data.cols());
-  newPhElLinewidths.setZero();
-
-  // sum over all the off diagonal states from the el,ph drag quandrant
-  // to reconstruct the linewidths
-  for(auto matrixState : matrix.getAllLocalStates()) {
-
-    // unpack the state info into matrix indices
-    size_t iMat1 = std::get<0>(matrixState);
-    size_t iMat2 = std::get<1>(matrixState);
-
-    // if iMat2 is phonon, iMat1 is electron
-    if(( iMat2 >= numElStates && iMat1 < numElStates)) {
-
-      size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index,
-      					  // for use in bandstructure indexed objects
-
-      // here because symmetries are not used, we can directly use
-      // the matrix indices without converting iBte/iMat -> iState
-      StateIndex is2(iMat2Ph); // phonon
-      double phEnergy = phBandStructure.getEnergy(is2);
-      double nnp1 = phBandStructure.getParticle().getPopPopPm1(phEnergy, kBT, 0);
-      StateIndex is1(iMat1); // phonon
-      double elEnergy = elBandStructure.getEnergy(is1);
-      double f1mf = elBandStructure.getParticle().getPopPopPm1(elEnergy, kBT, mu);
-
-      //if (phEnergy < phononCutoff) { continue; } // skip the acoustic modes
-      //if (sqrt(nnp1) * phEnergy < 1e-16) { continue; } // skip values which would cause divergence
-
-      newPhElLinewidths(iCalc, iMat2) -= matrix(iMat1, iMat2) * sqrt(f1mf) * (elEnergy - mu) // * norm
-      					/ ( sqrt(nnp1) * phEnergy );
-    }
-  }
-  mpi->allReduceSum(&newPhElLinewidths);
-
-  // print statement to print new and old linewidths side by side
-if(mpi->mpiHead()) {
-  std::cout << "compare " << std::endl;
-  for (int i = numElStates; i<200+numElStates; i++) {
-
-    StateIndex istate(i-numElStates);
-    auto qPlusRemap = phBandStructure.getWavevector(istate);
-
-    // jesus christ we have to improve this lookup
-    auto qMinus = -1*phBandStructure.getWavevector(istate);
-    Eigen::Vector3d qMinusCrys = phBandStructure.getPoints().cartesianToCrystal(qMinus);
-    WavevectorIndex qIdxMinusRemap = WavevectorIndex(phBandStructure.getPointIndex(qMinusCrys));
-    auto qMinusRemapCart = phBandStructure.getWavevector(qIdxMinusRemap);
-    Eigen::Vector3d qMinusRemapCrys = phBandStructure.getPoints().cartesianToCrystal(qMinusRemapCart);
-    Eigen::Vector3d qPlusRemapCrys = phBandStructure.getPoints().cartesianToCrystal(qPlusRemap);
-
-    auto qPlusWS = phBandStructure.getPoints().bzToWs(qPlusRemapCrys,Points::crystalCoordinates);
-    auto qMinusWS = phBandStructure.getPoints().bzToWs(qMinusRemapCrys,Points::crystalCoordinates);
-
-    if( newPhElLinewidths(iCalc,i) <= 0 ) {
-      newPhElLinewidths(iCalc,i) = phElLinewidths->data(iCalc,i);
-    }
-
-    double x = newPhElLinewidths(iCalc,i);
-    double y = phElLinewidths->data(iCalc,i);
-    if (abs(x) < 1e-15) x = 0;
-    if (abs(y) < 1e-15) y = 0;
-
-    if(x == 0 && y == 0) continue;
-    //if( !( abs(abs(x/y) - 0.5) < 1e-3)) continue;
-    //std::cout <<  x << " " << y << "  " << x/y << " | "  << qPlusRemapCrys.transpose() << " " << qMinusRemapCrys.transpose() << " | " << qPlusWS.transpose() << " " << qMinusWS.transpose() << "\n" ;
-
-  }
-}
-  // replace the linewidth data
-  //phElLinewidths->data = newPhElLinewidths;
-*/
 }
 

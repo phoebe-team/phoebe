@@ -134,7 +134,9 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
   if (spinType == InteractionElPhWan::spinPolarizedOrSOC) {
     Error("Spin-polarized and spin-non-colinear calculations are not currently supported.");
   }
-  context.setNumOccupiedStates(numElectrons);
+  // if number of occupied states is not set already in input, 
+  // use the value in the file. Otherwise, keep the user supplied value. 
+  if(std::isnan(context.getNumOccupiedStates())) context.setNumOccupiedStates(numElectrons);
 
   if (!mpi->mpiHeadPool()) { // head already allocated these
     phBravaisVectors_.resize(3, numPhBravaisVectors);
@@ -285,7 +287,9 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     } else { 
       context.setSpinDegeneracyFactor(2); // spin non polarized, gs = 2
     }
-    context.setNumOccupiedStates(numElectrons);
+    // if number of occupied states is not set already in input, 
+    // use the value in the file. Otherwise, keep the user supplied value. 
+    if(std::isnan(context.getNumOccupiedStates())) context.setNumOccupiedStates(numElectrons);
 
     if (!mpi->mpiHeadPool()) {// head already allocated these
       localElVectors = mpi->divideWorkIter(totalNumElBravaisVectors, mpi->intraPoolComm);

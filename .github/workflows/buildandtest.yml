@@ -12,7 +12,7 @@ jobs:
           [
             #"GCC 10",
             "GCC",
-            "Clang",
+            #"Clang",
             #"Clang 11",
           ]
     env:

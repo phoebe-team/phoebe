@@ -176,7 +176,7 @@ void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
                         LEE, LTE, LET, LTT, kappa, sigma, mobility, seebeck);
 
   // TODO remove, this is for dev purposes
-  writeIntegralContributions();
+  //writeIntegralContributions();
 
   Kokkos::Profiling::popRegion();
 }
@@ -510,18 +510,18 @@ void OnsagerCoefficients::calcVariational(VectorBTE &afE, VectorBTE &afT,
   sigma = 2. * y2E - y1E;
   kappa = 2. * y2T - y1T;
 
-  if(context.getSymmetrizeBandStructure()) {
+/*   if(context.getSymmetrizeBandStructure()) {
     // we print the unsymmetrized tensor to output file
     if(mpi->mpiHead()) {
       std::cout << "Unsymmetrized electronic transport properties:\n" << std::endl;
       print();
     }
     // symmetrize the conductivity 
-    symmetrize(sigma);
-    symmetrize(kappa);
+    //symmetrize(sigma);
+    //symmetrize(kappa);
     mpi->barrier();
   }
-}
+} */
 
 // TODO this should be a function of observable rather than of onsager, 
 // however, somehow Onsager does not inherit from observable... 

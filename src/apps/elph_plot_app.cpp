@@ -315,10 +315,10 @@ void ElPhCouplingPlotApp::run(Context &context) {
 
     { // need open/close braces so that the HDF5 file goes out of scope
 
-      // open the hdf5 file
-      HighFive::File file(
-          outFileName, HighFive::File::Overwrite,
-          HighFive::MPIOFileDriver(MPI_COMM_WORLD, MPI_INFO_NULL));
+    // open the hdf5 file
+    HighFive::FileAccessProps fapl;
+    fapl.add(HighFive::MPIOFileAccess{mpi->getComm(), MPI_INFO_NULL});
+    HighFive::File file(outFileName, HighFive::File::Overwrite, fapl);
 
       unsigned int globalSize = numPairs * bandProd;
 

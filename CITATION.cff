@@ -24,7 +24,7 @@ authors:
 cff-version: "1.1.0"
 license: "MIT License"
 message: "If you use this software, please cite it using these metadata."
-repository-code: "https://github.com/mir-group/phoebe"
+repository-code: "https://github.com/phoebe-team/phoebe"
 title: "Phoebe: a high-performance framework for solving phonon and electron Boltzmann transport equations"
 version: "1.0"
 ...

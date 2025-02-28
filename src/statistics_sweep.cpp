@@ -126,7 +126,7 @@ StatisticsSweep::StatisticsSweep(Context &context,
       // TODO we would need to change this for a spin pol calculation !
       occupiedStates /= spinFactor;
 
-      if(mpi->mpiHead()) std::cout << "number of occupied states " << occupiedStates << std::endl;
+      //if(mpi->mpiHead()) std::cout << "number of occupied states " << occupiedStates << std::endl;
 
       // initial guess for chemical potential will be Ef
       // if distributed, all processes need this guess

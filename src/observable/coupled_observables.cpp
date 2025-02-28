@@ -64,6 +64,8 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
 
 }
 
+/** Calc coupled relaxons transport coefficients 
+*/
 void CoupledCoefficients::calcFromRelaxons(
                         CoupledScatteringMatrix& scatteringMatrix,
                         Eigen::VectorXd& eigenvalues, ParallelMatrix<double>& eigenvectors) {

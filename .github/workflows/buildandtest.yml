@@ -12,7 +12,7 @@ jobs:
           [
             #"GCC 10",
             "GCC",
-            #"Clang",
+            "Clang",
             #"Clang 11",
           ]
     env:
@@ -34,13 +34,13 @@ jobs:
         run: |
           CC_VERSION=$( echo "${{ matrix.compiler }}" | awk '{ print $2; }')
           echo "CC_VERSION=${CC_VERSION}" >> "$GITHUB_OUTPUT"
-      - name: Install GCC 
+      - name: Install GCC
         if: ${{ startsWith(matrix.compiler, 'GCC') }}
         run: sudo apt install -y g++ #-${{ steps.extract_matrix.outputs.CC_VERSION }}
       - name: Install Clang
         if: ${{ startsWith(matrix.compiler, 'Clang') }}
         run: |
-          sudo apt install -y clang #-${{ steps.extract_matrix.outputs.CC_VERSION }}
+          sudo apt install -y clang-16 #-${{ steps.extract_matrix.outputs.CC_VERSION }}
           sudo apt install -y libomp-dev #${{ steps.extract_matrix.outputs.CC_VERSION }}-dev
       - name: Configure
         run: |

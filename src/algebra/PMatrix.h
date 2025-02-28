@@ -763,9 +763,9 @@ void ParallelMatrix<T>::outputToHDF5(const std::string &outFileName,
       // Create the file to write to, first removing if it exists already
       std::remove(&outFileName[0]);
       HighFive::FileAccessProps fapl;
-      fapl.add(HighFive::MPIOFileAccess<MPI_Comm, MPI_Info>(MPI_COMM_WORLD, MPI_INFO_NULL));
+      fapl.add(HighFive::MPIOFileAccess(mpi->getComm(), MPI_INFO_NULL));
       HighFive::File file(outFileName, HighFive::File::Overwrite, fapl);
-
+      
       // setup the dataset
       unsigned int globalSize = size();
 

@@ -65,7 +65,7 @@ std::tuple<Crystal, PhononH0> PhonopyParser::parsePhHarmonic(Context &context) {
   // 4 dimensional array, and eigen tensor is not supported by highFive
   std::vector<std::vector<std::vector<std::vector<double>>>> ifc2;
   std::vector<int> cellMap;
-  HighFive::FixedLenStringArray<14> unitVec;
+  std::vector<std::string> unitVec;
   std::string unit;
 
   std::string fileName = context.getPhFC2FileName();

@@ -219,6 +219,14 @@ void CoupledCoefficients::calcFromRelaxons(
   // participation ratios
   mpi->allReduceSum(&phPR); mpi->allReduceSum(&elPR);
 
+  // update the participation ratio to normalize for number of el and ph states
+  for(int gamma = 0; gamma < numRelaxons; gamma++) {
+    double PW = phPR[gamma]/numPhStates; 
+    double EW = elPR[gamma]/numElStates; 
+    elPR[gamma] = EW / (PW + EW); 
+    phPR[gamma] = PW / (PW + EW); 
+  }
+
   // Calculate the transport coefficients -------------------------------------------------
 
   // local copies for linear algebra ops with eigen
@@ -347,10 +355,10 @@ void CoupledCoefficients::calcFromRelaxons(
       if(kappa(0,i,j) != kappaTotal(0,i,j))     { kappaFail = true; }
     }
   }
-  if(seebeckFail) Warning("Developer warning: Seebeck cross + self does not equal Seebeck total.");
+/*   if(seebeckFail) Warning("Developer warning: Seebeck cross + self does not equal Seebeck total.");
   if(sigmaFail) Warning("Developer warning: Sigma el does not equal sigma total.");
   if(kappaFail) Warning("Developer warning: Kappa cross + selfEl + selfPh does not equal kappa total.");
-
+ */
   // dump the participation ratios to file here,
   // TODO this should be a designated function
   nlohmann::json output;

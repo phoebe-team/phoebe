@@ -445,6 +445,7 @@ void writeHeaderHDF5(
       dElDegeneracies.write(elDegeneracies);
     }
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue writing elph Wannier header to hdf5.");
   }
 }
@@ -488,8 +489,8 @@ void writeElPhCouplingHDF5v1(
 
     {
       // open the hdf5 file
-      HighFive::FileAccessProps fapl;// = HighFive::FileAccessProps{};
-      fapl.add(HighFive::MPIOFileAccess<MPI_Comm, MPI_Info>(MPI_COMM_WORLD, MPI_INFO_NULL));
+      HighFive::FileAccessProps fapl;
+      fapl.add(HighFive::MPIOFileAccess{mpi->getComm(), MPI_INFO_NULL});
       HighFive::File file(outFileName, HighFive::File::Overwrite, fapl);
 
       // flatten the tensor (tensor is not supported) and create the data set
@@ -624,6 +625,7 @@ void writeElPhCouplingHDF5v1(
     }
 #endif
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue writing elph Wannier representation to hdf5.");
   }
 

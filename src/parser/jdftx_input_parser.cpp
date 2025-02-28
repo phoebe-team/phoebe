@@ -30,11 +30,6 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   auto atomicSpecies = crystal.getAtomicSpecies();
   auto speciesMasses = crystal.getSpeciesMasses();
 
-  // Here there is no born charge data, so we set this to zero 
-  // TODO This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor)
-  Eigen::Matrix3d dielectricMatrix;
-  dielectricMatrix.setZero();
-
   // load in the data written to jdftx.elph.phoebe.hdf5 by the conversion script
   // ========================================================================
 
@@ -122,9 +117,11 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   Eigen::VectorXd cellWeights(nCells);
   cellWeights.setConstant(1.);
 
-  PhononH0 dynamicalMatrix(crystal, dielectricMatrix, 
+  // TODO fix this -- "2" at the end is a fictional force constant range!
+  // it just avoids all the polar corrections to phonon frequency
+  PhononH0 dynamicalMatrix(crystal, 
                            forceConstants, qMesh,
-                           cellMapReformat, cellWeights);
+                           cellMapReformat, cellWeights, 2);
 
   // no need to apply a sum rule, as the JDFTx matrix elements have already
   // had one applied internally
@@ -141,8 +138,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
 }
 
 std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
-                                                      Context &context, 
-                                                      [[maybe_unused]] Crystal *inCrystal) {
+                                                      Context &context) {
 
   // parse the crystal structure from totalE.out 
   // ========================================================================
@@ -160,7 +156,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   int nCells = 0;
   int nWannier = 0;
   int nBands = 0; 
-  int nElectrons = 0; 
+  double nElectrons = 0; 
   int spinFactor = 2;
   double fermiLevel;
 
@@ -169,7 +165,8 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   // the path to wannier jdftx file 
   std::string fileName = context.getElectronH0Name();
   if (fileName.empty()) {
-    Error("Check your path, jdftx.elph.phoebe.hdf5 not found at " + fileName);
+    Error("To read wannier information from JDFTx, specify"
+    "\nthe path to jdftx.elph.phoebe.hdf5 using electronH0Name.");
   }
   if (mpi->mpiHead())
     std::cout << "Reading in " + fileName + "." << std::endl;
@@ -186,7 +183,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
     HighFive::DataSet dnElec = file.getDataSet("/numElectrons");
     HighFive::DataSet dnBands = file.getDataSet("/numElBands");
     HighFive::DataSet dnSpin = file.getDataSet("/numSpin");
-    HighFive::DataSet dmu = file.getDataSet("/chemicalPotential");
+    //HighFive::DataSet dmu = file.getDataSet("/chemicalPotential");
 
     // read in the data 
     dHwannier.read(HWannier);
@@ -195,7 +192,7 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
     dnElec.read(nElectrons);
     dnBands.read(nBands);
     dnSpin.read(spinFactor);
-    dmu.read(fermiLevel);
+    //dmu.read(fermiLevel);
 
     nCells = HWannier.size(); 
     nWannier = HWannier[0].size(); 
@@ -233,11 +230,12 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
   //if (!spinOrbit) { // the case of spin orbit
   //  nElectrons /= 2;  // apparently this is unneeded and problematic
   //}
-  context.setNumOccupiedStates(nElectrons);
+  // only set this if the user did not
+  if(std::isnan(context.getNumOccupiedStates())) context.setNumOccupiedStates(nElectrons);
 
   // if the user didn't set the Fermi level, we do it here.
-  if (std::isnan(context.getFermiLevel()))
-    context.setFermiLevel(fermiLevel);
+  //if (std::isnan(context.getFermiLevel()))
+  //  context.setFermiLevel(fermiLevel);
 
   // copy the HWannier and cell Map into Eigen containers for the ElectronWannierH0 constructor
   Eigen::MatrixXd cellMapReformat(3,nCells);
@@ -270,7 +268,8 @@ std::tuple<Crystal, ElectronH0Wannier> JDFTxParser::parseElHarmonicWannier(
 /* Helper function to read crystal class information  */
 Crystal JDFTxParser::parseCrystal(Context& context) {
 
-  // TODO we need to fix this before publishing 
+  // TODO we need to fix this before publishing
+  // TODO replace this with crystal written to the HDF5 file 
   std::string fileName = context.getJDFTxScfOutFile();
 
   // open input file
@@ -369,14 +368,55 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
     atomicPositions(i, 2) = temp2(2);
   }
 
-  // Here there is no born charge data, so we set this to zero 
-  // This would be saved in totalE.Zeff and totalE.epsInf (the dielectric tensor) 
+  // TODO all this should later come from hdf5
+  // This is saved in totalE.Zeff and totalE.epsInf (the dielectric tensor) 
   Eigen::Tensor<double, 3> bornCharges(numAtoms, 3, 3);
-  bornCharges.setZero();
+  std::vector<std::vector<std::vector<double>>> bornChargesTemp; 
+  Eigen::Matrix3d dielectricMatrix;
+
+ #ifdef HDF5_AVAIL
+
+  fileName = context.getElectronH0Name();
+  if (fileName.empty()) {
+    Error("Check your path, jdftx.elph.phoebe.hdf5 not found at " + fileName);
+  }
+  if (mpi->mpiHead())
+    std::cout << "Reading in " + fileName + " to get born charges and dielectric matrix." << std::endl;
+  try {
+
+    // Open the hdf5 file
+    HighFive::File file(fileName, HighFive::File::ReadOnly);
+
+    // Set up hdf5 datasets
+    HighFive::DataSet depsInf = file.getDataSet("/epsInf");
+    HighFive::DataSet dzeff = file.getDataSet("/Zeff");
+
+    // read in the data 
+    dzeff.read(bornChargesTemp);
+    depsInf.read(dielectricMatrix);
+
+  } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
+    Error("Issue found while reading jdftx.elph.phoebe.hdf5. Make sure it exists at " + fileName +
+          "\n and is not open by some other persisting processes.");
+  }
+
+  #else
+    Error("Born charges + dielectric matrix in JDFTx require a build with HDF5.");
+  #endif
+
+  // copy into born charge eigen tensor
+  for(int iat = 0; iat<numAtoms; ++iat) {
+    for(auto i : {0,1,2}) { 
+      for(auto j : {0,1,2}) {
+        bornCharges(iat,i,j) = bornChargesTemp[iat][i][j]; 
+      }
+    }
+  }
 
   // Now we do postprocessing
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses, bornCharges);
+                  speciesNames, speciesMasses, bornCharges, dielectricMatrix);
   crystal.print();
 
   return crystal; 

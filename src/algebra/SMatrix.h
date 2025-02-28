@@ -255,7 +255,7 @@ SerialMatrix<T>& SerialMatrix<T>::operator=(const SerialMatrix<T>& that) {
     }
     mat = new T[numElements_];
     assert(mat != nullptr);
-    for (int i = 0; i < numElements_; i++) {
+    for (size_t i = 0; i < numElements_; i++) {
       mat[i] = that.mat[i];
     }
   }
@@ -294,7 +294,8 @@ size_t SerialMatrix<T>::size() const {
 template <typename T>
 T& SerialMatrix<T>::operator()(const int &row, const int &col) {
   if(row >= numRows_ || col >= numCols_ || row < 0 || col < 0) {
-    DeveloperError("SMatrix get/set attempted to reference a matrix element out of bounds.");
+    DeveloperError("Tried to reference a SMatrix state out of bounds: " 
+        + std::to_string(row) + " " + std::to_string(col));
   }
   return mat[global2Local(row, col)];
 }
@@ -302,7 +303,8 @@ T& SerialMatrix<T>::operator()(const int &row, const int &col) {
 template <typename T>
 const T& SerialMatrix<T>::operator()(const int &row, const int &col) const {
   if(row >= numRows_ || col >= numCols_ || row < 0 || col < 0) {
-    DeveloperError("SMatrix get/set attempted to reference a matrix element out of bounds.");
+    DeveloperError("Tried to reference a SMatrix state out of bounds: " 
+        + std::to_string(row) + " " + std::to_string(col));
   }
   return mat[global2Local(row, col)];
 }
@@ -310,10 +312,9 @@ const T& SerialMatrix<T>::operator()(const int &row, const int &col) const {
 template <typename T>
 bool SerialMatrix<T>::indicesAreLocal(const int& row, const int& col) {
   if(row >= numRows_ || col >= numCols_ || row < 0 || col < 0) {
-    Error("Developer Error: Indices are out of bounds.");
+    DeveloperError("indicesAreLocal tried to reference a SMatrix state out of bounds: " 
+          + std::to_string(row) + " " + std::to_string(col));
   }
-  //(void) row;
-  //(void) col;
   return true;
 }
 

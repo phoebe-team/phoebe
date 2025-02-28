@@ -7,37 +7,71 @@
 
 // here alpha0 and alpha e are set through passing by reference
 void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                                    int& numRelaxons, Particle& particle,
-                                    Eigen::VectorXd& theta0,
-                                    Eigen::VectorXd& theta_e,
-                                    int& alpha0, int& alpha_e) {
+                                    const int& numRelaxons, const Particle& particle,
+                                    const Eigen::VectorXd& theta0,
+                                    const Eigen::VectorXd& theta_e,
+                                    const Eigen::MatrixXd& phi, 
+                                    int& alpha0, int& alpha_e, bool print) {
 
   // calculate the overlaps with special eigenvectors
   Eigen::VectorXd prodTheta0(numRelaxons); prodTheta0.setZero();
   Eigen::VectorXd prodThetae(numRelaxons); prodThetae.setZero();
+  Eigen::VectorXd prodPhi1(numRelaxons); prodPhi1.setZero();
+  Eigen::VectorXd prodPhi2(numRelaxons); prodPhi2.setZero();
+  Eigen::VectorXd prodPhi3(numRelaxons); prodPhi3.setZero();
+
   for (auto tup : eigenvectors.getAllLocalStates()) {
 
     auto is = std::get<0>(tup);
     auto gamma = std::get<1>(tup);
-    //if(std::isnan(eigenvectors(is,gamma)) || std::isnan(theta0(is))) std::cout << is << " " << gamma << " " << eigenvectors(is,gamma) << " " << theta0(is) << std::endl;
     prodTheta0(gamma) += eigenvectors(is,gamma) * theta0(is);
     prodThetae(gamma) += eigenvectors(is,gamma) * theta_e(is);
 
+    prodPhi1(gamma) += eigenvectors(is,gamma) * phi(0, is);
+    prodPhi2(gamma) += eigenvectors(is,gamma) * phi(1, is);
+    prodPhi3(gamma) += eigenvectors(is,gamma) * phi(2, is);
+    //if(mpi->mpiHead() && gamma == 1) std::cout << is << " is " << eigenvectors(is,gamma) << " " << phi(0, is) << std::endl;
+
   }
   mpi->allReduceSum(&prodThetae); mpi->allReduceSum(&prodTheta0);
+  mpi->allReduceSum(&prodPhi1); mpi->allReduceSum(&prodPhi2); 
+  mpi->allReduceSum(&prodPhi3); 
 
   // find the element with the maximum product
   prodTheta0 = prodTheta0.cwiseAbs();
   prodThetae = prodThetae.cwiseAbs();
+  prodPhi1 = prodPhi1.cwiseAbs();
+  prodPhi2 = prodPhi2.cwiseAbs();
+  prodPhi3 = prodPhi3.cwiseAbs();
+
   Eigen::Index maxCol0, idxAlpha0;
   Eigen::Index maxCol_e, idxAlpha_e;
+  Eigen::Index maxColPhi1, idxAlpha_phi1;
+  Eigen::Index maxColPhi2, idxAlpha_phi2;
+  Eigen::Index maxColPhi3, idxAlpha_phi3;
+
+  // get max row + column 
   float maxTheta0 = prodTheta0.maxCoeff(&idxAlpha0, &maxCol0);
   float maxThetae = prodThetae.maxCoeff(&idxAlpha_e, &maxCol_e);
+  float maxPhi1 = prodPhi1.maxCoeff(&idxAlpha_phi1, &maxColPhi1);
+  float maxPhi2 = prodPhi2.maxCoeff(&idxAlpha_phi2, &maxColPhi2);
+  float maxPhi3 = prodPhi3.maxCoeff(&idxAlpha_phi3, &maxColPhi3);
 
-  if(mpi->mpiHead()) {
+  if(mpi->mpiHead() && print) {
+
+    // avoid a segfault in an edge case of few el states
+    int maxPrint = 10; 
+    if(numRelaxons < 10) { maxPrint = numRelaxons; } 
+
     std::cout << std::fixed;
     std::cout << std::setprecision(4);
-    std::cout << "Maximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
+
+    std::cout << "\nMaximum scalar product phi1.theta_alpha = " << maxPhi1 << " at index " << idxAlpha_phi1 << "." << std::endl;
+    std::cout << "Maximum scalar product phi2.theta_alpha = " << maxPhi2 << " at index " << idxAlpha_phi2 << "." << std::endl;
+    std::cout << "Maximum scalar product phi3.theta_alpha = " << maxPhi3 << " at index " << idxAlpha_phi3 << "." << std::endl;
+    //for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodPhi1(gamma); }
+
+    std::cout << "\nMaximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
     std::cout << "First ten products with theta_0:";
     for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodTheta0(gamma); }
     if(particle.isElectron()) {
@@ -46,8 +80,6 @@ void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
       for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodThetae(gamma); }
     }
     std::cout << "\n" << std::endl;
-    //std::cout << "Eigenvector norm check: " << theta0.dot(theta0) << " " << theta_e.dot(theta_e);
-
   }
 
   // save these indices to the class objects
@@ -58,8 +90,77 @@ void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
 
 }
 
+/*
+std::tuple<int,int> relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
+                              int& numRelaxons, Particle& particle, 
+                              Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e) {
+
+  Eigen::VectorXd prod0(numRelaxons);
+  Eigen::VectorXd prod_e(numRelaxons);
+  prod0.setZero(); prod_e.setZero();
+  //Eigen::Vector3d vecprodphi1(numRelaxons);
+  //Eigen::Vector3d vecprodphi2(numRelaxons);
+  //Eigen::Vector3d vecprodphi3(numRelaxons);
+
+  // sum over the alpha and v states that this process owns
+  for (auto tup : eigenvectors.getAllLocalStates()) {
+
+    auto is = std::get<0>(tup);
+    auto gamma = std::get<1>(tup);
+
+    prod0(gamma) += eigenvectors(is,gamma) * theta0(is);
+    prod_e(gamma) += eigenvectors(is,gamma) * theta_e(is);
+    //vecprodphi1[gamma] += eigenvectors(is,gamma) * phi(0,is);
+    //vecprodphi2[gamma] += eigenvectors(is,gamma) * phi(1,is);
+    //vecprodphi3[gamma] += eigenvectors(is,gamma) * phi(2,is);
+
+  }
+  // scalar products with vectors
+  mpi->allReduceSum(&prod0); mpi->allReduceSum(&prod_e);
+  //mpi->allReduceSum(&vecprodphi1); mpi->allReduceSum(&vecprodphi2); mpi->allReduceSum(&vecprodphi3);
+
+  // find the element with the maximum product
+  prod0 = prod0.cwiseAbs();
+  prod_e = prod_e.cwiseAbs();
+  Eigen::Index maxCol0, idxAlpha0;
+  Eigen::Index maxCol_e, idxAlpha_e;
+  float maxTheta0 = prod0.maxCoeff(&idxAlpha0, &maxCol0);
+  float maxThetae = prod_e.maxCoeff(&idxAlpha_e, &maxCol_e);
+
+  if(mpi->mpiHead()) {
+
+    // avoid a segfault in an edge case of few el states
+    int maxPrint = 10; 
+    if(numRelaxons < 10) { maxPrint = numRelaxons; } 
+
+    std::cout << std::fixed;
+    std::cout << std::setprecision(4);
+    std::cout << "Maximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
+    std::cout << "First ten scalar products with theta_0:";
+    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prod0(gamma); }
+    std::cout << "\n\nMaximum scalar product theta_e.theta_alpha = " << maxThetae << " at index " << idxAlpha_e << "." << std::endl;
+    std::cout << "First ten scalar products with theta_e:";
+    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prod_e(gamma); }
+    std::cout << std::endl;
+  }
+
+  // save these indices to the class objects
+  // if they weren't really found, we leave these indices
+  // as -1 so that no relaxons are skipped
+  int alpha0, alpha_e; 
+  if(maxTheta0 >= 0.75) {
+    if(mpi->mpiHead()) std::cout << "Identified energy eigenvector, it will be discarded from viscosity." << std::endl;
+    alpha0 = idxAlpha0;
+  }
+  if(maxThetae >= 0.75) {
+    if(mpi->mpiHead()) std::cout << "Identified charge eigenvector, it will be discarded from viscosity." << std::endl;
+    alpha_e = idxAlpha_e;
+  } 
+  return std::make_tuple(alpha0,alpha_e);
+}*/
+
 // calculate special eigenvectors
-void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
+void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
                                     StatisticsSweep& statisticsSweep,
                                     double& spinFactor,
                                     Eigen::VectorXd& theta0,
@@ -79,7 +180,10 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
   double chemPot = 0; // has to be zero for phonons,
                       // don't use the stat sweep one which may have
                       // finite values if phel scattering is used
-  double Npts = bandStructure.getPoints().getNumPoints();
+  //double Npts = bandStructure.getPoints().getNumPoints();
+  double Npts; 
+  if(particle.isPhonon()) Npts = context.getQMesh().prod(); 
+  else { Npts = context.getKMesh().prod(); }
 
   // set particle specific quantities
   if(particle.isElectron()) {
@@ -462,3 +566,116 @@ void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
   }
 }
 
+
+// TODO use requires on the bandstructures to be el first and ph second, do this more elegantly
+void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors, 
+                          const Eigen::VectorXd& eigenvalues, 
+                          std::vector<BaseBandStructure*>& bandStructures, 
+                          const Eigen::VectorXd& theta0,
+                          const Eigen::VectorXd& theta_e,
+                          const Eigen::MatrixXd& phi) {
+
+  int numRelaxonsToOutput = 40; 
+
+  // TODO improve this this
+
+ // make a lambda to handle indexing if it's coupled -- return phonon state index 
+  std::function<int(int)> shiftedStateIdx; 
+
+  //if(bandStructures.size() == 2) { 
+  //  if(!(bandStructures[0]->getParticle().isElectron() && bandStructures[1]->getParticle().isPhonon()))
+  //    DeveloperError("First bandstructure must be electron, second must be phonon, when outputing relaxons to HDF5.");
+    int numElStates = int(bandStructures[0]->irrStateIterator().size());
+
+    std::cout << 'shifted state index' << std::endl;
+
+    shiftedStateIdx = [numElStates](int stateIndex) {  
+      if(stateIndex < numElStates) { return stateIndex; } 
+      else { return stateIndex-numElStates; }
+    };
+ // } else {
+ //   shiftedStateIdx = [](int stateIndex) {  return stateIndex; };
+ // }
+
+  for (auto bandStructure : bandStructures) {
+
+    size_t numPoints = bandStructure->getPoints().getNumPoints();
+    int numBands = bandStructure->getFullNumBands();
+    Particle particle = bandStructure->getParticle();
+    // convertion for time units 
+    double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 : energyRyToFs;
+
+    // cannot use vector<vector> as this is not contiguous
+    Eigen::Tensor<double,3> relaxon(numPoints, numBands, numRelaxonsToOutput);
+    relaxon.setZero();
+    for (auto [iBte,iRelaxon] : eigenvectors.getAllLocalStates()) {
+
+      // get the band state associated with this state
+      BteIndex BTEidx(shiftedStateIdx(iBte));
+      auto is = bandStructure->bteToState(BTEidx);
+      auto [ik,ib] = bandStructure->getIndex(is); 
+
+      if(iRelaxon >= numRelaxonsToOutput) continue; 
+      relaxon(ik.get(),ib.get(), iRelaxon) = eigenvectors(iBte,iRelaxon); 
+    }
+    mpi->allReduceSum(&relaxon);
+
+    // write the analytical special eigenvectors ---------------------------
+    Eigen::MatrixXd theta_e_kn(numPoints, numBands), theta0_kn(numPoints, numBands);
+    Eigen::MatrixXd phi_kn1(numPoints, numBands), phi_kn2(numPoints, numBands), phi_kn3(numPoints, numBands);
+    theta_e_kn.setZero();  theta0_kn.setZero();  
+    phi_kn1.setZero(); phi_kn2.setZero(); phi_kn3.setZero();
+
+    for (int is : bandStructure->parallelStateIterator()) {
+      auto [ik,ib] = bandStructure->getIndex(is); 
+      theta_e_kn(ik.get(), ib.get()) = theta_e(is);
+      theta0_kn(ik.get(), ib.get()) = theta0(is);
+      phi_kn1(ik.get(), ib.get()) = phi(0,is);
+      phi_kn2(ik.get(), ib.get()) = phi(1,is);
+      phi_kn3(ik.get(), ib.get()) = phi(2,is);
+    }
+    mpi->allReduceSum(&theta_e_kn); mpi->allReduceSum(&theta0_kn);
+    mpi->allReduceSum(&phi_kn1); mpi->allReduceSum(&phi_kn2); mpi->allReduceSum(&phi_kn3);
+
+    // output crystal coords mesh 
+    Eigen::MatrixXd wavevectors(numPoints,3); wavevectors.setZero();
+    for (int ik : bandStructure->parallelIrrPointsIterator()) {
+      WavevectorIndex ikIdx(ik);
+      Eigen::Vector3d k = bandStructure->getWavevector(ikIdx);
+      wavevectors(ik,Eigen::all) = bandStructure->getPoints().cartesianToCrystal(k);
+    }
+    mpi->allReduceSum(&wavevectors);
+
+    // head process writes to file --------------------------
+    if(mpi->mpiHead()) { 
+
+      // let's try a simple write to hdf5  
+      std::string filename = particle.isPhonon() ? "ph_relaxons_eigenvectors.hdf5" : "el_relaxons_eigenvectors.hdf5";
+      H5Easy::File file(filename, H5Easy::File::Overwrite);
+
+      std::vector<double> tau; 
+      for(int alpha = 0; alpha < numRelaxonsToOutput; alpha++) { 
+        tau.push_back(1./eigenvalues(alpha) * energyToTime);
+        // write to an eigen matrix so I can save to hdf5
+        Eigen::MatrixXd relaxonCopy(numPoints,numBands);
+        for (size_t ik = 0; ik < numPoints; ik++) {
+          std::vector<double> tmp;
+          for ( int ib = 0; ib < numBands; ib++) {
+            relaxonCopy(ik,ib) = relaxon(ik,ib,alpha);
+          }
+        }
+        H5Easy::dump(file, "/relaxonEigenvectors_"+std::to_string(alpha), relaxonCopy);
+      }
+      H5Easy::dump(file, "/relaxonRelaxationTimes", tau);
+      H5Easy::dump(file, "/theta_e", theta_e_kn);
+      H5Easy::dump(file, "/theta0", theta0_kn);
+      H5Easy::dump(file, "/phi1", phi_kn1);
+      H5Easy::dump(file, "/phi2", phi_kn2);
+      H5Easy::dump(file, "/phi3", phi_kn3);
+      H5Easy::dump(file, "wavevectorCoordinates", wavevectors);
+      // H5Easy::dump(file, "/relaxationTimeUnit","fs"); // cannot write fixed length string...
+      H5Easy::dump(file, "/numPoints", numPoints);
+      H5Easy::dump(file, "/numRelaxons", numRelaxonsToOutput);
+    }
+  }
+}

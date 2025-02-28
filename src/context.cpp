@@ -503,13 +503,6 @@ void Context::setupFromInput(const std::string &fileName) {
         kMesh(2) = vecMesh[2];
       }
 
-      if (parameterName == "kMeshPhEl") {
-        std::vector<int> vecMesh = parseIntList(val);
-        kMeshPhEl(0) = vecMesh[0];
-        kMeshPhEl(1) = vecMesh[1];
-        kMeshPhEl(2) = vecMesh[2];
-      }
-
       if (parameterName == "windowType") {
         windowType = parseString(val);
       }
@@ -587,9 +580,9 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "fermiLevel") {
         fermiLevel = parseDoubleWithUnits(val);
       }
-      if (parameterName == "hasSpinOrbit") {
-        hasSpinOrbit = parseBool(val);
-      }
+      //if (parameterName == "hasSpinOrbit") { // TODO this should be detected at parsing phase
+      //  hasSpinOrbit = parseBool(val);
+      //}
       if (parameterName == "distributedElPhCoupling") {
         distributedElPhCoupling = parseBool(val);
       }
@@ -658,6 +651,9 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "useDragTerms") {
         useDragTerms = parseBool(val);
       }
+      if (parameterName == "reconstructLinewidths") {
+        reconstructLinewidths = parseBool(val);
+      }
       if (parameterName == "useSymmetries") {
         useSymmetries = parseBool(val);
       }
@@ -683,6 +679,11 @@ void Context::setupFromInput(const std::string &fileName) {
       }
       if (parameterName == "boundaryLength") {
         boundaryLength = parseDoubleWithUnits(val);
+      }
+      // we assume this is in 1/eV, and convert to 1/Ry
+      if (parameterName == "eeFermiLiquidCoefficient") {
+        eeFermiLiquidCoefficient = parseDouble(val);
+        eeFermiLiquidCoefficient *= energyRyToEv;
       }
 
       // EPA
@@ -809,18 +810,15 @@ void Context::setupFromInput(const std::string &fileName) {
 
 void Context::inputSanityCheck() {
 
+  // Other options that should be locked: 
+  // commensurate meshes when phel is utilized 
+
+  if(!jdftxScfOutFile.empty() &&  mpi->getSize(mpi->intraPoolComm) > 1) {
+    Error("JDFTx interface cannot be used with pools!");
+  }
+
   // this shouldn't be used if we're symmetrizing
   if(getSymmetrizeMatrix()) useUpperTriangle = false;
-
-  // check that coupled trasport app is only run with commensurate meshes
-  if(getAppName().compare("coupledTransport") == 0 ) {
-    if(useSymmetries) {
-      Error("Coupled transport app cannot be run with symmetries.");
-    }
-    if( kMesh(0)%qMesh(0) != 0 || kMesh(1)%qMesh(1) != 0 || kMesh(2)%qMesh(2) != 0 ) {
-      Error("For coupled relaxons solution, k and q meshes must be commensurate!");
-    }
-  }
 
   // disallow symmetries when relaxons are used
   for (const std::string &s : solverBTE) {
@@ -922,6 +920,10 @@ void Context::printInputSummary(const std::string &fileName) {
       if (!quantumEspressoPrefix.empty())
         std::cout << "quantumEspressoPrefix = " << quantumEspressoPrefix
                   << std::endl;
+      if(eeFermiLiquidCoefficient != 0) {
+        std::cout << "eeFermiLiquidCoefficient = " << 
+          eeFermiLiquidCoefficient * 1./energyRyToEv << " 1/eV" << std::endl;
+      }
     }
     // EPA specific parameters
     if (elPhInterpolation == "epa") {
@@ -1020,6 +1022,7 @@ void Context::printInputSummary(const std::string &fileName) {
     // specific to coupled scattering matrix app
     if (appName.find("oupled") != std::string::npos) {
       std::cout << "useDragTerms = " << useDragTerms << std::endl;
+      std::cout << "reconstructLinewidths = " << reconstructLinewidths << std::endl;
     }
 
     if (!std::isnan(constantRelaxationTime))
@@ -1304,8 +1307,6 @@ std::string Context::getAppName() { return appName; }
 
 Eigen::Vector3i Context::getQMesh() { return qMesh; }
 Eigen::Vector3i Context::getKMesh() { return kMesh; }
-Eigen::Vector3i Context::getKMeshPhEl() { return kMeshPhEl; }
-void Context::setKMeshPhEl(Eigen::Vector3i newKMeshPhEl) { kMeshPhEl = newKMeshPhEl; }
 
 std::string Context::getWindowType() { return windowType; }
 void Context::setWindowType(const std::string &x) { windowType = x; }
@@ -1388,6 +1389,9 @@ void Context::setNumOccupiedStates(const double &x) { numOccupiedStates = x; }
 bool Context::getHasSpinOrbit() const { return hasSpinOrbit; }
 void Context::setHasSpinOrbit(const bool &x) { hasSpinOrbit = x; }
 
+double Context::getSpinDegeneracyFactor() const { return spinDegeneracyFactor; }
+void Context::setSpinDegeneracyFactor(const double &x) { spinDegeneracyFactor = x; } 
+
 int Context::getSmearingMethod() const { return smearingMethod; }
 
 double Context::getSmearingWidth() const { return smearingWidth; }
@@ -1435,6 +1439,13 @@ void Context::setUseDragTerms(const bool &x) {
   useDragTerms = x;
 }
 
+bool Context::getReconstructLinewidths() const {
+  return reconstructLinewidths;
+}
+void Context::setReconstructLinewidths(const bool &x) {
+  reconstructLinewidths = x;
+}
+
 int Context::getNumRelaxonsEigenvalues() const {
   return numRelaxonsEigenvalues;
 }
@@ -1457,6 +1468,8 @@ Eigen::VectorXd Context::getMasses() { return customMasses; }
 Eigen::VectorXd Context::getIsotopeCouplings() { return customIsotopeCouplings; }
 
 bool Context::getWithIsotopeScattering() const { return withIsotopeScattering; }
+
+double Context::getEeFermiLiquidCoefficient() const { return eeFermiLiquidCoefficient; }
 
 double Context::getBoundaryLength() const { return boundaryLength; }
 

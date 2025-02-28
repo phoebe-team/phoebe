@@ -43,11 +43,11 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   } else if (theMatrix.rows() == 0 && linewidth != nullptr && inPopulations.empty() && outPopulations.empty()) {
     switchCase = 2;
   } else {
-    Error("Developer error: El matrix builder found a non-supported case");
+    DeveloperError("El matrix builder found a non-supported case");
   }
 
   if ((linewidth != nullptr) && (linewidth->dimensionality != 1)) {
-    Error("Developer error: The linewidths shouldn't have dimensionality");
+    DeveloperError("The linewidths shouldn't have dimensionality");
   }
 
   // set up the MRTA container
@@ -71,14 +71,14 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // load the elph coupling
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
-  Crystal crystal = innerBandStructure.getPoints().getCrystal(); 
-  InteractionElPhWan couplingElPh = 
+  Crystal crystal = innerBandStructure.getPoints().getCrystal();
+  InteractionElPhWan couplingElPh =
       InteractionElPhWan::parse(context, crystal, phononH0);
 
   addElPhScattering(*this, context, inPopulations, outPopulations, switchCase,
                                   kPairIterator, innerFermi, //outerFermi,
                                   innerBandStructure, outerBandStructure, phononH0,
-                                  &couplingElPh, linewidth);
+                                  couplingElPh, linewidth);
   }
   // add charged impurity electron scattering  -------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
@@ -87,8 +87,13 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 */
   // TODO was there previously an all reduce between these two on
   //the linewidths? why is that?
+  // probably because boundary scattering was earlier not distributed 
 
-  // Add boundary scattering
+  // add DMFT fermi liquid contribution  -------------------
+  // currently we don't add ee time to linewidthMR. I think this is correct. 
+  //add_eeDMFT(*this, context, switchCase, outerBandStructure, linewidth);
+
+  // Add boundary scattering ------------------------------------
   if (!std::isnan(context.getBoundaryLength())) {
     if (context.getBoundaryLength() > 0.) {
       addBoundaryScattering(*this, context, inPopulations, outPopulations,
@@ -120,10 +125,10 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     degeneracyAveragingLinewidths(linewidthMR);
   }
 
-  // use the off diagonals to calculate the linewidths, 
-  // to ensure the special eigenvectors can be found/preserve conservation of momentum 
-  // that might be ruined by the delta functions 
-  //reinforceLinewidths();
+  // use the off diagonals to calculate the linewidths,
+  // to ensure the special eigenvectors can be found/preserve conservation of momentum
+  // that might be ruined by the delta functions
+  reinforceLinewidths();
 
  // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths
@@ -155,8 +160,12 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
   Kokkos::Profiling::popRegion();
 
-  // before closing, write the MR relaxation times to file
+  //if(mpi->mpiHead()) std::cout << linewidth->data.transpose() << std::endl;
+
+  // before closing, write the relaxation times to file
   outputLifetimesToJSON("rta_el_momentum_relaxation_times.json", linewidthMR);
+  outputLifetimesToJSON("rta_el_relaxation_times.json", linewidth);
+
 }
 
 // function called on shared ptrs of linewidths

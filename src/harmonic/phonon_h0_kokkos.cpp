@@ -1,7 +1,7 @@
 #include "phonon_h0.h"
 
 /**
- * Build the Hamiltonian matrix for a batch of k-points
+ * Build the Hamiltonian matrix for a batch of q-points
  */
 StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
     const DoubleView2D &cartesianCoordinates) {
@@ -21,7 +21,7 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
   // Compute all dot products of k points (phases)
   ComplexView2D phases_d("phPhases_d", numK, numBravaisVectors);
   Kokkos::parallel_for(
-      "el_phases", Range2D({0, 0}, {numK, numBravaisVectors}),
+      "ph_phases", Range2D({0, 0}, {numK, numBravaisVectors}),
       KOKKOS_LAMBDA(int iK, int iR) {
         double arg = 0.0;
         for (int i = 0; i < 3; i++) {
@@ -30,13 +30,10 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
         phases_d(iK, iR) = exp(-complexI * arg) * weights_d(iR);
       });
   Kokkos::fence();
-  //print2DComplex("new = ", phases_d);
-  //print2D("new = ", bravaisVectors_d);
-  //print3D("new = ", mat2R_d);
 
   // multiply matrix by phase
   Kokkos::parallel_for(
-      "el_hamilton", Range3D({0, 0, 0}, {numK, numBands, numBands}),
+      "ph_hamilton", Range3D({0, 0, 0}, {numK, numBands, numBands}),
       KOKKOS_LAMBDA(int iK, int m, int n) {
         Kokkos::complex<double> tmp(0.0);
         for (int iR = 0; iR < numBravaisVectors; iR++) {
@@ -45,14 +42,13 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
         dynamicalMatrices(iK, m, n) = tmp;
       });
   Kokkos::realloc(phases_d, 0, 0);
-  //print3DComplex("new = ", dynamicalMatrices);
 
   if (hasDielectric) {
     auto longRangeCorrection1_d = this->longRangeCorrection1_d;
 
     // add constant long range term
     Kokkos::parallel_for(
-        "el_hamilton", Range3D({0, 0, 0}, {numK, 3, 3}),
+        "add_ph_long_range", Range3D({0, 0, 0}, {numK, 3, 3}),
         KOKKOS_LAMBDA(int iK, int i, int j) {
           auto D = Kokkos::subview(dynamicalMatrices, iK, Kokkos::ALL, Kokkos::ALL);
           for (int iAt=0; iAt<numAtoms; ++iAt) {
@@ -63,7 +59,7 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
         });
     Kokkos::fence();
 
-    double norm = e2 * fourPi / volumeUnitCell;
+    double norm = 2 * fourPi / volumeUnitCell;
     int numG = gVectors_d.extent(0);
 
     auto gVectors_d = this->gVectors_d;
@@ -71,6 +67,9 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
     auto bornCharges_d = this->bornCharges_d;
     auto atomicPositions_d = this->atomicPositions_d;
     auto gMax = this->gMax;
+    auto alpha = this->alpha;
+    double inv4Alpha = 1./(alpha * 4.);
+    double fourAlphaGMax = 4. * alpha * gMax;
 
     // per-thread scratch memory size
     int byte_size = Kokkos::View<double*, Kokkos::LayoutRight, Kokkos::DefaultExecutionSpace::scratch_memory_space>::shmem_size(numBands);
@@ -104,8 +103,9 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
                 geg += GQ[i] * dielectricMatrix_d(i, j) * GQ[j];
             }, geg);
 
-            if (geg > 0. && geg < 4. * gMax) {
-              double normG = norm * exp(-geg * 0.25) / geg;
+            if (geg > 0. && geg < fourAlphaGMax) {
+
+              double normG = norm * exp(-geg * inv4Alpha) / geg;
 
               Kokkos::parallel_for(Kokkos::ThreadVectorRange(team, 3*numAtoms), [&] (const int inb){
                   int nb = inb / 3;
@@ -137,9 +137,7 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
             }
           });
         });
-  //print3DComplex("new = ", dynamicalMatrices);
   }
-
 
   // Col-major matrices stored contiguously
   Kokkos::LayoutStride DDlayout(
@@ -151,7 +149,7 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
   // ensure hermiticity
   StridedComplexView3D DD("dynMat", DDlayout);
   Kokkos::parallel_for(
-      "el_hamilton", Range3D({0, 0, 0}, {numK, numBands, numBands}),
+      "ph_hamilton_hermiticity", Range3D({0, 0, 0}, {numK, numBands, numBands}),
       KOKKOS_LAMBDA(int iK, int m, int n) {
         auto D = Kokkos::subview(dynamicalMatrices, iK, Kokkos::ALL, Kokkos::ALL);
         DD(iK, m, n) = 0.5 * ( D(m,n) + Kokkos::conj(D(n,m)) );
@@ -162,12 +160,10 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
 
   // divide by atomic masses
   Kokkos::parallel_for(
-      "el_hamilton", Range3D({0, 0, 0}, {numK, numBands, numBands}),
+      "ph_hamilton_atomic_masses", Range3D({0, 0, 0}, {numK, numBands, numBands}),
       KOKKOS_LAMBDA(int iK, int m, int n) {
         DD(iK, m, n) /= sqrt(atomicMasses_d(m) * atomicMasses_d(n));
       });
-
-  //print3DComplex("new = ", DD);
   return DD;
 }
 
@@ -180,7 +176,6 @@ std::tuple<DoubleView2D, StridedComplexView3D> PhononH0::kokkosBatchedDiagonaliz
   // create the Hamiltonians
   StridedComplexView3D dynamicalMatrices =
       kokkosBatchedBuildBlochHamiltonian(cartesianCoordinates);
-  //print3DComplex("new = ", dynamicalMatrices);
 
   int numK = dynamicalMatrices.extent(0);
   int numBands = this->numBands;
@@ -191,7 +186,7 @@ std::tuple<DoubleView2D, StridedComplexView3D> PhononH0::kokkosBatchedDiagonaliz
 
   // frequencies are sign(eigenvalues)*sqrt(abs(eigenvalues))
   Kokkos::parallel_for(
-      "el_hamilton", Range2D({0, 0}, {numK, numBands}),
+      "ph_hamilton_sign_omega", Range2D({0, 0}, {numK, numBands}),
       KOKKOS_LAMBDA(int iK, int m) {
         if (frequencies(iK, m) > 0.) {
           frequencies(iK, m) = sqrt(frequencies(iK, m));
@@ -199,8 +194,6 @@ std::tuple<DoubleView2D, StridedComplexView3D> PhononH0::kokkosBatchedDiagonaliz
           frequencies(iK, m) = -sqrt(-frequencies(iK, m));
         }
       });
-  //print2D("new = ", frequencies);
-  //print3DComplex("new = ", dynamicalMatrices);
 
   if(withMassScaling) kokkosBatchedScaleEigenvectors(dynamicalMatrices);
   return std::make_tuple(frequencies, dynamicalMatrices);
@@ -240,7 +233,6 @@ int PhononH0::estimateBatchSize(const bool& withVelocity) {
   } else {
     memoryPerPoint += 16. * transformSize;
   }
-  //printf("memory per point = %g, available = %g\n", memoryPerPoint, memoryAvailable);
 
   // we try to use 90% of the available memory (leave some buffer)
   int numBatches = int(memoryAvailable / memoryPerPoint * 0.95);
@@ -407,19 +399,12 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
         }
       });
 
-  //print2D("new = ", allVectors);
-
   // compute the electronic properties at all wavevectors
   auto t = kokkosBatchedDiagonalizeFromCoordinates(allVectors, false);
   DoubleView2D allEnergies = std::get<0>(t);
   StridedComplexView3D allEigenvectors = std::get<1>(t);
 
-    //print2D("new = ", allEnergies);
-
   int numBands = allEnergies.extent(1);
-
-  //print2D("new = ", allEnergies);
-  //print3DComplex("new = ", allEigenvectors);
 
   Kokkos::LayoutStride eigenvectorLayout(
       numK, numBands*numBands,
@@ -441,13 +426,9 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
         }
       });
 
-  //print3DComplex("new = ", resultEigenvectors);
-
   // Views for intermediate results
   ComplexView3D der("der", numK, numBands, numBands);
   ComplexView3D tmpV("tmpV", numK, numBands, numBands);
-  //ComplexView3D plus("plus", numK, numBands, numBands);
-  //ComplexView3D minus("plus", numK, numBands, numBands);
 
   for (int i = 0; i < 3; ++i) {
 
@@ -462,23 +443,13 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
           DoubleView1D EPlus = Kokkos::subview(allEnergies, iK * 7 + i * 2 + 1, Kokkos::ALL);
           DoubleView1D EMins = Kokkos::subview(allEnergies, iK * 7 + i * 2 + 2, Kokkos::ALL);
           Kokkos::complex<double> x(0.,0.);
-          //Kokkos::complex<double> p(0.,0.);
-          //Kokkos::complex<double> pm(0.,0.);
           for (int l=0; l<numBands; ++l) {
             x += XPlus(m,l) * EPlus(l) * Kokkos::conj(XPlus(n,l))
                 - XMins(m,l) * EMins(l) * Kokkos::conj(XMins(n,l));
-            //p += XPlus(m,l) * EPlus(l) * Kokkos::conj(XPlus(n,l));
-            //pm += XMins(m,l) * EMins(l) * Kokkos::conj(XMins(n,l));
           }
           der(iK, m, n) = x/(2*delta);
-          //plus(iK,m,n) = p;
-          //minus(iK,m,n) = pm;
         });
     Kokkos::fence();
-    //print2D("new = ", resultEnergies);
-    //print3DComplex("new = ", der);
-    //print3DComplex("new = ", plus);
-    //print3DComplex("new = ", minus);
 
     // Now we complete the Hellman-Feynman theorem
     // and compute the velocity as v = U(k)^* der * U(k)

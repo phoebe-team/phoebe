@@ -48,6 +48,16 @@
                         Eigen::Tensor<double, 3>& kappa, Eigen::Tensor<double, 3>& sigma,
                         Eigen::Tensor<double, 3>& mobility, Eigen::Tensor<double, 3>& seebeck);
 
+  /** Helper function to simplify outputing 3x3 transport tensors to json
+  * @param tensor: transport tensor to output
+  * @param unitConv: conversion from AU to SI to fro this transport property
+  * @param iCalc: calculation index
+  * @param outFormat: container to write the end tensor to, using std::vectors for JSON
+  */
+  void appendTransportTensorForOutput(Eigen::Tensor<double, 3>& tensor, int dimensionality,
+                        double& unitConv, int& iCalc,
+                        std::vector<std::vector<std::vector<double>>>& outFormat);
+
   /** Outputs the quantity to a json file.
    * @param outFileName: string representing the name of the json file
    * @param statisticsSweep: object containing temperature, chemPot, etc info

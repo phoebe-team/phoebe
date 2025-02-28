@@ -16,9 +16,9 @@ class BaseElScatteringMatrix : virtual public ScatteringMatrix {
 
   /** Constructor that just calls the constructor of scattering matrix */
   BaseElScatteringMatrix(Context &context_,
-                                   StatisticsSweep &statisticsSweep_,
-                                   BaseBandStructure &innerBandStructure_,
-                                   BaseBandStructure &outerBandStructure_);
+                        StatisticsSweep &statisticsSweep_,
+                        BaseBandStructure &innerBandStructure_,
+                        BaseBandStructure &outerBandStructure_);
 
  protected:
 
@@ -27,25 +27,32 @@ class BaseElScatteringMatrix : virtual public ScatteringMatrix {
   // friend functions for adding scattering rates,
   // these live in el_scattering.cpp. See el_scattering header file for more info.
   friend void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
-                       std::vector<VectorBTE> &inPopulations,
-                       std::vector<VectorBTE> &outPopulations,
-                       int &switchCase,
-                       std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
-                       Eigen::MatrixXd &innerFermi, //Eigen::MatrixXd &outerBose,
-                       BaseBandStructure &innerBandStructure,
-                       BaseBandStructure &outerBandStructure,
-                       PhononH0 &phononH0,
-                       InteractionElPhWan *couplingElPhWan,
-                       std::shared_ptr<VectorBTE> linewidth);
+                      std::vector<VectorBTE> &inPopulations,
+                      std::vector<VectorBTE> &outPopulations,
+                      int &switchCase,
+                      std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
+                      Eigen::MatrixXd &innerFermi, //Eigen::MatrixXd &outerBose,
+                      BaseBandStructure &innerBandStructure,
+                      BaseBandStructure &outerBandStructure,
+                      PhononH0 &phononH0,
+                      InteractionElPhWan& couplingElPhWan,
+                      std::shared_ptr<VectorBTE> linewidth);
 
   friend void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &context,
-                       std::vector<VectorBTE> &inPopulations,
-                       std::vector<VectorBTE> &outPopulations,
-                       int &switchCase,
-                       std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
-                       BaseBandStructure &innerBandStructure,
-                       BaseBandStructure &outerBandStructure,
-                       std::shared_ptr<VectorBTE> linewidth);
+                      std::vector<VectorBTE> &inPopulations,
+                      std::vector<VectorBTE> &outPopulations,
+                      int &switchCase,
+                      std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
+                      BaseBandStructure &innerBandStructure,
+                      BaseBandStructure &outerBandStructure,
+                      std::shared_ptr<VectorBTE> linewidth);
+
+  friend void add_eeDMFT(BaseElScatteringMatrix &matrix, const Context &context,
+                      //std::vector<VectorBTE> &inPopulations,
+                      //std::vector<VectorBTE> &outPopulations,
+                      const int &switchCase,
+                      BaseBandStructure &outerBandStructure,
+                      std::shared_ptr<VectorBTE> linewidth); 
 
 };
 

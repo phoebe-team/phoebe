@@ -19,20 +19,21 @@
  * the harmonic phonon properties.
  */
 class PhononH0 : public HarmonicHamiltonian {
+
  public:
   /** Constructor, which stores all input data.
    * @param crystal: the object with the information on the crystal structure
-   * @param dielectricMatrix: 3x3 matrix with the dielectric matrix
-   * @param bornCharges: real tensor of size (numAtoms,3,3) with the Born
-   * effective charges
    * @param forceConstants: a tensor of doubles with the force constants
-   * size is (iR, 3, 3, numAtoms, numAtoms)
+   * size is (3, 3, meshX, meshY, meshZ, numAtoms, numAtoms)
+   * @param qCoarseGrid: the supercell/coarse qmesh of this calculation as a 3vector
+   * @param bravaisVectors: the R vectors used in the harmonic phonon real space representation
+   * @param weights: the R vector weights used in the Fourier transform to recip space
    */
-  PhononH0(Crystal &crystal, const Eigen::Matrix3d &dielectricMatrix_,
+  PhononH0(Crystal &crystal, 
            Eigen::Tensor<double, 5> &forceConstants_,
            Eigen::Vector3i& qCoarseGrid,
            const Eigen::MatrixXd& bravaisVectors_,
-           const Eigen::VectorXd& weights_);
+           const Eigen::VectorXd& weights_, const int fcRangeType);
 
   /** Copy constructor
    */
@@ -98,8 +99,8 @@ class PhononH0 : public HarmonicHamiltonian {
   FullBandStructure populate(Points &points, const bool &withVelocities,
                              const bool &withEigenvectors,
                              const bool isDistributed = false) override;
-  FullBandStructure cpuPopulate(Points &points, bool &withVelocities,
-                                bool &withEigenvectors, bool isDistributed = false);
+  FullBandStructure cpuPopulate(Points &points, const bool &withVelocities,
+                                const bool &withEigenvectors, bool isDistributed = false);
   FullBandStructure kokkosPopulate(Points &points, const bool &withVelocities,
                                    const bool &withEigenvectors, const bool isDistributed = false);
   StridedComplexView3D kokkosBatchedBuildBlochHamiltonian(
@@ -155,6 +156,12 @@ class PhononH0 : public HarmonicHamiltonian {
   */
   void printDynToHDF5(Eigen::Vector3d& qCrys);
 
+  // we want to designate these as medium or short range 
+  // "medium" range are fcs that come from finite difference codes
+  // "short" range are fcs coming from q2r
+  static const int mediumRange = 0;
+  static const int shortRange = 1;
+
 protected:
 
   Particle particle;
@@ -172,9 +179,13 @@ protected:
   Eigen::Vector3i qCoarseGrid;
   Eigen::Matrix3d directUnitCell;
   int dimensionality;
-  // TODO -- when long range correction for dim=2 has been really well checked,
+  int fcRangeType;  // medium or short 
+  
+    // TODO -- when long range correction for dim=2 has been really well checked,
   // uncomment this to activate it
   bool longRange2d = false;
+  double alat;
+  double alpha;
 
   // the R vectors on the WS cell used in the Fourier transform
   int numBravaisVectors = 0;
@@ -187,6 +198,7 @@ protected:
   Eigen::MatrixXd gVectors;
   Eigen::Tensor<double,3> longRangeCorrection1;
   const double gMax = 14.; // cutoff for ewald summation
+  const double e2 = 4; 
 
   // kokkos members:
   DoubleView1D atomicMasses_d;
@@ -227,12 +239,29 @@ protected:
   void shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                       const Eigen::VectorXd &q);
 
+  /** This part computes the "medium"-range part of the dynamical matrix, which is 
+   * needed for the polar correction to the dynamical matrix when finite differences are used.   
+   * follows nonanal from rigid.f90 and the paper of Wang 2012
+   * @param dyn : a container to which the short-range part of the dynamical matrix is added
+   * @param q : the phonon wavevector at which to calculate this part of the dyn mat, cartesian coords
+   */
+  void addMediumRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
+                            const Eigen::VectorXd &q); 
+
   /** dynDiagonalize diagonalizes the dynamical matrix and returns eigenvalues and
    * eigenvectors.
    * @param dyn: the dynamical matrix in the shape 3,3,natoms,natoms
    */
   std::tuple<Eigen::VectorXd, Eigen::MatrixXcd> dynDiagonalize(
       Eigen::Tensor<std::complex<double>, 4> &dyn);
+
+  /** Function analogous to nonanal_ifc in QE's matdyn -- 
+  * returns f_of_q, which is a correction to be applied to the 
+  * "medium range" fcs before performing the fourier transform
+  * @param q: the phonon wavevector associated with the correction. 
+  * @return correction to be applied to the IFCS before fourier transforming
+  */
+  void correctMediumRangeIFCs(Eigen::Tensor<double, 4> &fq, const Eigen::VectorXd &q); 
 
   /** Checks the size of Device-allocated views
    *

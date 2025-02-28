@@ -528,7 +528,7 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
 
   // Now we do postprocessing
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses, bornCharges);
+                  speciesNames, speciesMasses, bornCharges, dielectricMatrix);
   crystal.print();
 
   if (mpi->mpiHead()) {
@@ -546,8 +546,7 @@ std::tuple<Crystal, PhononH0> QEParser::parsePhHarmonic(Context &context) {
   Eigen::MatrixXd bravaisVectors = std::get<1>(tup);
   Eigen::VectorXd weights = std::get<2>(tup);
 
-  PhononH0 dynamicalMatrix(crystal, dielectricMatrix,
-                           matFC2, qCoarseGrid, bravaisVectors, weights);
+  PhononH0 dynamicalMatrix(crystal, matFC2, qCoarseGrid, bravaisVectors, weights, PhononH0::shortRange);
 
   Kokkos::Profiling::popRegion();
   return std::make_tuple(crystal, dynamicalMatrix);
@@ -690,7 +689,7 @@ QEParser::parseElHarmonicFourier(Context &context) {
 
   // Initialize the crystal class
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses, bornCharges);
+                  speciesNames, speciesMasses, bornCharges, dielectricMatrix);
   crystal.print();
 
   // initialize reciprocal lattice cell --------------------------
@@ -882,7 +881,7 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
   std::string fileName = context.getElectronH0Name();
 
   if (fileName.empty()) {
-    Error("Must provide the Wannier90 TB file name");
+    Error("Must provide the Wannier90 TB file name.");
   }
 
   std::string line;
@@ -1053,7 +1052,8 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
 
     // Initialize the crystal class
     Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                    speciesNames, speciesMasses, bornCharges);
+                    speciesNames, speciesMasses, bornCharges, dielectricMatrix);
+                    
     crystal.print();
     Kokkos::Profiling::popRegion();
     return std::make_tuple(crystal, electronH0);

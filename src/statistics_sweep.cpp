@@ -91,7 +91,9 @@ StatisticsSweep::StatisticsSweep(Context &context,
     // determine ground state properties
     // i.e. we define the number of filled bands and the fermi energy
     occupiedStates = context.getNumOccupiedStates();
-    if (std::isnan(occupiedStates)) {
+
+    // fermi level is set, but not occupied states 
+    if (std::isnan(occupiedStates)) { // || !std::isnan(fermiLevel)) {
       // in this case we try to compute it from the Fermi-level
       fermiLevel = context.getFermiLevel();
       if (std::isnan(fermiLevel)) {
@@ -123,6 +125,8 @@ StatisticsSweep::StatisticsSweep(Context &context,
 
       // TODO we would need to change this for a spin pol calculation !
       occupiedStates /= spinFactor;
+
+      if(mpi->mpiHead()) std::cout << "number of occupied states " << occupiedStates << std::endl;
 
       // initial guess for chemical potential will be Ef
       // if distributed, all processes need this guess

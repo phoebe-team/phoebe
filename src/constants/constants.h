@@ -9,8 +9,9 @@
 const double pi = 3.14159265358979323846;
 const double sqrtPi = sqrt(3.14159265358979323846);
 const double sqrtTwo = sqrt(2.);
+const double piSquared = pi * pi; 
 const double twoPi = 2. * pi;
-const double fourPi = 2. * pi;
+const double fourPi = 4. * pi;
 const double one = 1.;
 const double zero = 0.;
 const std::complex<double> complexZero = {0., 0.}; /* NOLINT */
@@ -34,7 +35,7 @@ const double kBoltzmannRy = kBoltzmannSi / rydbergSi;
 const double electronMassSi = 9.10938215e-31; // in Kg
 const double amuSi = 1.660538782e-27;         // in Kg
 
-const double e2 = 2.;
+//const double e2 = 2.; // TODO I think this is an issue, it's e^2 not e*2, which is 1 in AU!
 
 //
 // conversion
@@ -69,7 +70,8 @@ const double elConductivityAuToSi = electronSi * electronSi / hBarSi / bohrRadiu
 const double mobilityAuToSi = electronSi / hBarSi * bohrRadiusSi * bohrRadiusSi;
 const double thermopowerAuToSi = kBoltzmannRy / electronSi * rydbergSi;
 
-// cutoffs 
-const double phEnergyCutoff = 0.1 / ryToCmm1; // in Cmm1
+// cutoffs
+// TODO make this smaller!
+const double phEnergyCutoff = 5 / ryToCmm1; // in Cmm1
 
 #endif

@@ -22,17 +22,14 @@ FetchContent_Declare(json
 )
 FetchContent_MakeAvailable(json)
 
-ExternalProject_Add(spglib_dep
-    BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/spglib_build
-    SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/spglib_src
-    GIT_REPOSITORY https://github.com/spglib/spglib.git
-    INSTALL_COMMAND ""
-    UPDATE_COMMAND ""
-    CMAKE_ARGS
-	-DUSE_OMP=${OMP_AVAIL}
-        -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+FetchContent_Declare(
+	Spglib
+	GIT_REPOSITORY https://github.com/spglib/spglib
+	GIT_TAG develop
+	UPDATE_COMMAND ""
 )
+set(SPGLIB_USE_OMP ON)
+FetchContent_MakeAvailable(Spglib)
 
 ExternalProject_Add(pugixml_dep
     BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/pugixml_build

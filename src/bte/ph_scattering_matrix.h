@@ -21,8 +21,6 @@ class PhScatteringMatrix : virtual public BasePhScatteringMatrix {
    * integrating the sum over q2 wavevectors.
    * @param outerBandStructure: this is the bandStructure object used for
    * integrating the sum over q1 wavevectors.
-   * @param coupling3Ph: a pointer to the class handling the 3-phonon
-   * interaction calculation.
    * @param h0: the object used for constructing phonon energies.
    *
    * Note: inner and outer band structures may be different, for example, if we
@@ -37,12 +35,10 @@ class PhScatteringMatrix : virtual public BasePhScatteringMatrix {
   PhScatteringMatrix(Context &context_, StatisticsSweep &statisticsSweep_,
                      BaseBandStructure &innerBandStructure_,
                      BaseBandStructure &outerBandStructure_,
-                     Interaction3Ph *coupling3Ph_ = nullptr,
                      PhononH0 *phononH0_ = nullptr);
 
  protected:
 
-  Interaction3Ph *coupling3Ph;
   PhononH0 *phononH0;
 
   // implementation of the scattering matrix
@@ -63,7 +59,7 @@ class PhScatteringMatrix : virtual public BasePhScatteringMatrix {
                                 BaseBandStructure &innerBandStructure,
                                 BaseBandStructure &outerBandStructure,
                                 PhononH0& phononH0,
-                                Interaction3Ph *coupling3Ph,
+                                Interaction3Ph& coupling3Ph,
                                 std::shared_ptr<VectorBTE> linewidth);
 
   friend void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
@@ -73,6 +69,13 @@ class PhScatteringMatrix : virtual public BasePhScatteringMatrix {
                                 Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
                                 BaseBandStructure &innerBandStructure,
                                 BaseBandStructure &outerBandStructure,
+                                std::shared_ptr<VectorBTE> linewidth);
+
+  friend void addPhElScattering(BasePhScatteringMatrix& matrix, Context& context,
+                                BaseBandStructure& phBandStructure,
+                                BaseBandStructure& elBandStructure,
+                                StatisticsSweep& statisticsSweep, 
+                                InteractionElPhWan& couplingElPhWan,
                                 std::shared_ptr<VectorBTE> linewidth);
 
 };

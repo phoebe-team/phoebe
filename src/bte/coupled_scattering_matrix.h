@@ -118,7 +118,7 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
                   BaseBandStructure &innerBandStructure,
                   BaseBandStructure &outerBandStructure,
                   PhononH0* phononH0,
-                  Interaction3Ph *coupling3Ph,
+                  Interaction3Ph &coupling3Ph,
                   VectorBTE *linewidth);
 
   friend void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
@@ -132,8 +132,8 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
 
   friend void addPhElScattering(BasePhScatteringMatrix& matrix, Context& context,
                   BaseBandStructure& phBandStructure,
-                  ElectronH0Wannier* electronH0,
-                  InteractionElPhWan* couplingElPhWan,
+                  BaseBandStructure& elBandStructure,
+                  InteractionElPhWan& couplingElPhWan,
                   std::shared_ptr<VectorBTE> linewidth);
 
   friend void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
@@ -145,7 +145,7 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
                   BaseBandStructure &innerBandStructure,
                   BaseBandStructure &outerBandStructure,
                   PhononH0 &phononH0,
-                  InteractionElPhWan *couplingElPhWan,
+                  InteractionElPhWan &couplingElPhWan,
                   VectorBTE *linewidth);
 
   friend void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &context,
@@ -160,8 +160,7 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
   friend void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   std::vector<std::tuple<std::vector<int>, int>> kqPairIterator,
                   const int& dragTermType,
-                  ElectronH0Wannier* electronH0,
-                  InteractionElPhWan *couplingElPhWan,
+                  InteractionElPhWan &couplingElPhWan,
                   BaseBandStructure &innerBandStructure,
                   BaseBandStructure &outerBandStructure);
 

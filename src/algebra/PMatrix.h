@@ -414,7 +414,7 @@ ParallelMatrix<T>& ParallelMatrix<T>::operator=(const ParallelMatrix<T>& that) {
     mat = new T[numLocalElements_];
     // Memory could not be allocated, end program
     assert(mat != nullptr);
-    for (int i = 0; i < numLocalElements_; i++) {
+    for (size_t i = 0; i < numLocalElements_; i++) {
       mat[i] = that.mat[i];
     }
   }
@@ -522,7 +522,7 @@ size_t ParallelMatrix<T>::size() const {
 // Get/set element
 template <typename T>
 T& ParallelMatrix<T>::operator()(const int &row, const int &col) {
-  if(row > numRows_ || col > numCols_) Error("Tried to fill a PMatrix state out of bounds: " + std::to_string(row) + " " + std::to_string(col));
+  if(row > numRows_ || col > numCols_) DeveloperError("Tried to fill a PMatrix state out of bounds: " + std::to_string(row) + " " + std::to_string(col));
   int localIndex = global2Local(row, col);
   if (localIndex == -1) {
     dummyZero = 0.;

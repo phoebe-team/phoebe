@@ -24,8 +24,10 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                                  BaseBandStructure &innerBandStructure,
                                  BaseBandStructure &outerBandStructure,
                                  PhononH0& phononH0,
-                                 Interaction3Ph *coupling3Ph,
+                                 Interaction3Ph& coupling3Ph,
                                  std::shared_ptr<VectorBTE> linewidth) {
+  if(mpi->mpiHead())
+    std::cout << "------------- Phonon-phonon scattering -------------\n" << std::endl;
 
   // notes: + process is (1+2) -> 3
   //        - processes are (1+3)->2 and (3+2)->1
@@ -35,13 +37,14 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
   auto excludeIndices = matrix.excludeIndices;
   bool outputUNTimes = matrix.outputUNTimes;
   Particle particle = innerBandStructure.getParticle();
+  const double pathLinewidthCutoff = 0.000001 / ryToCmm1;
 
   // setup smearing using phonon band structure
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, innerBandStructure);
 
   if ( // innerBandStructure != outerBandStructure &&
      smearing->getType() == DeltaFunction::tetrahedron) {
-    Error("Developer error: Tetrahedron smearing for transport untested and thus blocked");
+    DeveloperError("Tetrahedron smearing for transport untested and thus blocked");
     // May work for linewidths. Although this should be double-checked
   }
 
@@ -61,6 +64,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
 
   Helper3rdState pointHelper(innerBandStructure, outerBandStructure, outerBose,
                              matrix.statisticsSweep, smearing->getType(), phononH0);
+
   LoopPrint loopPrint("computing ph-ph contribution to scattering matrix", "q-point pairs",
                       int(qPairIterator.size()));
 
@@ -98,10 +102,10 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
     pointHelper.prepare(iq1Indexes, iq2);
 
     // prepare batches based on memory usage
-    int numBatches = coupling3Ph->estimateNumBatches(nq1, nb2);
+    int numBatches = coupling3Ph.estimateNumBatches(nq1, nb2);
 
     // precalculate D3cached for current value of q2
-    coupling3Ph->cacheD3(q2);
+    coupling3Ph.cacheD3(q2);
 
     // loop over batches of q1s
     // later we will loop over the q1s inside each batch
@@ -179,7 +183,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
       }
 
       // calculate batch of couplings
-      auto tuple1 = coupling3Ph->getCouplingsSquared(
+      auto tuple1 = coupling3Ph.getCouplingsSquared(
           q1_v, q2, ev1_v, ev2, ev3Plus_v, ev3Minus_v,
           nb1_v, nb2, nb3Plus_v, nb3Minus_v);
       auto couplingPlus_v = std::get<0>(tuple1);
@@ -264,7 +268,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                   continue;
                 }
               } else {
-                if (enProd < phEnergyCutoff) { continue; }
+                if (enProd < pathLinewidthCutoff) { continue; }
               }
 
               double deltaPlus;
@@ -760,7 +764,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
               } else {
                 if (matrix.theMatrix.indicesAreLocal(iBte1Shift, iBte2Shift)) {
 
-   	          linewidth->operator()(iCalc, 0, iBte1Shift) += rateIso; 
+   	          linewidth->operator()(iCalc, 0, iBte1Shift) += rateIso;
                   // if we're not symmetrizing the matrix, and we have
                   // dropped down to only using the upper triangle of the matrix, we must fill
                   // in linewidths twice, using detailed balance, in order to get the right ratest
@@ -786,7 +790,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
 		  // off diagonals
       		  if (is1 != is2Irr) {
                     outPopulations[iInput](iCalc, i, iBte1) -= rateIso * inPopRot(i);
-                  } // diagonals 
+                  } // diagonals
                   outPopulations[iInput](iCalc, i, iBte1) +=
                       rateIso * inPopulations[iInput](iCalc, i, iBte1);
                 }

@@ -64,6 +64,6 @@ std::tuple<Crystal, ElectronH0Wannier> Parser::parseElHarmonicWannier(
     Error("Unrecognised Wannier Hamiltonian format!\n"
     "-- to use Wannier90, supply a file with a *_tb.dat extension\n"
     "-- to use JDFTx, supply a jdftx.elph.phoebe.hdf5 file and set the JDFTxScfOutFile variable to the path to totalE.out\n");
-    return QEParser::parseElHarmonicWannier(context,inCrystal); // this isn't ever reached, just silences warnings
+    return QEParser::parseElHarmonicWannier(context); // this isn't ever reached, just silences warnings
   }
 }

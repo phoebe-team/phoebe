@@ -18,9 +18,9 @@ class BasePhScatteringMatrix : virtual public ScatteringMatrix {
 
   /** Constructor that just calls the constructor of scattering matrix */
   BasePhScatteringMatrix(Context &context_,
-                                   StatisticsSweep &statisticsSweep_,
-                                   BaseBandStructure &innerBandStructure_,
-                                   BaseBandStructure &outerBandStructure_);
+                        StatisticsSweep &statisticsSweep_,
+                        BaseBandStructure &innerBandStructure_,
+                        BaseBandStructure &outerBandStructure_);
 
  protected:
 
@@ -35,7 +35,7 @@ class BasePhScatteringMatrix : virtual public ScatteringMatrix {
                                 BaseBandStructure &innerBandStructure,
                                 BaseBandStructure &outerBandStructure,
                                 PhononH0& phononH0,
-                                Interaction3Ph *coupling3Ph,
+                                Interaction3Ph& coupling3Ph,
                                 std::shared_ptr<VectorBTE> linewidth);
 
   friend void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
@@ -48,10 +48,11 @@ class BasePhScatteringMatrix : virtual public ScatteringMatrix {
                                 std::shared_ptr<VectorBTE> linewidth);
 
   friend void addPhElScattering(BasePhScatteringMatrix& matrix, Context& context,
-                BaseBandStructure& phBandStructure,
-                ElectronH0Wannier* electronH0,
-                InteractionElPhWan* couplingElPhWan,
-                std::shared_ptr<VectorBTE> linewidth);
+                                BaseBandStructure& phBandStructure,
+                                BaseBandStructure& elBandStructure,
+                                StatisticsSweep& statisticsSweep, 
+                                InteractionElPhWan& couplingElPhWan,
+                                std::shared_ptr<VectorBTE> linewidth);
 
 };
 

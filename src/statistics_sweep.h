@@ -78,6 +78,13 @@ class StatisticsSweep {
    */
   int getNumTemperatures() const;
 
+  /**
+   * Tells us which kind of bandstructure this statistics sweep matches. 
+   * The only time this matters is for the sake of chemical potentials. 
+   * @return Particle: the particle which was used to calculate the stat sweep. 
+  */
+  inline Particle getParticle() const { return particle; }
+
   /** Prints to screen the information on the temperature, doping and
    * chemical potentials to be computed in the current run.
    */

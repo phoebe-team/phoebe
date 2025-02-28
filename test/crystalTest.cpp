@@ -24,10 +24,12 @@ TEST(Crystal, Test1) {
   // no born charges for the test
   Eigen::Tensor<double, 3> bornCharges(2, 3, 3);
   bornCharges.setZero();
+  Eigen::Matrix3d dielectricMatrix;
+  dielectricMatrix.setZero();
 
   // set up the crystal object
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses, bornCharges);
+                  speciesNames, speciesMasses, bornCharges, dielectricMatrix);
 
   EXPECT_EQ(crystal.getNumAtoms(), 2);
   EXPECT_EQ(crystal.getNumSpecies(), 1);

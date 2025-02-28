@@ -16,10 +16,10 @@ public:
    * @param statisticsSweep: object controlling the loops over temperature
    * and chemical potential.
    * @param innerBandStructure: bandStructure object. This is the mesh used
-   * to integrate the anharmonic properties for each state of outerBandStructure.
+   * to integrate the scattering rates for each state of outerBandStructure.
    * For transport calculation, this object is typically equal to
    * outerBandStructure. Might differ when outerBS is on a path of points.
-   * @param outerBandStructure: bandStructure object. The anharmonic
+   * @param outerBandStructure: bandStructure object. The scattering rates
    * properties are computed on the grid of points specified by this object,
    * e.g. this could be a path of points or a uniform mesh of points
    */
@@ -125,9 +125,9 @@ public:
    */
   void a2Omega();
 
-//  /** The inverse of a2Omega, converts the matrix Omega to A
-//   */
-//  void omega2A();
+  /** The inverse of a2Omega, converts the matrix Omega to A
+   */
+  void omega2A();
 
   /** Diagonalize the scattering matrix
    * @param numEigenvalues: if a number is supplied, calculate

@@ -57,7 +57,7 @@ TEST(ABS, Symmetries) {
     allEnergies.push_back(e);
   }
 
-  points.setIrreduciblePoints(&allVelocities, &allEnergies);
+  points.setIrreduciblePoints(&allVelocities); //, &allEnergies);
   // we expect 3 irreducible points out of 8 reducible
   EXPECT_EQ(points.irrPointsIterator().size(), 4);
   EXPECT_EQ(points.getNumPoints(), qMesh.prod());

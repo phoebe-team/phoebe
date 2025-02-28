@@ -34,22 +34,17 @@ DeltaFunction * DeltaFunction::smearingFactory(Context &context,
 
 // Gaussian smearing ----------------------------------------------------
 
-GaussianDeltaFunction::GaussianDeltaFunction(BaseBandStructure& bandStructure, Context &context) { 
+GaussianDeltaFunction::GaussianDeltaFunction(BaseBandStructure& bandStructure, Context &context) {
 
   double smearingWidth = context.getSmearingWidth();
 
   if(!std::isnan(context.getPhSmearingWidth()) && bandStructure.getParticle().isPhonon() ) {
     smearingWidth = context.getPhSmearingWidth();
-  } 
+  }
   if(!std::isnan(context.getElSmearingWidth()) && bandStructure.getParticle().isElectron() ) {
     smearingWidth = context.getElSmearingWidth();
-  } 
+  }
 
-  // in the coupled case we need two
-  //if (context.getAppName().find("coupled") != std::string::npos && 
- 	//	  	bandStructure.getParticle().isPhonon()) {
-  //  smearingWidth = smearingWidth * 1.;  
-  //}
   if(mpi->mpiHead()) {
     std::setprecision(9);
     std::cout << "\nGaussian smearing width is " << smearingWidth * 13.6057039763 << " eV." << std::endl;
@@ -87,22 +82,43 @@ AdaptiveGaussianDeltaFunction::AdaptiveGaussianDeltaFunction(
   broadeningCutoff = broadeningCutoff_;
 
   // if user set this input we override it here
-  if (!std::isnan(context.getAdaptiveSmearingPrefactor())) {
+  //if (!std::isnan(context.getAdaptiveSmearingPrefactor())) {
 
-    adaptivePrefactor = context.getAdaptiveSmearingPrefactor();
-    
-    if(context.getAppName().find("Coupled") != std::string::npos) {
+    //adaptivePrefactor = context.getAdaptiveSmearingPrefactor();
+    //if(bandStructure.getParticle().isPhonon()) {
+    //  adaptivePrefactor *= 250.; // bigger factor is better for ph it seems -- TODO this differently
+    //}
+/*     if(context.getAppName().find("Coupled") != std::string::npos) {
       Warning("For a coupled calculation, be careful about setting adaptiveSmearingPrefactor --\n"
 		      "this will set the el and ph values to the same thing,\n"
 		      "which is likely not optimal!");
+    } */
+  //}
+
+  if(bandStructure.getParticle().isPhonon() ) {
+    // set user defined smearing if requested
+    if(!std::isnan(context.getPhSmearingWidth())) {
+      adaptivePrefactor = context.getPhSmearingWidth();
+    } else if (!std::isnan(context.getAdaptiveSmearingPrefactor())) {
+      adaptivePrefactor = context.getAdaptiveSmearingPrefactor();
+    } else {
+      adaptivePrefactor = 0.05; // this is tested to work well for phonons
+    }
+  } else if (bandStructure.getParticle().isElectron()) {
+    if(!std::isnan(context.getElSmearingWidth()) ) {
+      adaptivePrefactor = context.getElSmearingWidth();
+    } else if (!std::isnan(context.getAdaptiveSmearingPrefactor())) {
+      adaptivePrefactor = context.getAdaptiveSmearingPrefactor();
+    } else {
+      adaptivePrefactor = 0.01; // tested to work well for electrons
     }
   }
-  else if(bandStructure.getParticle().isPhonon()) { 
-    adaptivePrefactor = 0.01; // this is tested to work well for phonons
+/*   else if(bandStructure.getParticle().isPhonon()) {
+    adaptivePrefactor = 0.05; // this is tested to work well for phonons
   } else {
-    adaptivePrefactor = 0.001; // tested to work well for electrons
-  }
-  if(mpi->mpiHead()) 
+    adaptivePrefactor = 0.01; // tested to work well for electrons
+  } */
+  if(mpi->mpiHead())
     std::cout << "The adaptive smearing prefactor is set to " << adaptivePrefactor << std::endl;
 }
 
@@ -112,7 +128,7 @@ double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
                                            [[maybe_unused]] const Eigen::Vector3d &velocity3) {
 
   if(velocity2.norm() != 0. || velocity3.norm() != 0.) {
-    Error("Developer error: Adaptive Gaussian smearing function is being misused.");
+    DeveloperError("Adaptive Gaussian smearing function is being misused.");
   }
 
   if (velocity.norm() == 0. && energy == 0.) {
@@ -146,7 +162,7 @@ double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
 
 double AdaptiveGaussianDeltaFunction::getSmearing([[maybe_unused]] const double &energy,
                                                   [[maybe_unused]] StateIndex &is) {
-  Error("AdaptiveGaussianDeltaFunction::getSmearing2 not implemented");
+  DeveloperError("AdaptiveGaussianDeltaFunction::getSmearing2 not implemented");
   return 1.;
 }
 
@@ -174,7 +190,7 @@ double SymAdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
     sigma_ijk(2) += pow(qTensor.row(i).dot(velocity3), 2);
   }
   double sigma = sigma_ijk.norm();
-  sigma = prefactor * sqrt(sigma) * adaptivePrefactor; 
+  sigma = prefactor * sqrt(sigma) * adaptivePrefactor;
   if (sigma == 0.) { return 0.; }
 
   // NOTE are we sure we want to do we want this cutoff?

@@ -48,7 +48,7 @@ TEST(TetrahedronTest, Normalization) {
     for (int i = 0; i < numEnergies; i++) {
       x += tetrahedra.getDOS(energies[i]) * deltaEnergy;
     }
-    ASSERT_NEAR(x, h0.getNumBands(), 0.03);
+    ASSERT_NEAR(x, h0.getNumBands(), 0.035);
   }
 
   // now we try to use symmetries

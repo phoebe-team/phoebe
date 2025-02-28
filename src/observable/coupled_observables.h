@@ -18,7 +18,7 @@ public:
                                        Crystal &crystal_,
                                        Context &context_);
 
-  /** Prints to screen the thermal conductivity at various temperatures
+  /** Prints to screen the transport properties at various temperatures
    * in a a nicely formatted way.
    */
   virtual void print();
@@ -42,10 +42,6 @@ public:
                       Eigen::VectorXd& eigenvalues,
                       ParallelMatrix<double>& eigenvectors);
 
-  void relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                        int& numRelaxons, int& numPhStates,
-                        Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e);
-
   /** Calculate Du(i,j) and output it to JSON for real space solvers
   * @param coupledScatteringMatrix: the scattering matrix, before diagonalization
   * @param context: contains all info about calculation inputs
@@ -61,7 +57,7 @@ public:
         BaseBandStructure* phBandStructure, BaseBandStructure* elBandStructure);
 
   // TODO probably better in protected
-  /** Symmetrize all 3x3 transport tensors in this class */
+  /** Symmetrize all 3x3 transport tensors in this class -- CURRENTLY NOT WORKING */
   void symmetrize3x3Tensors();
 
 protected:
@@ -87,6 +83,8 @@ protected:
   Eigen::Tensor<double, 3> kappaEl, kappaPh, kappaDrag, kappa, kappaTotal;
   // viscosity tensors
   Eigen::Tensor<double, 5> phViscosity, elViscosity, dragViscosity, totalViscosity;
+  // momentum transport coeff contributions 
+  Eigen::Matrix3d sigma_mom, seebeck_mom, kappa_mom;
 
   // theta^0 - energy conservation eigenvector
   //   electronic states = ds * g-1 * (hE - mu) * 1/(kbT^2 * V * Nkq * Ctot)
@@ -123,12 +121,8 @@ protected:
   Eigen::Tensor<double, 3> sigmaSContrib;
   std::vector<double> iiiiContrib;
 
-  /** Helper function to simplify outputing 3x3 transport tensors to json
+  /** Functions to symmetrize the transport tensors. CURRENTLY PROBLEMATIC!
   */
-  void appendTransportTensorForOutput(Eigen::Tensor<double, 3>& tensor,
-                        double& unitConv, int& iCalc,
-                        std::vector<std::vector<std::vector<double>>>& outFormat);
-
   void symmetrize(Eigen::Tensor<double,3>& allTransportCoeffs);
   void symmetrize(Eigen::Matrix3d& transportCoeffs);
 

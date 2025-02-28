@@ -6,6 +6,7 @@
 #include <fstream>// it may be used
 #include <iostream>
 #include <set>
+#include "phonopy_input_parser.h"
 
 #ifdef HDF5_AVAIL
 #include <highfive/H5Easy.hpp>
@@ -25,7 +26,11 @@ Interaction3Ph IFC3Parser::parse(Context &context, Crystal &crystal) {
                 << std::endl;
       }
     }
-    return parseFromPhono3py(context, crystal);
+    Eigen::Vector3i qCoarseGrid; 
+    Eigen::MatrixXd cellPositions2; 
+    Crystal crystalPhonopy = parsePhonopyYaml(context, qCoarseGrid, cellPositions2); 
+
+    return parseFromPhono3py(context, crystalPhonopy);
   } else {
     if (mpi->mpiHead()) {
       std::cout << "Using anharmonic force constants from ShengBTE."
@@ -509,13 +514,13 @@ Interaction3Ph IFC3Parser::parseFromPhono3py(Context &context,
 
   // check that the lattice found in the input file matches
   // the one found for fc2
-  // TODO would be nice to do this check, but this lattice is
-  // the supercell lattice and not the unit cell lattice
-  /*if(lattice != crystal.getDirectUnitCell()) {
-    Error("FC3s seem to come from a file with a different unit cell\n"
+  if(lattice.row(0)/qCoarseGrid(0) != crystal.getDirectUnitCell().row(0) ||
+    lattice.row(1)/qCoarseGrid(1) != crystal.getDirectUnitCell().row(1) || 
+    lattice.row(2)/qCoarseGrid(2) != crystal.getDirectUnitCell().row(2)) {
+    Warning("FC3s seem to come from a file with a different unit cell\n"
           "than your FC2s. Check that you did not mix unit cell definitions\n"
           "when you ran the DFT calculations.");
-  }*/
+  }
 
   // convert std::vectors to Eigen formats required by the
   // next part of phoebe

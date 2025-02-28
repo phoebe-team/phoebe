@@ -19,11 +19,13 @@ TEST(PointsTest, PointsHandling) {
   // no born charges for the test
   Eigen::Tensor<double, 3> bornCharges(2, 3, 3);
   bornCharges.setZero();
+  Eigen::Matrix3d dielectricMatrix;
+  dielectricMatrix.setZero();
 
   Context context;
 
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses, bornCharges);
+                  speciesNames, speciesMasses, bornCharges, dielectricMatrix);
 
   Eigen::Vector3i mesh;
   mesh << 4, 4, 4;

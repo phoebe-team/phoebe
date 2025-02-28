@@ -29,12 +29,10 @@ public:
    * path
    * @param h0: phonon hamiltonian used to compute phonon energies and
    * eigenvectors.
-   * @param couplingElPhWan_: object with the electron-phonon coupling.
    */
   PhElScatteringMatrix(Context &context_, StatisticsSweep &statisticsSweep_,
-                       //BaseBandStructure &elBandStructure_,
                        BaseBandStructure &phBandStructure_,
-                       InteractionElPhWan *couplingElPhWan_,
+                       PhononH0 *phononH0_, 
                        ElectronH0Wannier *electronH0_);
 
   /** Copy constructor
@@ -51,8 +49,8 @@ public:
 
 protected:
 
-  InteractionElPhWan *couplingElPhWan;
   ElectronH0Wannier *electronH0;
+  PhononH0* phononH0; 
 
   void builder(std::shared_ptr<VectorBTE> linewidth, std::vector<VectorBTE> &inPopulations,
                std::vector<VectorBTE> &outPopulations) override;
@@ -64,8 +62,9 @@ protected:
 
   friend void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 BaseBandStructure &phBandStructure,
-                ElectronH0Wannier* electronH0,
-                InteractionElPhWan *couplingElPhWan,
+                BaseBandStructure &elBandStructure,
+                StatisticsSweep &statisticsSweep, 
+                InteractionElPhWan &couplingElPhWan,
                 std::shared_ptr<VectorBTE> linewidth);
 
 };

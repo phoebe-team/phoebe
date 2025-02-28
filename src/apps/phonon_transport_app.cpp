@@ -3,7 +3,6 @@
 #include "context.h"
 #include "drift.h"
 #include "exceptions.h"
-#include "ifc3_parser.h"
 #include "observable.h"
 #include "parser.h"
 #include "phel_scattering_matrix.h"
@@ -35,83 +34,22 @@ void PhononTransportApp::run(Context &context) {
   // first we make compute the band structure on the fine grid
   Points fullPoints(crystal, context.getQMesh());
 
-  if (mpi->mpiHead()) {
-    std::cout << "\nComputing phonon band structure." << std::endl;
-  }
-
-
-  auto popLimitTemp = context.getWindowPopulationLimit();
-  context.setWindowPopulationLimit(1e-4);
-
   auto tup1 = ActiveBandStructure::builder(context, phononH0, fullPoints);
   auto bandStructure = std::get<0>(tup1);
   auto statisticsSweep = std::get<1>(tup1);
 
-  context.setWindowPopulationLimit(popLimitTemp);
-
-  // print some info about state number reduction
-  if (mpi->mpiHead()) {
-    if(bandStructure.hasWindow() != 0) {
-        std::cout << "Window selection reduced phonon band structure from "
-                << fullPoints.getNumPoints() * phononH0.getNumBands() << " to "
-                << bandStructure.getNumStates() << " states."  << std::endl;
-    }
-    if(context.getUseSymmetries()) {
-      std::cout << "Symmetries reduced phonon band structure from "
-          << bandStructure.getNumStates() << " to "
-          << bandStructure.irrStateIterator().size() << " states." << std::endl;
-    }
-    std::cout << "Done computing phonon band structure.\n" << std::endl;
-  }
-
-  // load the 3phonon coupling
-  if (mpi->mpiHead()) {
-    std::cout << "Starting anharmonic scattering calculation." << std::endl;
-  }
-  // this also checks that the crystal is the same one read in for 3ph
-  auto coupling3Ph = IFC3Parser::parse(context, crystal);
-
   // build/initialize the scattering matrix and the smearing
   PhScatteringMatrix scatteringMatrix(context, statisticsSweep, bandStructure,
-                                      bandStructure, &coupling3Ph, &phononH0);
+                                      bandStructure, &phononH0);
   scatteringMatrix.setup();
-
-  // if requested in input, load the phononElectron information
-  // we save only a vector BTE to add to the phonon scattering matrix,
-  // as the phonon electron lifetime only contributes to the digaonal
-  if(usePhElInteraction) {
-
-    // could be possible to do this?
-    // don't proceed if we use more than one doping concentration:
-    // we'd need slightly different statisticsSweep for the 2 scatterings
-    int numMu = statisticsSweep.getNumChemicalPotentials();
-    if (numMu != 1) {
-        Error("Can currenly only add ph-el scattering one doping "
-          "concentration at the time. Let us know if you want to have multiple mu values as a feature.");
-    }
-    if (mpi->mpiHead()) {
-      std::cout << "\nStarting phonon-electron scattering calculation." << std::endl;
-    }
-    VectorBTE phElLinewidths = getPhononElectronLinewidth(context, crystal,
-                                         bandStructure, statisticsSweep, phononH0);
-
-    // if we're using both phel and phph times, we should output
-    // each independent linewidth set. PhEl is output above.
-    scatteringMatrix.outputToJSON("rta_phph_relaxation_times.json");
-
-    // add in the phel linewidths -- use getLinewidths to remove pop factors
-    // when adding the two values
-    VectorBTE totalRates = scatteringMatrix.getLinewidths();
-    totalRates = totalRates + phElLinewidths;
-    scatteringMatrix.setLinewidths(totalRates);
-
-  }
 
   // solve the BTE at the relaxation time approximation level
   // we always do this, as it's the cheapest solver and is required to know
   // the diagonal for the exact method.
   if (mpi->mpiHead()) {
-    std::cout << "\n" << std::string(80, '-') << "\n\n"
+    std::cout << "\n" << std::string(20, '=')
+              << " Starting BTE solvers. " << std::string(20, '=')
+              << "\n\n"
               << "Solving BTE within the relaxation time approximation."
               << std::endl;
   }
@@ -433,51 +371,11 @@ void PhononTransportApp::run(Context &context) {
   mpi->barrier();
 }
 
-// helper function to generate phEl rates
-VectorBTE PhononTransportApp::getPhononElectronLinewidth(Context& context, Crystal& crystalPh,
-                                                         ActiveBandStructure &phBandStructure,
-                                                         StatisticsSweep& statisticsSweep,
-                                                         PhononH0& phononH0) {
-
-    // load electron band structure
-    auto t1 = Parser::parseElHarmonicWannier(context, &crystalPh);
-    auto crystalEl = std::get<0>(t1);
-    auto electronH0 = std::get<1>(t1);
-
-    // check that the crystal in the elph calculation is the
-    // same as the one in the phph calculation
-    if (crystalPh.getDirectUnitCell() != crystalEl.getDirectUnitCell()) {
-      Warning("Phonon-electron scattering requested, but crystals used for ph-ph and \n"
-        "ph-el scattering are not the same!");
-    }
-
-    // load the elph coupling
-    // Note: this file contains the number of electrons
-    // which is needed to understand where to place the fermi level
-    auto couplingElPh = InteractionElPhWan::parse(context, crystalPh, phononH0);
-
-    // TODO unsure if we should allow this variable to be set by the user in place of
-    // the standard kmesh, to be consistent with other uses.
-    context.setKMeshPhEl(context.getKMesh());
-
-    // setup the scattering matrix
-    PhElScatteringMatrix phelScatteringMatrix(context, statisticsSweep,
-                                              phBandStructure,
-                                              &couplingElPh, &electronH0);
-    phelScatteringMatrix.setup();
-    phelScatteringMatrix.outputToJSON("rta_phel_relaxation_times.json");
-
-    // important to use getLinewidths here instead of diagonal() -- they
-    // do not return the same thing (diagonal has population factors)
-    VectorBTE phononElectronRates = phelScatteringMatrix.getLinewidths();
-    return phononElectronRates;
-}
-
 void PhononTransportApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getPhFC2FileName(), "PhFC2FileName");
   throwErrorIfUnset(context.getQMesh(), "qMesh");
   throwWarningIfUnset(context.getSumRuleFC2(), "sumRuleFC2");
-  throwErrorIfUnset(context.getPhFC3FileName(), "PhFC3FileName");
+  //throwErrorIfUnset(context.getPhFC3FileName(), "PhFC3FileName");
   throwErrorIfUnset(context.getTemperatures(), "temperatures");
   throwErrorIfUnset(context.getSmearingMethod(), "smearingMethod");
   if (context.getSmearingMethod() == DeltaFunction::gaussian) {

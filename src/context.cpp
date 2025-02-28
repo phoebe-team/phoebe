@@ -651,6 +651,9 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "useDragTerms") {
         useDragTerms = parseBool(val);
       }
+      if (parameterName == "reconstructLinewidths") {
+        reconstructLinewidths = parseBool(val);
+      }
       if (parameterName == "useSymmetries") {
         useSymmetries = parseBool(val);
       }
@@ -1019,6 +1022,7 @@ void Context::printInputSummary(const std::string &fileName) {
     // specific to coupled scattering matrix app
     if (appName.find("oupled") != std::string::npos) {
       std::cout << "useDragTerms = " << useDragTerms << std::endl;
+      std::cout << "reconstructLinewidths = " << reconstructLinewidths << std::endl;
     }
 
     if (!std::isnan(constantRelaxationTime))
@@ -1433,6 +1437,13 @@ bool Context::getUseDragTerms() const {
 }
 void Context::setUseDragTerms(const bool &x) {
   useDragTerms = x;
+}
+
+bool Context::getReconstructLinewidths() const {
+  return reconstructLinewidths;
+}
+void Context::setReconstructLinewidths(const bool &x) {
+  reconstructLinewidths = x;
 }
 
 int Context::getNumRelaxonsEigenvalues() const {

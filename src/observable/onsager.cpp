@@ -520,8 +520,8 @@ void OnsagerCoefficients::calcVariational(VectorBTE &afE, VectorBTE &afT,
     //symmetrize(sigma);
     //symmetrize(kappa);
     mpi->barrier();
-  }
-} */
+  }*/
+} 
 
 // TODO this should be a function of observable rather than of onsager, 
 // however, somehow Onsager does not inherit from observable... 

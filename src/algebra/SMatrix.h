@@ -101,6 +101,12 @@ class SerialMatrix {
    */
   const T& operator()(const int &row, const int &col) const;
 
+  /** A function to fix up a matrix with a bit of noise to be positive semi-definite, 
+  *   which currently does not have a SMatrix implementation, as it's only used by 
+  *   distributed scattering matrix calculations 
+  */
+  void enforcePositiveSemiDefinite() {}; 
+
   /** A dummy function not implemented, only for PMatrix currently
    * @param outFileName: string naming the output file
    * @param dataSetName: keyname for data in the output file

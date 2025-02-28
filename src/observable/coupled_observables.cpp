@@ -66,7 +66,6 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
 
 void CoupledCoefficients::calcFromRelaxons(
                         CoupledScatteringMatrix& scatteringMatrix,
-                        //SpecificHeat& phSpecificHeat, SpecificHeat& elSpecificHeat,
                         Eigen::VectorXd& eigenvalues, ParallelMatrix<double>& eigenvectors) {
 
   // Note: the calcSpecialEigenvectors has been called before this, as it's needed

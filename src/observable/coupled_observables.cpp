@@ -66,7 +66,7 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
 
 void CoupledCoefficients::calcFromRelaxons(
                         CoupledScatteringMatrix& scatteringMatrix,
-                        SpecificHeat& phSpecificHeat, SpecificHeat& elSpecificHeat,
+                        //SpecificHeat& phSpecificHeat, SpecificHeat& elSpecificHeat,
                         Eigen::VectorXd& eigenvalues, ParallelMatrix<double>& eigenvectors) {
 
   // Note: the calcSpecialEigenvectors has been called before this, as it's needed
@@ -345,7 +345,7 @@ void CoupledCoefficients::calcFromRelaxons(
   seebeck = seebeckSelf + seebeckDrag;
 
   // throw warnings if different results come out from parts vs total calculation
-  bool sigmaFail = false;
+  /*bool sigmaFail = false;
   bool seebeckFail = false;
   bool kappaFail = false;
   for (int i = 0; i < dimensionality; i++) {
@@ -355,7 +355,7 @@ void CoupledCoefficients::calcFromRelaxons(
       if(kappa(0,i,j) != kappaTotal(0,i,j))     { kappaFail = true; }
     }
   }
-/*   if(seebeckFail) Warning("Developer warning: Seebeck cross + self does not equal Seebeck total.");
+   if(seebeckFail) Warning("Developer warning: Seebeck cross + self does not equal Seebeck total.");
   if(sigmaFail) Warning("Developer warning: Sigma el does not equal sigma total.");
   if(kappaFail) Warning("Developer warning: Kappa cross + selfEl + selfPh does not equal kappa total.");
  */
@@ -824,9 +824,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   }
 
   Eigen::Matrix3d invDuEl = DuEl.inverse();          // Du_ee
-  Eigen::Matrix3d invDuDragPh = DuDragPh.inverse();  // Du_pe
   Eigen::Matrix3d invDuPh = DuPh.inverse();          // Du_pp
-  Eigen::Matrix3d invDuDragEl = DuDragEl.inverse();  // Du_ep
   Eigen::MatrixXd theta0_phi(3,6), theta_e_phi(3,6);
   theta0_phi.setZero(); theta_e_phi.setZero();
 

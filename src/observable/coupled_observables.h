@@ -37,8 +37,8 @@ public:
    * @param scatteringMatrix: $\tilde{\Omega}$
    */
   void calcFromRelaxons(CoupledScatteringMatrix& scatteringMatrix,
-                      SpecificHeat& phSpecificHeat,
-                      SpecificHeat& elSpecificHeat,
+                      //SpecificHeat& phSpecificHeat,
+                      //SpecificHeat& elSpecificHeat,
                       Eigen::VectorXd& eigenvalues,
                       ParallelMatrix<double>& eigenvectors);
 

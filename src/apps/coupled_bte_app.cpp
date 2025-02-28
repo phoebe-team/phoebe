@@ -151,7 +151,7 @@ void CoupledTransportApp::run(Context &context) {
     scatteringMatrix.relaxonsToJSON("coupled_relaxons_relaxation_times.json", eigenvalues);
 
     // calculate the transport properties and viscosity
-    coupledCoeffs.calcFromRelaxons(scatteringMatrix, phSpecificHeat, elSpecificHeat, eigenvalues, eigenvectors);
+    coupledCoeffs.calcFromRelaxons(scatteringMatrix, eigenvalues, eigenvectors);
     coupledCoeffs.print();
     // note: viscosities are output by default internally in calcFromRelaxons
     coupledCoeffs.outputToJSON("coupled_relaxons_transport_coeffs.json");

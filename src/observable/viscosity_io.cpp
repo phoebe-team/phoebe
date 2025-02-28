@@ -69,15 +69,15 @@ void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
     std::cout << "\nMaximum scalar product phi1.theta_alpha = " << maxPhi1 << " at index " << idxAlpha_phi1 << "." << std::endl;
     std::cout << "Maximum scalar product phi2.theta_alpha = " << maxPhi2 << " at index " << idxAlpha_phi2 << "." << std::endl;
     std::cout << "Maximum scalar product phi3.theta_alpha = " << maxPhi3 << " at index " << idxAlpha_phi3 << "." << std::endl;
-    //for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodPhi1(gamma); }
+    //for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prodPhi1(gamma); }
 
     std::cout << "\nMaximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
     std::cout << "First ten products with theta_0:";
-    for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodTheta0(gamma); }
+    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prodTheta0(gamma); }
     if(particle.isElectron()) {
       std::cout << "\n\nMaximum scalar product theta_e.theta_alpha = " << maxThetae << " at index " << idxAlpha_e << "." << std::endl;
       std::cout << "First ten products with theta_e:";
-      for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodThetae(gamma); }
+      for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prodThetae(gamma); }
     }
     std::cout << "\n" << std::endl;
   }
@@ -229,7 +229,7 @@ void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStr
       theta_e(is) = sqrt(pop) * ds(is);
       U += pop;
     }
-    auto popCont = pop * (en - chemPot) * (en - chemPot);
+    // auto popCont = pop * (en - chemPot) * (en - chemPot);
     C += pop * (en - chemPot) * (en - chemPot);
   }
   mpi->allReduceSum(&theta0);
@@ -586,9 +586,6 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
   //  if(!(bandStructures[0]->getParticle().isElectron() && bandStructures[1]->getParticle().isPhonon()))
   //    DeveloperError("First bandstructure must be electron, second must be phonon, when outputing relaxons to HDF5.");
     int numElStates = int(bandStructures[0]->irrStateIterator().size());
-
-    std::cout << 'shifted state index' << std::endl;
-
     shiftedStateIdx = [numElStates](int stateIndex) {  
       if(stateIndex < numElStates) { return stateIndex; } 
       else { return stateIndex-numElStates; }

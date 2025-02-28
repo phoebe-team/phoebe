@@ -197,7 +197,6 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
         // this is the spinType, but I don't want to change it to avoid making a mess wrt using older hdf5 files
         HighFive::DataSet dnspin = file.getDataSet("/numSpin"); 
         dnelec.read(numElectrons);
-        std::cout << "read numElectrons " << numElectrons << std::endl; // TODO remove me
         dnspin.read(spinType);
 
         // read in the number of phonon and electron bands

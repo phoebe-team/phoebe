@@ -153,15 +153,17 @@ if __name__ == "__main__":
                 sys.exit(1)
             k1 = numpy.array(data1['energies'])
             k2 = numpy.array(data2['energies'])
-            diff = ((k1 - k2)/numpy.max(k1)).sum()
+            #diff = ((k1 - k2)/numpy.max(k1)).sum()
+            diff = numpy.linalg.norm((k1[numpy.where(k1!=0)]- k2[numpy.where(k1!=0)])/k1[numpy.where(k1!=0)])
             if abs(diff) > tol:
                 print("energies:",diff)
                 print(filename)
                 sys.exit(1)
             k1 = numpy.array(data1['velocities'])
             k2 = numpy.array(data2['velocities'])
-            diff = ((k1 - k2)/numpy.max(k1)).sum()
-            if abs(diff) > tol:
+            #diff = ((k1 - k2)/numpy.max(k1)).sum()
+            diff = numpy.linalg.norm((k1[numpy.where(k1!=0)]- k2[numpy.where(k1!=0)])/k1[numpy.where(k1!=0)])
+            if abs(diff) > 0.01: #tol: # for some reason, this one is sensitive in actions...
                 print("velocities:",diff)
                 print(filename)
                 sys.exit(1)

@@ -145,7 +145,8 @@ if __name__ == "__main__":
         if "path_" in filename and "_relaxation_times" in filename:
             k1 = numpy.array(data1['linewidths'])
             k2 = numpy.array(data2['linewidths'])
-            diff = ((k1 - k2)/numpy.max(k1)).sum()
+            #diff = numpy.linalg.norm((k1 - k2)/k1) #/numpy.max(k1)).sum()
+            diff = numpy.linalg.norm((k1[numpy.where(k1!=0)]- k2[numpy.where(k1!=0)])/k1[numpy.where(k1!=0)])
             if abs(diff) > tol:
                 print("linewidths:",diff)
                 print(filename)
@@ -168,7 +169,8 @@ if __name__ == "__main__":
             k2 = numpy.array(data2['relaxationTimes'])
             k1[numpy.where(k1 == None)] = 0
             k2[numpy.where(k2 == None)] = 0
-            diff = ((k1 - k2)/numpy.max(k1)).sum()
+            #diff = ((k1 - k2)/numpy.max(k1)).sum()
+            diff = numpy.linalg.norm((k1[numpy.where(k1!=0)]- k2[numpy.where(k1!=0)])/k1[numpy.where(k1!=0)]) #/numpy.max(k1)).sum()
             if abs(diff) > tol:
                 print("relaxationTimes",diff)
                 print(filename)

@@ -6,8 +6,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        omp: [OFF, ON]
-        mpi: [OFF, ON]
+        omp: [ON]
+        mpi: [ON]
         compiler:
           [ "GCC 14" ]
     env:
@@ -29,7 +29,7 @@ jobs:
         run: |
           CC_VERSION=$( echo "${{ matrix.compiler }}" | awk '{ print $2; }')
           echo "CC_VERSION=${CC_VERSION}" >> "$GITHUB_OUTPUT"
-      - name: Install GCC 
+      - name: Install GCC
         if: ${{ startsWith(matrix.compiler, 'GCC') }}
         run: sudo apt install -y g++ #-${{ steps.extract_matrix.outputs.CC_VERSION }}
       - name: Install Clang

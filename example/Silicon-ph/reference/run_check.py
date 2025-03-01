@@ -147,21 +147,21 @@ if __name__ == "__main__":
             k2 = numpy.array(data2['linewidths'])
             diff = ((k1 - k2)/numpy.max(k1)).sum()
             if abs(diff) > tol:
-                print(diff)
+                print("linewidths:",diff)
                 print(filename)
                 sys.exit(1)
             k1 = numpy.array(data1['energies'])
             k2 = numpy.array(data2['energies'])
             diff = ((k1 - k2)/numpy.max(k1)).sum()
             if abs(diff) > tol:
-                print(diff)
+                print("energies:",diff)
                 print(filename)
                 sys.exit(1)
             k1 = numpy.array(data1['velocities'])
             k2 = numpy.array(data2['velocities'])
             diff = ((k1 - k2)/numpy.max(k1)).sum()
             if abs(diff) > tol:
-                print(diff)
+                print("velocities:",diff)
                 print(filename)
                 sys.exit(1)
             k1 = numpy.array(data1['relaxationTimes'])
@@ -170,7 +170,7 @@ if __name__ == "__main__":
             k2[numpy.where(k2 == None)] = 0
             diff = ((k1 - k2)/numpy.max(k1)).sum()
             if abs(diff) > tol:
-                print(diff)
+                print("relaxationTimes",diff)
                 print(filename)
                 sys.exit(1)
 

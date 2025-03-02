@@ -153,10 +153,12 @@ if __name__ == "__main__":
                 sys.exit(1)
             k1 = numpy.array(data1['energies'])
             k2 = numpy.array(data2['energies'])
-            #diff = ((k1 - k2)/numpy.max(k1)).sum()
+            diff = ((k1 - k2)/numpy.max(k1)).sum()
             diff = numpy.linalg.norm((k1[numpy.where(k1!=0)]- k2[numpy.where(k1!=0)])/k1[numpy.where(k1!=0)])
-            if abs(diff) > tol:
-                print("energies:",diff)
+            #if abs(diff) > tol:
+                print("new energies:",k1)
+                print("ref energies:",k2)
+                print("energies diff:",diff)
                 print(filename)
                 sys.exit(1)
             k1 = numpy.array(data1['velocities'])

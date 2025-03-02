@@ -1,4 +1,5 @@
 #include "electron_wannier_transport_app.h"
+//#include "elph_qe_to_phoebe_app.h" // TODO remove if we can work around
 #include "bandstructure.h"
 #include "context.h"
 #include "drift.h"
@@ -12,6 +13,16 @@
 
 void ElectronWannierTransportApp::run(Context &context) {
 
+  // collect information about the run from context
+  bool useElElInteraction = false; //!context.getElectronElectronFileName().empty();
+  bool useElPhInteraction = !context.getElphFileName().empty();
+  bool useCRTA = !std::isnan(context.getConstantRelaxationTime());
+
+  if(!useElElInteraction && !useElPhInteraction && !useCRTA) {
+    Error("If not using the CRTA, you must specify either a el-ph or el-el"
+        " coupling input file!");
+  }
+
   Kokkos::Profiling::pushRegion("ETapp.parseHamiltonians");
   auto t2 = Parser::parsePhHarmonic(context);
   auto crystal = std::get<0>(t2);
@@ -21,6 +32,16 @@ void ElectronWannierTransportApp::run(Context &context) {
   auto crystalEl = std::get<0>(t1);
   auto electronH0 = std::get<1>(t1);
   Kokkos::Profiling::popRegion();
+
+  // TODO minor issue here -- need num electrons before constructing bandstructure
+  if(std::isnan(context.getFermiLevel()) && !useElPhInteraction && std::isnan(context.getNumOccupiedStates())) { // TODO is this true for CRTA
+    Error("If supplying only el-el interaction or CRTA, user must specify"
+        " the fermiLevel or numOccupiedStates variable in the input file.");
+  } else if(useElPhInteraction && std::isnan(context.getNumOccupiedStates())) {
+    // this function sets num occupied states in context 
+    H5Easy::File file(context.getElphFileName(), H5Easy::File::ReadOnly);
+    context.setNumOccupiedStates(H5Easy::load<int>(file, "/numElectrons"));
+  }
 
   // compute the band structure on the fine grid
   if (mpi->mpiHead()) {

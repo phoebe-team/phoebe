@@ -11,6 +11,7 @@ dopings = [1.e21]
 smearingMethod = "gaussian"
 smearingWidth = 0.5 eV
 windowType = "population"
+numOccupiedStates = 4
 
 # for a production relaxons run, use this -- otherwise, false
 symmetrizeMatrix = true

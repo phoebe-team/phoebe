@@ -62,11 +62,12 @@ if(HDF5_AVAIL)
   endif()
   ExternalProject_Add(highfive_dep
       SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/highfive_src
-      GIT_REPOSITORY https://github.com/BlueBrain/HighFive.git
+      GIT_REPOSITORY https://github.com/highfive-devs/highfive.git
       GIT_TAG v3.0.0-beta2
       UPDATE_COMMAND ""
       CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=${CMAKE_CURRENT_BINARY_DIR}/highfive_src
           -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/highfive_src
           -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
           -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
@@ -74,7 +75,7 @@ if(HDF5_AVAIL)
           -DHIGHFIVE_EXAMPLES=OFF
           -DHIGHFIVE_UNIT_TESTS=OFF
           -DHIGHFIVE_TEST_BOOST=OFF
-          -DHIGHFIVE_TEST_EIGEN=ON
+          -DHIGHFIVE_TEST_EIGEN=OFF
           -DHDF5_IS_PARALLEL=${PARALLEL_HDF5}
           -DHIGHFIVE_TEST_OPENCV=OFF
           -DHIGHFIVE_TEST_XTENSOR=OFF

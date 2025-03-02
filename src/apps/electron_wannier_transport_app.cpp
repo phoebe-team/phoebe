@@ -38,9 +38,13 @@ void ElectronWannierTransportApp::run(Context &context) {
     Error("If supplying only el-el interaction or CRTA, user must specify"
         " the fermiLevel or numOccupiedStates variable in the input file.");
   } else if(useElPhInteraction && std::isnan(context.getNumOccupiedStates())) {
+    #ifdef HDF5_AVAIL
     // this function sets num occupied states in context 
     H5Easy::File file(context.getElphFileName(), H5Easy::File::ReadOnly);
     context.setNumOccupiedStates(H5Easy::load<int>(file, "/numElectrons"));
+    #else
+    // TODO we have to handle this case!
+    #endif
   }
 
   // compute the band structure on the fine grid

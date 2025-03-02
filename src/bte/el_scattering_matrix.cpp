@@ -163,8 +163,8 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   //if(mpi->mpiHead()) std::cout << linewidth->data.transpose() << std::endl;
 
   // before closing, write the relaxation times to file
-  outputLifetimesToJSON("rta_el_momentum_relaxation_times.json", linewidthMR);
-  outputLifetimesToJSON("rta_el_relaxation_times.json", linewidth);
+  //outputLifetimesToJSON("rta_el_momentum_relaxation_times.json", linewidthMR);
+  //outputLifetimesToJSON("rta_el_relaxation_times.json", linewidth);
 
 }
 

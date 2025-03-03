@@ -77,8 +77,8 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
   //if (dragTermType == Del) { norm = sqrt(spinFactor) / (sqrt( double(context.getKMesh().prod()) ) * sqrt(double(context.getQMesh().prod()))); }
   //else { norm = sqrt(spinFactor) / (sqrt(double(context.getQMesh().prod())) * sqrt(double(context.getKMesh().prod()))); }
   //norm = spinFactor/(double(context.getKMesh().prod()));
-  double Nk = double(context.getKMesh().prod()); 
-  double Nq = double(context.getQMesh().prod()); 
+  double Nk = double(context.getKMesh().prod());
+  double Nq = double(context.getQMesh().prod());
   norm = sqrt(spinFactor) / (sqrt( Nk * Nq));
 
   // TODO change this to the same in phel scattering as well
@@ -427,15 +427,12 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   double coshKp = 1./(2. * cosh(0.5 * (enKp - chemPot) / kT));
 
                   double dragRate = 0;
-                  //Eigen::Vector3d qCrysM = phononBandStructure.getPoints().cartesianToCrystal(-qCartesian);
-                  //WavevectorIndex iQidxM(phononBandStructure.getPointIndex(qCrysM));
-                  //int isQM = phononBandStructure.getIndex(iQidxM, BandIndex(ibQ));
 
-                  double normTemp = norm; 
-                  if( (enQ < 0.007 / energyRyToEv)) { // && (qCrys.norm() < 1e-1)) {
-                    normTemp = sqrt(spinFactor) / ( Nk );
-                    //std::cout << " imode omega q " << ibQ << " " << enQ << " " << qCrys.transpose() << std::endl;
-                  }
+                  //double normTemp = norm;
+                  //if( (enQ < 0.007 / energyRyToEv)) { // && (qCrys.norm() < 1e-1)) {
+                  //  normTemp = sqrt(spinFactor) / ( Nk );
+                  //  //std::cout << " imode omega q " << ibQ << " " << enQ << " " << qCrys.transpose() << std::endl;
+                  //}
 
                   if(!isKpMinus) { // g+ part
 

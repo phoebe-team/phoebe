@@ -47,17 +47,18 @@ public:
 /** Object describing the eigenvector with zero-eigenvalue of the symmetrized
  * scattering matrix Omega (notation of Cepellotti PRX (2016)) associated with
  * the energy conservation.
+ * Currently unused, maybe never tested
  */
-class Vector0 : public VectorBTE {
-public:
-  /** Default constructor
-   *
-   * @param statisticsSweep_: object with temperatures and chemical potentials
-   * @param bandStructure_: object with the band structure
-   * @param specificHeat: object with the values of specific heat
-   */
-  Vector0(StatisticsSweep &statisticsSweep_, BaseBandStructure &bandStructure_,
-          SpecificHeat &specificHeat, const bool& symmetrize = false);
-};
+//class Vector0 : public VectorBTE {
+//public:
+//  /** Default constructor
+//   *
+//   * @param statisticsSweep_: object with temperatures and chemical potentials
+//   * @param bandStructure_: object with the band structure
+//   * @param specificHeat: object with the values of specific heat
+//   */
+//  Vector0(StatisticsSweep &statisticsSweep_, BaseBandStructure &bandStructure_,
+//          SpecificHeat &specificHeat, const bool& symmetrize = false);
+//};
 
 #endif

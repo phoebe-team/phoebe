@@ -26,7 +26,7 @@ VectorBTE::VectorBTE(StatisticsSweep &statisticsSweep_,
     for (int is : bandStructure.irrStateIterator()) {
       auto isIdx = StateIndex(is);
       double en = bandStructure.getEnergy(isIdx);
-      if (en < 0.1 / ryToCmm1) { // cutoff at 0.1 cm^-1
+      if (en < phEnergyCutoff) { // cutoff at 0.1 cm^-1
         int iBte = bandStructure.stateToBte(isIdx).get();
         excludeIndices.push_back(iBte);
       }
@@ -332,6 +332,13 @@ void VectorBTE::population2Canonical() {
 // get/set operator
 double &VectorBTE::operator()(const int &iCalc, const int &iDim,
                               const int &iState) {
+
+  //if(iCalc * dimensionality + iDim >= numCalculations || iCalc * dimensionality + iDim < 0) {
+  //  DeveloperError("Out of bounds calculation indexing in VectorBTE.");
+  //}
+  //if(iState >= numStates || iState < 0) {
+  //  DeveloperError("Out of bounds state index in VectorBTE.");
+  //}
   return data(iCalc * dimensionality + iDim, iState);
 }
 
@@ -361,3 +368,5 @@ VectorBTE::loc2Glob(
 void VectorBTE::setConst(const double &constant) {
   data.setConstant(constant);
 }
+
+int VectorBTE::getNumStates() {return numStates;}

@@ -4,48 +4,11 @@
 #include "mpiHelper.h"
 #include "window.h"
 #include "common_kokkos.h"
+#include <cstddef>
+#include <iomanip>
 
 ActiveBandStructure::ActiveBandStructure(Particle &particle_, Points &points_)
     : particle(particle_), points(points_) {}
-
-// copy constructor
-ActiveBandStructure::ActiveBandStructure(const ActiveBandStructure &that)
-    : particle(that.particle), points(that.points), energies(that.energies),
-      velocities(that.velocities), eigenvectors(that.eigenvectors),
-      hasEigenvectors(that.hasEigenvectors), numStates(that.numStates),
-      numIrrStates(that.numIrrStates), numIrrPoints(that.numIrrPoints),
-      numPoints(that.numPoints), numBands(that.numBands),
-      numFullBands(that.numFullBands), windowMethod(that.windowMethod),
-      auxBloch2Comb(that.auxBloch2Comb),
-      cumulativeKbOffset(that.cumulativeKbOffset),
-      bteAuxBloch2Comb(that.bteAuxBloch2Comb),
-      bteCumulativeKbOffset(that.bteCumulativeKbOffset),
-      cumulativeKbbOffset(that.cumulativeKbbOffset) {}
-
-ActiveBandStructure &ActiveBandStructure::operator=(
-    const ActiveBandStructure &that) { // assignment operator
-  if (this != &that) {
-    particle = that.particle;
-    points = that.points;
-    energies = that.energies;
-    velocities = that.velocities;
-    eigenvectors = that.eigenvectors;
-    hasEigenvectors = that.hasEigenvectors;
-    numStates = that.numStates;
-    numIrrStates = that.numIrrStates;
-    numIrrPoints = that.numIrrPoints;
-    numPoints = that.numPoints;
-    numBands = that.numBands;
-    numFullBands = that.numFullBands;
-    windowMethod = that.windowMethod;
-    auxBloch2Comb = that.auxBloch2Comb;
-    cumulativeKbOffset = that.cumulativeKbOffset;
-    bteAuxBloch2Comb = that.bteAuxBloch2Comb;
-    bteCumulativeKbOffset = that.bteCumulativeKbOffset;
-    cumulativeKbbOffset = that.cumulativeKbbOffset;
-  }
-  return *this;
-}
 
 ActiveBandStructure::ActiveBandStructure(const Points &points_,
                                          HarmonicHamiltonian *h0,
@@ -63,16 +26,56 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
   }
   numStates = numFullBands * numPoints;
   hasEigenvectors = withEigenvectors;
+  hasVelocities = withVelocities;
 
-  energies.resize(numPoints * numFullBands, 0.);
-  if(withVelocities) velocities.resize(numPoints * numFullBands * numFullBands * 3, complexZero);
-  if(withEigenvectors) eigenvectors.resize(numPoints * numFullBands * numFullBands, complexZero);
+  if (mpi->mpiHead()) { // print info on memory
+    // count up the total memory use
+    double x = numPoints * numFullBands; // number of energies, which will always be stored
+    x *= 8; // size of double
+    if(hasVelocities) {
+      double xtemp = numFullBands * numFullBands * 3;
+      xtemp *= numPoints;
+      x += xtemp * 16; // complex double
+    }
+    if(hasEigenvectors) {
+      double xtemp = numFullBands * numFullBands;
+      xtemp *= numPoints;
+      x += xtemp * 16; // size of complex double
+    }
+    x *= 1. / pow(1024,3);
+    std::cout << std::setprecision(4);
+    std::cout << "Allocating " << x << " GB (per MPI process) for band structure." << std::endl;
+  }
+  mpi->barrier(); // wait to print this info before allocating
+
+  try {
+    energies.resize(numPoints * numFullBands, 0.);
+  } catch(std::bad_alloc& e) {
+    Error("Failed to allocate band structure energies.\n"
+        "You are likely out of memory.");
+  }
+  try {
+    if(withEigenvectors) eigenvectors.resize(numPoints * numFullBands * numFullBands, complexZero);
+  } catch(std::bad_alloc& e) {
+    Error("Failed to allocate band structure eigenvectors.\n"
+        "You are likely out of memory.");
+  }
+  try {
+    size_t size = numPoints;
+    size *= numFullBands; 
+    size *= size_t(numFullBands) * size_t(3); 
+    if(mpi->mpiHead()) std::cout << "size " << size << std::endl;
+    if(withVelocities) velocities.resize(size, complexZero);
+  } catch(std::bad_alloc& e) {
+    Error("Failed to allocate band structure velocities.\n"
+        "You are likely out of memory.");
+  }
 
   windowMethod = Window::nothing;
   buildIndices();
 
   std::vector<size_t> iks = mpi->divideWorkIter(numPoints);
-  int niks = iks.size();
+  size_t niks = iks.size();
 
   DoubleView2D qs("qs", niks, 3);
   auto qs_h = Kokkos::create_mirror_view(qs);
@@ -95,12 +98,12 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
   // divide the q-points into batches, do all diagonalizations in parallel
   // with Kokkos for each batch
   Kokkos::Profiling::pushRegion("diagonalization loop");
-  for(int start_iik = 0; start_iik < niks; start_iik += approx_batch_size){
-    int stop_iik = std::min(niks, start_iik + approx_batch_size);
+  for(size_t start_iik = 0; start_iik < niks; start_iik += approx_batch_size){
+    size_t stop_iik = std::min(niks, size_t(start_iik + approx_batch_size));
 
     Kokkos::Profiling::pushRegion("call diagonalization");
     auto tup = h0->kokkosBatchedDiagonalizeFromCoordinates(Kokkos::subview(qs, Kokkos::make_pair(start_iik, stop_iik), Kokkos::ALL));
-    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::popRegion(); // call diag
 
     DoubleView2D energies_d = std::get<0>(tup);
     StridedComplexView3D eigenvectors_d = std::get<1>(tup);
@@ -138,9 +141,9 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
         }
       }
     }
-    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::popRegion(); // store results 
   }
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion();// end diag loop region
 
   if (withVelocities) {
     // the same again, but for velocities
@@ -151,8 +154,8 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
     int approx_batch_size = h0->estimateBatchSize(true);
 
     // loop over points, do everything in parallel for all points in a batch
-    for(int start_iik = 0; start_iik < niks; start_iik += approx_batch_size){
-      int stop_iik = std::min(niks, start_iik + approx_batch_size);
+    for(size_t start_iik = 0; start_iik < niks; start_iik += approx_batch_size){
+      size_t stop_iik = std::min(niks, size_t(start_iik + approx_batch_size));
 
       // compute batch of velocities
       auto tup = h0->kokkosBatchedDiagonalizeWithVelocities(Kokkos::subview(qs, Kokkos::make_pair(start_iik, stop_iik), Kokkos::ALL));
@@ -181,12 +184,13 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
         }
       }
     }
-    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::popRegion(); // end of velocity loop
   }
   mpi->allReduceSum(&energies);
   mpi->allReduceSum(&velocities);
   mpi->allReduceSum(&eigenvectors);
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // abs band structure 
+
 }
 
 Particle ActiveBandStructure::getParticle() { return particle; }
@@ -195,6 +199,10 @@ Points ActiveBandStructure::getPoints() { return points; }
 
 Point ActiveBandStructure::getPoint(const int &pointIndex) {
   return points.getPoint(pointIndex);
+}
+
+int ActiveBandStructure::getNumIrrStates() {
+  return numIrrStates;
 }
 
 int ActiveBandStructure::getNumPoints(const bool &useFullGrid) {
@@ -214,15 +222,19 @@ int ActiveBandStructure::getNumBands() {
   }
 }
 
+int ActiveBandStructure::getFullNumBands() { return numFullBands; }
+
 int ActiveBandStructure::getNumBands(WavevectorIndex &ik) {
   return numBands(ik.get());
 }
+
+
 
 int ActiveBandStructure::hasWindow() { return windowMethod; }
 
 bool ActiveBandStructure::getIsDistributed() { return false; }
 
-int ActiveBandStructure::getIndex(const WavevectorIndex &ik,
+size_t ActiveBandStructure::getIndex(const WavevectorIndex &ik,
                                   const BandIndex &ib) {
   return bloch2Comb(ik.get(), ib.get());
 }
@@ -248,7 +260,7 @@ int ActiveBandStructure::getNumStates() { return numStates; }
 const double &ActiveBandStructure::getEnergy(StateIndex &is) {
   int stateIndex = is.get();
   if (energies.empty()) {
-    Error("ActiveBandStructure energies haven't been populated");
+    DeveloperError("ActiveBandStructure energies haven't been populated");
   }
   return energies[stateIndex];
 }
@@ -258,7 +270,7 @@ Eigen::VectorXd ActiveBandStructure::getEnergies(WavevectorIndex &ik) {
   int nb = numBands(ikk);
   Eigen::VectorXd x(nb);
   for (int ib = 0; ib < nb; ib++) {
-    int ind = bloch2Comb(ikk, ib);
+    size_t ind = bloch2Comb(ikk, ib);
     x(ib) = energies[ind];
   }
   return x;
@@ -266,14 +278,14 @@ Eigen::VectorXd ActiveBandStructure::getEnergies(WavevectorIndex &ik) {
 
 double ActiveBandStructure::getMaxEnergy() {
   if(getIsDistributed())
-    Error("Developer error: getMaxEnergy not implemented when activeBS is distributed.");
+    DeveloperError("getMaxEnergy not implemented when activeBS is distributed.");
   return *std::max_element(std::begin(energies), std::end(energies));
 }
 
 Eigen::Vector3d ActiveBandStructure::getGroupVelocity(StateIndex &is) {
   int stateIndex = is.get();
   if (velocities.empty()) {
-    Error("ActiveBandStructure velocities haven't been populated");
+    DeveloperError("ActiveBandStructure velocities haven't been populated");
   }
   auto tup = comb2Bloch(stateIndex);
   auto ik = std::get<0>(tup);
@@ -319,7 +331,7 @@ Eigen::MatrixXcd ActiveBandStructure::getEigenvectors(WavevectorIndex &ik) {
   eigenVectors_.setZero();
   for (int ib1 = 0; ib1 < numFullBands; ib1++) {
     for (int ib2 = 0; ib2 < nb; ib2++) {
-      int ind = eigBloch2Comb(ikk, ib1, ib2);
+      size_t ind = eigBloch2Comb(ikk, ib1, ib2);
       eigenVectors_(ib1, ib2) = eigenvectors[ind];
     }
   }
@@ -384,28 +396,29 @@ void ActiveBandStructure::setEigenvectors(Point &point,
 
 void ActiveBandStructure::setVelocities(
     Point &point, Eigen::Tensor<std::complex<double>, 3> &velocities_) {
-  int ik = point.getIndex();
+  size_t ik = point.getIndex();
   for (int ib1 = 0; ib1 < velocities_.dimension(0); ib1++) {
     for (int ib2 = 0; ib2 < velocities_.dimension(1); ib2++) {
       for (int j : {0, 1, 2}) {
-        int index = velBloch2Comb(ik, ib1, ib2, j);
+        size_t index = velBloch2Comb(ik, ib1, ib2, j);
+        //if(mpi->mpiHead() && index < 0) std::cout << "index " << index << std::endl;
         velocities[index] = velocities_(ib1, ib2, j);
       }
     }
   }
 }
 
-int ActiveBandStructure::velBloch2Comb(const int &ik, const int &ib1,
+size_t ActiveBandStructure::velBloch2Comb(const int &ik, const int &ib1,
                                        const int &ib2, const int &i) {
   return cumulativeKbbOffset(ik) + ib1 * numBands(ik) * 3 + ib2 * 3 + i;
 }
 
-int ActiveBandStructure::eigBloch2Comb(const int &ik, const int &ib1,
+size_t ActiveBandStructure::eigBloch2Comb(const int &ik, const int &ib1,
                                        const int &ib2) {
   return cumulativeKbOffset(ik) * numFullBands + ib1 * numBands(ik) + ib2;
 }
 
-int ActiveBandStructure::bloch2Comb(const int &ik, const int &ib) {
+size_t ActiveBandStructure::bloch2Comb(const int &ik, const int &ib) {
   return cumulativeKbOffset(ik) + ib;
 }
 
@@ -413,7 +426,7 @@ std::tuple<int, int> ActiveBandStructure::comb2Bloch(const int &is) {
   return std::make_tuple(auxBloch2Comb(is, 0), auxBloch2Comb(is, 1));
 }
 
-int ActiveBandStructure::bteBloch2Comb(const int &ik, const int &ib) {
+size_t ActiveBandStructure::bteBloch2Comb(const int &ik, const int &ib) {
   return bteCumulativeKbOffset(ik) + ib;
 }
 
@@ -450,12 +463,15 @@ void ActiveBandStructure::buildSymmetries() {
   // things to use in presence of symmetries
   {
     std::vector<Eigen::MatrixXd> allVelocities;
+    std::vector<Eigen::VectorXd> allEnergies;
     for (int ik = 0; ik < getNumPoints(); ik++) {
       auto ikIdx = WavevectorIndex(ik);
       Eigen::MatrixXd v = getGroupVelocities(ikIdx);
       allVelocities.push_back(v);
+      Eigen::VectorXd e = getEnergies(ikIdx);
+      allEnergies.push_back(e);
     }
-    points.setIrreduciblePoints(&allVelocities);
+    points.setIrreduciblePoints(&allVelocities); //&allVelocities, &allEnergies);
   }
 
   numIrrPoints = int(points.irrPointsIterator().size());
@@ -481,7 +497,7 @@ void ActiveBandStructure::buildSymmetries() {
     }
     ikOld = ik;
   }
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // build syms
 }
 
 std::tuple<ActiveBandStructure, StatisticsSweep>
@@ -491,6 +507,13 @@ ActiveBandStructure::builder(Context &context, HarmonicHamiltonian &h0,
                              const bool &forceBuildAPP) {
 
   Particle particle = h0.getParticle();
+  if(mpi->mpiHead()) {
+    if(particle.isPhonon()) {
+      std::cout << "\n------- Computing phonon band structure. -------\n" << std::endl;
+    } else {
+      std::cout << "\n------- Computing electron band structure. -------\n" << std::endl;
+    } 
+  }
 
   ActiveBandStructure activeBandStructure(particle, points_);
 
@@ -503,6 +526,9 @@ ActiveBandStructure::builder(Context &context, HarmonicHamiltonian &h0,
     StatisticsSweep s = activeBandStructure.buildAsPostprocessing(
         context, points_, h0, withEigenvectors, withVelocities);
 
+    activeBandStructure.printBandStructureStateInfo(h0.getNumBands()); 
+    if(mpi->mpiHead()) 
+      std::cout << "\n------- Done computing electron band structure. -------\n" << std::endl;
     return std::make_tuple(activeBandStructure, s);
 
   }
@@ -515,16 +541,20 @@ ActiveBandStructure::builder(Context &context, HarmonicHamiltonian &h0,
 
     Window window(context, particle, temperatureMin, temperatureMax);
 
-    activeBandStructure.buildOnTheFly(window, points_, h0, withEigenvectors,
-                                      withVelocities);
+    activeBandStructure.buildOnTheFly(window, points_, h0, context,
+                                      withEigenvectors, withVelocities);
 
     StatisticsSweep statisticsSweep(context);
+    activeBandStructure.printBandStructureStateInfo(h0.getNumBands()); 
+    if(mpi->mpiHead()) 
+      std::cout << "\n------- Done computing phonon band structure. -------\n" << std::endl;
     return std::make_tuple(activeBandStructure, statisticsSweep);
   }
 }
 
 void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
                                         HarmonicHamiltonian &h0,
+                                        Context &context,
                                         const bool &withEigenvectors,
                                         const bool &withVelocities) {
   // this function proceeds in three logical blocks:
@@ -595,7 +625,7 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
     }
   }
   } // close OMP parallel region
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // diagonalize loop
 
   // this numBands is the full bands num, doesn't matter which point
   Point point = points_.getPoint(0);
@@ -648,14 +678,27 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
 
   //////////////// Done MPI recollection
 
+  // initialize the raw data buffers of the activeBandStructure
+  points = points_;
+  points.setActiveLayer(filter);
+
+  /* ------- enforce that all sym eq points have same number of bands --
+  * we do this here because at this point, we have set up the filter
+  * but not applied it yet. This makes it easy to edit the filter without
+  * causing problems removing bands later */
+  //if(context.getSymmetrizeBandStructure()) {
+	//  enforceBandNumSymmetry(context, numFullBands, myFilteredPoints, filteredBands,
+  //                       displacements, h0, withVelocities);
+ // }
+
   // numBands is a book-keeping of how many bands per point there are
   // this isn't a constant number.
   // Also, we look for the size of the arrays containing band structure.
   numBands = Eigen::VectorXi::Zero(numPoints);
-  int numEnStates = 0;
-  int numVelStates = 0;
-  int numEigStates = 0;
-  for (int ik = 0; ik < numPoints; ik++) {
+  size_t numEnStates = 0;
+  size_t numVelStates = 0;
+  size_t numEigStates = 0;
+  for (size_t ik = 0; ik < size_t(numPoints); ik++) {
     numBands(ik) = filteredBands(ik, 1) - filteredBands(ik, 0) + 1;
     numEnStates += numBands(ik);
     numVelStates += 3 * numBands(ik) * numBands(ik);
@@ -663,21 +706,45 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
   }
   numStates = numEnStates;
 
-  // initialize the raw data buffers of the activeBandStructure
-  points = points_;
-  points.setActiveLayer(filter);
 
   // construct the mapping from combined indices to Bloch indices
   buildIndices();
 
-  energies.resize(numEnStates, 0.);
+  if (mpi->mpiHead()) { // print info on memory
+    double x = numEnStates * 8.;
+    if(hasVelocities)    x += numVelStates * 16.; // complex double
+    if(hasEigenvectors)  x += numEigStates * 16.; // size of complex double
+    x *= 1. / pow(1024,3); // convert to gb
+    std::cout << std::setprecision(4);
+    std::cout << "Allocating " << x << " GB (per MPI process) for reduced band structure." << std::endl;
+  }
+  mpi->barrier(); // wait to print this info before allocating
+
+  try {
+    energies.resize(numEnStates, 0.);
+  } catch(std::bad_alloc& e) {
+    Error("Failed to allocate band structure energies.\n"
+        "You are likely out of memory.");
+  }
   if (withVelocities) {
-    velocities.resize(numVelStates, complexZero);
+    hasVelocities = true;
+    try {
+      velocities.resize(numVelStates, complexZero);
+    } catch(std::bad_alloc& e) {
+      Error("Failed to allocate band structure velocities.\n"
+        "You are likely out of memory.");
+    }
   }
   if (withEigenvectors) {
     hasEigenvectors = true;
-    eigenvectors.resize(numEigStates, complexZero);
+    try {
+      eigenvectors.resize(numEigStates, complexZero);
+    } catch(std::bad_alloc& e) {
+      Error("Failed to allocate band structure eigenvectors.\n"
+        "You are likely out of memory.");
+    }
   }
+  Kokkos::Profiling::popRegion();// end diag loop
 
   windowMethod = window.getMethodUsed();
 
@@ -749,13 +816,15 @@ void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
       setVelocities(point, thisVelocities);
     }
   }
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end trimmed diag loop
   mpi->allReduceSum(&energies);
   mpi->allReduceSum(&velocities);
   mpi->allReduceSum(&eigenvectors);
 
+  Kokkos::Profiling::pushRegion("Symmetrize bandstructure");
+  //if(context.getSymmetrizeBandStructure()) symmetrize(context, withVelocities);
   buildSymmetries();
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end sym bandstructure
 }
 
 /** in this function, useful for electrons, we first compute the band structure
@@ -775,7 +844,7 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   Kokkos::Profiling::pushRegion("h0.populate");
   FullBandStructure fullBandStructure =
       h0.populate(points_, tmpWithVel_, tmpWithEig_, tmpIsDistributed_);
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end ho populate
 
   // ---------- establish mu and other statistics --------------- //
   // This will work even if fullBandStructure is distributed
@@ -820,7 +889,7 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   points_.setIrreduciblePoints();
 
   // Loop over the wavevectors belonging to each process
-  std::vector<int> parallelIter = fullBandStructure.getWavevectorIndices();
+  std::vector<int> parallelIter = fullBandStructure.getLocalWavevectorIndices();
   Kokkos::Profiling::pushRegion("filter points");
 
   // iterate over mpi-parallelized wavevectors
@@ -888,7 +957,7 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   }
 
   } // close OMP parallel region
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // close filter points
 
   // the same for all points in full band structure
   numFullBands = fullBandStructure.getNumBands();
@@ -940,24 +1009,33 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
 
   //////////////// Done MPI recollection
 
+  // ---------- initialize internal data buffers --------------- //
+  points.setActiveLayer(filter);
+
+  /* ------- enfore that all sym eq points have same number of bands --
+  * we do this here because at this point, we have set up the filter
+  * but not applied it yet. This makes it easy to edit the filter without
+  * causing problems removing bands later */
+  //if(context.getSymmetrizeBandStructure()) {
+  //  enforceBandNumSymmetry(context, numFullBands, myFilteredPoints, filteredBands,
+  //                       displacements, h0, withVelocities);
+  //}
+
   // ---------- count numBands and numStates  --------------- //
   // numBands is a book-keeping of how many bands per point there are
   // this isn't a constant number.
   // Also, we look for the size of the arrays containing band structure.
   numBands = Eigen::VectorXi::Zero(numPoints);
-  int numEnStates = 0;
-  int numVelStates = 0;
-  int numEigStates = 0;
-  for (int ik = 0; ik < numPoints; ik++) {
+  size_t numEnStates = 0;
+  size_t numVelStates = 0;
+  size_t numEigStates = 0;
+  for (size_t ik = 0; ik < size_t(numPoints); ik++) {
     numBands(ik) = filteredBands(ik, 1) - filteredBands(ik, 0) + 1;
     numEnStates += numBands(ik);
     numVelStates += 3 * numBands(ik) * numBands(ik);
     numEigStates += numBands(ik) * numFullBands;
   }
   numStates = numEnStates;
-
-  // ---------- initialize internal data buffers --------------- //
-  points.setActiveLayer(filter);
 
   // construct the mapping from combined indices to Bloch indices
   buildIndices();
@@ -1026,14 +1104,15 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   mpi->allReduceSum(&energies);
   if (withEigenvectors)
     mpi->allReduceSum(&eigenvectors);
-  Kokkos::Profiling::popRegion();
+
+  Kokkos::Profiling::popRegion(); // end collect energies 
 
   // compute velocities, store, reduce
   if (withVelocities) {
     Kokkos::Profiling::pushRegion("compute velocities");
 
 // loop over the points available to this process
-#pragma omp parallel for default(none)                                         \
+#pragma omp parallel for default(none) \
     shared(myFilteredPoints, h0, displacements, mpi, filteredBands)
     for (int i = 0; i < int(myFilteredPoints.size()); i++) {
 
@@ -1067,10 +1146,16 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
       setVelocities(point, thisVelocities);
     }
     mpi->allReduceSum(&velocities);
-    Kokkos::Profiling::popRegion();
+    Kokkos::Profiling::popRegion(); // end compute velocities 
   }
+
+  //if(context.getSymmetrizeBandStructure()) symmetrize(context, withVelocities);
+  Kokkos::Profiling::pushRegion("Symmetrize bandstructure, active BS, BAPP");
   buildSymmetries();
-  Kokkos::Profiling::popRegion();
+  Kokkos::Profiling::popRegion(); // end sym bandstructure
+  //statisticsSweep.calcNumFreeCarriers(this);
+
+  Kokkos::Profiling::popRegion(); // end build as pp 
   return statisticsSweep;
 }
 
@@ -1126,9 +1211,9 @@ BteIndex ActiveBandStructure::stateToBte(StateIndex &isIndex) {
   // to k from 0 to N_k_irreducible
   int ikBte = points.asIrreducibleIndex(ikIdx.get());
   if (ikBte < 0) {
-    Error("stateToBte is used on a reducible point");
+    Error("Developer error: stateToBte is used on a point outside the mesh.");
   }
-  int iBte = bteBloch2Comb(ikBte, ibIdx.get());
+  size_t iBte = bteBloch2Comb(ikBte, ibIdx.get());
   return BteIndex(iBte);
 }
 
@@ -1149,8 +1234,8 @@ ActiveBandStructure::getRotationToIrreducible(const Eigen::Vector3d &x,
 
 int ActiveBandStructure::getPointIndex(
     const Eigen::Vector3d &crystalCoordinates, const bool &suppressError) {
-  if (points.isPointStored(crystalCoordinates) == -1) {
-    Error("Point not found in activeBandStructure, something wrong");
+  if (!suppressError && points.isPointStored(crystalCoordinates) == -1) {
+    Error("Developer error: Point not found in activeBandStructure, something wrong");
   }
 
   if (suppressError) {
@@ -1164,3 +1249,265 @@ std::vector<int>
 ActiveBandStructure::getReducibleStarFromIrreducible(const int &ik) {
   return points.getReducibleStarFromIrreducible(ik);
 }
+/*
+void ActiveBandStructure::symmetrize(Context &context,
+                                     const bool &withVelocities) {
+
+  if(mpi->mpiHead()) std::cout << "Symmetrize the energies and velocities." << std::endl;
+
+  Kokkos::Profiling::pushRegion("Symmetrize bandstructure");
+
+  // symmetrize band velocities, energies, and eigenvectors
+
+  // Make a copy of the points class which uses the crystal symmetries
+  //
+  // NOTE: because the crystal object is a reference, we can't copy
+  // it directly without changing the one belonging to this bandstructure,
+  // which we don't want to change
+  // We therefore make new crystal and points objects to use temporarily.
+  //
+  // This is done because it will work regardless of if we ran the
+  // calculation with symmetries or not.
+  //
+  Crystal lowSymCrystal = points.getCrystal();
+  auto directCell = lowSymCrystal.getDirectUnitCell();
+  auto atomicPositions = lowSymCrystal.getAtomicPositions();
+  auto atomicSpecies = lowSymCrystal.getAtomicSpecies();
+  auto speciesNames = lowSymCrystal.getSpeciesNames();
+  auto speciesMasses = lowSymCrystal.getSpeciesMasses();
+  auto bornCharges = lowSymCrystal.getBornEffectiveCharges();
+  auto dielectricMatrix = lowSymCrystal.getDielectricMatrix(); 
+
+  // temporarily set symmetries = true, then turn off after this.
+  bool useSymmetries = context.getUseSymmetries();
+  context.setUseSymmetries(true);
+
+  Crystal highSymCrystal(context, directCell, atomicPositions,
+                         atomicSpecies, speciesNames, speciesMasses, 
+                         bornCharges, dielectricMatrix);
+  Points highSymPoints = points;
+  highSymPoints.swapCrystal(highSymCrystal);
+
+  // if velocities are present, need to also symmetrize using them
+  if (withVelocities) {
+
+    std::vector<Eigen::MatrixXd> allVelocities;
+    std::vector<Eigen::VectorXd> allEnergies;
+    for (int ik = 0; ik < getNumPoints(); ik++) {
+      auto ikIdx = WavevectorIndex(ik);
+      Eigen::MatrixXd v = getGroupVelocities(ikIdx);
+      allVelocities.push_back(v);
+      Eigen::VectorXd e = getEnergies(ikIdx);
+      allEnergies.push_back(e);
+    }
+    highSymPoints.setIrreduciblePoints(&allVelocities, &allEnergies);
+  } else {
+    highSymPoints.setIrreduciblePoints();
+  }
+
+  // for each irr point, symmetrize all reducible points
+  for (int ikIrr : highSymPoints.irrPointsIterator()) {
+
+    int nBands = numBands(ikIrr);
+    auto reducibleList = highSymPoints.getReducibleStarFromIrreducible(ikIrr);
+    std::vector<double> avgEnergies;// holds all band E for this point
+    // all velocities for this k state
+    Eigen::Tensor<std::complex<double>, 3> avgVelocitiesIrr(nBands, nBands, 3);
+    avgVelocitiesIrr.setZero();
+
+    for (int ib1 = 0; ib1 < nBands; ib1++) {
+
+      double avgEnergy = 0;// avg ene for this ik,ib state
+
+      // average contributions from each reducible point
+      for (int ikRed : reducibleList) {
+
+        // average the group velocities ------------
+        // v is a vector, so it must be rotated before performing the average
+        // we rotate each reducible point back to the irr point and sum them
+        WavevectorIndex ikRedIdx(ikRed);
+        Eigen::Tensor<std::complex<double>, 3> tmpVel = getVelocities(ikRedIdx);
+
+        // returns: vRed = rot * vIrr , where v* is a vector with the crystal symmetries.
+        Eigen::Matrix3d rot = highSymPoints.getRotationFromReducibleIndex(ikRed);
+        rot = rot.inverse();// inverse so that we do vIrr = invRot * vRed
+
+        // average the energies ---------------------
+        avgEnergy += energies[bloch2Comb(ikRed, ib1)];
+
+        // rotate all the velocities to the irr point and average them
+        for (int ib2 = 0; ib2 < nBands; ++ib2) {
+
+          // save to an Eigen vector, can't rotate pieces of Eigen Tensor
+          Eigen::VectorXcd tmpRot(3);
+          for (int iCart : {0, 1, 2}) {
+            tmpRot(iCart) = tmpVel(ib1, ib2, iCart);
+          }
+          tmpRot = rot * tmpRot;
+          // now average
+          for (int iCart : {0, 1, 2}) {
+            avgVelocitiesIrr(ib1, ib2, iCart) += tmpRot(iCart) / double(reducibleList.size());
+          }
+        }
+        // average the eigenvectors --------------------
+        // TODO could add this, it's a bit complicated, so for now we don't
+      }
+      avgEnergy /= double(reducibleList.size());
+      avgEnergies.push_back(avgEnergy);
+    }
+
+    // save the energies back into these reducible points
+    #pragma omp parallel for
+    for (int ikRed : reducibleList) {
+
+      Point point = highSymPoints.getPoint(ikRed);
+
+      // set averaged band energies
+      // TODO check that relative error on the points is small
+      setEnergies(point, avgEnergies);
+
+      //set averaged band velocities
+      Eigen::Matrix3d rot = highSymPoints.getRotationFromReducibleIndex(ikRed);
+
+      Eigen::Tensor<std::complex<double>, 3> avgVelocitiesRed(nBands, nBands, 3);
+      avgVelocitiesRed.setZero();
+      for (int ib1 = 0; ib1 < nBands; ib1++) {
+        for (int ib2 = 0; ib2 < nBands; ib2++) {
+          // save to an Eigen vector, can't rotate pieces of Eigen Tensor
+          Eigen::VectorXcd tmpRot(3);
+          for (int iCart : {0, 1, 2}) {
+            tmpRot(iCart) = avgVelocitiesIrr(ib1, ib2, iCart);
+          }
+          // rotate back to this ikRed point
+          tmpRot = rot * tmpRot;
+          for (int iCart : {0, 1, 2}) {
+            avgVelocitiesRed(ib1, ib2, iCart) = tmpRot(iCart);
+          }
+        }
+      }
+      setVelocities(point, avgVelocitiesRed);
+    }
+  }
+  context.setUseSymmetries(useSymmetries);
+  Kokkos::Profiling::popRegion(); /// end sym bandstructure
+}
+*/
+/*
+void ActiveBandStructure::enforceBandNumSymmetry(
+    Context &context, const int &numFullBands, const std::vector<int> &myFilteredPoints,
+    Eigen::MatrixXi &filteredBands,
+    const std::vector<int> &displacements, HarmonicHamiltonian &h0,
+    const bool &withVelocities) {
+
+  // edit the filteredBands list used in constructors so that each sym eq point
+  // has the same number of bands
+  //
+  int numPoints = points.getNumPoints();
+
+  // make a copy of the points class which uses
+  // the full crystal symmetries
+  // TODO seems like there should be a more elegant way to do this
+  Crystal lowSymCrystal = points.getCrystal();
+
+  auto directCell = lowSymCrystal.getDirectUnitCell();
+  auto atomicPositions = lowSymCrystal.getAtomicPositions();
+  auto atomicSpecies = lowSymCrystal.getAtomicSpecies();
+  auto speciesNames = lowSymCrystal.getSpeciesNames();
+  auto speciesMasses = lowSymCrystal.getSpeciesMasses();
+  auto bornCharges = lowSymCrystal.getBornEffectiveCharges();
+  auto dielectricMatrix = lowSymCrystal.getDielectricMatrix(); 
+
+  // temporarily set symmetries = true, then turn off after this.
+  bool useSymmetries = context.getUseSymmetries();
+  context.setUseSymmetries(true);
+
+  Crystal highSymCrystal(context, directCell, atomicPositions,
+                         atomicSpecies, speciesNames, speciesMasses, bornCharges, dielectricMatrix);
+  Points highSymPoints = points;
+  highSymPoints.swapCrystal(highSymCrystal);
+
+  // first,  collect velocities to set up the points class symmetries
+  if (withVelocities) {
+
+    Eigen::Tensor<double, 3> allVelocities(numPoints, numFullBands, 3);
+    allVelocities.setZero();
+    Eigen::MatrixXd allEnergies(numPoints, numFullBands);
+
+    // loop over the points available to this process
+    for (int i = 0; i < int(myFilteredPoints.size()); i++) {
+
+      // generate ika, index corresponding to wavevector in points
+      // as well as any array of length numActivePoints,
+      // like numBands, filteredBands, ika = ikActive
+      int ika = i + int(displacements[mpi->getRank()]);
+      Point point = points.getPoint(ika);
+
+      // thisVelocity is a tensor of dimensions (ib, ib, 3)
+      auto thisVelocity = h0.diagonalizeVelocity(point);
+
+      // need to reformat thisVelocity into t
+      for (int ib = 0; ib < numFullBands; ib++) {
+        for (int ic = 0; ic < 3; ic++) {
+          allVelocities(ika, ib, ic) = thisVelocity(ib, ib, ic).real();
+        }
+      }
+
+      Eigen::VectorXd thisEn = std::get<0>(h0.diagonalize(point));
+      allEnergies.row(i) = thisEn;
+    }
+    mpi->allReduceSum(&allVelocities);
+    mpi->allReduceSum(&allEnergies);
+    // unfortunately it seems that we cannot all reduce
+    // a std::vector of eigen matrices, so we now must reformat after reducing
+    std::vector<Eigen::MatrixXd> allVels;
+    std::vector<Eigen::VectorXd> allEns;
+    for (int ik = 0; ik < numPoints; ik++) {
+      Eigen::MatrixXd tempVels = Eigen::MatrixXd::Zero(numFullBands, 3);
+      for (int ib = 0; ib < numFullBands; ib++) {
+        for (int ic = 0; ic < 3; ic++) {
+          tempVels(ib, ic) = allVelocities(ik, ib, ic);
+        }
+      }
+      allVels.push_back(tempVels);
+      Eigen::VectorXd tmpE = allEnergies.row(ik);
+      allEns.push_back(tmpE);
+    }
+    highSymPoints.setIrreduciblePoints(&allVels, &allEns);
+  } else {
+    highSymPoints.setIrreduciblePoints();
+  }
+
+  // for each irr point, enforce matching band limitations
+  #pragma omp parallel
+  {
+  for (int ikIrr : highSymPoints.irrPointsIterator()) {
+    auto reducibleList = highSymPoints.getReducibleStarFromIrreducible(ikIrr);
+
+    std::vector<int> minBandList;
+    std::vector<int> maxBandList;
+
+    if (reducibleList.empty()) {
+      DeveloperError("EnforceSymmetry reducible star is empty.");
+    }
+
+    for (int ikRed : reducibleList) {
+      // need to make sure each point has the same number of bands
+      // we need to check that the start and stop bands are the same
+      // selected set, and then choose intersection of the bands lists
+      minBandList.push_back(filteredBands(ikRed, 0));
+      maxBandList.push_back(filteredBands(ikRed, 1));
+    }
+
+    // set all points to use only the highest min band to lowest max band
+    int newMinBand = *max_element(std::begin(minBandList), std::end(minBandList));
+    int newMaxBand = *min_element(std::begin(maxBandList), std::end(maxBandList));
+
+    for (int ikRed : reducibleList) {// set new band range values
+      filteredBands(ikRed, 0) = newMinBand;
+      filteredBands(ikRed, 1) = newMaxBand;
+    }
+  }
+  } // end OMP parallel block
+  context.setUseSymmetries(useSymmetries);
+}
+*/

@@ -473,6 +473,9 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "wannier90Prefix") {
         wannier90Prefix = parseString(val);
       }
+      if (parameterName == "JDFTxScfOutFile") {
+        jdftxScfOutFile = parseString(val);
+      }
       if (parameterName == "quantumEspressoPrefix") {
         quantumEspressoPrefix = parseString(val);
       }
@@ -577,9 +580,9 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "fermiLevel") {
         fermiLevel = parseDoubleWithUnits(val);
       }
-      if (parameterName == "hasSpinOrbit") {
-        hasSpinOrbit = parseBool(val);
-      }
+      //if (parameterName == "hasSpinOrbit") { // TODO this should be detected at parsing phase
+      //  hasSpinOrbit = parseBool(val);
+      //}
       if (parameterName == "distributedElPhCoupling") {
         distributedElPhCoupling = parseBool(val);
       }
@@ -603,12 +606,26 @@ void Context::setupFromInput(const std::string &fileName) {
           smearingMethod = 1;
         } else if (x_ == "tetrahedron") {
           smearingMethod = 2;
+        } else if (x_ == "symAdaptiveGaussian") {
+          smearingMethod = 3;
         } else {
           smearingMethod = -1;
         }
       }
       if (parameterName == "smearingWidth") {
         smearingWidth = parseDoubleWithUnits(val);
+      }
+      if (parameterName == "phSmearingWidth") {
+        phSmearingWidth = parseDoubleWithUnits(val);
+      }
+      if (parameterName == "elSmearingWidth") {
+        elSmearingWidth = parseDoubleWithUnits(val);
+      }
+      //if (parameterName == "dragSmearingWidth") {
+      //  dragSmearingWidth = parseDoubleWithUnits(val);
+      //}
+      if (parameterName == "adaptiveSmearingPrefactor") {
+        adaptiveSmearingPrefactor = parseDouble(val);
       }
       if (parameterName == "constantRelaxationTime") {
         constantRelaxationTime = parseDoubleWithUnits(val);
@@ -619,14 +636,29 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "symmetrizeMatrix") {
         symmetrizeMatrix = parseBool(val);
       }
+      if (parameterName == "useUpperTriangle") {
+        useUpperTriangle = parseBool(val);
+      }
       if (parameterName == "numRelaxonsEigenvalues") {
         numRelaxonsEigenvalues = parseInt(val);
+      }
+      if (parameterName == "enforcePositiveSemiDefinite") {
+        enforcePositiveSemiDefinite = parseBool(val);
       }
       if (parameterName == "checkNegativeRelaxons") {
         checkNegativeRelaxons = parseBool(val);
       }
+      if (parameterName == "useDragTerms") {
+        useDragTerms = parseBool(val);
+      }
+      if (parameterName == "reconstructLinewidths") {
+        reconstructLinewidths = parseBool(val);
+      }
       if (parameterName == "useSymmetries") {
         useSymmetries = parseBool(val);
+      }
+      if (parameterName == "symmetrizeBandStructure") {
+        symmetrizeBandStructure = parseBool(val);
       }
       if (parameterName == "withIsotopeScattering") {
         withIsotopeScattering = parseBool(val);
@@ -647,6 +679,11 @@ void Context::setupFromInput(const std::string &fileName) {
       }
       if (parameterName == "boundaryLength") {
         boundaryLength = parseDoubleWithUnits(val);
+      }
+      // we assume this is in 1/eV, and convert to 1/Ry
+      if (parameterName == "eeFermiLiquidCoefficient") {
+        eeFermiLiquidCoefficient = parseDouble(val);
+        eeFermiLiquidCoefficient *= energyRyToEv;
       }
 
       // EPA
@@ -767,18 +804,30 @@ void Context::setupFromInput(const std::string &fileName) {
     }
     lineCounter += 1;
   }
+  // check dependent input variables
+  inputSanityCheck();
 }
 
 void Context::inputSanityCheck() {
 
+  // Other options that should be locked: 
+  // commensurate meshes when phel is utilized 
+
+  if(!jdftxScfOutFile.empty() &&  mpi->getSize(mpi->intraPoolComm) > 1) {
+    Error("JDFTx interface cannot be used with pools!");
+  }
+
+  // this shouldn't be used if we're symmetrizing
+  if(getSymmetrizeMatrix()) useUpperTriangle = false;
+
   // disallow symmetries when relaxons are used
   for (const std::string &s : solverBTE) {
     if (s.compare("variational") == 0 || s.compare("relaxons") == 0) {
-      if(useSymmetries) { 
+      if(useSymmetries) {
         Error("Variational and relaxons solvers cannot be used with symmetries!");
       }
     }
-    
+
     // Warn users about relaxons with even meshes
     if (s.compare("relaxons") == 0) {
       if((qMesh.prod() % 2 == 0 && qMesh.prod() != 0) || (kMesh.prod() % 2 == 0 && kMesh.prod() != 0)) {
@@ -788,18 +837,17 @@ void Context::inputSanityCheck() {
         Warning("Adaptive smearing can cause problems with the quality of the scattering matrix, and may cause negative eigenvalues to appear.\n"
               "If this occurs, you should switch to Gaussian.");
       }
-    } 
+    }
   }
 
-  // warn the user if thickness is not set but 2d is 
-  if(dimensionality == 2) { 
-    if(thickness == 1.) { 
+  // warn the user if thickness is not set but 2d is
+  if(dimensionality == 2) {
+    if(thickness == 1.) {
       Warning("You have set dimensionality = 2 but not the thickness input parameter.\n"
             "This means your final result will have (height of cell / 1.) applied, when it should be\n"
             "height of cell / thickness!");
     }
   }
-
 }
 
 // helper functions for printInputSummary
@@ -831,6 +879,7 @@ void Context::printInputSummary(const std::string &fileName) {
 
   // crystal structure parameters -------------------
   std::cout << "useSymmetries = " << useSymmetries << std::endl;
+  std::cout << "symmetrizeBandStructure = " << symmetrizeBandStructure << std::endl;
   std::cout << "dimensionality = " << dimensionality << std::endl;
   if(dimensionality != 3) std::cout << "thickness = " << thickness * distanceBohrToAng << " ang" << std::endl;
   std::cout << std::endl;
@@ -866,9 +915,15 @@ void Context::printInputSummary(const std::string &fileName) {
         std::cout << "elPhInterpolation = " << elPhInterpolation << std::endl;
       if (!wannier90Prefix.empty())
         std::cout << "wannier90Prefix = " << wannier90Prefix << std::endl;
+      if (!jdftxScfOutFile.empty())
+        std::cout << "JDFTxScfOutFile = " << jdftxScfOutFile << std::endl;
       if (!quantumEspressoPrefix.empty())
         std::cout << "quantumEspressoPrefix = " << quantumEspressoPrefix
                   << std::endl;
+      if(eeFermiLiquidCoefficient != 0) {
+        std::cout << "eeFermiLiquidCoefficient = " << 
+          eeFermiLiquidCoefficient * 1./energyRyToEv << " 1/eV" << std::endl;
+      }
     }
     // EPA specific parameters
     if (elPhInterpolation == "epa") {
@@ -948,7 +1003,9 @@ void Context::printInputSummary(const std::string &fileName) {
   if (appName.find("Transport") != std::string::npos ||
       appName.find("Lifetimes") != std::string::npos) {
 
-    if (appName.find("honon") != std::string::npos || appName.find("elPh") != std::string::npos) {
+    if (appName.find("honon") != std::string::npos
+                                || appName.find("oupled") != std::string::npos
+                                || appName.find("elPh") != std::string::npos) {
       std::cout << "qMesh = " << qMesh(0) << " " << qMesh(1) << " " << qMesh(2) << std::endl;
       if(!getElphFileName().empty()) {
         std::cout << "electronH0Name = " << electronH0Name << std::endl;
@@ -956,9 +1013,16 @@ void Context::printInputSummary(const std::string &fileName) {
         std::cout << "elphFileName = " << elphFileName << std::endl;
       }
     }
-    if (appName.find("lectron") != std::string::npos || appName.find("elPh") != std::string::npos
+    if (appName.find("lectron") != std::string::npos
+                        || appName.find("oupled") != std::string::npos
+                        || appName.find("elPh") != std::string::npos
                         || (appName.find("honon") != std::string::npos && !getElphFileName().empty())) {
          std::cout << "kMesh = " << kMesh(0) << " " << kMesh(1) << " " << kMesh(2) << std::endl;
+    }
+    // specific to coupled scattering matrix app
+    if (appName.find("oupled") != std::string::npos) {
+      std::cout << "useDragTerms = " << useDragTerms << std::endl;
+      std::cout << "reconstructLinewidths = " << reconstructLinewidths << std::endl;
     }
 
     if (!std::isnan(constantRelaxationTime))
@@ -971,22 +1035,52 @@ void Context::printInputSummary(const std::string &fileName) {
       std::cout << "adaptiveGaussian" << std::endl;
     else if (smearingMethod == 2)
       std::cout << "tetrahedron" << std::endl;
+    else if (smearingMethod == 3)
+      std::cout << "symAdaptiveGaussian" << std::endl;
     else {
       std::cout << "none" << std::endl;
     }
     if (!std::isnan(smearingWidth))
       std::cout << "smearingWidth = " << smearingWidth * energyRyToEv << " eV"
                 << std::endl;
+    if (!std::isnan(elSmearingWidth))
+      std::cout << "elSmearingWidth = " << elSmearingWidth * energyRyToEv << " eV"
+                << std::endl;
+    if (!std::isnan(phSmearingWidth))
+      std::cout << "phSmearingWidth = " << phSmearingWidth * energyRyToEv << " eV"
+                << std::endl;
+    //if (!std::isnan(dragSmearingWidth))
+    //  std::cout << "dragSmearingWidth = " << dragSmearingWidth * energyRyToEv << " eV"
+    //            << std::endl;
+    if (!std::isnan(adaptiveSmearingPrefactor))
+      std::cout << "adaptiveSmearingPrefactor = " << adaptiveSmearingPrefactor
+                << std::endl;
 
     if(appName.find("Transport") != std::string::npos) {
       std::cout << "solverBTE = RTA";
-      for (const auto& i : solverBTE)
+      bool doRelaxons = false;
+      bool doVariational = false;
+      bool doIterative = false;
+      for (const auto& i : solverBTE) {
         std::cout << ", " << i;
+        if(i.find("relaxon") != std::string::npos) { doRelaxons = true; }
+        if(i.find("ariational") != std::string::npos) { doVariational = true; }
+        if(i.find("iterative") != std::string::npos) { doIterative = true; }
+      }
       std::cout << std::endl;
-      std::cout << "convergenceThresholdBTE = " << convergenceThresholdBTE << std::endl;
-      std::cout << "maxIterationsBTE = " << maxIterationsBTE << std::endl;
-    } else {
-      std::cout << "solverBTE = RTA";
+      if(doVariational || doIterative) {
+        std::cout << "convergenceThresholdBTE = " << convergenceThresholdBTE << std::endl;
+        std::cout << "maxIterationsBTE = " << maxIterationsBTE << std::endl;
+      }
+      if(doRelaxons) {
+        std::cout << "useUpperTriangle = " << useUpperTriangle << std::endl;
+        std::cout << "symmetrizeMatrix = " << symmetrizeMatrix << std::endl;
+        std::cout << "numRelaxonsEigenvalues = " << numRelaxonsEigenvalues << std::endl;
+        if(numRelaxonsEigenvalues != 0) std::cout << "checkNegativeRelaxons = " << checkNegativeRelaxons << std::endl;
+      }
+      if(scatteringMatrixInMemory) {
+        std::cout << "enforcePositiveSemiDefinite = " << enforcePositiveSemiDefinite << std::endl;
+      }
     }
 
       std::cout << "scatteringMatrixInMemory = " << scatteringMatrixInMemory
@@ -1185,6 +1279,9 @@ void Context::setElectronH0Name(const std::string &x) { electronH0Name = x; }
 std::string Context::getWannier90Prefix() { return wannier90Prefix; }
 void Context::setWannier90Prefix(const std::string &x) { wannier90Prefix = x; }
 
+std::string Context::getJDFTxScfOutFile() { return jdftxScfOutFile; }
+void Context::setJDFTxScfOutFile(const std::string &x) { jdftxScfOutFile = x; }
+
 std::string Context::getQuantumEspressoPrefix() {
   return quantumEspressoPrefix;
 }
@@ -1209,7 +1306,6 @@ double Context::getElectronFourierCutoff() const {
 std::string Context::getAppName() { return appName; }
 
 Eigen::Vector3i Context::getQMesh() { return qMesh; }
-
 Eigen::Vector3i Context::getKMesh() { return kMesh; }
 
 std::string Context::getWindowType() { return windowType; }
@@ -1285,21 +1381,31 @@ bool Context::getOutputEigendisplacements() const { return outputEigendisplaceme
 bool Context::getOutputUNTimes() const { return outputUNTimes; }
 
 double Context::getFermiLevel() const { return fermiLevel; }
-
 void Context::setFermiLevel(const double &x) { fermiLevel = x; }
 
 double Context::getNumOccupiedStates() const { return numOccupiedStates; }
-
 void Context::setNumOccupiedStates(const double &x) { numOccupiedStates = x; }
 
 bool Context::getHasSpinOrbit() const { return hasSpinOrbit; }
-
 void Context::setHasSpinOrbit(const bool &x) { hasSpinOrbit = x; }
+
+double Context::getSpinDegeneracyFactor() const { return spinDegeneracyFactor; }
+void Context::setSpinDegeneracyFactor(const double &x) { spinDegeneracyFactor = x; } 
 
 int Context::getSmearingMethod() const { return smearingMethod; }
 
 double Context::getSmearingWidth() const { return smearingWidth; }
+double Context::getElSmearingWidth() const { return elSmearingWidth; }
+double Context::getPhSmearingWidth() const { return phSmearingWidth; }
+//double Context::getDragSmearingWidth() const { return dragSmearingWidth; }
+
 void Context::setSmearingWidth(const double &x) { smearingWidth = x; }
+void Context::setElSmearingWidth(const double &x) { elSmearingWidth = x; }
+void Context::setPhSmearingWidth(const double &x) { phSmearingWidth = x; }
+//void Context::setDragSmearingWidth(const double &x) { dragSmearingWidth = x; }
+
+double Context::getAdaptiveSmearingPrefactor() const { return adaptiveSmearingPrefactor; }
+void Context::setAdaptiveSmearingPrefactor(const double &x) { adaptiveSmearingPrefactor = x; }
 
 double Context::getConstantRelaxationTime() const {
   return constantRelaxationTime;
@@ -1319,6 +1425,27 @@ void Context::setSymmetrizeMatrix(const bool &x) {
   symmetrizeMatrix = x;
 }
 
+bool Context::getUseUpperTriangle() const {
+  return useUpperTriangle;
+}
+void Context::setUseUpperTriangle(const bool &x) {
+  useUpperTriangle = x;
+}
+
+bool Context::getUseDragTerms() const {
+  return useDragTerms;
+}
+void Context::setUseDragTerms(const bool &x) {
+  useDragTerms = x;
+}
+
+bool Context::getReconstructLinewidths() const {
+  return reconstructLinewidths;
+}
+void Context::setReconstructLinewidths(const bool &x) {
+  reconstructLinewidths = x;
+}
+
 int Context::getNumRelaxonsEigenvalues() const {
   return numRelaxonsEigenvalues;
 }
@@ -1328,13 +1455,21 @@ void Context::setNumRelaxonsEigenvalues(const int &x) {
 
 bool Context::getCheckNegativeRelaxons() const { return checkNegativeRelaxons; }
 
+bool Context::getEnforcePositiveSemiDefinite() const { return enforcePositiveSemiDefinite; }
+void Context::setEnforcePositiveSemiDefinite(const bool &x) { enforcePositiveSemiDefinite = x; }
+
 bool Context::getUseSymmetries() const { return useSymmetries; }
 void Context::setUseSymmetries(const bool &x) { useSymmetries = x; }
+
+bool Context::getSymmetrizeBandStructure() const { return symmetrizeBandStructure; }
+void Context::setSymmetrizeBandStructure(const bool &x) { symmetrizeBandStructure = x; }
 
 Eigen::VectorXd Context::getMasses() { return customMasses; }
 Eigen::VectorXd Context::getIsotopeCouplings() { return customIsotopeCouplings; }
 
 bool Context::getWithIsotopeScattering() const { return withIsotopeScattering; }
+
+double Context::getEeFermiLiquidCoefficient() const { return eeFermiLiquidCoefficient; }
 
 double Context::getBoundaryLength() const { return boundaryLength; }
 

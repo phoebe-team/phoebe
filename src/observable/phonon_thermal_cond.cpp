@@ -19,16 +19,16 @@ PhononThermalConductivity::PhononThermalConductivity(
   // set up units for writing to file
   thCondUnits = "W /(m K)";
   if (dimensionality == 3) {
-    thCondConversion = thConductivityAuToSi; 
+    thCondConversion = thConductivityAuToSi;
   } else if (dimensionality == 2) {
-    // multiply by the height of the cell / thickness of the cell to convert 3D -> 2D.  
-    // Because the unit cell volume is already reduced for dimensionality, 
-    // we only need to divide by thickness. 
+    // multiply by the height of the cell / thickness of the cell to convert 3D -> 2D.
+    // Because the unit cell volume is already reduced for dimensionality,
+    // we only need to divide by thickness.
     //double height = crystal.getDirectUnitCell()(2,2);
-    thCondConversion = thConductivityAuToSi * (1. / context.getThickness()); 
+    thCondConversion = thConductivityAuToSi * (1. / context.getThickness());
   } else { // dim = 1
     Warning("1D conductivity should be manually adjusted for the cross-section of the material.");
-    thCondConversion = thConductivityAuToSi; 
+    thCondConversion = thConductivityAuToSi;
   }
 }
 
@@ -112,37 +112,17 @@ void PhononThermalConductivity::calcFromPopulation(VectorBTE &n) {
       }
     });
   Kokkos::Experimental::contribute(tensordxd_k, scatter_tensordxd);
-  /*
 
-#pragma omp parallel default(none) shared(excludeIndices, n, norm)
-  {
-    // we do manually the reduction, to avoid custom type declaration
-    // which is not always allowed by the compiler e.g. by clang
-
-    // first omp parallel for on a private variable
-    Eigen::Tensor<double, 3> tensorPrivate(numCalculations, dimensionality,
-                                           dimensionality);
-    tensorPrivate.setZero();
-
-#pragma omp for nowait
-    for (int is : bandStructure.parallelIrrStateIterator()) {
-
-// now we do the reduction thread by thread
-#pragma omp critical
-    {
-      for (int j : {0, 1, 2}) {
-        for (int i : {0, 1, 2}) {
-          for (int iCalc = 0; iCalc < statisticsSweep.getNumCalculations();
-               iCalc++) {
-            tensordxd(iCalc, i, j) += tensorPrivate(iCalc, i, j);
-          }
-        }
-      }
-    }
-  }
-  */
   // lastly, the states were distributed with MPI
   mpi->allReduceSum(&tensordxd);
+
+  // we print the unsymmetrized tensor to output file
+  //if(mpi->mpiHead()) {
+  //  std::cout << "Pre-symmetrization thermal conductivity:\n" << std::endl;
+  //  print();
+  //}
+  // symmetrize the thermal conductivity
+  //symmetrize(tensordxd);
 }
 
 void PhononThermalConductivity::calcVariational(VectorBTE &af, VectorBTE &f,
@@ -162,11 +142,11 @@ void PhononThermalConductivity::calcVariational(VectorBTE &af, VectorBTE &f,
   std::vector<int> iss = bandStructure.parallelIrrStateIterator();
   int niss = iss.size();
 
-  // TODO should these be dimensionality? 
+  // TODO should these be dimensionality?
   Kokkos::View<double***, Kokkos::LayoutLeft, Kokkos::HostSpace, Kokkos::MemoryTraits<Kokkos::Unmanaged>> y1_k(y1.data(), numCalculations, dimensionality, dimensionality),
     y2_k(y2.data(), numCalculations, dimensionality, dimensionality);
   Kokkos::Experimental::ScatterView<double***, Kokkos::LayoutLeft, Kokkos::HostSpace> scatter_y1(y1_k), scatter_y2(y2_k);
-  Kokkos::parallel_for("electron_viscosity", Kokkos::RangePolicy<Kokkos::HostSpace::execution_space>(0, niss), [&] (int iis){
+  Kokkos::parallel_for("variational thermal conductivity", Kokkos::RangePolicy<Kokkos::HostSpace::execution_space>(0, niss), [&] (int iis){
       auto x1 = scatter_y1.access();
       auto x2 = scatter_y2.access();
 
@@ -210,32 +190,17 @@ void PhononThermalConductivity::calcVariational(VectorBTE &af, VectorBTE &f,
     });
   Kokkos::Experimental::contribute(y1_k, scatter_y1);
   Kokkos::Experimental::contribute(y2_k, scatter_y2);
-  /*
-#pragma omp parallel default(none) shared(                                     \
-    excludeIndices, bandStructure, y1, y2, norm, af, f, b, numCalculations)
-  {
-    Eigen::Tensor<double, 3> x1(numCalculations, 3, 3);
-    Eigen::Tensor<double, 3> x2(numCalculations, 3, 3);
-    x1.setConstant(0.);
-    x2.setConstant(0.);
-#pragma omp for nowait
-    for (int is : bandStructure.parallelIrrStateIterator()) {
-
-#pragma omp critical
-    for (int j = 0; j < dimensionality; j++) {
-      for (int i = 0; i < dimensionality; i++) {
-        for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
-          y1(iCalc, i, j) += x1(iCalc, i, j);
-          y2(iCalc, i, j) += x2(iCalc, i, j);
-        }
-      }
-    }
-  }
-  */
   mpi->allReduceSum(&y1);
   mpi->allReduceSum(&y2);
 
   tensordxd = 2 * y2 - y1;
+  // we print the unsymmetrized tensor to output file
+  if(mpi->mpiHead()) {
+    std::cout << "Unsymmetrized thermal conductivity:\n" << std::endl;
+    print();
+  }
+  // symmetrize the thermal conductivity
+  //symmetrize(tensordxd);
 }
 
 // TODO this should be commented better to make it more understandable -- Jenny
@@ -369,7 +334,7 @@ void PhononThermalConductivity::calcFromRelaxons(
 #pragma omp parallel default(none)                                             \
     shared(eigenvectors, eigenvalues, temp, chemPot, particle, relaxonsPopulation, localStates, nlocalStates)
     {
-      Eigen::MatrixXd relaxonsPopPrivate(eigenvalues.size(), dimensionality); 
+      Eigen::MatrixXd relaxonsPopPrivate(eigenvalues.size(), dimensionality);
       relaxonsPopPrivate.setZero();
 #pragma omp for nowait
       for(int ilocalState = 0; ilocalState < nlocalStates; ilocalState++){
@@ -444,6 +409,8 @@ void PhononThermalConductivity::calcFromRelaxons(
   // now calculate the thermal conductivity using the standard phonon population
   calcFromPopulation(population);
 }
+
+// IO related functions =====================================================
 
 void PhononThermalConductivity::print() {
 

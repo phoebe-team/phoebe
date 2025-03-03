@@ -10,6 +10,7 @@
 
 /** Container for temperature, chemical potential, doping, to be used.
  * To be used for loops over temperature and chemical potentials.
+ * Note, temperatures here are in Ry, so this is kB*T
  */
 struct CalcStatistics {
   double temperature;
@@ -23,6 +24,7 @@ struct CalcStatistics {
  * accessed to repeat calculations on a range of parameters.
  */
 class StatisticsSweep {
+
  public:
   /** Constructor of the loop over temperatures and chemical potentials.
    * For phonons, the constructor simply stores the temperatures.
@@ -76,12 +78,25 @@ class StatisticsSweep {
    */
   int getNumTemperatures() const;
 
+  /**
+   * Tells us which kind of bandstructure this statistics sweep matches. 
+   * The only time this matters is for the sake of chemical potentials. 
+   * @return Particle: the particle which was used to calculate the stat sweep. 
+  */
+  inline Particle getParticle() const { return particle; }
+
   /** Prints to screen the information on the temperature, doping and
    * chemical potentials to be computed in the current run.
    */
   void printInfo();
 
+  /** calculate and print the number of free carriers
+  * @param bandStructure : the active band structure to calculate from
+  **/
+  void calcNumFreeCarriers(BaseBandStructure* bandStructure);
+
  protected:
+
   Particle particle;
   int numCalculations = 0;
   Eigen::MatrixXd infoCalculations;
@@ -89,6 +104,7 @@ class StatisticsSweep {
   int nChemPot = 0;
   int nDop = 0;
   bool isDistributed = false;
+  int dimensionality = 0;
 
   // note: these three private methods are only meant to be used
   // during the construction of this class, as they depend on energies

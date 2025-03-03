@@ -25,13 +25,6 @@ public:
    */
   ActiveBandStructure(Particle &particle_, Points &points_);
 
-  /** Copy constructor
-   */
-  ActiveBandStructure(const ActiveBandStructure &that);
-
-  /** Assignment operator
-   */
-  ActiveBandStructure &operator=(const ActiveBandStructure &that);
 
   /** Default constructor.
    * Populate the band structure for the subset of wavevectors specified by
@@ -83,6 +76,7 @@ public:
    *    (only returned in the case where the bands have not been filtered.)
    */
   int getNumBands() override;
+  int getFullNumBands() override;
 
   /** Returns the number of bands at a given wavevector.
    * @return numBands: the number of bands at the requested ik.
@@ -108,7 +102,7 @@ public:
    * has different range for every wavevector
    * @return stateIndex: integer from 0 to numStates-1
    */
-  int getIndex(const WavevectorIndex &ik, const BandIndex &ib) override;
+  size_t getIndex(const WavevectorIndex &ik, const BandIndex &ib) override;
 
   /** Given a Bloch state index, finds the corresponding wavevector and band
    * index.
@@ -370,6 +364,10 @@ public:
    */
   std::vector<int> parallelIrrPointsIterator() override;
 
+  /** Returns the number of irr points in this band structure
+  */
+  int getNumIrrStates() override;
+
   /** Find the index of a point in the reducible list of points, given its
    * coordinates in the crystal basis.
    *
@@ -402,6 +400,7 @@ public:
   std::vector<std::complex<double>> eigenvectors;
 
   bool hasEigenvectors = false;
+  bool hasVelocities = false;
   int numStates = 0;
   int numIrrStates;
   int numIrrPoints;
@@ -422,18 +421,21 @@ public:
   void buildIndices(); // to be called after building the band structure
   // and these are the tools to convert indices
   void buildSymmetries();
+  // symmetrizes the band energies, velocities, and eigenvectors
+  //void symmetrize(Context &context, const bool& withVelocities);
 
   // utilities to convert Bloch indices into internal indices
-  int velBloch2Comb(const int &ik, const int &ib1, const int &ib2,
+  size_t velBloch2Comb(const int &ik, const int &ib1, const int &ib2,
                      const int &i);
-  int eigBloch2Comb(const int &ik, const int &ibFull, const int &ibRed);
-  int bloch2Comb(const int &k, const int &b);
+  size_t eigBloch2Comb(const int &ik, const int &ibFull, const int &ibRed);
+  size_t bloch2Comb(const int &k, const int &b);
   std::tuple<int, int> comb2Bloch(const int &is);
 
-  int bteBloch2Comb(const int &k, const int &b);
+  size_t bteBloch2Comb(const int &k, const int &b);
   std::tuple<int, int> bteComb2Bloch(const int &is);
 
   void buildOnTheFly(Window &window, Points points_, HarmonicHamiltonian &h0,
+                     Context& context,
                      const bool &withEigenvectors = true,
                      const bool &withVelocities = true);
 
@@ -441,6 +443,16 @@ public:
                                         HarmonicHamiltonian &h0,
                                         const bool &withEigenvector = true,
                                         const bool &withVelocities = true);
+
+  /** helper function to enforce that sym eq points have the same number of bands
+   *  during the construction of active band structure 
+   */
+  /*void enforceBandNumSymmetry(Context& context, const int& numFullBands,
+        const std::vector<int>& myFilteredPoints,
+        Eigen::MatrixXi& filteredBands,
+        const std::vector<int>& displacements,
+        HarmonicHamiltonian& h0, const bool &withVelocities);
+        */
 };
 
 #endif

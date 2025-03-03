@@ -6,6 +6,7 @@
 #include "electron_h0_wannier.h"
 #include "phonon_h0.h"
 #include "phonopy_input_parser.h"
+#include "jdftx_input_parser.h"
 #include "qe_input_parser.h"
 #include <string>
 

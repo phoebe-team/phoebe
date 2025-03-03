@@ -34,12 +34,10 @@ class Matrix {
  /** Underlying ParallelMatrix instantiated only if isDistributed = true
  */
  ParallelMatrix<T>* pmat = nullptr;
-//  ParallelMatrix<T>* pmat = new ParallelMatrix<T>();
 
  /** Underlying SerialMatrix instantiated only if isDistributed = false
  */
  SerialMatrix<T>* mat = nullptr;
-//  SerialMatrix<T>* mat = new SerialMatrix<T>();
 
  public:
   /** Default Matrix constructor.
@@ -183,6 +181,10 @@ class Matrix {
    */
   Matrix<T> operator-() const;
 
+  /** A function to write the matrix to HDF5. Only
+   * for debugging, and only written for PMatrix. */
+  void outputToHDF5();
+
   /** Symmetrize the matrix
   */
   void symmetrize();
@@ -222,10 +224,10 @@ Matrix<T>::Matrix(const Matrix<T>& that) {
 
   // call SMatrix or PMatrix copy constructor
   if(isDistributed) {
-    (*pmat) = (*that.pmat);
+    pmat = that.pmat;
   }
   else {
-    (*mat) = (*that.mat);
+    mat = that.mat;
   }
 }
 
@@ -288,9 +290,9 @@ template <typename T>
 double Matrix<T>::getMemory() const{
   // this is done in parts to avoid overflow;
   // size in GB is size of type*rows()*cols()/(1024)^3
-  double temp = sizeof(T)*rows()/1024;
-  temp = temp*cols()/1024;
-  return temp/(1024);
+  double temp = sizeof(T)*rows()/1024.;
+  temp = temp*cols()/1024.;
+  return temp/(1024.);
 }
 
 template <typename T>
@@ -363,6 +365,12 @@ template <typename T>
 T Matrix<T>::dot(const Matrix<T>& that) {
   if(isDistributed) return pmat->dot(that.pmat);
   else{ return mat->dot(that.mat); }
+}
+
+template <typename T>
+void Matrix<T>::outputToHDF5() {
+  if(isDistributed) pmat->outputToHDF5();
+  else{ Error("Write to HDF5 not implemented for SMatrix."); }
 }
 
 #endif  // MATRIX_H

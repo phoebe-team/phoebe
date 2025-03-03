@@ -14,10 +14,10 @@
  */
 class BaseBandStructure {
  public:
- 
+
   /** Base destructor for bandstructure class, silences warnings */
   virtual ~BaseBandStructure() = default;
- 
+
   /** Get the Particle object associated with this class
    * @return particle: a Particle object, describing e.g. whether this
    * is a phonon or electron bandStructure
@@ -47,6 +47,7 @@ class BaseBandStructure {
    * If the number of bands is not constant, calls an error.
    */
   virtual int getNumBands() = 0;
+  virtual int getFullNumBands() = 0;
 
   /** Returns the number of bands. If the band structure is active,
    * and there are a different number of bands at each wavevector, this function
@@ -76,7 +77,7 @@ class BaseBandStructure {
    * @param wavevectorIndex: strong-typed index on wavevector
    * @return stateIndex: integer from 0 to numStates-1=numBands*numPoints-1
    */
-  virtual int getIndex(const WavevectorIndex &ik, const BandIndex &ib) = 0;
+  virtual size_t getIndex(const WavevectorIndex &ik, const BandIndex &ib) = 0;
 
   /** Given a Bloch state index, finds the corresponding wavevector and band
    * index.
@@ -96,7 +97,7 @@ class BaseBandStructure {
   /** Returns an iterator to be used for loops over the Bloch state index.
    * The values of the iterator are distributed in N blocks over N MPI ranks.
    */
-  std::vector<size_t> parallelStateIterator();
+  virtual std::vector<size_t> parallelStateIterator();
 
   /** Returns the energy of a quasiparticle from its Bloch index
    * Used for accessing the band structure in the BTE.
@@ -111,14 +112,13 @@ class BaseBandStructure {
   virtual const double &getEnergy(StateIndex &is) = 0;
   virtual Eigen::VectorXd getEnergies(WavevectorIndex &ik) = 0;
 
-  /** Returns the maximum energy value. This can be useful when
-   * setting energy scales based on which phonons are discarded
-   * (as in the phel scattering, where the window is set relative
-   * to the maximum phonon energies)
+  /** Return the maximum energy of a bandstructure.
+  * Used when ph energy maximum is a cutoff for phel scattering.
+  * @return maxEnergy: maximum energy value of bandstructure in Ry
   */
   virtual double getMaxEnergy() = 0;
 
-  /** Returns the energy of a quasiparticle from its Bloch index
+  /** Returns the velocity of a quasiparticle from its Bloch index
    * Used for accessing the band structure in the BTE.
    * @param stateIndex: an integer index in range [0,numStates[
    * @return velocity: a 3d vector with velocity. By policy, we save it in
@@ -133,7 +133,7 @@ class BaseBandStructure {
   virtual Eigen::Tensor<std::complex<double>, 3> getPhEigenvectors(
       WavevectorIndex &ik) = 0;
 
-  /** Returns the energy of a quasiparticle from its Bloch index
+  /** Returns the wavevector of a quasiparticle from its Bloch index
    * Used for accessing the band structure in the BTE.
    * @param stateIndex: an integer index in range [0,numStates[
    * @return wavevector: a 3d vector with the wavevector in cartesian
@@ -256,6 +256,10 @@ class BaseBandStructure {
    */
   virtual std::vector<int> parallelIrrPointsIterator() = 0;
 
+  /** Returns number of irr points for this band structure
+  */
+  virtual int getNumIrrStates() = 0;
+
   /** Find the index of a point in the reducible list of points, given its
    * coordinates in the crystal basis.
    *
@@ -275,6 +279,20 @@ class BaseBandStructure {
    * equivalent to point #ik.
    */
   virtual std::vector<int> getReducibleStarFromIrreducible(const int &ik) = 0;
+
+  /** Outputs the bandstructure information to file, either sym reduced or not 
+   * @param outFileName : optional output file name
+   * @param symReduced : if the bandstructure info should be sym reduced or not
+   */
+  void outputComponentsToJSON(const std::string &outFileName = "bandstructure.json"); 
+
+  /** 
+   * A function to print information about how many states are in this bandstructure, and how 
+   * things were reduced by filtering of states. 
+   * @param fullNumBands: The maximum number of bands possible
+  */
+  void printBandStructureStateInfo(const int& fullNumBands);
+
 };
 
 class ActiveBandStructure;
@@ -316,13 +334,20 @@ class FullBandStructure : public BaseBandStructure {
 
   FullBandStructure();
 
+  /* Note, these explicit constructors are needed because we want to make deep copies
+  when these objects are created and assigned as FBS fbs = h0.populate() */
+
   /** Copy constructor
    */
   FullBandStructure(const FullBandStructure &that);
 
-  /** Assignment operator
+  /** Copy assignment operator
    */
   FullBandStructure &operator=(const FullBandStructure &that);
+
+  /** Symmetrizes the full band structure energies.
+  **/
+  void symmetrize();
 
   /** Get the Particle object associated with this class
    * @return particle: a Particle object, describing e.g. whether this
@@ -351,6 +376,8 @@ class FullBandStructure : public BaseBandStructure {
    * @return numBands: the total number of bands in the bandStructure.
    */
   int getNumBands() override;
+  int getFullNumBands() override;
+
   /** Returns the number of bands, to provide flexibility in cases where
    * full or activeBandStructure could be used.
    * @return numBands: the total number of bands in the bandStructure.
@@ -370,7 +397,7 @@ class FullBandStructure : public BaseBandStructure {
    * @param wavevectorIndex: strong-typed index on wavevector
    * @return stateIndex: integer from 0 to numStates-1=numBands*numPoints-1
    */
-  int getIndex(const WavevectorIndex &ik, const BandIndex &ib) override;
+  size_t getIndex(const WavevectorIndex &ik, const BandIndex &ib) override;
 
   /** Given a Bloch state index, finds the corresponding wavevector and band
    * index.
@@ -399,20 +426,27 @@ class FullBandStructure : public BaseBandStructure {
   * @return wavevectorIndices: a vector of wavevector indices for use as
   * an iterator.
   */
-  std::vector<int> getWavevectorIndices();
+  std::vector<int> getLocalWavevectorIndices();
 
-  /** Returns the indices of all state indices on this process, or in
+  /** Returns the indices of all n,k indices on this process, or in
   * an undistributed case, returns all state indices.
   * @return stateIndices: a vector of tuples of (ib,ik) indices for use as
   * an iterator.
   */
-  std::vector<std::tuple<WavevectorIndex, BandIndex>> getStateIndices();
+  std::vector<std::tuple<WavevectorIndex, BandIndex>> getLocalEnergyStateIndices();
+
+  /** Returns the indices of all state indices on this process, or in
+  * an undistributed case, returns all state indices.
+  * @return stateIndices: a vector of is state indices for use as
+  * an iterator.
+  */
+  //std::vector<size_t> getLocalStateIndices();
 
   /** Returns the indices of all bands on this process, or in an
   * undistributed case, returns all band indices.
   * @return bandIndices: a vector of band indices for use as an iterator.
   */
-  std::vector<int> getBandIndices() const;
+  std::vector<int> getLocalBandIndices() const;
 
   /** Returns the energy of a quasiparticle from its Bloch index.
    * Same as getEnergy(const int &stateIndex), but using a StateIndex input
@@ -430,6 +464,7 @@ class FullBandStructure : public BaseBandStructure {
   /** Returns the energy of a quasiparticle from its band and wavevector index.
    * Same as getEnergy(const int &stateIndex), but using ib,ik instead.
    * ik should always be the global wavevector index, or this will be wrong!
+   *
    * @param ik: the wavevector index of the particle state
    * @param ib: the band index of the particle state
    * @return energy: the value of the QP energy for that given Bloch index.
@@ -454,11 +489,9 @@ class FullBandStructure : public BaseBandStructure {
    */
   Eigen::VectorXd getEnergies(WavevectorIndex &ik) override;
 
-  /** Returns the maximum energy value. This can be useful when
-   * setting energy scales based on which phonons are discarded
-   * (as in the phel scattering, where the window is set relative
-   * to the maximum phonon energies)
-   * Currently not implemented for fullBandStructure -- blocked. 
+  /** Return the maximum energy of a bandstructure.
+  * Used when ph energy maximum is a cutoff for phel scattering.
+  * @return maxEnergy: maximum energy value of bandstructure in Ry
   */
   double getMaxEnergy() override;
 
@@ -497,7 +530,7 @@ class FullBandStructure : public BaseBandStructure {
    * @return eigenvectors: a complex matrix(numBands,numBands) where numBands
    * is the number of Bloch states present at the specified wavevector.
    * Eigenvectors are ordered along columns.
-   * Note that all band structure interpolations may give eigenvectors.
+   * Note that not all band structure interpolations may give eigenvectors.
    */
   Eigen::MatrixXcd getEigenvectors(WavevectorIndex &ik) override;
 
@@ -657,6 +690,10 @@ class FullBandStructure : public BaseBandStructure {
    */
   std::vector<int> parallelIrrPointsIterator() override;
 
+  /** Returns the number of irreducible points for this band structure
+  */
+  int getNumIrrStates() override;
+
   /** Find the index of a point in the reducible list of points, given its
    * coordinates in the crystal basis.
    *
@@ -676,6 +713,7 @@ class FullBandStructure : public BaseBandStructure {
    * equivalent to point #ik.
    */
   std::vector<int> getReducibleStarFromIrreducible(const int &ik) override;
+
 protected:
   // stores the quasiparticle kind
   Particle particle;
@@ -697,11 +735,11 @@ protected:
   // auxiliary variables
   int numBands = 0;
   int numAtoms = 0;
-  int numPoints = 0;
+  size_t numPoints = 0;
   int numLocalPoints = 0;
 
   // method to find the index of the point, from its crystal coordinates
-  int getIndex(Eigen::Vector3d &pointCoordinates);
+  //int getIndex(Eigen::Vector3d &pointCoordinates);
 
   // ActiveBandStructure, which restricts the FullBandStructure to a subset
   // of wavevectors, needs low-level access to the raw data (for now)

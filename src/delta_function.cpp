@@ -6,54 +6,73 @@
 
 DeltaFunction::~DeltaFunction() {}
 
+// functions to define the type
 int DeltaFunction::getType() { return id; }
-
 int GaussianDeltaFunction::getType() { return id; }
-
 int AdaptiveGaussianDeltaFunction::getType() { return id; }
-
+//int SymAdaptiveGaussianDeltaFunction::getType() { return id; }
 int TetrahedronDeltaFunction::getType() { return id; }
 
 // app factory
-DeltaFunction *
-DeltaFunction::smearingFactory(Context &context,
+DeltaFunction * DeltaFunction::smearingFactory(Context &context,
                                BaseBandStructure &fullBandStructure) {
+
   auto choice = context.getSmearingMethod();
   if (choice == gaussian) {
-    return new GaussianDeltaFunction(context);
+    return new GaussianDeltaFunction(fullBandStructure, context);
   } else if (choice == adaptiveGaussian) {
-    return new AdaptiveGaussianDeltaFunction(fullBandStructure);
+    return new AdaptiveGaussianDeltaFunction(fullBandStructure, context);
   } else if (choice == tetrahedron) {
     return new TetrahedronDeltaFunction(fullBandStructure);
+  } else if (choice == symAdaptiveGaussian) {
+    return new SymAdaptiveGaussianDeltaFunction(fullBandStructure, context);
   } else {
     Error("Unrecognized smearing choice");
     return nullptr;
   }
 }
 
-GaussianDeltaFunction::GaussianDeltaFunction(Context &context) {
-  inverseWidth = 1. / context.getSmearingWidth();
-  prefactor = 1. / context.getSmearingWidth() / sqrt(pi);
+// Gaussian smearing ----------------------------------------------------
+
+GaussianDeltaFunction::GaussianDeltaFunction(BaseBandStructure& bandStructure, Context &context) {
+
+  double smearingWidth = context.getSmearingWidth();
+
+  if(!std::isnan(context.getPhSmearingWidth()) && bandStructure.getParticle().isPhonon() ) {
+    smearingWidth = context.getPhSmearingWidth();
+  }
+  if(!std::isnan(context.getElSmearingWidth()) && bandStructure.getParticle().isElectron() ) {
+    smearingWidth = context.getElSmearingWidth();
+  }
+
+  if(mpi->mpiHead()) {
+    std::setprecision(9);
+    std::cout << "\nGaussian smearing width is " << smearingWidth * 13.6057039763 << " eV." << std::endl;
+  }
+
+  inverseWidth = 1. / smearingWidth;
+  prefactor = 1. / smearingWidth / sqrt(pi);
+
 }
 
 double GaussianDeltaFunction::getSmearing(const double &energy,
-                                          const Eigen::Vector3d &velocity) {
-  (void)velocity;
+                                          [[maybe_unused]] const Eigen::Vector3d &velocity,
+                                          [[maybe_unused]] const Eigen::Vector3d &velocity2,
+                                          [[maybe_unused]] const Eigen::Vector3d &velocity3) {
   double x = energy * inverseWidth;
   if ( x > 6. ) return 0.; // the error is < 2e-16, and prevents underflow
   return prefactor * exp(-x * x);
 }
 
-double GaussianDeltaFunction::getSmearing(const double &energy,
-                                          StateIndex &is) {
-  (void)energy;
-  (void)is;
+double GaussianDeltaFunction::getSmearing([[maybe_unused]] const double &energy, [[maybe_unused]] StateIndex &is) {
   Error("GaussianDeltaFunction::getSmearing2 not implemented");
   return 1.;
 }
 
+// Adaptive gaussian smearing -----------------------------------------
+
 AdaptiveGaussianDeltaFunction::AdaptiveGaussianDeltaFunction(
-    BaseBandStructure &bandStructure, double broadeningCutoff_) {
+    BaseBandStructure &bandStructure, Context& context, double broadeningCutoff_) {
   auto tup = bandStructure.getPoints().getMesh();
   auto mesh = std::get<0>(tup);
   qTensor = bandStructure.getPoints().getCrystal().getReciprocalUnitCell();
@@ -61,11 +80,57 @@ AdaptiveGaussianDeltaFunction::AdaptiveGaussianDeltaFunction(
   qTensor.row(1) /= mesh(1);
   qTensor.row(2) /= mesh(2);
   broadeningCutoff = broadeningCutoff_;
+
+  // if user set this input we override it here
+  //if (!std::isnan(context.getAdaptiveSmearingPrefactor())) {
+
+    //adaptivePrefactor = context.getAdaptiveSmearingPrefactor();
+    //if(bandStructure.getParticle().isPhonon()) {
+    //  adaptivePrefactor *= 250.; // bigger factor is better for ph it seems -- TODO this differently
+    //}
+/*     if(context.getAppName().find("Coupled") != std::string::npos) {
+      Warning("For a coupled calculation, be careful about setting adaptiveSmearingPrefactor --\n"
+		      "this will set the el and ph values to the same thing,\n"
+		      "which is likely not optimal!");
+    } */
+  //}
+
+  if(bandStructure.getParticle().isPhonon() ) {
+    // set user defined smearing if requested
+    if(!std::isnan(context.getPhSmearingWidth())) {
+      adaptivePrefactor = context.getPhSmearingWidth();
+    } else if (!std::isnan(context.getAdaptiveSmearingPrefactor())) {
+      adaptivePrefactor = context.getAdaptiveSmearingPrefactor();
+    } else {
+      adaptivePrefactor = 0.05; // this is tested to work well for phonons
+    }
+  } else if (bandStructure.getParticle().isElectron()) {
+    if(!std::isnan(context.getElSmearingWidth()) ) {
+      adaptivePrefactor = context.getElSmearingWidth();
+    } else if (!std::isnan(context.getAdaptiveSmearingPrefactor())) {
+      adaptivePrefactor = context.getAdaptiveSmearingPrefactor();
+    } else {
+      adaptivePrefactor = 0.01; // tested to work well for electrons
+    }
+  }
+/*   else if(bandStructure.getParticle().isPhonon()) {
+    adaptivePrefactor = 0.05; // this is tested to work well for phonons
+  } else {
+    adaptivePrefactor = 0.01; // tested to work well for electrons
+  } */
+  if(mpi->mpiHead())
+    std::cout << "The adaptive smearing prefactor is set to " << adaptivePrefactor << std::endl;
 }
 
-double
-AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
-                                           const Eigen::Vector3d &velocity) {
+double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
+                                           const Eigen::Vector3d &velocity,
+                                           [[maybe_unused]] const Eigen::Vector3d &velocity2,
+                                           [[maybe_unused]] const Eigen::Vector3d &velocity3) {
+
+  if(velocity2.norm() != 0. || velocity3.norm() != 0.) {
+    DeveloperError("Adaptive Gaussian smearing function is being misused.");
+  }
+
   if (velocity.norm() == 0. && energy == 0.) {
     // in this case, velocities are parallel, there shouldn't be
     // scattering unless energy is strictly conserved
@@ -76,7 +141,7 @@ AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
   for (int i : {0, 1, 2}) {
     sigma += pow(qTensor.row(i).dot(velocity), 2);
   }
-  sigma = prefactor * sqrt(sigma / 6.);
+  sigma = prefactor * adaptivePrefactor * sqrt(sigma);
 
   if (sigma == 0.) {
     return 0.;
@@ -95,16 +160,58 @@ AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
   return exp(-x * x) / sqrtPi / sigma / erf2;
 }
 
-double AdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
-                                                  StateIndex &is) {
-  (void)energy;
-  (void)is;
-  Error("AdaptiveGaussianDeltaFunction::getSmearing2 not implemented");
+double AdaptiveGaussianDeltaFunction::getSmearing([[maybe_unused]] const double &energy,
+                                                  [[maybe_unused]] StateIndex &is) {
+  DeveloperError("AdaptiveGaussianDeltaFunction::getSmearing2 not implemented");
   return 1.;
 }
 
-TetrahedronDeltaFunction::TetrahedronDeltaFunction(
-    BaseBandStructure &fullBandStructure_)
+// Symmetry respecting adaptive smearing -----------------------------------------
+
+SymAdaptiveGaussianDeltaFunction::SymAdaptiveGaussianDeltaFunction(
+    BaseBandStructure &bandStructure, Context& context, double broadeningCutoff_)
+    : AdaptiveGaussianDeltaFunction(bandStructure, context, broadeningCutoff_) {
+
+  // cannot override this in the header, as it's an inherited class variable
+  // therefore, we have to do it here
+  id = DeltaFunction::symAdaptiveGaussian;
+}
+
+double SymAdaptiveGaussianDeltaFunction::getSmearing(const double &energy,
+                                           const Eigen::Vector3d &velocity,
+                                           const Eigen::Vector3d &velocity2,
+                                           const Eigen::Vector3d &velocity3) {
+
+  // following section 3.3.1 of the barnaBTE manuscript
+  Eigen::Vector3d sigma_ijk = {0.,0.,0.};
+  for (int i : {0, 1, 2}) {
+    sigma_ijk(0) += pow(qTensor.row(i).dot(velocity), 2);
+    sigma_ijk(1) += pow(qTensor.row(i).dot(velocity2), 2);
+    sigma_ijk(2) += pow(qTensor.row(i).dot(velocity3), 2);
+  }
+  double sigma = sigma_ijk.norm();
+  sigma = prefactor * sqrt(sigma) * adaptivePrefactor;
+  if (sigma == 0.) { return 0.; }
+
+  // NOTE are we sure we want to do we want this cutoff?
+  // Seems to affect very little, likely not a big impact either way
+  // if the smearing is smaller than 0.0001 eV, we renormalize it
+  // for electrons, a common smearing is ~0.01 eV in regular gaussian smearing
+  if (sigma < broadeningCutoff ) {
+    sigma = broadeningCutoff;
+  }
+
+  if (abs(energy) > 2. * sigma)
+    return 0.;
+  double x = energy / sigma;
+  if ( x > 6. ) return 0.; // the error is < 2e-16, and prevents underflow
+  // note: the factor ERF_2 corrects for the cutoff at 2*sigma
+  return exp(-(x * x)/2.) / (sqrtTwo * sqrtPi) / sigma / erf2;
+}
+
+// Tetrahedron method smearing -----------------------------------------
+
+TetrahedronDeltaFunction::TetrahedronDeltaFunction(BaseBandStructure &fullBandStructure_)
     : fullBandStructure(fullBandStructure_),
       fullPoints(fullBandStructure_.getPoints()) {
   auto tup = fullPoints.getMesh();
@@ -269,10 +376,11 @@ double TetrahedronDeltaFunction::getSmearing(const double &energy,
   return weight;
 }
 
-double TetrahedronDeltaFunction::getSmearing(const double &energy,
-                                             const Eigen::Vector3d &velocity) {
-  (void)energy;
-  (void)velocity;
+double TetrahedronDeltaFunction::getSmearing([[maybe_unused]] const double &energy,
+                                             [[maybe_unused]] const Eigen::Vector3d &velocity,
+                                             [[maybe_unused]] const Eigen::Vector3d &velocity2,
+                                             [[maybe_unused]] const Eigen::Vector3d &velocity3) {
+
   Error("TetrahedronDeltaFunction getSmearing1 not implemented");
   return 1.;
 }

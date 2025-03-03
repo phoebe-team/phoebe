@@ -21,7 +21,7 @@ class SerialMatrix {
   /// Class variables
   int numRows_;
   int numCols_;
-  int numElements_;
+  size_t numElements_;
 
   T* mat = nullptr;  // pointer to the internal array structure.
 
@@ -93,13 +93,26 @@ class SerialMatrix {
   int localCols() const;
   /** Find global number of matrix elements
    */
-  int size() const;
+  size_t size() const;
   /** Get and set operator
    */
   T& operator()(const int &row, const int &col);
   /** Const get and set operator
    */
   const T& operator()(const int &row, const int &col) const;
+
+  /** A function to fix up a matrix with a bit of noise to be positive semi-definite, 
+  *   which currently does not have a SMatrix implementation, as it's only used by 
+  *   distributed scattering matrix calculations 
+  */
+  void enforcePositiveSemiDefinite() {}; 
+
+  /** A dummy function not implemented, only for PMatrix currently
+   * @param outFileName: string naming the output file
+   * @param dataSetName: keyname for data in the output file
+   */
+  void outputToHDF5(const std::string &outFileName,
+                                   const std::string &dataSetName) {}
 
   /** Matrix-matrix multiplication.
    * Computes result = trans1(*this) * trans2(that)
@@ -121,7 +134,7 @@ class SerialMatrix {
     if(numRows_ != m1.rows() || numCols_ != m1.cols()) {
       Error("Cannot add matrices of different sizes.");
     }
-    for (int s = 0; s < size(); s++) mat[s] += m1.mat[s];
+    for (size_t s = 0; s < size(); s++) mat[s] += m1.mat[s];
     return *this;
   }
 
@@ -131,21 +144,21 @@ class SerialMatrix {
     if(numRows_ != m1.rows() || numCols_ != m1.cols()) {
       Error("Cannot subtract matrices of different sizes.");
     }
-    for (int s = 0; s < size(); s++) mat[s] -= m1.mat[s];
+    for (size_t s = 0; s < size(); s++) mat[s] -= m1.mat[s];
     return *this;
   }
 
   /** Matrix-scalar multiplication.
    */
   SerialMatrix<T> operator*=(const T& that) {
-    for (int s = 0; s < size(); s++) mat[s] *= that;
+    for (size_t s = 0; s < size(); s++) mat[s] *= that;
     return *this;
   }
 
   /** Matrix-scalar division.
    */
   SerialMatrix<T> operator/=(const T& that) {
-    for (int s = 0; s < size(); s++) mat[s] /= that;
+    for (size_t s = 0; s < size(); s++) mat[s] /= that;
     return *this;
   }
 
@@ -206,7 +219,7 @@ SerialMatrix<T>::SerialMatrix(const int& numRows, const int& numCols,
   numCols_ = numCols;
   numElements_ = numRows_ * numCols_;
   mat = new T[numRows_ * numCols_];
-  for (int i = 0; i < numElements_; i++) mat[i] = 0;  // fill with zeroes
+  for (size_t i = 0; i < numElements_; i++) mat[i] = 0;  // fill with zeroes
   assert(mat != nullptr);  // Memory could not be allocated, end program
 }
 
@@ -231,7 +244,7 @@ SerialMatrix<T>::SerialMatrix(const SerialMatrix<T>& that) {
   }
   mat = new T[numElements_];
   assert(mat != nullptr);
-  for (int i = 0; i < numElements_; i++) {
+  for (size_t i = 0; i < numElements_; i++) {
     mat[i] = that.mat[i];
   }
 }
@@ -248,7 +261,7 @@ SerialMatrix<T>& SerialMatrix<T>::operator=(const SerialMatrix<T>& that) {
     }
     mat = new T[numElements_];
     assert(mat != nullptr);
-    for (int i = 0; i < numElements_; i++) {
+    for (size_t i = 0; i < numElements_; i++) {
       mat[i] = that.mat[i];
     }
   }
@@ -279,7 +292,7 @@ int SerialMatrix<T>::localCols() const {
   return numCols_;
 }
 template <typename T>
-int SerialMatrix<T>::size() const {
+size_t SerialMatrix<T>::size() const {
   return numElements_;
 }
 
@@ -287,7 +300,8 @@ int SerialMatrix<T>::size() const {
 template <typename T>
 T& SerialMatrix<T>::operator()(const int &row, const int &col) {
   if(row >= numRows_ || col >= numCols_ || row < 0 || col < 0) {
-    Error("Attempted to reference a matrix element out of bounds.");
+    DeveloperError("Tried to reference a SMatrix state out of bounds: " 
+        + std::to_string(row) + " " + std::to_string(col));
   }
   return mat[global2Local(row, col)];
 }
@@ -295,15 +309,18 @@ T& SerialMatrix<T>::operator()(const int &row, const int &col) {
 template <typename T>
 const T& SerialMatrix<T>::operator()(const int &row, const int &col) const {
   if(row >= numRows_ || col >= numCols_ || row < 0 || col < 0) {
-    Error("Attempted to reference a matrix element out of bounds.");
+    DeveloperError("Tried to reference a SMatrix state out of bounds: " 
+        + std::to_string(row) + " " + std::to_string(col));
   }
   return mat[global2Local(row, col)];
 }
 
 template <typename T>
 bool SerialMatrix<T>::indicesAreLocal(const int& row, const int& col) {
-  (void) row;
-  (void) col;
+  if(row >= numRows_ || col >= numCols_ || row < 0 || col < 0) {
+    DeveloperError("indicesAreLocal tried to reference a SMatrix state out of bounds: " 
+          + std::to_string(row) + " " + std::to_string(col));
+  }
   return true;
 }
 
@@ -326,7 +343,7 @@ int SerialMatrix<T>::global2Local(const int& row, const int& col) {
 template <typename T>
 std::vector<std::tuple<int, int>> SerialMatrix<T>::getAllLocalStates() {
   std::vector<std::tuple<int, int>> x;
-  for (int k = 0; k < numElements_; k++) {
+  for (size_t k = 0; k < numElements_; k++) {
     std::tuple<int, int> t = local2Global(k);  // bloch indices
     x.push_back(t);
   }
@@ -377,7 +394,7 @@ double SerialMatrix<T>::squaredNorm() {
 template <typename T>
 T SerialMatrix<T>::dot(const SerialMatrix<T>& that) {
   T scalar = (T)0.;
-  for (int i = 0; i < numElements_; i++) {
+  for (size_t i = 0; i < numElements_; i++) {
     scalar += (*(mat + i)) * (*(that.mat + i));
   }
   return scalar;

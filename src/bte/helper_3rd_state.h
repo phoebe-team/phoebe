@@ -44,7 +44,7 @@ class Helper3rdState {
                  Eigen::MatrixXd &outerBose_,
                  StatisticsSweep &statisticsSweep_,
                  const int &smearingType_,
-                 PhononH0 *h0_ = nullptr);
+                 PhononH0& h0_); // = nullptr);
 
   /** to be called inside the loop over q2, but outside the loop on q1.
    * The order is important, and we assume that the scattering matrix is
@@ -80,7 +80,7 @@ class Helper3rdState {
   Eigen::MatrixXd &outerBose;
   StatisticsSweep &statisticsSweep;
   int smearingType;
-  PhononH0 *h0 = nullptr;
+  PhononH0& h0; // = nullptr;
 
   std::unique_ptr<BaseBandStructure> bandStructure3;
   std::unique_ptr<Points> fullPoints3;

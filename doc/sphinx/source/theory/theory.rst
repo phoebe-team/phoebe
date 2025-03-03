@@ -9,6 +9,7 @@ This section contains a summary of the equations and brief description of the th
    statistics
    phononBTE
    electronBTE
+   coupledBTE
    thEpa
    wannier
 

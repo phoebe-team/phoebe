@@ -291,8 +291,15 @@ public:
    */
   std::vector<int> getReducibleStarFromIrreducible(const int &ik);
 
+  /** Change the crystal object for a different one. Used as a helper by the
+  * symmetrize function in the bandstructure class.
+  * @param crystal: the new crystal to swap in
+  */
+  //void swapCrystal(Crystal &newCrystal);
+
 protected:
   void setMesh(const Eigen::Vector3i &mesh_, const Eigen::Vector3d &offset_);
+
   Crystal &crystalObj;
   Eigen::Vector3i mesh;
   Eigen::Vector3d offset;

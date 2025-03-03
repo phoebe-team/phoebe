@@ -168,6 +168,11 @@ public:
    */
   void setConst(const double &constant);
 
+  /** return the number of states in this vector BTE object 
+  * @return numStates
+  */
+  int getNumStates();
+
  protected:
   // we store auxiliary objects and parameters
   StatisticsSweep &statisticsSweep;

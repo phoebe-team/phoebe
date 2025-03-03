@@ -34,7 +34,7 @@ void PhononBandsApp::run(Context &context) {
   FullBandStructure fullBandStructure =
       phononH0.populate(pathPoints, withVelocities, withEigenvectors);
 
-  // arguments: bandStructure, context, pathPoints, outputFileName
+  // output the contents of the band structure to file 
   outputBandsToJSON(fullBandStructure, context, pathPoints,
                     "phonon_bands.json");
 
@@ -63,7 +63,7 @@ void ElectronWannierBandsApp::run(Context &context) {
   FullBandStructure fullBandStructure =
       electronH0.populate(pathPoints, withVelocities, withEigenvectors);
 
-  // arguments: bandStructure, context, pathPoints, outputFileName
+  // output band structure contents to file
   outputBandsToJSON(fullBandStructure, context, pathPoints,
                     "electron_bands.json");
 
@@ -273,9 +273,11 @@ void ElectronWannierBandsApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getDeltaPath(), "deltaPath");
 
   std::string crystalMsg = "crystal structure";
-  throwErrorIfUnset(context.getInputAtomicPositions(), crystalMsg);
-  throwErrorIfUnset(context.getInputSpeciesNames(), crystalMsg);
-  throwErrorIfUnset(context.getInputAtomicSpecies(), crystalMsg);
+  if(context.getJDFTxScfOutFile().empty()) { // Wannier90 doesn't give us this, user must set it
+    throwErrorIfUnset(context.getInputAtomicPositions(), crystalMsg);
+    throwErrorIfUnset(context.getInputSpeciesNames(), crystalMsg);
+    throwErrorIfUnset(context.getInputAtomicSpecies(), crystalMsg);
+  }
 }
 
 void ElectronFourierBandsApp::checkRequirements(Context &context) {

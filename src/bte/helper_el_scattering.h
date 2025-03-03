@@ -27,14 +27,15 @@ class HelperElScattering {
    * @param smearingType_: kind of smearing used for approximating the dirac
    * delta on energies in the scattering matrix. If the smearing is adaptive, we
    * also need to compute phonon group velocities.
-   * @param h0_: Phonon hamiltonian needed to compute the phonon properties.
+   * @param h0_: Phonon hamiltonian needed to compute the phonon properties.]
+   * @param coupling: Elph coupling to be used in the wannier interpolation procedure
    */
   HelperElScattering(BaseBandStructure &innerBandStructure_,
                  BaseBandStructure &outerBandStructure_,
                  StatisticsSweep &statisticsSweep_,
                  const int &smearingType_,
                  PhononH0 &h0_,
-                 InteractionElPhWan *coupling);
+                 InteractionElPhWan &coupling);
 
   /** This function creates a "cache" of phonon properties.
    * To be called in the loop over k2, before the loop on k2.
@@ -65,7 +66,7 @@ class HelperElScattering {
   StatisticsSweep &statisticsSweep;
   int smearingType;
   PhononH0 &h0;
-  InteractionElPhWan *couplingElPhWan;
+  InteractionElPhWan &couplingElPhWan;
 
   std::unique_ptr<BaseBandStructure> bandStructure3;
   std::unique_ptr<Points> fullPoints3;

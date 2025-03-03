@@ -8,6 +8,8 @@
 #include "points.h"
 #include "ph_scattering.h"
 #include "parser.h"
+#include "wigner_electron.h"
+#include "drift.h"
 
 void ElectronLifetimesApp::run(Context &context) {
   context.setScatteringMatrixInMemory(false);
@@ -23,7 +25,7 @@ void ElectronLifetimesApp::run(Context &context) {
   // load the el-ph coupling
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
-  auto couplingElPh = InteractionElPhWan::parse(context, crystal, &phononH0);
+  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
 
   // set k and q point meshes and paths
   Points pathKPoints(crystal, context.getPathExtrema(),
@@ -43,16 +45,28 @@ void ElectronLifetimesApp::run(Context &context) {
   StatisticsSweep statisticsSweep(context, &fullBandStructure);
 
   //----------------------------------------------------------------------------
-
+  
   // build/initialize the scattering matrix and the smearing
   ElScatteringMatrix scatteringMatrix(context, statisticsSweep,
                                       fullBandStructure, pathBandStructure,
-                                      phononH0, &couplingElPh);
+                                      phononH0);
   scatteringMatrix.setup();
 
   scatteringMatrix.outputToJSON("path_el_relaxation_times.json");
   outputBandsToJSON(pathBandStructure, context, pathKPoints,
                     "path_el_bandstructure.json");
+
+  // developer note: uncomment to open up Wigner output on bands
+/*   if(statisticsSweep.getNumCalculations()) {
+    // compute the Wigner transport coefficients
+    BulkEDrift driftE(statisticsSweep, pathBandStructure, 3);
+    BulkTDrift driftT(statisticsSweep, pathBandStructure, 3);
+    VectorBTE relaxationTimes = scatteringMatrix.getSingleModeTimes();
+    VectorBTE nERTA = -driftE * relaxationTimes;
+    VectorBTE nTRTA = -driftT * relaxationTimes;
+    WignerElCoefficients wignerCoefficients(statisticsSweep, crystal, pathBandStructure, context, relaxationTimes);
+    wignerCoefficients.outputContributionsToJSON("path_rta_wigner_contributions.json");
+  }  */
 
   mpi->barrier();
 }
@@ -63,9 +77,6 @@ void PhononLifetimesApp::run(Context &context) {
   auto t2 = Parser::parsePhHarmonic(context);
   auto crystal = std::get<0>(t2);
   auto phononH0 = std::get<1>(t2);
-
-  // load the 3phonon coupling
-  auto coupling3Ph = IFC3Parser::parse(context, crystal);
 
   // set k and q point meshes and paths
   Points pathPoints(crystal, context.getPathExtrema(),
@@ -88,7 +99,7 @@ void PhononLifetimesApp::run(Context &context) {
   // build/initialize the scattering matrix and the smearing
   PhScatteringMatrix scatteringMatrix(context, statisticsSweep,
                                       fullBandStructure, pathBandStructure,
-                                      &coupling3Ph, &phononH0);
+                                      &phononH0);
   scatteringMatrix.setup();
 
   scatteringMatrix.outputToJSON("path_ph_relaxation_times.json");
@@ -117,7 +128,7 @@ void ElectronLifetimesApp::checkRequirements(Context &context) {
 void PhononLifetimesApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getPhFC2FileName(), "phFC2FileName");
   throwWarningIfUnset(context.getSumRuleFC2(), "sumRuleFC2");
-  throwErrorIfUnset(context.getPhFC3FileName(), "phFC3FileName");
+  //throwErrorIfUnset(context.getPhFC3FileName(), "phFC3FileName");
   throwErrorIfUnset(context.getPathExtrema(), "points path extrema");
   throwErrorIfUnset(context.getQMesh(), "qMesh");
   throwErrorIfUnset(context.getTemperatures(), "temperatures");

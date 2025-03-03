@@ -16,10 +16,10 @@ public:
    * @param statisticsSweep: object controlling the loops over temperature
    * and chemical potential.
    * @param innerBandStructure: bandStructure object. This is the mesh used
-   * to integrate the anharmonic properties for each state of outerBandStructure.
+   * to integrate the scattering rates for each state of outerBandStructure.
    * For transport calculation, this object is typically equal to
    * outerBandStructure. Might differ when outerBS is on a path of points.
-   * @param outerBandStructure: bandStructure object. The anharmonic
+   * @param outerBandStructure: bandStructure object. The scattering rates
    * properties are computed on the grid of points specified by this object,
    * e.g. this could be a path of points or a uniform mesh of points
    */
@@ -27,9 +27,8 @@ public:
                    BaseBandStructure &innerBandStructure_,
                    BaseBandStructure &outerBandStructure_);
 
-  /** Destructor
-   */
-  ~ScatteringMatrix();
+  /** Default constructor */
+  ScatteringMatrix();
 
   /** This method needs to be called right after the constructor.
    * It will setup variables of the scattering matrix, and compute at least
@@ -75,10 +74,18 @@ public:
 //  ParallelMatrix<double> dot(const ParallelMatrix<double> &otherMatrix);
 
   /** Call to obtain the single-particle relaxation times of the systems
-   * @param int: which times to output, 0 = internalDiagonal, 1 = normal, 2 = umklapp
    * @return tau: a VectorBTE object storing the relaxation times
    */
-  VectorBTE getSingleModeTimes(const int whichTimes = 0);
+  VectorBTE getSingleModeTimes(); 
+
+  /** Call to obtain the single-particle relaxation times of the systems
+   * given any internal diagonal like object -- (basically, the linewidths but 
+   * potentially scaled by some symmetrization factor)
+   * @param internalDiagonal: a VectorBTE object storing the linewidths (potentially 
+   * 	symmetrization scaled)
+   * @return tau: a VectorBTE object storing the relaxation times
+   */
+  VectorBTE getSingleModeTimes(std::shared_ptr<VectorBTE> anyInternalDiagonal);
 
   /** Call to obtain the single-particle linewidths.
    *
@@ -118,9 +125,9 @@ public:
    */
   void a2Omega();
 
-//  /** The inverse of a2Omega, converts the matrix Omega to A
-//   */
-//  void omega2A();
+  /** The inverse of a2Omega, converts the matrix Omega to A
+   */
+  void omega2A();
 
   /** Diagonalize the scattering matrix
    * @param numEigenvalues: if a number is supplied, calculate
@@ -131,11 +138,6 @@ public:
    */
   std::tuple<Eigen::VectorXd, ParallelMatrix<double>>
                                 diagonalize(int numEigenvalues = 0);
-
-  /** Outputs the quantity to a json file.
-   * @param outFileName: string representing the name of the json file
-   */
-  void outputToJSON(const std::string &outFileName);
 
   /** Function to combine a BTE index and a cartesian index into one index of
    * the scattering matrix. If no symmetries are used, the output is equal to
@@ -172,6 +174,12 @@ public:
    */
   void symmetrize();
 
+  /** Output relaxons scattering matrix quantities to file (particularly the tau values)
+  * Jenny's note: However, I have a feeling this should be elsewhere, as we're actually passing
+  * the eigenvalues back into this function.
+  * @param fileName: the name of the file to write out to
+  * @param eigenvalues: the tau values from a relaxons solve
+  **/
   void relaxonsToJSON(const std::string& fileName, const Eigen::VectorXd& eigenvalues);
 
   /** Average the coupling for degenerate states.
@@ -194,14 +202,34 @@ public:
    **/
   std::vector<std::tuple<int, int>> getAllLocalStates();
 
+  // IO operations ---------
+
+  /** Outputs the lifetimes to a json file.
+   * @param outFileName: string representing the name of the json file
+   */
+  void outputToJSON(const std::string &outFileName);
+
+  /** Outputs the matrix to an hdf5 file.
+   * @param outFileName: string representing the name of the json file
+   */
+  void outputToHDF5(const std::string &outFileName);
+  
+  /** Outputs the given vector bte of the internal diagonal to a json file.
+  * @param outFileName: string representing the name of the json file
+  * @param internalDiag: the internal diagonal of any kind to be written out
+  */
+  void outputLifetimesToJSON(const std::string &outFileName,
+                                std::shared_ptr<VectorBTE> internalDiag);
+
  protected:
+
   Context &context;
   StatisticsSweep &statisticsSweep;
 
   // Smearing is a pointer created in constructor with a smearing factory
   // Used in the construction of the scattering matrix to approximate the
   // Dirac-delta function in transition rates.
-  DeltaFunction *smearing;
+  //DeltaFunction *smearing; // moved to specific ph and el base scatteringMatrix objs
 
   BaseBandStructure &innerBandStructure;
   BaseBandStructure &outerBandStructure;
@@ -212,6 +240,9 @@ public:
   bool highMemory = true;     // whether the matrix is kept in memory
   bool outputUNTimes = false;    // whether to output U and N processes in RTA
 
+  double boundaryLength;
+  bool doBoundary;
+
   // NOTE: about the definition of A
   // A acts on the canonical population, omega on the population
   // A acts on f, Omega on n, with n = bose(bose+1)f e.g. for phonons
@@ -221,19 +252,28 @@ public:
   // In the case of electrons, A_out = linewidht
   bool isMatrixOmega = false; // whether the matrix is Omega or A
 
+  // if we're using the coupled matrix, we need to use this to
+  // save the scattering rates differently
+  bool isCoupled = false;
 
   // we save the diagonal matrix element in a dedicated vector
-  VectorBTE internalDiagonal;
+  std::shared_ptr<VectorBTE> internalDiagonal;
   std::shared_ptr<VectorBTE> internalDiagonalUmklapp;
   std::shared_ptr<VectorBTE> internalDiagonalNormal;
   // the scattering matrix, initialized if highMemory==true
   ParallelMatrix<double> theMatrix;
 
   int numStates; // number of Bloch states (i.e. the size of theMatrix)
-  int numPoints; // number of wavevectors
   int numCalculations;  // number of "Calculations", i.e. number of temperatures and
   // chemical potentials on which we compute scattering.
   int dimensionality_;
+
+  // number of states for shifting to the coupled matrix
+  int numElStates; // this will never be used unless it's a coupled matrix
+  // however, it still needs to be here because the coupled
+  // shift incides function unfortunately also has to be here. For the case of the
+  // ph matrix, we call phScattering using the BasePh object -- even if the
+  // matrix supplied is a Coupled matrix, the base class's function is called.
 
   // this is to exclude problematic Bloch states, e.g. acoustic phonon modes
   // at gamma, which have zero frequencies and thus have several non-analytic
@@ -252,7 +292,7 @@ public:
    * populations, we compute outPopulation = scatteringMatrix * inPopulation.
    * This doesn't require to store the matrix in memory.
    */
-  virtual void builder(VectorBTE *linewidth,
+  virtual void builder(std::shared_ptr<VectorBTE> linewidth,
                        std::vector<VectorBTE> &inPopulations,
                        std::vector<VectorBTE> &outPopulations) = 0;
 
@@ -277,9 +317,9 @@ public:
    * owned by an MPI process. Otherwise, we trivially parallelize over the outer
    * loop on points.
    */
-  std::vector<std::tuple<std::vector<int>, int>>
-  getIteratorWavevectorPairs(const int &switchCase,
-                             const bool &rowMajor = false);
+  std::vector<std::tuple<std::vector<int>, int>> getIteratorWavevectorPairs(
+                                                const int &switchCase,
+                                                const bool &rowMajor = false);
 
   /** Performs an average of the linewidths over degenerate states.
    * This is necessary since the coupling |V_3| is not averaged over different
@@ -292,7 +332,7 @@ public:
    * @param linewidth: a pointer (the one passed to builder()) containing the
    * linewidths to be averaged.
    */
-  void degeneracyAveragingLinewidths(VectorBTE *linewidth);
+  void degeneracyAveragingLinewidths(std::shared_ptr<VectorBTE> linewidth);
 
   /** Internal helper to formats single mode times stored in vectorBTE
    * object based on if the matrix isOmega or not.
@@ -301,6 +341,69 @@ public:
    */
   VectorBTE getTimesFromVectorBTE(VectorBTE& diagonal);
 
+  /** Function to precompute particle populations before scattering rates
+   * are calculated.
+   * @param Bandstructure: bandstructure of the particle species
+   * @return MatrixXd occupationFactors: contains the occupations for all states
+   */
+  Eigen::MatrixXd precomputeOccupations(BaseBandStructure &bandStructure);
+
+  /** Method which for a phonon bandstructure returns the indices to be
+  * discarded in a phonon calculation due to very low phonon frequencies
+  * @param bandStructure: bandstructure to compute indices for
+  * @return excludeIndices: the irr indices to be excluded in ph calculations
+  */
+  std::vector<int> getExcludeIndices(BaseBandStructure& bandStructure);
+
+  /* If we have a coupled scattering matrix, we need to shift the bte indices
+  * before using them, to correspond to the quadrant of the smatrix for ee, pp, ep, or pe
+  * rates. Otherwise, this function does nothing.
+  * @param iBte1, iBte2: the bte indices used to index this quadrant.
+  * @param p1, p2: the particle types indicating the desired quadrant
+  * @return: a tuple containing the shifted indices
+  */
+  std::tuple<int,int> shiftToCoupledIndices(
+        const int& iBte1, const int& iBte2, const Particle& p1, const Particle& p2);
+
+  /** A function to fix the linewidths to agree with the off diagonal elements, to enforce finding the
+   * special eigenvectors. 
+   */
+  void reinforceLinewidths();
+
+  /** Replace the linewidths of the scatterng matrix with the supplied 
+   * VectorBTE values.
+   // * @param switchCase: the type of matrix we have stored, see notes in *_scattering_matrix.cpp
+   * @param linewidths: the linewidths to replace the diagonal with
+   **/
+  void replaceMatrixLinewidths(const int &switchCase);
+
+
+  // NOTE: feels like there should be a better way to write reinforce linewidths than this... 
+  // better strategy would be a coupledBandStructure object
+
+  /** Returns a tuple of final and initial particles for a give state
+  * @param iBte1, iBte2: the bte indices used to index this state
+  */
+  std::tuple<BaseBandStructure*,BaseBandStructure*> getStateBandStructures(const BteIndex& iBte1,
+                                                                    const BteIndex& iBte2);
+
+  /** If we have a coupled scattering matrix, we need to shift the matrix element indices
+   * back to those associated with ph and el bandstructures before accessing their quantities
+  * @param iBte1, iBte2: the bte indices used to index the global matrix 
+  * @param p1, p2: the particle types indicating the quadrant of this element
+  * @return: a tuple containing the bandstructure relevant indices
+  */
+  std::tuple<int,int> coupledToBandStructureIndices(const int& iBte1, const int& iBte2,
+                                                    const Particle& p1, const Particle& p2);
+
+  // friend functions for scattering
+  friend void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
+                                //std::vector<std::tuple<std::vector<int>, int>> pairIterator,
+                                std::vector<VectorBTE> &inPopulations,
+                                std::vector<VectorBTE> &outPopulations,
+                                int switchCase,
+                                BaseBandStructure &outerBandStructure,
+                                std::shared_ptr<VectorBTE> linewidth);
 };
 
 #endif

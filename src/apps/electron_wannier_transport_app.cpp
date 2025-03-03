@@ -1,8 +1,9 @@
 #include "electron_wannier_transport_app.h"
+//#include "elph_qe_to_phoebe_app.h" // TODO remove if we can work around
 #include "bandstructure.h"
 #include "context.h"
 #include "drift.h"
-#include "el_scattering.h"
+#include "el_scattering_matrix.h"
 #include "electron_viscosity.h"
 #include "exceptions.h"
 #include "observable.h"
@@ -11,6 +12,16 @@
 #include "wigner_electron.h"
 
 void ElectronWannierTransportApp::run(Context &context) {
+
+  // collect information about the run from context
+  bool useElElInteraction = false; //!context.getElectronElectronFileName().empty();
+  bool useElPhInteraction = !context.getElphFileName().empty();
+  bool useCRTA = !std::isnan(context.getConstantRelaxationTime());
+
+  if(!useElElInteraction && !useElPhInteraction && !useCRTA) {
+    Error("If not using the CRTA, you must specify either a el-ph or el-el"
+        " coupling input file!");
+  }
 
   Kokkos::Profiling::pushRegion("ETapp.parseHamiltonians");
   auto t2 = Parser::parsePhHarmonic(context);
@@ -22,15 +33,19 @@ void ElectronWannierTransportApp::run(Context &context) {
   auto electronH0 = std::get<1>(t1);
   Kokkos::Profiling::popRegion();
 
-  // load the elph coupling
-  // Note: this file contains the number of electrons
-  // which is needed to understand where to place the fermi level
-  Kokkos::Profiling::pushRegion("ETapp.parseInteraction");
-  InteractionElPhWan couplingElPh(crystal);
-  if (std::isnan(context.getConstantRelaxationTime())) {
-    couplingElPh = InteractionElPhWan::parse(context, crystal, &phononH0);
+  // TODO minor issue here -- need num electrons before constructing bandstructure
+  if(std::isnan(context.getFermiLevel()) && !useElPhInteraction && std::isnan(context.getNumOccupiedStates())) { // TODO is this true for CRTA
+    Error("If supplying only el-el interaction or CRTA, user must specify"
+        " the fermiLevel or numOccupiedStates variable in the input file.");
+  } else if(useElPhInteraction && std::isnan(context.getNumOccupiedStates())) {
+    #ifdef HDF5_AVAIL
+    // this function sets num occupied states in context 
+    H5Easy::File file(context.getElphFileName(), H5Easy::File::ReadOnly);
+    context.setNumOccupiedStates(H5Easy::load<int>(file, "/numElectrons"));
+    #else
+    // TODO we have to handle this case!
+    #endif
   }
-  Kokkos::Profiling::popRegion();
 
   // compute the band structure on the fine grid
   if (mpi->mpiHead()) {
@@ -43,59 +58,53 @@ void ElectronWannierTransportApp::run(Context &context) {
   auto statisticsSweep = std::get<1>(t3);
   Kokkos::Profiling::popRegion();
 
-  // print some info about how window and symmetries have reduced things
-  if (mpi->mpiHead()) {
-    if(bandStructure.hasWindow() != 0) {
-        std::cout << "Window selection reduced electronic band structure from "
-                << fullPoints.getNumPoints()*electronH0.getNumBands() << " to "
-                << bandStructure.getNumStates() << " states."  << std::endl;
-    }
-    if(context.getUseSymmetries()) {
-      std::cout << "Symmetries reduced electronic band structure from "
-          << bandStructure.getNumStates() << " to "
-          << bandStructure.irrStateIterator().size() << " states." << std::endl;
-    }
-    std::cout << "Done computing electronic band structure.\n" << std::endl;
-  }
-
-  // Old code for using all the band structure
-  //  bool withVelocities = true;
-  //  bool withEigenvectors = true;
-  //  FullBandStructure bandStructure = electronH0.populate(
-  //      fullPoints, withVelocities, withEigenvectors);
-  //  // set the chemical potentials to zero, load temperatures
-  //  StatisticsSweep statisticsSweep(context, &bandStructure);
+  //bandStructure.outputComponentsToJSON("band_components.json");
 
   // build/initialize the scattering matrix and the smearing
   Kokkos::Profiling::pushRegion("ETapp.setupScatteringMatrix");
   ElScatteringMatrix scatteringMatrix(context, statisticsSweep, bandStructure,
-                                      bandStructure, phononH0, &couplingElPh);
+                                      bandStructure, phononH0);
   scatteringMatrix.setup();
   scatteringMatrix.outputToJSON("rta_el_relaxation_times.json");
   Kokkos::Profiling::popRegion();
 
-  // solve the BTE at the relaxation time approximation level
+  // solve the BTE at the relaxation time approximation level --------------------------------
   // we always do this, as it's the cheapest solver and is required to know
   // the diagonal for the exact method.
-
-  if (mpi->mpiHead()) {
-    std::cout << "\n" << std::string(80, '-') << "\n\n";
-    std::cout << "Solving BTE within the relaxation time approximation.\n";
-  }
 
   // compute the phonon populations in the relaxation time approximation.
   // Note: this is the total phonon population n (n != f(1+f) Delta n)
 
   Kokkos::Profiling::pushRegion("ETapp.computeRTATransport");
 
+  OnsagerCoefficients transportCoefficients(statisticsSweep, crystal, bandStructure, context);
   BulkEDrift driftE(statisticsSweep, bandStructure, 3);
   BulkTDrift driftT(statisticsSweep, bandStructure, 3);
+
+  // First do the MRTA
+  if (mpi->mpiHead()) {
+    std::cout << "\n" << std::string(80, '-') << "\n\n";
+    std::cout << "Solving BTE in the momentum-relaxation time approximation.\n";
+  }
+
+  VectorBTE momentumRelaxationTimes = scatteringMatrix.getSingleModeMRTimes();
   VectorBTE relaxationTimes = scatteringMatrix.getSingleModeTimes();
-  VectorBTE nERTA = -driftE * relaxationTimes;
+  VectorBTE nERTA = -driftE * momentumRelaxationTimes;
   VectorBTE nTRTA = -driftT * relaxationTimes;
 
-  // compute the electrical conductivity
-  OnsagerCoefficients transportCoefficients(statisticsSweep, crystal, bandStructure, context);
+  transportCoefficients.calcFromPopulation(nERTA, nTRTA);
+  transportCoefficients.print();
+  transportCoefficients.outputToJSON("mrta_onsager_coefficients.json");
+
+  // now standard RTA
+  if (mpi->mpiHead()) {
+    std::cout << std::string(80, '-') << "\n\n";
+    std::cout << "Solving BTE within the relaxation time approximation.\n";
+  }
+
+  nERTA = -driftE * relaxationTimes;
+  nTRTA = -driftT * relaxationTimes;
+
   transportCoefficients.calcFromPopulation(nERTA, nTRTA);
   transportCoefficients.print();
   transportCoefficients.outputToJSON("rta_onsager_coefficients.json");
@@ -181,6 +190,8 @@ void ElectronWannierTransportApp::run(Context &context) {
       }
     }
   }
+  //scatteringMatrix.outputToHDF5("el.scatteringMatrix.hdf5");
+
 
   if (doIterative) {
     runIterativeMethod(context, crystal, statisticsSweep, bandStructure,
@@ -197,7 +208,7 @@ void ElectronWannierTransportApp::run(Context &context) {
     Kokkos::Profiling::pushRegion("ETapp.relaxonsTransport");
 
     if (mpi->mpiHead()) {
-      std::cout << "Starting relaxons BTE solver" << std::endl;
+      std::cout << "Starting relaxons BTE solver." << std::endl;
     }
     // scatteringMatrix.a2Omega(); Important!! Must use the matrix A, non-scaled
     // this is because the scaling used for phonons here would cause instability
@@ -222,7 +233,7 @@ void ElectronWannierTransportApp::run(Context &context) {
                                            scatteringMatrix);
     transportCoefficients.print();
     transportCoefficients.outputToJSON("relaxons_onsager_coefficients.json");
-    scatteringMatrix.relaxonsToJSON("exact_relaxation_times.json", eigenvalues);
+    scatteringMatrix.relaxonsToJSON("el_relaxons_relaxation_times.json", eigenvalues);
 
     if (!context.getUseSymmetries()) {
       elViscosity.calcFromRelaxons(eigenvalues, eigenvectors);

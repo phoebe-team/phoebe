@@ -27,14 +27,6 @@ public:
 
   explicit Particle(int kind_);
 
-  /** Copy constructor
-   */
-  Particle(const Particle &obj);
-
-  /** Copy assignment operator
-   */
-  Particle &operator=(const Particle &obj);
-
   /** Returns either a Bose--Einstein or a Fermi--Dirac distribution,
    * depending on the value of "statistics".
    * @param energy: value of quasiparticle energy.
@@ -47,6 +39,11 @@ public:
 
   /** Returns dn/dT, with T temperature, and n being either a Bose--Einstein
    * or a Fermi--Dirac distribution, depending on the value of "statistics"
+   *   NOTE: this is off by a factor of kB!
+   *   dn/dT  = n(n+/-1) * energy / kB T^2
+   *   Here, we are returning something which is (kB * T)^2
+   *   It might be good to change this, but it's used other places
+   *   and this would require careful fixing.
    * @param energy: value of quasiparticle energy.
    * @param temperature: value of temperature.
    * @param chemicalPotential: 0 by default, set a value for electrons.

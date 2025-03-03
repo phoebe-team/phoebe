@@ -3,7 +3,7 @@
 
 #include "drift.h"
 #include "observable.h"
-#include "ph_scattering.h"
+#include "ph_scattering_matrix.h"
 
 /** Object to compute and store the phonon viscosity.
  */
@@ -41,7 +41,7 @@ public:
 
   /** Computes the viscosity from the scattering matrix eigenvectors.
    * Following Simoncelli PRX 2020.
-   * @param relTimes: the VectorBTE object with relaxon relaxation times.
+   * @param eigenvalues: the VectorBTE object with relaxon eigenvalues.
    * @param eigenvectors: the eigenvectors of the scattering matrix above.
    */
   void calcFromRelaxons(Eigen::VectorXd &eigenvalues,

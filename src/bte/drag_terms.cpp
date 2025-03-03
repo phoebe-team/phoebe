@@ -428,7 +428,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
                   double dragRate = 0;
 
-                  //double normTemp = norm;
+                  double normTemp = norm;
                   //if( (enQ < 0.007 / energyRyToEv)) { // && (qCrys.norm() < 1e-1)) {
                   //  normTemp = sqrt(spinFactor) / ( Nk );
                   //  //std::cout << " imode omega q " << ibQ << " " << enQ << " " << qCrys.transpose() << std::endl;

@@ -1,4 +1,4 @@
-![Build and Test](https://github.com/phoebe-team/phoebe/actions/workflows/buildandtest.yml/badge.svg)
+![Build and Test](https://github.com/phoebe-team/phoebe/actions/workflows/buildandtest_push.yaml/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/phoebe/badge/?version=develop)](https://phoebe.readthedocs.io/en/develop/?badge=develop)
 
 

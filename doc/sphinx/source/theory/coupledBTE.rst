@@ -7,7 +7,7 @@ Coupled BTE
 
 | J. Coulter, B. Rajkov, M. Simoncelli. (2025).
 | *Coupled electron-phonon hydrodynamics and viscous thermoelectric equations.*
-| `Link to the ArXiV <>`_
+| :download:`Link to the arXiv <../_static/preprint_arxiv.pdf>`
 
 | Here, we outline the high-level perspective of the theory behind this development, but encourage you to study the manuscript before using it.
 | This represents a major development in preparation of the second release of Phoebe.
@@ -70,7 +70,7 @@ with zeros for the other quandrant, and the eigenvalue, the inverse of the relax
 In the more interesting case when drag effects are meaningful, the **eigenvectors can become mixed, with both electron and phonon states participating**.
 
 Transport predictions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+-------------------------------
 
 Once we've set up this problem and diagonalized the matrix, with eigenvectors and values in hand, we can calculate the transport coefficients.
 We do this by transforming to the relaxons basis,
@@ -163,8 +163,10 @@ Note, in the follwing expressions, the values of :math:`U,A,C` are the specific 
    \normalsize\langle \theta^\gamma_{\boldsymbol{k}m} | v^l_{\boldsymbol{k}m} | \phi^k_{\boldsymbol{k}m} \normalsize\rangle
    \tau_\gamma
 
-These can be calculated using Phoebe, as shown here for graphite.
-To understand the effect of drag, essentially, one should run both the pure el/ph calculation, as well as the dragged one -- then take the difference.
+These can be calculated using Phoebe, as shown here for graphite. 
+To understand the effect of drag contribution, one should run both the pure el/ph calculation, as well as the dragged one -- then take the difference. 
+The experimental data points are shown as open circles, and we can see that it is possible to accurately
+predict the effect of phonon drag on the Seebeck coefficient of graphite. We also note that the effects on :math:`sigma` and :math:`kappa` are here small -- this is commonly reported for the phonon drag effect. 
 
 .. image:: ../images/drag.png
   :width: 90%
@@ -174,11 +176,11 @@ To understand the effect of drag, essentially, one should run both the pure el/p
 |
 
 Mesoscopic transport simulations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+------------------------------------
 
 In addition to the prediction of bulk transport properties, we can also utilize these coefficients to calculate mesoscale/device scale transport effects.
 This is done through the calculate of several additional coefficients related to momentum flux, which are calculated using Phoebe,
-and postprocessed using the toolkit provided by the ``SolViTe`` package.
+and postprocessed using the toolkit provided by the ``SolViTE`` package.
 
 These additional coefficients are:
 
@@ -263,7 +265,7 @@ at the mesoscale,
 
 
 which reduce to the Gurzhi equation, the Viscous Heat Equations, or diffusive thermoelectric equations in certain limits.
-Using ``SolViTe``, one can use finite element differential equation solutions to produce the solution to these equations for
+Using ``SolViTE``, one can use finite element differential equation solutions to produce the solution to these equations for
 a non-trivial sample geometry, as exemplified below for a mixing device with specified boundary conditions.
 
 .. image:: ../images/VTE.png

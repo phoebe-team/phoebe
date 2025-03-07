@@ -9,8 +9,7 @@ Coupled BTE
 | *Coupled electron-phonon hydrodynamics and viscous thermoelectric equations.*
 | :download:`Link to the arXiv <../_static/preprint_arxiv.pdf>`
 
-| Here, we outline the high-level perspective of the theory behind this development, but encourage you to study the manuscript before using it.
-| This represents a major development in preparation of the second release of Phoebe.
+| Here, we outline the high-level perspective of the theory behind this development, but encourage you to study the manuscript before using it. This represents a major development in preparation of the second release of Phoebe.
 
 Introduction
 -------------------------------
@@ -81,7 +80,7 @@ where I now convert to a shorthand for the eigenvector, :math:`\normalsize|\thet
    \Omega_{^{\boldsymbol{k}m, \boldsymbol{k}'m'}_{\boldsymbol{q}\nu, \boldsymbol{q}'\nu'}} = \frac{1}{\tau_\gamma}
    \normalsize|\theta^\gamma_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}}\normalsize\rangle \normalsize\langle\theta^\gamma_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}}\normalsize|
 
-This way, the transport coefficients can be written in terms of the eigenvectors of the coupled matrix along with several "special" eigenvectors related to conserved quantities.
+This way, the transport coefficients can be written in terms of the eigenvectors of the coupled matrix along with several local equilibrium eigenvectors related to conserved quantities.
 These are:
 
    * :math:`\theta^e_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}}` -- the eigenvector related to the conservation of charge,
@@ -134,11 +133,14 @@ Note, in the follwing expressions, the values of :math:`U,A,C` are the specific 
 
 **From the even relaxons, we can calculate electron viscosities,**
 
+where :math:`\eta_{c_1,c_2}^{ijkl} = \frac{1}{2}( \zeta_{c_1,c_2}^{ijkl} + \zeta_{c_1,c_2}^{ilkj})` is used to compute :math:`\eta`, the dynamical viscosity, 
+where :math:`c_1,c_2` are a kind of :math:`e,p` carriers. Here, we exclude the local equilibrium (LE) eigenvectors (:math:`\theta_e,\theta_0`) from summations. 
+
 * **Electron Viscosity**
 
 .. math::
 
-   \eta_{\mathrm{el}}^{ijkl} = \sqrt{A_{el}^{i}A_{el}^{k}} \sum_{\gamma \neq e,0}
+   \zeta_{\mathrm{ee}}^{ijkl} = \sqrt{A_{el}^{i}A_{el}^{k}} \sum_{\gamma \neq LE}
    \normalsize\langle \phi^i_{^{\boldsymbol{k}m}} | v^j_{^{\boldsymbol{k}m}} | \theta^\gamma_{^{\boldsymbol{k}m}} \normalsize\rangle
    \normalsize\langle \theta^\gamma_{^{\boldsymbol{k}'m'}} | v^l_{^{\boldsymbol{k}'m'}} | \phi^k_{_{\boldsymbol{k}'m'}} \normalsize\rangle
    \tau_\gamma
@@ -147,18 +149,18 @@ Note, in the follwing expressions, the values of :math:`U,A,C` are the specific 
 
 .. math::
 
-   \eta_{\mathrm{ph}}^{ijkl} = \sqrt{A_{ph}^{i}A_{ph}^{k}} \sum_{\gamma \neq e,0}
+   \zeta_{\mathrm{pp}}^{ijkl} = \sqrt{A_{ph}^{i}A_{ph}^{k}} \sum_{\gamma \neq LE}
    \normalsize\langle \phi^i_{\boldsymbol{q}\nu} | v^j_{\boldsymbol{q}\nu} | \theta^\gamma_{\boldsymbol{q}\nu} \normalsize\rangle
    \normalsize\langle \theta^\gamma_{\boldsymbol{q}'\nu'} | v^l_{\boldsymbol{q}'\nu'} | \phi^k_{\boldsymbol{q}'\nu'} \normalsize\rangle
    \tau_\gamma
 
 * **Drag Viscosity**
 
-   Also note the corresponding defintion exists for :math:`\eta_{\mathrm{ph}\ \mathrm{drag}}^{ijkl}`.
+   (Also note the corresponding defintion exists for :math:`\zeta_{\mathrm{ep}}^{ijkl}`).
 
 .. math::
 
-   \eta_{\mathrm{ph}\ \mathrm{drag}}^{ijkl} = \sqrt{A_{ph}^{i}A_{el}^{k}} \sum_{\gamma \neq e,0}
+   \zeta_{\mathrm{pe}}^{ijkl} = \sqrt{A_{ph}^{i}A_{el}^{k}} \sum_{\gamma \neq LE}
    \normalsize\langle \phi^i_{\boldsymbol{q}\nu} | v^j_{\boldsymbol{q}\nu} | \theta^\gamma_{\boldsymbol{q}\nu} \normalsize\rangle
    \normalsize\langle \theta^\gamma_{\boldsymbol{k}m} | v^l_{\boldsymbol{k}m} | \phi^k_{\boldsymbol{k}m} \normalsize\rangle
    \tau_\gamma
@@ -166,7 +168,7 @@ Note, in the follwing expressions, the values of :math:`U,A,C` are the specific 
 These can be calculated using Phoebe, as shown here for graphite. 
 To understand the effect of drag contribution, one should run both the pure el/ph calculation, as well as the dragged one -- then take the difference. 
 The experimental data points are shown as open circles, and we can see that it is possible to accurately
-predict the effect of phonon drag on the Seebeck coefficient of graphite. We also note that the effects on :math:`sigma` and :math:`kappa` are here small -- this is commonly reported for the phonon drag effect. 
+predict the effect of phonon drag on the Seebeck coefficient of graphite. We also note that the effects on :math:`\sigma` and :math:`\kappa` are here small -- this is commonly reported for the phonon drag effect. 
 
 .. image:: ../images/drag.png
   :width: 90%
@@ -179,8 +181,7 @@ Mesoscopic transport simulations
 ------------------------------------
 
 In addition to the prediction of bulk transport properties, we can also utilize these coefficients to calculate mesoscale/device scale transport effects.
-This is done through the calculate of several additional coefficients related to momentum flux, which are calculated using Phoebe,
-and postprocessed using the toolkit provided by the ``SolViTE`` package.
+This is done through the calculate of several additional coefficients related to momentum flux, which are calculated using Phoebe, and then postprocessed using a finite element solution.  
 
 These additional coefficients are:
 
@@ -247,7 +248,7 @@ at the mesoscale,
    \bar{T} \chi_e^{i j} \frac{\partial u_e^i}{\partial r^j}
    +\bar{T} \chi_p^{i j} \frac{\partial u_p^i}{\partial r^j}
    -\tilde{\alpha}^{i j} \frac{\partial^2 V_{\mathrm{eff}}}{\partial r^i \partial r^j}
-   -\bar{\kappa}^{i j} \frac{\partial^2 T}{\partial r^i \partial r^j}=0
+   -\tilde{\kappa}^{i j} \frac{\partial^2 T}{\partial r^i \partial r^j}=0
 
 .. math::
    \chi_e^{i j} \frac{\partial T}{\partial r^j}
@@ -265,7 +266,7 @@ at the mesoscale,
 
 
 which reduce to the Gurzhi equation, the Viscous Heat Equations, or diffusive thermoelectric equations in certain limits.
-Using ``SolViTE``, one can use finite element differential equation solutions to produce the solution to these equations for
+Using ``SolViTE`` (soon to be linked here), one can use a finite element differential equation solution to produce the solution
 a non-trivial sample geometry, as exemplified below for a mixing device with specified boundary conditions.
 
 .. image:: ../images/VTE.png

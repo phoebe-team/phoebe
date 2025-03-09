@@ -12,14 +12,8 @@ FetchContent_Declare(googletest
 )
 FetchContent_MakeAvailable(googletest)
 
-# grabs a copy of nlohmann/json from a lighter repository
-# which tracks the original, minus the large test data set.
-# This is recommended by the readme of nlohmann/json
-FetchContent_Declare(json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/json_src
-    UPDATE_COMMAND ""
-)
+# json library by nlohmann
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
 FetchContent_MakeAvailable(json)
 
 FetchContent_Declare(

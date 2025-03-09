@@ -101,7 +101,7 @@ Note, in the follwing expressions, the values of :math:`U,A,C` are the specific 
 
 .. math::
 
-   \sigma^{ij} = U
+   \sigma^{ij} = U \sum_{\gamma}
    \normalsize\langle \theta^e_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} | v^i_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} | \theta^\gamma_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} \normalsize\rangle
    \normalsize\langle \theta^\gamma_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} | v^j_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} | \theta^e_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} \normalsize\rangle
    \tau_\gamma
@@ -110,7 +110,7 @@ Note, in the follwing expressions, the values of :math:`U,A,C` are the specific 
 
 .. math::
 
-   \kappa^{ij} = C_{tot}
+   \kappa^{ij} = C_{tot} \sum_{\gamma}
    \normalsize\langle \theta^0_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} | v^i_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} | \theta^\gamma_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} \normalsize\rangle
    \normalsize\langle \theta^\gamma_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} | v^j_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} | \theta^0_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} \normalsize\rangle
    \tau_\gamma
@@ -119,14 +119,14 @@ Note, in the follwing expressions, the values of :math:`U,A,C` are the specific 
 
 .. math::
 
-   \left[\sigma S\right]^{ij} = \sqrt{U C_{tot}}
+   \left[\sigma S\right]^{ij} = \sqrt{U C_{tot}} \sum_{\gamma}
    \normalsize\langle \theta^e_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} | v^i_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} | \theta^\gamma_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} \normalsize\rangle
    \normalsize\langle \theta^\gamma_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} | v^j_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} | \theta^0_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} \normalsize\rangle
    \tau_\gamma
 
 .. math::
 
-   \alpha^{ij} = \sqrt{C_{tot} U T}
+   \alpha^{ij} = \sqrt{C_{tot} U T} \sum_{\gamma}
    \normalsize\langle \theta^e_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} | v^i_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} | \theta^\gamma_{^{\boldsymbol{k}m}_{\boldsymbol{q}\nu}} \normalsize\rangle
    \normalsize\langle \theta^\gamma_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} | v^j_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} | \theta^0_{^{\boldsymbol{k}'m'}_{\boldsymbol{q}'\nu'}} \normalsize\rangle
    \tau_\gamma

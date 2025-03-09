@@ -270,7 +270,7 @@ Using ``SolViTE`` (soon to be linked here), one can use a finite element differe
 a non-trivial sample geometry, as exemplified below for a mixing device with specified boundary conditions.
 
 .. image:: ../images/VTE.png
-  :width: 90%
+  :width: 70%
   :align: center
   :alt: VTE solution
 

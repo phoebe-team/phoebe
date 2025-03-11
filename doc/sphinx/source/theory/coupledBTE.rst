@@ -7,7 +7,7 @@ Coupled BTE
 
 | J. Coulter, B. Rajkov, M. Simoncelli. (2025).
 | *Coupled electron-phonon hydrodynamics and viscous thermoelectric equations.*
-| :download:`Link to the arXiv <../_static/preprint_arxiv.pdf>`
+| `arXiv:2503.07560 <https://arxiv.org/abs/2503.07560>`_
 
 | Here, we outline the high-level perspective of the theory behind this development, but encourage you to study the manuscript before using it. This represents a major development in preparation of the second release of Phoebe.
 

@@ -49,8 +49,8 @@ filename: team
       <img src="pictures/team/simoncelli.jpg" alt="Michele Simoncelli" style="width:100%">
       <div class="container"  style="padding-bottom:1em">
         <h3>Michele Simoncelli</h3>
-        <p class="title" style="margin:0">Research Fellow, University of Cambridge</p> <br>
-        <em>(Incoming faculty at Columbia University)</em>
+        <p class="title" style="margin:0">Assistant Professor</p> <br>
+        <em>Columbia University</em>
       </div>
     </div>
   </div>

@@ -11,7 +11,8 @@ plt.rcParams.update({'font.size': 14})
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Plot relaxation times along a path "
-                                     "as a colormap along the band structure")
+                                     "as a colormap along the band structure, using the format: \n"
+                                     + "python tau_path.py rta_el_relaxation_times.json path_el_bandstructure.json 0")
     parser.add_argument("INPUT",
                         help="Name of the JSON file with relaxation times")
     parser.add_argument("INPUT2",

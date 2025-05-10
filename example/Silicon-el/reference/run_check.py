@@ -9,6 +9,8 @@ import numpy
 if __name__ == "__main__":
 
     listOfJsons = glob.glob("*.json")
+    # path lifetimes will overwrite rta lifetimes if not separated
+    listOfJsons.extend(glob.glob("path_lifetimes/*.json"))
     tol = 1e-5
 
     for filename in listOfJsons:
@@ -92,7 +94,7 @@ if __name__ == "__main__":
                 print(filename)
                 sys.exit(1)
 
-        if "path_" in filename and "_relaxation_times" in filename:
+        if "path_lifetimes" in filename and "_relaxation_times" in filename:
             k1 = numpy.array(data1["linewidths"])
             k2 = numpy.array(data2["linewidths"])
             diff = ((k1 - k2)/numpy.max(k1)).sum()

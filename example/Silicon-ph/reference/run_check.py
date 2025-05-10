@@ -8,8 +8,10 @@ import numpy
 
 if __name__ == "__main__":
 
-    tol = 1e-2 # test for 1% changes
     listOfJsons = glob.glob("*.json")
+    # path lifetimes will overwrite rta lifetimes if not separated
+    listOfJsons.extend(glob.glob("path_lifetimes/*.json"))
+    tol = 1e-2 # test for 1% changes
 
     for filename in listOfJsons:
 
@@ -142,7 +144,7 @@ if __name__ == "__main__":
                 print(filename)
                 sys.exit(1)
 
-        if "path_" in filename and "_relaxation_times" in filename:
+        if "path_lifetimes" in filename and "_relaxation_times" in filename:
 
             refNonGamma = numpy.where(numpy.array(data2['energies']) > 3.5)
 

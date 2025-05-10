@@ -77,7 +77,21 @@ public:
    * @return tau: a VectorBTE object storing the relaxation times
    */
   VectorBTE getSingleModeTimes(); 
-
+  
+  /** Converts symmetrized internal scattering matrix diagonal to 
+  * linewidths and returns the result.
+  * See general function of the same name for full notes
+  * @return linewidths: a VectorBTE object storing the linewidths
+  */
+  VectorBTE getLinewidths();
+ 
+  /** Call to set the single-particle linewidths.
+   *
+   *  See getLinewidths function for notes about linewidths.
+   *  @param linewidths: this is Gamma, without any population factors
+   */
+  void setLinewidths(VectorBTE &linewidths);
+  
   /** Call to obtain the single-particle relaxation times of the systems
    * given any internal diagonal like object -- (basically, the linewidths but 
    * potentially scaled by some symmetrization factor)
@@ -85,35 +99,29 @@ public:
    * 	symmetrization scaled)
    * @return tau: a VectorBTE object storing the relaxation times
    */
-  VectorBTE getSingleModeTimes(std::shared_ptr<VectorBTE> anyInternalDiagonal);
+   VectorBTE getSingleModeTimes(const VectorBTE& anyInternalDiagonal);
 
-  /** Call to obtain the single-particle linewidths.
-   *
-   * Note that the definition of linewidths is slightly different between
-   * electrons and phonons. For phonons, linewidths satisfy the relation
-   * Gamma * Tau = hBar (in atomic units, Gamma * Tau = 1). This Tau is the
-   * same Tau that enters the Boltzmann equation, and Gamma/Tau are related to
-   * the scattering operator as
-   * A_{ii} = n_i(n_i+1) / tau_i = n_i(n_i+1) * Gamma_i
-   *
-   * For electrons, we are using a modified definition
-   * A_{ii} = f_i(1-f_i) / tau_i = Gamma_i
-   * where Gamma_i is the imaginary part of the self-energy, and Tau is the
-   * transport relaxation time that enters the transport equations, and satisfy
-   * the relation Gamma_i * Tau_i = f_i * (1-f_i)
-   *
-   * Regardless, this function just returns Gamma
-   *
-   * @return linewidths: a VectorBTE object storing the linewidths
-   */
-  VectorBTE getLinewidths();
-
-  /** Call to set the single-particle linewidths.
-   *
-   *  See getLinewidths function for notes about linewidths.
-   *  @param linewidths: this is Gamma, without any population factors
-   */
-  void setLinewidths(VectorBTE &linewidths);
+   /** Call to obtain the single-particle linewidths.
+    *
+    * Note that the definition of linewidths is slightly different between
+    * electrons and phonons. For phonons, linewidths satisfy the relation
+    * Gamma * Tau = hBar (in atomic units, Gamma * Tau = 1). This Tau is the
+    * same Tau that enters the Boltzmann equation, and Gamma/Tau are related to
+    * the scattering operator as
+    * A_{ii} = n_i(n_i+1) / tau_i = n_i(n_i+1) * Gamma_i
+    *
+    * For electrons, we are using a modified definition
+    * A_{ii} = f_i(1-f_i) / tau_i = Gamma_i
+    * where Gamma_i is the imaginary part of the self-energy, and Tau is the
+    * transport relaxation time that enters the transport equations, and satisfy
+    * the relation Gamma_i * Tau_i = f_i * (1-f_i)
+    *
+    * Regardless, this function just returns Gamma
+    *
+    * @param anyInteralDiagonal : vector bte or pointer to vector BTE
+    * @return linewidths: a VectorBTE object storing the linewidths
+    */
+   VectorBTE getLinewidths(const VectorBTE& anyInternalDiagonal);
 
   /** Converts the scattering matrix from the form A to the symmetrised Omega.
    * A acts on the canonical phonon population f, while Omega acts on the
@@ -204,22 +212,10 @@ public:
 
   // IO operations ---------
 
-  /** Outputs the lifetimes to a json file.
-   * @param outFileName: string representing the name of the json file
-   */
-  void outputToJSON(const std::string &outFileName);
-
   /** Outputs the matrix to an hdf5 file.
    * @param outFileName: string representing the name of the json file
    */
   void outputToHDF5(const std::string &outFileName);
-  
-  /** Outputs the given vector bte of the internal diagonal to a json file.
-  * @param outFileName: string representing the name of the json file
-  * @param internalDiag: the internal diagonal of any kind to be written out
-  */
-  void outputLifetimesToJSON(const std::string &outFileName,
-                                std::shared_ptr<VectorBTE> internalDiag);
 
  protected:
 
@@ -257,9 +253,7 @@ public:
   bool isCoupled = false;
 
   // we save the diagonal matrix element in a dedicated vector
-  std::shared_ptr<VectorBTE> internalDiagonal;
-  std::shared_ptr<VectorBTE> internalDiagonalUmklapp;
-  std::shared_ptr<VectorBTE> internalDiagonalNormal;
+  std::shared_ptr<VectorBTE> internalDiagonal, internalDiagonalUmklapp, internalDiagonalNormal;
   // the scattering matrix, initialized if highMemory==true
   ParallelMatrix<double> theMatrix;
 
@@ -334,13 +328,6 @@ public:
    */
   void degeneracyAveragingLinewidths(std::shared_ptr<VectorBTE> linewidth);
 
-  /** Internal helper to formats single mode times stored in vectorBTE
-   * object based on if the matrix isOmega or not.
-   * @param VectorBTE& diagonal: the list of times we want to reformat
-   * @return VectorBTE: containing the reformated times
-   */
-  VectorBTE getTimesFromVectorBTE(VectorBTE& diagonal);
-
   /** Function to precompute particle populations before scattering rates
    * are calculated.
    * @param Bandstructure: bandstructure of the particle species
@@ -376,10 +363,6 @@ public:
    * @param linewidths: the linewidths to replace the diagonal with
    **/
   void replaceMatrixLinewidths(const int &switchCase);
-
-
-  // NOTE: feels like there should be a better way to write reinforce linewidths than this... 
-  // better strategy would be a coupledBandStructure object
 
   /** Returns a tuple of final and initial particles for a give state
   * @param iBte1, iBte2: the bte indices used to index this state

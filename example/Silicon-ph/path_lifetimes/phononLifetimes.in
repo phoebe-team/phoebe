@@ -1,0 +1,20 @@
+appName = "phononLifetimes"
+
+sumRuleFC2 = "simple"
+phFC2FileName = "../qe-phonons/silicon.fc"
+phFC3FileName = "../thirdorder.py-anharmonic/FORCE_CONSTANTS_3RD"
+
+qMesh = [10,10,10]
+temperatures = [600.]
+
+smearingMethod = "gaussian"
+smearingWidth = 10. cmm1
+
+deltaPath = 0.1
+
+begin point path
+L 0.50000  0.50000 0.5000 G 0.00000  0.00000 0.0000
+G 0.00000  0.00000 0.0000 X 0.50000  0.00000 0.5000
+X 0.50000 -0.50000 0.0000 K 0.37500 -0.37500 0.0000
+K 0.37500 -0.37500 0.0000 G 0.00000  0.00000 0.0000
+end point path

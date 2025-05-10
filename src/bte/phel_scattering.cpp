@@ -320,9 +320,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         WavevectorIndex iq3Idx(iq3);
         WavevectorIndex ik2Idx(ik2);
 
-        auto k2C = allK2Cartesian[iq3Batch]; // TODO remove this it's just for testing
-        auto q3C = allQ3Cartesian[iq3Batch]; // TODO remove this it's just for testing
-
         // for gpu would replace with compute OTF
         Eigen::VectorXd state3Energies = phBandStructure.getEnergies(iq3Idx); // iq3Idx
         Eigen::VectorXd state2Energies = elBandStructure.getEnergies(ik2Idx); // iq3Idx
@@ -377,7 +374,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
               } else if (smearing->getType() == DeltaFunction::adaptiveGaussian) {
                 delta = smearing->getSmearing(en1 - en2 + en3, v1-v2);
               } else {
-                Error("Tetrahedron smearing is currently not tested with phel scattering.");
+                Error("Tetrahedron smearing should not be used with ph-el scattering, which will always use a window on electrons.");
               }
               smearingValues(ib1, ib2, ib3) = std::max(delta, 0.);
             }
@@ -407,7 +404,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
             }
 
             auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
-            double temp = calcStat.temperature;
             double chemPot = calcStat.chemicalPotential;
 
             for (int ib1 = 0; ib1 < nb1; ib1++) {
@@ -438,9 +434,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 //    * norm / temperatures(iCalc) * pi * k1Weight;
 
                 if (smearingValues(ib1, ib2, ib3) <= 0.) { continue; }
-                //if(smearingValues(ib1,ib2,ib3) > en3) { 
-                //  smearingValues(ib1,ib2,ib3) = en3; 
-                //}
 
                 double rate =
                     coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)
@@ -481,9 +474,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   loopPrint.close();
 }
 
+// TODO move this to coupled BTE object
 void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
 	       			                    Context& context,
-				                          std::shared_ptr<CoupledVectorBTE> phElLinewidths,
 				                          BaseBandStructure& elBandStructure,
                                   BaseBandStructure& phBandStructure) {
 
@@ -494,8 +487,6 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
   // el statistics sweep should be stored in the coupled matrix
   StatisticsSweep& elStatisticsSweep = matrix.statisticsSweep;
 
-  //size_t Nq = phBandStructure.getNumPoints();
-  //size_t Nk = elBandStructure.getNumPoints();
   size_t numPhStates = phBandStructure.getNumStates();
   size_t numElStates = elBandStructure.getNumStates();
 
@@ -515,8 +506,7 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
   for(auto matrixState : matrix.getAllLocalStates()) {
 
     // unpack the state info into matrix indices.
-    size_t iMat1 = std::get<0>(matrixState);
-    size_t iMat2 = std::get<1>(matrixState);
+    auto [iMat1, iMat2] = matrixState;
 
     // check if this is a drag-related index, iMat1 is electron, iMat2 is phonon
     // ( we only need to sum over one quadrant)

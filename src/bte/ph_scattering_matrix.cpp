@@ -117,7 +117,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   if(!context.getElphFileName().empty()) {
 
     // output the phph linewidths
-    outputLifetimesToJSON("rta_phph_relaxation_times.json", linewidth);
+    getLinewidths(*linewidth).outputToJSON("rta_phph_relaxation_times.json", outerBandStructure);
 
     // IMPORTANT NOTE: the ph-el scattering does not receive symmetrization factor
     // because it doesn't have these factors of n(n+1) in the scattering rates.
@@ -163,8 +163,9 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // all reduce the calculated phel linewidths 
     mpi->allReduceSum(&phelLinewidths->data);
 
-    // output these phel linewidths
-    outputLifetimesToJSON("rta_phel_relaxation_times.json", phelLinewidths);
+    // output these phel linewidths (these do not need "getLinewidths")
+    // as phel does not recieve a symmetrization factor
+    phelLinewidths->outputToJSON("rta_phel_relaxation_times.json", outerBandStructure);
 
     // Add in the phel contribution
     // TODO better to just add the vectorBTE objects? 
@@ -187,7 +188,6 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
 
   // recalculate the phonon linewidths from the off diagonals 
-  //a2Omega(); // TODO remove
   // we should do this if phel is not involved, otherwise it wipes out phel 
   //reinforceLinewidths();
 
@@ -266,6 +266,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
       }
     }
   }
+  // write RTA times to output 
+  getLinewidths(*linewidth).outputToJSON("rta_ph_relaxation_times.json", outerBandStructure);
 }
 
 

@@ -44,11 +44,10 @@ void PhElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // construct electronic band structure
   Points fullPoints(getPhBandStructure().getPoints().getCrystal(), context.getKMesh());
-  auto t3 = ActiveBandStructure::builder(context, *electronH0, fullPoints);
-  auto elBandStructure = std::get<0>(t3);
+  
   // TODO this is super dangerous, it will work here but ! 
-  // the fact that addPhElScattering cannot check if this is an el or ph statistics sweep is trap!
-  statisticsSweep = std::get<1>(t3);
+  // the fact that addPhElScattering cannot check if this is an el or ph statistics sweep is a trap!
+  auto [elBandStructure, statisticsSweep] = ActiveBandStructure::builder(context, *electronH0, fullPoints);
 
   // TODO we should let this go out of scope 
   // read in elph coupling 

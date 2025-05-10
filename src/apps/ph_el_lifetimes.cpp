@@ -28,7 +28,6 @@ void PhElLifetimesApp::run(Context &context) {
                                         phBandStructure,
                                         &phononH0, &electronH0);
   scatteringMatrix.setup();
-  scatteringMatrix.outputToJSON("rta_phel_relaxation_times.json");
 
   // solve the BTE at the relaxation time approximation level
   // we always do this, as it's the cheapest solver and is required to know

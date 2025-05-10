@@ -1,7 +1,8 @@
 #include "vector_bte.h"
 #include "constants.h"
+#include <nlohmann/json.hpp>
 
-// default constructor
+// constructor
 VectorBTE::VectorBTE(StatisticsSweep &statisticsSweep_,
                      BaseBandStructure &bandStructure_,
                      const int &dimensionality_)
@@ -272,7 +273,7 @@ VectorBTE VectorBTE::sqrt() {
   return newPopulation;
 }
 
-VectorBTE VectorBTE::reciprocal() {
+VectorBTE VectorBTE::reciprocal() const {
   VectorBTE newPopulation(statisticsSweep, bandStructure, dimensionality);
   #pragma omp parallel for
   for (int iBte = 0; iBte < numStates; iBte++) {
@@ -287,6 +288,133 @@ VectorBTE VectorBTE::reciprocal() {
     }
   }
   return newPopulation;
+}
+
+void VectorBTE::outputToJSON(const std::string &outFileName, BaseBandStructure& outerBandStructure) {
+  
+  // NOTE: this is a little dangerous, one has to remember to remove 
+  // symmetrization factors to get something sensible to output... 
+  
+  if (!mpi->mpiHead())  return;
+  
+  std::string particleType;
+  auto particle = outerBandStructure.getParticle();
+  double energyConversion = energyRyToEv;
+  std::string energyUnit = "eV";
+  std::string relaxationTimeUnit = "fs";
+  // we need an extra factor of two pi, likely because of unit conversion
+  // (perhaps h vs hbar)
+  double energyToTime = energyRyToFs/twoPi;
+  if (particle.isPhonon()) {
+    particleType = "phonon";
+    energyUnit = "meV";
+    energyConversion *= 1000;
+    relaxationTimeUnit = "ps"; // phonon times more commonly in ps
+    energyToTime *= 1e-3;
+    // this is a bit of a hack to deal with phel scattering, where stat sweep
+    // has nonzero mu values in spite of it being a phonon case
+
+  } else {
+    particleType = "electron";
+  }
+
+  // need to store as a vector format with dimensions
+  // iCalc, ik. ib, iDim (where iState is unfolded into
+  // ik, ib) for the velocities and lifetimes, no dim for energies
+  std::vector<std::vector<std::vector<double>>> outTimes, outLinewidths, energies;
+  std::vector<std::vector<std::vector<std::vector<double>>>> velocities;
+  std::vector<double> temps, chemPots, dopings;
+
+  for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+    auto calcStatistics = statisticsSweep.getCalcStatistics(iCalc);
+    double temp = calcStatistics.temperature;
+    double chemPot = calcStatistics.chemicalPotential;
+    double doping = calcStatistics.doping;
+    temps.push_back(temp * temperatureAuToSi);
+    // this is a bit of a hack to deal with phel scattering, where stat sweep
+    // has nonzero mu values in spite of it being a phonon case
+    if(particle.isElectron()) {
+      chemPots.push_back(chemPot * energyConversion);
+    } else {
+      chemPots.push_back(0);
+    }
+    dopings.push_back(doping);
+
+    std::vector<std::vector<double>> wavevectorsT, wavevectorsL, wavevectorsE;
+    std::vector<std::vector<std::vector<double>>> wavevectorsV;
+    // loop over wavevectors
+    for (int ik : outerBandStructure.irrPointsIterator()) {
+      auto ikIndex = WavevectorIndex(ik);
+
+      std::vector<double> bandsT, bandsL, bandsE;
+      std::vector<std::vector<double>> bandsV;
+      // loop over bands here
+      // get numBands at this point, in case it's an active band structure
+      for (int ib = 0; ib < outerBandStructure.getNumBands(ikIndex); ib++) {
+        auto ibIndex = BandIndex(ib);
+        int is = outerBandStructure.getIndex(ikIndex, ibIndex);
+        StateIndex isIdx(is);
+        double ene = outerBandStructure.getEnergy(isIdx);
+        auto vel = outerBandStructure.getGroupVelocity(isIdx);
+        bandsE.push_back(ene * energyConversion);
+        int iBte = int(outerBandStructure.stateToBte(isIdx).get());
+        double tau = 1./operator()(iCalc, 0, iBte);
+        bandsT.push_back(tau * energyToTime);
+        // linewidths stored in data in the object
+        bandsL.push_back(operator()(iCalc, 0, iBte) * energyConversion);
+
+        std::vector<double> iDimsV;
+        // loop over dimensions
+        for (int iDim : {0, 1, 2}) {
+          iDimsV.push_back(vel[iDim] * velocityRyToSi);
+        }
+        bandsV.push_back(iDimsV);
+      }
+      wavevectorsT.push_back(bandsT);
+      wavevectorsL.push_back(bandsL);
+      wavevectorsV.push_back(bandsV);
+      wavevectorsE.push_back(bandsE);
+    }
+    outTimes.push_back(wavevectorsT);
+    outLinewidths.push_back(wavevectorsL);
+    velocities.push_back(wavevectorsV);
+    energies.push_back(wavevectorsE);
+  }
+  
+  auto points = outerBandStructure.getPoints();
+  std::vector<std::vector<double>> meshCoordinates;
+  for (int ik : outerBandStructure.irrPointsIterator()) {
+    // save the wavevectors
+    auto ikIndex = WavevectorIndex(ik);
+    auto coord = points.cartesianToCrystal(outerBandStructure.getWavevector(ikIndex));
+    meshCoordinates.push_back({coord[0], coord[1], coord[2]});
+  }
+
+  // output to json
+  nlohmann::json output;
+  output["temperatures"] = temps;
+  output["temperatureUnit"] = "K";
+  output["chemicalPotentials"] = chemPots;
+  output["chemicalPotentialUnit"] = "eV";
+  if (particle.isElectron()) {
+    output["dopingConcentrations"] = dopings;
+    output["dopingConcentrationUnit"] =
+        "cm$^{-" + std::to_string(dimensionality) + "}$";
+  }
+  output["linewidths"] = outLinewidths;
+  output["linewidthsUnit"] = energyUnit;
+  output["relaxationTimes"] = outTimes;
+  output["relaxationTimeUnit"] = relaxationTimeUnit;
+  output["velocities"] = velocities;
+  output["velocityUnit"] = "m/s";
+  output["energies"] = energies;
+  output["energyUnit"] = energyUnit;
+  output["wavevectorCoordinates"] = meshCoordinates;
+  output["coordsType"] = "lattice";
+  output["particleType"] = particleType;
+  std::ofstream o(outFileName);
+  o << std::setw(3) << output << std::endl;
+  o.close();
 }
 
 void VectorBTE::canonical2Population() {

@@ -166,7 +166,6 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
 
   friend void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
                   Context& context,
-                  std::shared_ptr<CoupledVectorBTE> phElLinewidths,
                   BaseBandStructure& elBandStructure,
                   BaseBandStructure& phBandStructure);				
 };

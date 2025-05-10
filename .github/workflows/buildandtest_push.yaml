@@ -88,7 +88,7 @@ jobs:
           ../../build/phoebe -in phononBands.in
           ../../build/phoebe -in phononDos.in
           cd path_lifetimes
-          ../../build/phoebe -in phononLifetimes.in
+          ../../../build/phoebe -in phononLifetimes.in
           cd ../
           python3 reference/run_check.py
       - name: Run ph example with MPI
@@ -99,7 +99,7 @@ jobs:
           mpirun -np 4 --oversubscribe ../../build/phoebe -in phononBands.in
           mpirun -np 4 --oversubscribe ../../build/phoebe -in phononDos.in
           cd path_lifetimes
-          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononLifetimes.in
+          mpirun -np 4 --oversubscribe ../../../build/phoebe -in phononLifetimes.in
           cd ../
           python3 reference/run_check.py
       - name: Run el example without MPI
@@ -111,7 +111,7 @@ jobs:
           ../../build/phoebe -in electronWannierBands.in
           ../../build/phoebe -in electronWannierDos.in
           cd path_lifetimes
-          ../../build/phoebe -in electronLifetimes.in
+          ../../../build/phoebe -in electronLifetimes.in
           cd ../
           python3 reference/run_check.py
       - name: Run el example with MPI
@@ -124,11 +124,11 @@ jobs:
           mpirun -np 4 --oversubscribe ../../build/phoebe -in electronWannierBands.in
           mpirun -np 4 --oversubscribe ../../build/phoebe -in electronWannierDos.in
           cd path_lifetimes
-          mpirun -np 4 --oversubscribe ../../build/phoebe -in electronLifetimes.in
+          mpirun -np 4 --oversubscribe ../../../build/phoebe -in electronLifetimes.in
           cd ../
           python3 reference/run_check.py
           mpirun -np 4 --oversubscribe ../../build/phoebe -ps 2 -in electronWannierTransport.in
           cd path_lifetimes
-          mpirun -np 4 --oversubscribe ../../build/phoebe -ps 2 -in electronLifetimes.in
+          mpirun -np 4 --oversubscribe ../../../build/phoebe -ps 2 -in electronLifetimes.in
           cd ../
           python3 reference/run_check.py

@@ -322,7 +322,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
    if(context.getUseDragTerms()) {
 
     // use drag ASR to correct the drag terms and recompute the phel linewidths
-    phononElectronAcousticSumRule(*this, context, postSymLinewidths, // phel linewidths
+    phononElectronAcousticSumRule(*this, context, 
                                   outerBandStructure,   // electron bands
                                   innerBandStructure);  // phonon bands
   }  

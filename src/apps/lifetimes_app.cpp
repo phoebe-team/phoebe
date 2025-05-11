@@ -52,7 +52,7 @@ void ElectronLifetimesApp::run(Context &context) {
                                       phononH0);
   scatteringMatrix.setup();
 
-  scatteringMatrix.outputToJSON("path_el_relaxation_times.json");
+  // TODO remove this and replace with the one in bandstructure 
   outputBandsToJSON(pathBandStructure, context, pathKPoints,
                     "path_el_bandstructure.json");
 
@@ -101,8 +101,7 @@ void PhononLifetimesApp::run(Context &context) {
                                       fullBandStructure, pathBandStructure,
                                       &phononH0);
   scatteringMatrix.setup();
-
-  scatteringMatrix.outputToJSON("path_ph_relaxation_times.json");
+  // TODO remove this and replace with the one in bandstructure 
   outputBandsToJSON(pathBandStructure, context, pathPoints,
                     "path_ph_bandstructure.json");
   mpi->barrier();

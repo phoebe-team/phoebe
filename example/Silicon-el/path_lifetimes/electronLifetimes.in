@@ -1,9 +1,9 @@
 appName = "electronLifetimes"
 
-phFC2FileName = "qe-elph/silicon.fc",
+phFC2FileName = "../qe-elph/silicon.fc",
 sumRuleFC2 = "simple"
-electronH0Name = "qe-elph/si_tb.dat",
-elphFileName = "qe-elph/silicon.phoebe.elph.hdf5"
+electronH0Name = "../qe-elph/si_tb.dat",
+elphFileName = "../qe-elph/silicon.phoebe.elph.hdf5"
 
 kMesh = [5,5,5]
 temperatures = [600.]

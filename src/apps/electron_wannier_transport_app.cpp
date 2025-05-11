@@ -65,7 +65,6 @@ void ElectronWannierTransportApp::run(Context &context) {
   ElScatteringMatrix scatteringMatrix(context, statisticsSweep, bandStructure,
                                       bandStructure, phononH0);
   scatteringMatrix.setup();
-  scatteringMatrix.outputToJSON("rta_el_relaxation_times.json");
   Kokkos::Profiling::popRegion();
 
   // solve the BTE at the relaxation time approximation level --------------------------------

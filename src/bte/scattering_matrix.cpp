@@ -489,7 +489,7 @@ void ScatteringMatrix::omega2A() {
 }
 
 // to compute the RTA, get the single mode relaxation times
-VectorBTE ScatteringMatrix::getTimesFromVectorBTE(VectorBTE &diagonal) {
+VectorBTE ScatteringMatrix::getSingleModeTimes(const VectorBTE& anyInternalDiagonal) {
 
   // just using the shape of internalDiagonal, will be overwritten
   VectorBTE times(statisticsSweep, outerBandStructure, 1);
@@ -498,7 +498,7 @@ VectorBTE ScatteringMatrix::getTimesFromVectorBTE(VectorBTE &diagonal) {
     times.setConst(context.getConstantRelaxationTime() / twoPi);
   } else {
     if (isMatrixOmega) {
-      times = diagonal.reciprocal();
+      times = anyInternalDiagonal.reciprocal();
     } else { // A_nu,nu = N(1+-N) / tau  -- for phonon case
       auto particle = outerBandStructure.getParticle();
       #pragma omp parallel for
@@ -506,13 +506,13 @@ VectorBTE ScatteringMatrix::getTimesFromVectorBTE(VectorBTE &diagonal) {
         BteIndex iBteIdx(iBte);
         StateIndex isIdx = outerBandStructure.bteToState(iBteIdx);
         double en = outerBandStructure.getEnergy(isIdx);
-        for (int iCalc = 0; iCalc < diagonal.numCalculations; iCalc++) {
+        for (int iCalc = 0; iCalc < anyInternalDiagonal.numCalculations; iCalc++) {
           auto calcStatistics = statisticsSweep.getCalcStatistics(iCalc);
           double temp = calcStatistics.temperature;
           double chemPot = calcStatistics.chemicalPotential;
           // n(n+1) for bosons, n(1-n) for fermions
           double popTerm = particle.getPopPopPm1(en, temp, chemPot);
-          times(iCalc, 0, iBte) = popTerm / diagonal(iCalc, 0, iBte);
+          times(iCalc, 0, iBte) = popTerm / anyInternalDiagonal(iCalc, 0, iBte);
         }
       }
     }
@@ -520,22 +520,25 @@ VectorBTE ScatteringMatrix::getTimesFromVectorBTE(VectorBTE &diagonal) {
   return times;
 }
 
-// does the internal diagonal
+// does the internal diagonal by default
 VectorBTE ScatteringMatrix::getSingleModeTimes() {
-  return getTimesFromVectorBTE(*internalDiagonal);
+  return getSingleModeTimes(*internalDiagonal);
+}
+VectorBTE ScatteringMatrix::getLinewidths() {
+  return getLinewidths(*internalDiagonal);
 }
 
 // function called on shared ptrs of linewidths
 // can be applied to any internal diagonal like object -- that is,
 // something which may or may not be rescaled by a symmetrization factor
-VectorBTE ScatteringMatrix::getSingleModeTimes(std::shared_ptr<VectorBTE> anyInternalDiagonal) {
-  return getTimesFromVectorBTE(*anyInternalDiagonal);
-}
+//VectorBTE ScatteringMatrix::getSingleModeTimes(auto anyInternalDiagonal) {
+//  return getTimesFromVectorBTE(anyInternalDiagonal);
+//}
 
 // return the diagonal of the scattering matrix,
 // converting first to conventional lifetimes if the matrix is
 // symmetrized
-VectorBTE ScatteringMatrix::getLinewidths() {
+VectorBTE ScatteringMatrix::getLinewidths(const VectorBTE& anyInternalDiagonal) {
 
   if (constantRTA) {
     VectorBTE linewidths(statisticsSweep, outerBandStructure, 1);
@@ -543,7 +546,7 @@ VectorBTE ScatteringMatrix::getLinewidths() {
     linewidths.excludeIndices = excludeIndices;
     return linewidths;
   } else {
-    VectorBTE linewidths = *internalDiagonal;
+    VectorBTE linewidths = anyInternalDiagonal; // TODO make sure this copies properly 
     linewidths.excludeIndices = excludeIndices;
     auto particle = outerBandStructure.getParticle();
 
@@ -652,315 +655,11 @@ void ScatteringMatrix::outputToHDF5(const std::string &outFileName) {
 
 }
 
-void ScatteringMatrix::outputToJSON(const std::string &outFileName) {
-
-  if (!mpi->mpiHead())
-    return;
-
-  VectorBTE times = getSingleModeTimes();
-  // this will remove the factor of pop(pop +/- 1) if it's symmetrized
-  VectorBTE tmpLinewidths = getLinewidths();
-  std::shared_ptr<VectorBTE> timesN;
-  std::shared_ptr<VectorBTE> timesU;
-  if(outputUNTimes) {
-    timesN = std::make_shared<VectorBTE>(getSingleModeTimes(internalDiagonalNormal));
-    timesU = std::make_shared<VectorBTE>(getSingleModeTimes(internalDiagonalUmklapp));
-  }
-
-  std::string particleType;
-  auto particle = outerBandStructure.getParticle();
-  double energyConversion = energyRyToEv;
-  std::string energyUnit = "eV";
-  std::string relaxationTimeUnit = "fs";
-  // we need an extra factor of two pi, likely because of unit conversion
-  // (perhaps h vs hbar)
-  double energyToTime = energyRyToFs/twoPi;
-  if (particle.isPhonon()) {
-    particleType = "phonon";
-    energyUnit = "meV";
-    energyConversion *= 1000;
-    relaxationTimeUnit = "ps"; // phonon times more commonly in ps
-    energyToTime *= 1e-3;
-    // this is a bit of a hack to deal with phel scattering, where stat sweep
-    // has nonzero mu values in spite of it being a phonon case
-
-  } else {
-    particleType = "electron";
-  }
-
-  // need to store as a vector format with dimensions
-  // iCalc, ik. ib, iDim (where iState is unfolded into
-  // ik, ib) for the velocities and lifetimes, no dim for energies
-  std::vector<std::vector<std::vector<double>>> outTimes;
-  std::vector<std::vector<std::vector<double>>> outTimesU;
-  std::vector<std::vector<std::vector<double>>> outTimesN;
-  std::vector<std::vector<std::vector<double>>> outLinewidths;
-  std::vector<std::vector<std::vector<std::vector<double>>>> velocities;
-  std::vector<std::vector<std::vector<double>>> energies;
-  std::vector<double> temps;
-  std::vector<double> chemPots;
-  std::vector<double> dopings;
-
-  for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
-    auto calcStatistics = statisticsSweep.getCalcStatistics(iCalc);
-    double temp = calcStatistics.temperature;
-    double chemPot = calcStatistics.chemicalPotential;
-    double doping = calcStatistics.doping;
-    temps.push_back(temp * temperatureAuToSi);
-    // this is a bit of a hack to deal with phel scattering, where stat sweep
-    // has nonzero mu values in spite of it being a phonon case
-    if(particle.isElectron()) {
-      chemPots.push_back(chemPot * energyConversion);
-    } else {
-      chemPots.push_back(0);
-    }
-    dopings.push_back(doping);
-
-    std::vector<std::vector<double>> wavevectorsT;
-    std::vector<std::vector<double>> wavevectorsL;
-    std::vector<std::vector<std::vector<double>>> wavevectorsV;
-    std::vector<std::vector<double>> wavevectorsE;
-    // loop over wavevectors
-    for (int ik : outerBandStructure.irrPointsIterator()) {
-      auto ikIndex = WavevectorIndex(ik);
-
-      std::vector<double> bandsT;
-      std::vector<double> bandsL;
-      std::vector<std::vector<double>> bandsV;
-      std::vector<double> bandsE;
-      // loop over bands here
-      // get numBands at this point, in case it's an active band structure
-      for (int ib = 0; ib < outerBandStructure.getNumBands(ikIndex); ib++) {
-        auto ibIndex = BandIndex(ib);
-        int is = outerBandStructure.getIndex(ikIndex, ibIndex);
-        StateIndex isIdx(is);
-        double ene = outerBandStructure.getEnergy(isIdx);
-        auto vel = outerBandStructure.getGroupVelocity(isIdx);
-        bandsE.push_back(ene * energyConversion);
-        int iBte = int(outerBandStructure.stateToBte(isIdx).get());
-        double tau = times(iCalc, 0, iBte);
-        bandsT.push_back(tau * energyToTime);
-        double linewidth = tmpLinewidths(iCalc, 0, iBte);
-        bandsL.push_back(linewidth * energyConversion);
-
-        std::vector<double> iDimsV;
-        // loop over dimensions
-        for (int iDim : {0, 1, 2}) {
-          iDimsV.push_back(vel[iDim] * velocityRyToSi);
-        }
-        bandsV.push_back(iDimsV);
-      }
-      wavevectorsT.push_back(bandsT);
-      wavevectorsL.push_back(bandsL);
-      wavevectorsV.push_back(bandsV);
-      wavevectorsE.push_back(bandsE);
-    }
-    outTimes.push_back(wavevectorsT);
-    outLinewidths.push_back(wavevectorsL);
-    velocities.push_back(wavevectorsV);
-    energies.push_back(wavevectorsE);
-  }
-  if(outputUNTimes) {
-    for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
-      std::vector<std::vector<double>> wavevectorsU;
-      std::vector<std::vector<double>> wavevectorsN;
-      // loop over wavevectors
-      for (int ik : outerBandStructure.irrPointsIterator()) {
-        auto ikIndex = WavevectorIndex(ik);
-        std::vector<double> bandsN;
-        std::vector<double> bandsU;
-        // loop over bands here
-        for (int ib = 0; ib < outerBandStructure.getNumBands(ikIndex); ib++) {
-          auto ibIndex = BandIndex(ib);
-          int is = outerBandStructure.getIndex(ikIndex, ibIndex);
-          StateIndex isIdx(is);
-          int iBte = int(outerBandStructure.stateToBte(isIdx).get());
-          double tauN = timesN->operator()(iCalc, 0, iBte);
-          double tauU = timesU->operator()(iCalc, 0, iBte);
-          bandsN.push_back(tauN * energyToTime);
-          bandsU.push_back(tauU * energyToTime);
-        }
-        wavevectorsN.push_back(bandsN);
-        wavevectorsU.push_back(bandsU);
-      }
-      outTimesN.push_back(wavevectorsN);
-      outTimesU.push_back(wavevectorsU);
-    }
-  }
-
-  auto points = outerBandStructure.getPoints();
-  std::vector<std::vector<double>> meshCoordinates;
-  for (int ik : outerBandStructure.irrPointsIterator()) {
-    // save the wavevectors
-    auto ikIndex = WavevectorIndex(ik);
-    auto coord =
-        points.cartesianToCrystal(outerBandStructure.getWavevector(ikIndex));
-    meshCoordinates.push_back({coord[0], coord[1], coord[2]});
-  }
-
-  // output to json
-  nlohmann::json output;
-  output["temperatures"] = temps;
-  output["temperatureUnit"] = "K";
-  output["chemicalPotentials"] = chemPots;
-  output["chemicalPotentialUnit"] = "eV";
-  if (particle.isElectron()) {
-    output["dopingConcentrations"] = dopings;
-    output["dopingConcentrationUnit"] =
-        "cm$^{-" + std::to_string(context.getDimensionality()) + "}$";
-  }
-  output["linewidths"] = outLinewidths;
-  output["linewidthsUnit"] = energyUnit;
-  output["relaxationTimes"] = outTimes;
-  if(outputUNTimes) {
-    output["normalRelaxationTimes"] = outTimesN;
-    output["umklappRelaxationTimes"] = outTimesU;
-  }
-  output["relaxationTimeUnit"] = relaxationTimeUnit;
-  output["velocities"] = velocities;
-  output["velocityUnit"] = "m/s";
-  output["energies"] = energies;
-  output["energyUnit"] = energyUnit;
-  output["wavevectorCoordinates"] = meshCoordinates;
-  output["coordsType"] = "lattice";
-  output["particleType"] = particleType;
-  std::ofstream o(outFileName);
-  o << std::setw(3) << output << std::endl;
-  o.close();
-}
-
-// TODO we may later want to merge this with the above function
-void ScatteringMatrix::outputLifetimesToJSON(const std::string &outFileName, std::shared_ptr<VectorBTE> internalDiag) {
-
-  if (!mpi->mpiHead()) return;
-
-  VectorBTE times = getSingleModeTimes(internalDiag);
-  //VectorBTE tmpLinewidths = getLinewidths();
-  std::shared_ptr<VectorBTE> timesN;
-  std::shared_ptr<VectorBTE> timesU;
-  if(outputUNTimes) {
-    timesN = std::make_shared<VectorBTE>(getSingleModeTimes(internalDiagonalNormal));
-    timesU = std::make_shared<VectorBTE>(getSingleModeTimes(internalDiagonalUmklapp));
-  }
-
-  std::string particleType;
-  auto particle = outerBandStructure.getParticle();
-  double energyConversion = energyRyToEv;
-  std::string energyUnit = "eV";
-  std::string relaxationTimeUnit = "fs";
-  // we need an extra factor of two pi, likely because of unit conversion
-  // (perhaps h vs hbar)
-  double energyToTime = energyRyToFs/twoPi;
-  if (particle.isPhonon()) {
-    particleType = "phonon";
-    energyUnit = "meV";
-    energyConversion *= 1000;
-    relaxationTimeUnit = "ps"; // phonon times more commonly in ps
-    energyToTime *= 1e-3;
-    // this is a bit of a hack to deal with phel scattering, where stat sweep
-    // has nonzero mu values in spite of it being a phonon case
-
-  } else {
-    particleType = "electron";
-  }
-
-  // need to store as a vector format with dimensions
-  // iCalc, ik. ib, iDim (where iState is unfolded into
-  // ik, ib) for the velocities and lifetimes, no dim for energies
-  std::vector<std::vector<std::vector<double>>> outTimes;
-  //std::vector<std::vector<std::vector<double>>> outLinewidths;
-  //std::vector<std::vector<std::vector<std::vector<double>>>> velocities;
-  std::vector<std::vector<std::vector<double>>> energies;
-  std::vector<double> temps;
-  std::vector<double> chemPots;
-  std::vector<double> dopings;
-
-  for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
-
-    auto calcStatistics = statisticsSweep.getCalcStatistics(iCalc);
-    double temp = calcStatistics.temperature;
-    double chemPot = calcStatistics.chemicalPotential;
-    double doping = calcStatistics.doping;
-    temps.push_back(temp * temperatureAuToSi);
-    chemPots.push_back(chemPot * energyConversion);
-    dopings.push_back(doping);
-
-    std::vector<std::vector<double>> wavevectorsT;
-    //std::vector<std::vector<double>> wavevectorsL;
-    std::vector<std::vector<double>> wavevectorsE;
-    // loop over wavevectors
-    for (int ik : outerBandStructure.irrPointsIterator()) {
-      auto ikIndex = WavevectorIndex(ik);
-
-      std::vector<double> bandsT;
-      std::vector<double> bandsL;
-      std::vector<std::vector<double>> bandsV;
-      std::vector<double> bandsE;
-      // loop over bands here
-      // get numBands at this point, in case it's an active band structure
-      for (int ib = 0; ib < outerBandStructure.getNumBands(ikIndex); ib++) {
-
-        auto ibIndex = BandIndex(ib);
-        int is = outerBandStructure.getIndex(ikIndex, ibIndex);
-        StateIndex isIdx(is);
-        double ene = outerBandStructure.getEnergy(isIdx);
-        bandsE.push_back(ene * energyConversion);
-        int iBte = int(outerBandStructure.stateToBte(isIdx).get());
-        double tau = times(iCalc, 0, iBte);
-        bandsT.push_back(tau * energyToTime);
-        //double linewidth = tmpLinewidths(iCalc, 0, iBte);
-        //bandsL.push_back(linewidth * energyConversion);
-      }
-      wavevectorsT.push_back(bandsT);
-      //wavevectorsL.push_back(bandsL);
-      wavevectorsE.push_back(bandsE);
-    }
-    outTimes.push_back(wavevectorsT);
-    //outLinewidths.push_back(wavevectorsL);
-    energies.push_back(wavevectorsE);
-  }
-
-  auto points = outerBandStructure.getPoints();
-  std::vector<std::vector<double>> meshCoordinates;
-  for (int ik : outerBandStructure.irrPointsIterator()) {
-    // save the wavevectors
-    auto ikIndex = WavevectorIndex(ik);
-    auto coord = points.cartesianToCrystal(outerBandStructure.getWavevector(ikIndex));
-    meshCoordinates.push_back({coord[0], coord[1], coord[2]});
-  }
-
-  // output to json
-  nlohmann::json output;
-  output["temperatures"] = temps;
-  output["temperatureUnit"] = "K";
-  output["chemicalPotentials"] = chemPots;
-  output["chemicalPotentialUnit"] = "eV";
-  if (particle.isElectron()) {
-    output["dopingConcentrations"] = dopings;
-    output["dopingConcentrationUnit"] =
-        "cm$^{-" + std::to_string(context.getDimensionality()) + "}$";
-  }
-  //output["linewidths"] = outLinewidths;
-  //output["linewidthsUnit"] = energyUnit;
-  output["relaxationTimes"] = outTimes;
-  output["relaxationTimeUnit"] = relaxationTimeUnit;
-  output["energies"] = energies;
-  output["energyUnit"] = energyUnit;
-  output["wavevectorCoordinates"] = meshCoordinates;
-  output["coordsType"] = "lattice";
-  output["particleType"] = particleType;
-  std::ofstream o(outFileName);
-  o << std::setw(3) << output << std::endl;
-  o.close();
-}
-
-
 // TODO this feels redundant with above function, maybe could be simplified
 void ScatteringMatrix::relaxonsToJSON(const std::string &outFileName,
                                       const Eigen::VectorXd &eigenvalues) {
-  if (!mpi->mpiHead()) {
-    return;
-  }
+  
+  if (!mpi->mpiHead()) return;
 
   Eigen::VectorXd times = 1. / eigenvalues.array();
 
@@ -974,15 +673,13 @@ void ScatteringMatrix::relaxonsToJSON(const std::string &outFileName,
 
   double energyToTime = energyRyToFs;
   double energyConversion = energyRyToEv;
-
   std::string energyUnit = "eV";
 
   // need to store as a vector format with dimensions
   // iCalc, ik. ib, iDim (where iState is unfolded into
   // ik, ib) for the velocities and lifetimes, no dim for energies
   std::vector<std::vector<double>> outTimes;
-  std::vector<double> temps;
-  std::vector<double> chemPots;
+  std::vector<double> temps, chemPots;
 
   for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
     auto calcStatistics = statisticsSweep.getCalcStatistics(iCalc);
@@ -1088,9 +785,7 @@ ScatteringMatrix::getIteratorWavevectorPairs(const int &switchCase,
         // first unpack Bloch Index and get all wavevector pairs
 #pragma omp for nowait
         for(int ilocalState = 0; ilocalState < nlocalStates; ilocalState++){
-          std::tuple<int,int> tup0 = localStates[ilocalState];
-          auto iMat1 = std::get<0>(tup0);
-          auto iMat2 = std::get<1>(tup0);
+          auto [iMat1, iMat2] = localStates[ilocalState]; 
           auto tup1 = getSMatrixIndex(iMat1);
           auto tup2 = getSMatrixIndex(iMat2);
           BteIndex iBte1 = std::get<0>(tup1);
@@ -1150,7 +845,7 @@ ScatteringMatrix::getIteratorWavevectorPairs(const int &switchCase,
           // note: get<> returns a reference to the tuple elements
           std::get<0>(pairIterator[i]).push_back(iq2);
         } else {
-          Error("Developer error: ik1 not found, not supposed to happen.");
+          DeveloperError("ik1 not found, not supposed to happen.");
         }
       }
     }

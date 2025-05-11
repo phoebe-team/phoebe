@@ -1,8 +1,8 @@
 appName = "phononLifetimes"
 
 sumRuleFC2 = "simple"
-phFC2FileName = "qe-phonons/silicon.fc"
-phFC3FileName = "thirdorder.py-anharmonic/FORCE_CONSTANTS_3RD"
+phFC2FileName = "../qe-phonons/silicon.fc"
+phFC3FileName = "../thirdorder.py-anharmonic/FORCE_CONSTANTS_3RD"
 
 qMesh = [10,10,10]
 temperatures = [600.]

@@ -118,14 +118,15 @@ public:
    */
   VectorBTE operator/(VectorBTE &that);
 
-  /** Replace the content of VectorBTE with its square root
+  /** Return a new VectorBTE object containing the square root of this one
    * (element-wise x -> sqrt(x) ).
    */
   VectorBTE sqrt();
-  /** Replace the content of VectorBTE with its reciprocal
+  
+  /** Return a new VectorBTE object containing the reciprocal of this one
    * (element-wise x -> 1/x).
    */
-  VectorBTE reciprocal();
+  VectorBTE reciprocal() const;
 
   /** Convert an out-of-equilibrium population from the canonical form f to
    * the absolute value n, such that n = bose(bose+1)f or n=fermi(1-fermi)f.
@@ -137,6 +138,10 @@ public:
    */
   void population2Canonical();
 
+  /** Output the contents of a vector BTE object to a JSON file 
+   */
+  void outputToJSON(const std::string &outFileName, BaseBandStructure& outerBandStructure);
+  
   /** raw buffer containing the values of the vector
  *  The matrix has size (numCalculations, numStates), where numCalculations is the number
  *  of pairs of temperature and chemical potentials, and numStates is the

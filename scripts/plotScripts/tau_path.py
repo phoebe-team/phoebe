@@ -107,7 +107,8 @@ def punchPlotBandTau(plotFileName2, energy, linewidth,
 
 if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description="Plot relaxation times on a band path.")
+    parser = argparse.ArgumentParser(description="Plot relaxation times on a band path, using the format: \n"
+                                     + "python tau_path.py rta_el_relaxation_times.json path_el_bandstructure.json 0")
     parser.add_argument("INPUT",
                         help="Name of the JSON file with relaxation times")
     parser.add_argument("INPUT2",

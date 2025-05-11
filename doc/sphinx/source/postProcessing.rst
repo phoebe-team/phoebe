@@ -72,7 +72,7 @@ tau_path.py
 
 Overlays the band structure with the particle linewidths, using the output of the lifetimes apps. Example use::
 
-  python tau_path.py path_el_relaxation_times.json path_el_bandstructure.json 0
+  python tau_path.py rta_el_relaxation_times.json path_el_bandstructure.json 0
 
 In this case, we follow the json file with 0 because this script takes a "calculation index". The calculation index is 0 unless you used multiple temperatures or dopings. If this is the case, you want to supply the calculation index corresponding to the doping/temperature you want to plot.
 

@@ -49,8 +49,8 @@ public:
 
 protected:
 
-  ElectronH0Wannier *electronH0;
   PhononH0* phononH0; 
+  ElectronH0Wannier *electronH0;
 
   void builder(std::shared_ptr<VectorBTE> linewidth, std::vector<VectorBTE> &inPopulations,
                std::vector<VectorBTE> &outPopulations) override;

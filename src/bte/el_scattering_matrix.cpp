@@ -160,15 +160,13 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
   Kokkos::Profiling::popRegion();
 
-  //if(mpi->mpiHead()) std::cout << linewidth->data.transpose() << std::endl;
-
-  // before closing, write the relaxation times to file
-  //outputLifetimesToJSON("rta_el_momentum_relaxation_times.json", linewidthMR);
-  //outputLifetimesToJSON("rta_el_relaxation_times.json", linewidth);
-
+  // before closing, write the relaxation times to file 
+  // remember to first convert to a vector BTE object without symmetrization
+  getLinewidths(*linewidthMR).outputToJSON("mrta_el_relaxation_times.json", outerBandStructure);
+  getLinewidths(*linewidth).outputToJSON("rta_el_relaxation_times.json", outerBandStructure);
 }
 
 // function called on shared ptrs of linewidths
 VectorBTE ElScatteringMatrix::getSingleModeMRTimes() {
-  return getTimesFromVectorBTE(*linewidthMR);
+  return getSingleModeTimes(*linewidthMR);
 }

@@ -164,14 +164,14 @@ There are several JSON files output by this calculation. To see how to generical
 Here, ``*`` can be either ``el`` or ``ph`` depending on the particle type.
 
 * ``path_*_bandstructure.json``: contains the band path, labels and energies.
-* ``path_*_relaxation_times.json``: contains the lifetimes and linewidths on the specified path, for whatever number of temperatures/dopings were specified.
+* ``rta_*_relaxation_times.json``: contains the lifetimes and linewidths on the specified path, for whatever number of temperatures/dopings were specified, computed at the RTA level.
 
 Post-Processsing
 -----------------
 
 We provide a post-processing example python script for this calculation in ``scripts/plotScripts/tau_path.py``. To run this script, we need to specify the location of the two JSON files listed above, like this::
 
-  python tau_path.py path_*_relaxation_times.json path_*_bandstructure.json
+  python tau_path.py rta_*_relaxation_times.json path_*_bandstructure.json
 
 This script will generate the following images (the below are for silicon, somewhat better converged):
 

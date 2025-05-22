@@ -48,7 +48,7 @@ for line in open('totalE.out'):
     if line.startswith('spintype'):
         if(line.split()[1] == 'no-spin'):
             nSpin = 1
-            #nElecSubtract*=2
+            nElecSubtract*=2
         elif(line.split()[1] == 'spin-orbit'):
             nSpin = 2  # spin orbit coupling
         elif(line.split()[1] == 'z-spin'):
@@ -179,7 +179,7 @@ for spin in spinPostFix:
 
     # write the elph information
     hf.create_dataset('elphDegeneracies', data=np.ones(nCellsEph).reshape(nCellsEph,1))
-    hf.create_dataset('elphBravaisVectors', data=cellMapEph.reshape(3,-1))  # reshaping this way thrwarts a problem with Eigen and row/col major
+    hf.create_dataset('elphBravaisVectors', data=cellMapEph.T)
     hf.create_dataset("fileFormat", data=1)  # this tells Phoebe to read in all the data at once rather than in chunks
 
     # transpose along the nAtoms,3 block to account for phoebe's expectation that the dynamical matrix will be

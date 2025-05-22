@@ -408,7 +408,7 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
 
     // Reopen the HDF5 ElPh file for parallel read of eph matrix elements
     HighFive::FileAccessProps fapl;
-    fapl.add(HighFive::MPIOFileAccess{mpi->getComm(), MPI_INFO_NULL});
+    fapl.add(HighFive::MPIOFileAccess{mpi->getComm(comm), MPI_INFO_NULL});
     HighFive::File file(fileName, HighFive::File::ReadOnly, fapl);
 
     // Set up dataset for gWannier

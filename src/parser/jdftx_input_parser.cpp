@@ -376,10 +376,13 @@ Crystal JDFTxParser::parseCrystal(Context& context) {
 
  #ifdef HDF5_AVAIL
 
-  fileName = context.getElectronH0Name();
-  if (fileName.empty()) {
-    Error("Check your path, jdftx.elph.phoebe.hdf5 not found at " + fileName);
-  }
+  // can come from either, same file in each
+  if (context.getElectronH0Name().empty() && context.getPhFC2FileName().empty()) {
+    Error("Check your path, jdftx.elph.phoebe.hdf5 not found in phFC2FileName or electronH0Name.");
+   }
+
+  if(context.getElectronH0Name().empty()) fileName = context.getPhFC2FileName();
+  else { fileName = context.getElectronH0Name(); }
   if (mpi->mpiHead())
     std::cout << "Reading in " + fileName + " to get born charges and dielectric matrix." << std::endl;
   try {

@@ -355,12 +355,6 @@ void ElPhQeToPhoebeApp::testBackTransform(
       Eigen::VectorXcd polar = couplingElPh.polarCorrectionPart1(q3C, eigenVector3);
       polarData.push_back(polar);
 
-
-      couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2,
-                                       eigenVectors3, q3Cs, k1C, polarData);
-      polarData.push_back(polar);
-
-
       couplingElPh.calcCouplingSquared(eigenVector1, eigenVectors2,
                                        eigenVectors3, q3Cs, k1C, polarData);
       auto coupling2 = couplingElPh.getCouplingSquared(0);
@@ -413,8 +407,13 @@ void writeHeaderHDF5(
           "/numElectrons", HighFive::DataSpace::From(numFilledWannier));
       HighFive::DataSet dnSpin = file.createDataSet<int>(
           "/numSpin", HighFive::DataSpace::From(numSpin));
+      // if we write this with QE, it's the Giustino phase convention, which we deem phaseConv = 0
+      int phaseConvention = 0;
+      HighFive::DataSet dphaseConvention = file.createDataSet<int>(
+        "/phaseConvention", HighFive::DataSpace::From(phaseConvention));
       dnElectrons.write(numFilledWannier);// # of occupied wannier functions
       dnSpin.write(numSpin);
+      dphaseConvention.write(phaseConvention);
 
       HighFive::DataSet dnElBands = file.createDataSet<int>(
           "/numElBands", HighFive::DataSpace::From(numWannier));
@@ -448,6 +447,7 @@ void writeHeaderHDF5(
       dElDegeneracies.write(elDegeneracies);
     }
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue writing elph Wannier header to hdf5.");
   }
 }
@@ -628,6 +628,7 @@ void writeElPhCouplingHDF5v1(
     }
 #endif
   } catch (std::exception &error) {
+    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue writing elph Wannier representation to hdf5.");
   }
 }
@@ -892,16 +893,16 @@ void writeSvdElPhCouplingHDF5(
 
     try {
         std::string outFileName = context.getQuantumEspressoPrefix() + ".phoebe.elph.hdf5";
-        if (mpi->mpiHead()){
-          std::cout << "Saving HDF5 file to: " << outFileName << std::endl;
+        if (mpi->mpiHead()) {
+            std::cout << "Saving HDF5 file to: " << outFileName << std::endl;
+            std::remove(outFileName.c_str());
         }
+        mpi->barrier();
 
-        std::remove(outFileName.c_str());  // Remove the file if it exists
-
-        // Open HDF5 file with MPI parallel I/O
         auto fapl = HighFive::FileAccessProps{};
         fapl.add(HighFive::MPIOFileAccess(MPI_COMM_WORLD, MPI_INFO_NULL));
         HighFive::File file(outFileName, HighFive::File::Truncate, fapl);
+        mpi->barrier();
 
         // Create a group for storing SVD results
         HighFive::Group svdGroup = file.createGroup("SVD");

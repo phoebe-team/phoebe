@@ -337,8 +337,8 @@ std::vector<std::tuple<int, int>> Matrix<T>::getAllLocalStates() {
 template <typename T>
 Matrix<T> Matrix<T>::operator-() const {
   Matrix<T> c(*this); // copy this matrix
-  if(isDistributed) c.pmat = -c.pmat;
-  else{ c.mat = -c.mat; }
+    if (isDistributed) *(c.pmat) = -*(c.pmat);
+    else               *(c.mat)  = -*(c.mat);
   return c;
 }
 

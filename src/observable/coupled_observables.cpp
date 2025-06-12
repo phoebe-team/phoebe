@@ -300,9 +300,18 @@ void CoupledCoefficients::calcFromRelaxons(
         kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * tau;
 
         // viscosities
-        double xxxx = sqrt(M(0) * M(0)) * Vphi(gamma,0,0) * Vphi(gamma,0,0) * tau;
-        double yyyy = sqrt(M(1) * M(1)) * Vphi(gamma,1,1) * Vphi(gamma,1,1) * tau;
-        iiiiContrib[gamma] += (xxxx + yyyy)/2.;
+        // ph contribution
+        double xxxx = sqrt(A(0) * A(0)) * phVphi(gamma, 0, 0) * phVphi(gamma, 0, 0) * tau;
+        double yyyy =  sqrt(A(1) * A(1)) * phVphi(gamma, 1, 1) * phVphi(gamma, 1, 1) * tau;
+        iiiiContrib[0][gamma] += (xxxx + yyyy) / 2.;
+        // el contribution
+        xxxx = sqrt(G(0) * G(0)) * elVphi(gamma, 0, 0) * elVphi(gamma, 0, 0) * tau;
+        yyyy = sqrt(G(1) * G(1)) * elVphi(gamma, 1, 1) * elVphi(gamma, 1, 1) * tau;
+        iiiiContrib[1][gamma] += (xxxx + yyyy) / 2.;
+        // drag contribution
+        xxxx =  sqrt(A(0) * G(0)) * phVphi(gamma, 0, 0) * elVphi(gamma, 0, 0) * tau;
+        yyyy =  sqrt(A(1) * G(1)) * phVphi(gamma, 1, 1) * elVphi(gamma, 1, 1) * tau;
+        iiiiContrib[2][gamma] += (xxxx + yyyy) / 2.;
 
         for(auto k : {0, 1, 2}) {
           for(auto l : {0, 1, 2}) {

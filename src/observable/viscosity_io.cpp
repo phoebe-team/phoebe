@@ -2,163 +2,47 @@
 #include <fstream>
 #include <iomanip>
 #include <nlohmann/json.hpp>
-
-// TODO potentially this should be a viscosity parent object...
-
-// here alpha0 and alpha e are set through passing by reference
-void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                                    const int& numRelaxons, const Particle& particle,
-                                    const Eigen::VectorXd& theta0,
-                                    const Eigen::VectorXd& theta_e,
-                                    const Eigen::MatrixXd& phi, 
-                                    int& alpha0, int& alpha_e, bool print) {
+ 
+// returns the index of largest overlap with a special eigenvector
+int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
+                              const Eigen::VectorXd& specialEigenvector, 
+                              std::string eigenvectorName) {
 
   // calculate the overlaps with special eigenvectors
-  Eigen::VectorXd prodTheta0(numRelaxons); prodTheta0.setZero();
-  Eigen::VectorXd prodThetae(numRelaxons); prodThetae.setZero();
-  Eigen::VectorXd prodPhi1(numRelaxons); prodPhi1.setZero();
-  Eigen::VectorXd prodPhi2(numRelaxons); prodPhi2.setZero();
-  Eigen::VectorXd prodPhi3(numRelaxons); prodPhi3.setZero();
-
+  int numRelaxons = specialEigenvector.size(); 
+  Eigen::VectorXd overlaps(numRelaxons); overlaps.setZero();
+                                
+  // TODO need to update this for useUpperTriangle and case of less numRelaxons
   for (auto tup : eigenvectors.getAllLocalStates()) {
-
     auto is = std::get<0>(tup);
     auto gamma = std::get<1>(tup);
-    prodTheta0(gamma) += eigenvectors(is,gamma) * theta0(is);
-    prodThetae(gamma) += eigenvectors(is,gamma) * theta_e(is);
-
-    prodPhi1(gamma) += eigenvectors(is,gamma) * phi(0, is);
-    prodPhi2(gamma) += eigenvectors(is,gamma) * phi(1, is);
-    prodPhi3(gamma) += eigenvectors(is,gamma) * phi(2, is);
-    //if(mpi->mpiHead() && gamma == 1) std::cout << is << " is " << eigenvectors(is,gamma) << " " << phi(0, is) << std::endl;
-
+    overlaps(gamma) += eigenvectors(is,gamma) * specialEigenvector(is);
   }
-  mpi->allReduceSum(&prodThetae); mpi->allReduceSum(&prodTheta0);
-  mpi->allReduceSum(&prodPhi1); mpi->allReduceSum(&prodPhi2); 
-  mpi->allReduceSum(&prodPhi3); 
+  mpi->allReduceSum(&overlaps);
 
   // find the element with the maximum product
-  prodTheta0 = prodTheta0.cwiseAbs();
-  prodThetae = prodThetae.cwiseAbs();
-  prodPhi1 = prodPhi1.cwiseAbs();
-  prodPhi2 = prodPhi2.cwiseAbs();
-  prodPhi3 = prodPhi3.cwiseAbs();
-
-  Eigen::Index maxCol0, idxAlpha0;
-  Eigen::Index maxCol_e, idxAlpha_e;
-  Eigen::Index maxColPhi1, idxAlpha_phi1;
-  Eigen::Index maxColPhi2, idxAlpha_phi2;
-  Eigen::Index maxColPhi3, idxAlpha_phi3;
-
-  // get max row + column 
-  float maxTheta0 = prodTheta0.maxCoeff(&idxAlpha0, &maxCol0);
-  float maxThetae = prodThetae.maxCoeff(&idxAlpha_e, &maxCol_e);
-  float maxPhi1 = prodPhi1.maxCoeff(&idxAlpha_phi1, &maxColPhi1);
-  float maxPhi2 = prodPhi2.maxCoeff(&idxAlpha_phi2, &maxColPhi2);
-  float maxPhi3 = prodPhi3.maxCoeff(&idxAlpha_phi3, &maxColPhi3);
-
-  if(mpi->mpiHead() && print) {
-
-    // avoid a segfault in an edge case of few el states
-    int maxPrint = 10; 
-    if(numRelaxons < 10) { maxPrint = numRelaxons; } 
-
-    std::cout << std::fixed;
-    std::cout << std::setprecision(4);
-
-    std::cout << "\nMaximum scalar product phi1.theta_alpha = " << maxPhi1 << " at index " << idxAlpha_phi1 << "." << std::endl;
-    std::cout << "Maximum scalar product phi2.theta_alpha = " << maxPhi2 << " at index " << idxAlpha_phi2 << "." << std::endl;
-    std::cout << "Maximum scalar product phi3.theta_alpha = " << maxPhi3 << " at index " << idxAlpha_phi3 << "." << std::endl;
-    //for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prodPhi1(gamma); }
-
-    std::cout << "\nMaximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
-    std::cout << "First ten products with theta_0:";
-    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prodTheta0(gamma); }
-    if(particle.isElectron()) {
-      std::cout << "\n\nMaximum scalar product theta_e.theta_alpha = " << maxThetae << " at index " << idxAlpha_e << "." << std::endl;
-      std::cout << "First ten products with theta_e:";
-      for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prodThetae(gamma); }
-    }
-    std::cout << "\n" << std::endl;
-  }
-
-  // save these indices to the class objects
-  // if they weren't really found, we leave these indices
-  // as -1 so that no relaxons are skipped
-  if(maxTheta0 >= 0.75) alpha0 = idxAlpha0;
-  if(maxThetae >= 0.75) alpha_e = idxAlpha_e;
-
-}
-
-/*
-std::tuple<int,int> relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                              int& numRelaxons, Particle& particle, 
-                              Eigen::VectorXd& theta0, Eigen::VectorXd& theta_e) {
-
-  Eigen::VectorXd prod0(numRelaxons);
-  Eigen::VectorXd prod_e(numRelaxons);
-  prod0.setZero(); prod_e.setZero();
-  //Eigen::Vector3d vecprodphi1(numRelaxons);
-  //Eigen::Vector3d vecprodphi2(numRelaxons);
-  //Eigen::Vector3d vecprodphi3(numRelaxons);
-
-  // sum over the alpha and v states that this process owns
-  for (auto tup : eigenvectors.getAllLocalStates()) {
-
-    auto is = std::get<0>(tup);
-    auto gamma = std::get<1>(tup);
-
-    prod0(gamma) += eigenvectors(is,gamma) * theta0(is);
-    prod_e(gamma) += eigenvectors(is,gamma) * theta_e(is);
-    //vecprodphi1[gamma] += eigenvectors(is,gamma) * phi(0,is);
-    //vecprodphi2[gamma] += eigenvectors(is,gamma) * phi(1,is);
-    //vecprodphi3[gamma] += eigenvectors(is,gamma) * phi(2,is);
-
-  }
-  // scalar products with vectors
-  mpi->allReduceSum(&prod0); mpi->allReduceSum(&prod_e);
-  //mpi->allReduceSum(&vecprodphi1); mpi->allReduceSum(&vecprodphi2); mpi->allReduceSum(&vecprodphi3);
-
-  // find the element with the maximum product
-  prod0 = prod0.cwiseAbs();
-  prod_e = prod_e.cwiseAbs();
-  Eigen::Index maxCol0, idxAlpha0;
-  Eigen::Index maxCol_e, idxAlpha_e;
-  float maxTheta0 = prod0.maxCoeff(&idxAlpha0, &maxCol0);
-  float maxThetae = prod_e.maxCoeff(&idxAlpha_e, &maxCol_e);
+  overlaps = overlaps.cwiseAbs();
+  Eigen::Index maxCol, idxMaxOverlap;
+  float maxOverlap = overlaps.maxCoeff(&idxMaxOverlap, &maxCol);
 
   if(mpi->mpiHead()) {
 
-    // avoid a segfault in an edge case of few el states
+    // avoid a segfault in an edge case of few states
     int maxPrint = 10; 
     if(numRelaxons < 10) { maxPrint = numRelaxons; } 
-
+    
     std::cout << std::fixed;
     std::cout << std::setprecision(4);
-    std::cout << "Maximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
-    std::cout << "First ten scalar products with theta_0:";
-    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prod0(gamma); }
-    std::cout << "\n\nMaximum scalar product theta_e.theta_alpha = " << maxThetae << " at index " << idxAlpha_e << "." << std::endl;
-    std::cout << "First ten scalar products with theta_e:";
-    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << prod_e(gamma); }
-    std::cout << std::endl;
+    std::cout << "\nMaximum scalar product " << eigenvectorName << ".theta_alpha = " << maxOverlap << " at alpha = " << idxMaxOverlap << "." << std::endl;
+    std::cout << "First ten products with " << eigenvectorName << ":";
+    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << overlaps(gamma); }
   }
 
-  // save these indices to the class objects
-  // if they weren't really found, we leave these indices
-  // as -1 so that no relaxons are skipped
-  int alpha0, alpha_e; 
-  if(maxTheta0 >= 0.75) {
-    if(mpi->mpiHead()) std::cout << "Identified energy eigenvector, it will be discarded from viscosity." << std::endl;
-    alpha0 = idxAlpha0;
-  }
-  if(maxThetae >= 0.75) {
-    if(mpi->mpiHead()) std::cout << "Identified charge eigenvector, it will be discarded from viscosity." << std::endl;
-    alpha_e = idxAlpha_e;
-  } 
-  return std::make_tuple(alpha0,alpha_e);
-}*/
-
+  // If the best overlap isn't very good, we return -1 so nothing is skipped 
+  if(maxOverlap >= 0.75) return idxMaxOverlap;
+  else { return -1; }
+}
+ 
 // calculate special eigenvectors
 void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
                                     StatisticsSweep& statisticsSweep,

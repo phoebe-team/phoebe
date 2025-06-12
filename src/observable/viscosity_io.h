@@ -42,20 +42,12 @@
   /** Helper function to print information about the scalar products with the
    * special eigenvectors.
    * @param eigenvectors: eigenvectors of the scattering matrix
-   * @param numRelaxons: the number of relaxons which have been calculated
-   * @param particle: particle type, ph or el
-   * @param theta0: energy conservation eigenvector
-   * @param thetae: charge conservation eigenvector
-   * @param alpha0: eigenvalue index of theta0 eigenvector
-   * @param alphae: eigenvalue index of thetae eigenvector
-   * @param print: optional argument to tell if we should print information 
+   * @param specialEigenvector: the special eigenvector we are checking the overlap with
+   * @param eigenvectorName: the name of the special eigenvector we are printing 
    */
-  void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                                const int& numRelaxons, const Particle& particle,
-                                const Eigen::VectorXd& theta0,
-                                const Eigen::VectorXd& theta_e,
-                                const Eigen::MatrixXd& phi,
-                                int& alpha0, int& alpha_e, bool print = true); 
+   int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors, 
+                                          const Eigen::VectorXd& specialEigenvector, 
+                                          std::string eigenvectorName); 
 
   /** Helper function to pre-calculate the special eigenvectors theta0,
    * theta_e, phi as well as A, C
@@ -76,7 +68,8 @@
                               Eigen::MatrixXd& phi,
                               double& C, Eigen::Vector3d& A);
 
-      void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors, 
+  // TODO comment 
+  void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors, 
                               const Eigen::VectorXd& eigenvalues, 
                               std::vector<BaseBandStructure*>& bandStructures, 
                               const Eigen::VectorXd& theta0,

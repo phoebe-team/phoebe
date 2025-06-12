@@ -89,16 +89,25 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
   // to simplify, here I do everything considering there is a single
   // temperature (due to memory constraints)
   if (numCalculations > 1) {
-    Error("Developer error: Viscosity for relaxons only for 1 temperature.");
+    DeveloperError("Viscosity for relaxons only for 1 temperature.");
   }
 
   int numStates = bandStructure.getNumStates();
   int numRelaxons = eigenvalues.size();
   int iCalc = 0; // zero index, because we only run one for relaxons
 
-  // search for the indices of the special eigenvectors and print info about them
-  relaxonEigenvectorsCheck(eigenvectors, numRelaxons);
-
+  // print info about the special eigenvectors ------------------------------
+  // and save the indices that need to be skipped
+  alpha0 = relaxonEigenvectorOverlap(eigenvectors, theta0, "theta0");
+  
+  // drift eigenvector overlaps ----------
+  // for now, we don't save these drift eigenvector indices
+  {
+    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::all), "phi_x");
+    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::all), "phi_y");
+    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
+  }
+  
   // Code by Andrea, annotation by Jenny
   // Here we are calculating Eq. 9 from the PRX Simoncelli 2020
   //    mu_ijkl = (eta_ijkl + eta_ilkj)/2
@@ -218,17 +227,6 @@ void PhononViscosity::calcSpecialEigenvectors() {
   genericCalcSpecialEigenvectors(context, bandStructure, statisticsSweep,
                           spinFactor, theta0, theta_e, phi, C, A);
 
-}
-
-void PhononViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                                                        int& numRelaxons) {
-
-  // sets alpha0 and alpha_e, the indices
-  // of the special eigenvectors in the eigenvector list,
-  // to be excluded in later calculations
-  Particle particle = bandStructure.getParticle();
-  genericRelaxonEigenvectorsCheck(eigenvectors, numRelaxons, particle,
-                                 theta0, theta_e, phi, alpha0, alpha_e);
 }
 
 void PhononViscosity::print() {

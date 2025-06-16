@@ -8,11 +8,11 @@
 // specific parse function for the case where there is no
 // HDF5 available
 InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
-                               PhononH0& phononH0_) {
+                               PhononH0 *phononH0_) {
 
   std::string fileName = context.getElphFileName();
 
-  int numElectrons, spinType;
+  int numElectrons, numSpin;
   int numElBands, numElBravaisVectors, numPhBands, numPhBravaisVectors;
   numElBravaisVectors = 0; // suppress initialization warning
   Eigen::MatrixXd phBravaisVectors_, elBravaisVectors_;
@@ -27,7 +27,7 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
     }
 
     // Read the bravais lattice vectors info for q mesh.
-    infile >> numElectrons >> spinType;
+    infile >> numElectrons >> numSpin;
 
     int kx, ky, kz;
     int qx, qy, qz;
@@ -124,19 +124,17 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
   } // mpiHead done reading file
 
   mpi->bcast(&numElectrons);
-  mpi->bcast(&spinType);
+  mpi->bcast(&numSpin);
 
   mpi->bcast(&numElBands);
   mpi->bcast(&numPhBands);
   mpi->bcast(&numElBravaisVectors, mpi->interPoolComm);
   mpi->bcast(&numPhBravaisVectors);
 
-  if (spinType == InteractionElPhWan::spinPolarizedOrSOC) {
-    Error("Spin-polarized and spin-non-colinear calculations are not currently supported.");
+  if (numSpin == 2) {
+    Error("Spin is not currently supported");
   }
-  // if number of occupied states is not set already in input,
-  // use the value in the file. Otherwise, keep the user supplied value.
-  if(std::isnan(context.getNumOccupiedStates())) context.setNumOccupiedStates(numElectrons);
+  context.setNumOccupiedStates(numElectrons);
 
   if (!mpi->mpiHeadPool()) { // head already allocated these
     phBravaisVectors_.resize(3, numPhBravaisVectors);
@@ -152,26 +150,19 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
   mpi->bcast(&phBravaisVectorsDegeneracies_);
   mpi->bcast(&couplingWannier_, mpi->interPoolComm);
 
-  // there is no JDFTx parsing option for this function, so we will always have
-  // phase convention 0, in which we use Re and Rp
-  int phaseConvention_ = InteractionElPhWan::GiustinoPhaseConvention;
-
   InteractionElPhWan output(crystal, couplingWannier_, elBravaisVectors_,
                             elBravaisVectorsDegeneracies_, phBravaisVectors_,
-                            phBravaisVectorsDegeneracies_, phaseConvention_, phononH0_);
+                            phBravaisVectorsDegeneracies_, phononH0_);
   return output;
 }
 
 #ifdef HDF5_AVAIL
 
 std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
-    Eigen::VectorXd, Eigen::VectorXd, int> parseHeaderHDF5(Context &context) {
-
+    Eigen::VectorXd, Eigen::VectorXd> parseHeaderHDF5(Context &context) {
   std::string fileName = context.getElphFileName();
 
-  // Here, phase convention corresponds to using
-  // g(Re,Rp) (phase convention = 1) or g(Re',Re) (phase convention = 2)
-  int numElectrons, spinType, phaseConvention;
+  int numElectrons, numSpin;
   int numElBands, numElBravaisVectors, totalNumElBravaisVectors, numPhBands, numPhBravaisVectors;
   // suppress initialization warning
   numElBravaisVectors = 0; totalNumElBravaisVectors = 0; numPhBravaisVectors = 0;
@@ -194,10 +185,9 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
 
         // read in the number of electrons and the spin
         HighFive::DataSet dnelec = file.getDataSet("/numElectrons");
-        // this is the spinType, but I don't want to change it to avoid making a mess wrt using older hdf5 files
         HighFive::DataSet dnspin = file.getDataSet("/numSpin");
         dnelec.read(numElectrons);
-        dnspin.read(spinType);
+        dnspin.read(numSpin);
 
         // read in the number of phonon and electron bands
         HighFive::DataSet dnElBands = file.getDataSet("/numElBands");
@@ -205,45 +195,20 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
         dnElBands.read(numElBands);
         dnModes.read(numPhBands);
 
-        // if phaseConvention not in the file, it's a typical QE file and phaseConv = 0
-        // if it's set, this is a jdftx file and it should be set to zero
-        try {
-          HighFive::DataSet dPhaseConvention = file.getDataSet("/phaseConvention");
-          dPhaseConvention.read(phaseConvention);
-        } catch (std::exception &error) {
-          phaseConvention = InteractionElPhWan::GiustinoPhaseConvention;
-        }
-
-        std::string datasetPhBravaisVectors = "/phBravaisVectors";
-        std::string datasetPhDegeneracies = "/phDegeneracies";
-        std::string datasetElBravaisVectors = "/elBravaisVectors";
-        std::string datasetElDegeneracies = "/elDegeneracies";
-
-        // if this is a jdftx elph file, we need to read in elphBravaisVectors
-        // here, instead of el and ph bravais vectors, we just have one set of R
-        // vectors saved under elphBravaisVectors
-        if(phaseConvention == InteractionElPhWan::JdftxPhaseConvention) {
-          datasetPhBravaisVectors = "/elphBravaisVectors";
-          datasetPhDegeneracies = "/elphDegeneracies";
-          datasetElBravaisVectors = "/elphBravaisVectors";
-          datasetElDegeneracies = "/elphDegeneracies";
-        }
-
         // read phonon bravais lattice vectors and degeneracies
-        HighFive::DataSet dphbravais = file.getDataSet(datasetPhBravaisVectors);
-        HighFive::DataSet dphDegeneracies = file.getDataSet(datasetPhDegeneracies);
+        HighFive::DataSet dphbravais = file.getDataSet("/phBravaisVectors");
+        HighFive::DataSet dphDegeneracies = file.getDataSet("/phDegeneracies");
         dphbravais.read(phBravaisVectors_);
         dphDegeneracies.read(phBravaisVectorsDegeneracies_);
         numPhBravaisVectors = int(phBravaisVectors_.cols());
 
         // read electron Bravais lattice vectors and degeneracies
-        HighFive::DataSet delDegeneracies = file.getDataSet(datasetElDegeneracies);
+        HighFive::DataSet delDegeneracies = file.getDataSet("/elDegeneracies");
         delDegeneracies.read(elBravaisVectorsDegeneracies_);
         totalNumElBravaisVectors = int(elBravaisVectorsDegeneracies_.size());
         numElBravaisVectors = int(elBravaisVectorsDegeneracies_.size());
-        HighFive::DataSet delbravais = file.getDataSet(datasetElBravaisVectors);
+        HighFive::DataSet delbravais = file.getDataSet("/elBravaisVectors");
         delbravais.read(elBravaisVectors_);
-
         // redistribute in case of pools are present
         if (mpi->getSize(mpi->intraPoolComm) > 1) {
           localElVectors = mpi->divideWorkIter(totalNumElBravaisVectors, mpi->intraPoolComm);
@@ -264,34 +229,22 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     }
     // broadcast to all MPI processes
     mpi->bcast(&numElectrons);
-    mpi->bcast(&spinType);
+    mpi->bcast(&numSpin);
     mpi->bcast(&numPhBands);
     mpi->bcast(&numPhBravaisVectors);
     mpi->bcast(&numElBands);
     mpi->bcast(&numElBravaisVectors, mpi->interPoolComm);
     mpi->bcast(&totalNumElBravaisVectors, mpi->interPoolComm);
     mpi->bcast(&numElBravaisVectors, mpi->interPoolComm);
-    mpi->bcast(&phaseConvention);
 
-    // JDFTx supports spin, QE does not.
-    // spinType 2 = SOC or spin-pol. Both will have a spin factor of 1
-    if (spinType == InteractionElPhWan::spinPolarizedOrSOC
-          && phaseConvention == InteractionElPhWan::GiustinoPhaseConvention) {
-      Error("Spin is not currently supported when using QE.");
-    } else if (spinType == InteractionElPhWan::spinPolarizedOrSOC
-          && phaseConvention == InteractionElPhWan::JdftxPhaseConvention) {
-      Warning("Spin-polarized JDFTx calculations should be closely monitored, as they are not well tested!");
-      context.setHasSpinOrbit(true);
-      context.setSpinDegeneracyFactor(1); // TODO switch everywhere to using spinDegeneracyFactor
-    } else {
-      context.setSpinDegeneracyFactor(2); // spin non polarized, gs = 2
+    if (numSpin == 2) {
+      Error("Spin is not currently supported");
     }
-    // if number of occupied states is not set already in input,
-    // use the value in the file. Otherwise, keep the user supplied value.
-    if(std::isnan(context.getNumOccupiedStates())) context.setNumOccupiedStates(numElectrons);
+    context.setNumOccupiedStates(numElectrons);
 
     if (!mpi->mpiHeadPool()) {// head already allocated these
-      localElVectors = mpi->divideWorkIter(totalNumElBravaisVectors, mpi->intraPoolComm);
+      localElVectors = mpi->divideWorkIter(totalNumElBravaisVectors,
+                                           mpi->intraPoolComm);
       phBravaisVectors_.resize(3, numPhBravaisVectors);
       phBravaisVectorsDegeneracies_.resize(numPhBravaisVectors);
       elBravaisVectors_.resize(3, numElBravaisVectors);
@@ -304,18 +257,17 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     mpi->bcast(&phBravaisVectors_, mpi->interPoolComm);
     mpi->bcast(&phBravaisVectorsDegeneracies_, mpi->interPoolComm);
   } catch (std::exception &error) {
-    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue reading elph Wannier representation header data from hdf5.");
   }
 
   return std::make_tuple(numElBands, numPhBands, totalNumElBravaisVectors, elBravaisVectors_,
           phBravaisVectors_, localElVectors, elBravaisVectorsDegeneracies_,
-          phBravaisVectorsDegeneracies_, phaseConvention);
+          phBravaisVectorsDegeneracies_);
 }
 
 // specific parse function for the case where parallel HDF5 is available
 InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
-                               PhononH0& phononH0_) {
+                               PhononH0 *phononH0_) {
 
   Kokkos::Profiling::pushRegion("parseHDF5V1");
 
@@ -332,12 +284,6 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
   Eigen::VectorXd phBravaisVectorsDegeneracies_ = std::get<7>(t);
   int numElBravaisVectors = elBravaisVectorsDegeneracies_.size();
   int numPhBravaisVectors = phBravaisVectorsDegeneracies_.size();
-  int phaseConvention = std::get<8>(t);
-
-  if(numElBravaisVectors < mpi->getSize() && phaseConvention == InteractionElPhWan::JdftxPhaseConvention) {
-    Error("JDFTx input files cannot be used when nMPI processes > numElBravaisVectors = "
-     + std::to_string(numElBravaisVectors));
-  }
 
   Eigen::Tensor<std::complex<double>, 5> couplingWannier_;
 
@@ -408,7 +354,7 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
 
     // Reopen the HDF5 ElPh file for parallel read of eph matrix elements
     HighFive::FileAccessProps fapl;
-    fapl.add(HighFive::MPIOFileAccess{mpi->getComm(), MPI_INFO_NULL});
+    fapl.add(HighFive::MPIOFileAccess{mpi->getComm(comm), MPI_INFO_NULL});
     HighFive::File file(fileName, HighFive::File::ReadOnly, fapl);
 
     // Set up dataset for gWannier
@@ -435,13 +381,13 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
         numElBands * numElBands * numPhBands * numPhBravaisVectors;
     std::vector<int> irEBunchSizes;
 
-    // determine the # of eBVs to be read by this process.
+    // determine the # of eBVs to be written by this process.
     // the bunchSizes vector tells us how many BVs each process will read
     int numEBVs = int(mpi->divideWorkIter(totalNumElBravaisVectors, comm).back() + 1 -
            mpi->divideWorkIter(totalNumElBravaisVectors, comm)[0]);
 
-    // loop over eBVs and add them to the current bunch until
-    // we reach the maximum read size
+    // loop over eBVs and add them to the current write bunch until
+    // we reach the maximum writable size
     int irEBunchSize = 0;
     for (int irE = 0; irE < numEBVs; irE++) {
       irEBunchSize++;
@@ -532,12 +478,10 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
     // or because we forced HDF5 to run in serial.
 
     // Set up buffer to receive full matrix data
-    //std::vector<std::complex<double>> gWanFlat(totElems);
-    Eigen::VectorXcd gWanFlat(totElems);
+    std::vector<std::complex<double>> gWanFlat(totElems);
 
     if (mpi->getSize(mpi->intraPoolComm) == 1) {
       if (mpi->mpiHead()) {
-
         HighFive::File file(fileName, HighFive::File::ReadOnly);
 
         // Set up dataset for gWannier
@@ -570,27 +514,27 @@ InteractionElPhWan parseHDF5V1(Context &context, Crystal &crystal,
 #endif
 
   } catch (std::exception &error) {
-    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue reading elph Wannier representation from hdf5.");
   }
-
-  Kokkos::Profiling::popRegion();
 
   Kokkos::Profiling::pushRegion("Interaction constructor");
   InteractionElPhWan output(crystal, couplingWannier_, elBravaisVectors_,
                             elBravaisVectorsDegeneracies_, phBravaisVectors_,
-                            phBravaisVectorsDegeneracies_, phaseConvention, phononH0_);
+                            phBravaisVectorsDegeneracies_, phononH0_);
+  Kokkos::Profiling::popRegion();
+
   Kokkos::Profiling::popRegion();
   return output;
-
 }
 
+
 // specific parse function for the case where parallel HDF5 is available
-InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal, PhononH0 &phononH0_) {
+InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal,
+                               PhononH0 *phononH0_) {
 
   std::string fileName = context.getElphFileName();
-
   auto t = parseHeaderHDF5(context);
+
   int numElBands = std::get<0>(t);
   int numPhBands = std::get<1>(t);
   Eigen::MatrixXd elBravaisVectors_ = std::get<3>(t);
@@ -600,10 +544,6 @@ InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal, PhononH0 &pho
   Eigen::VectorXd phBravaisVectorsDegeneracies_ = std::get<7>(t);
   int numElBravaisVectors = elBravaisVectorsDegeneracies_.size();
   int numPhBravaisVectors = phBravaisVectorsDegeneracies_.size();
-  int phaseConvention = std::get<8>(t);
-  if(phaseConvention == InteractionElPhWan::JdftxPhaseConvention) {
-    DeveloperError("There is no phaseConvention=1 possibility for parseHDF5 version 2!");
-  }
 
   Eigen::Tensor<std::complex<double>, 5> couplingWannier_;
 
@@ -686,20 +626,19 @@ InteractionElPhWan parseHDF5V2(Context &context, Crystal &crystal, PhononH0 &pho
       mpi->bcast(&couplingWannier_);
     }
   } catch (std::exception &error) {
-    if(mpi->mpiHead()) std::cout << error.what() << std::endl;
     Error("Issue reading elph Wannier representation from hdf5.");
   }
 
   InteractionElPhWan output(crystal, couplingWannier_, elBravaisVectors_,
                             elBravaisVectorsDegeneracies_, phBravaisVectors_,
-                            phBravaisVectorsDegeneracies_, phaseConvention, phononH0_);
+                            phBravaisVectorsDegeneracies_, phononH0_);
   return output;
 }
 
 
 // specific parse function for the case where parallel HDF5 is available
 InteractionElPhWan parseHDF5(Context &context, Crystal &crystal,
-                             PhononH0 &phononH0_) {
+                             PhononH0 *phononH0_) {
   // check for existence of file
   std::string fileName = context.getElphFileName();
   {
@@ -710,6 +649,7 @@ InteractionElPhWan parseHDF5(Context &context, Crystal &crystal,
     }
   }
 
+  // check the file format, read only this in first
   int fileFormat = 1;
   try {
     // Use MPI head only to read in the small data structures
@@ -731,33 +671,32 @@ InteractionElPhWan parseHDF5(Context &context, Crystal &crystal,
     mpi->bcast(&fileFormat);
 
   } catch (std::exception &error) {
-    Error("Something wrong determining the HDF5 format.");
+    Error("Something wrong deciding the HDF5 format");
   }
 
-  if (fileFormat == 1) {
+  if (fileFormat==1) {
     return parseHDF5V1(context, crystal, phononH0_);
-  } else if (fileFormat == 2) {
-    return parseHDF5V2(context, crystal, phononH0_);
-  } else if (fileFormat == 3) {
-    Error("SVD (fileFormat == 3) is not yet supported for parsing.");
+  //else if (fileFormat == 3) {
+  //  return parseHDF5_SVD(context, crystal, phononH0_);
   } else {
-    Error("Unknown electron-phonon file format: " + std::to_string(fileFormat));
+    return parseHDF5V2(context, crystal, phononH0_);
   }
 }
 
 #endif
 
 // General parse function
-InteractionElPhWan InteractionElPhWan::parse(Context &context, Crystal &crystal,
-                                             PhononH0& phononH0_) {
+std::shared_ptr<InteractionElPhWan> InteractionElPhWan::parse(Context &context, Crystal &crystal,
+                                             PhononH0 *phononH0_) {
   if (mpi->mpiHead()) {
     std::cout << "\n";
     std::cout << "Started parsing of el-ph interaction." << std::endl;
   }
+// call one or the other parser depending on if we have HDF5
 #ifdef HDF5_AVAIL
-  auto output = parseHDF5(context, crystal, phononH0_);
+    auto output = std::make_shared<InteractionElPhWan>(parseHDF5(context, crystal, phononH0_));
 #else
-  auto output = parseNoHDF5(context, crystal, phononH0_);
+    auto output = std::make_shared<InteractionElPhWan>(parseNoHDF5(context, crystal, phononH0_));
 #endif
 
   if (mpi->mpiHead()) {

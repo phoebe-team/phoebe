@@ -15,6 +15,16 @@ def checkCoefficient(coeffName, data1, data2, tol):
     k1 = numpy.array(data1[coeffName])
     k2 = numpy.array(data2[coeffName])
 
+    # negative or super small lifetimes can cause large difference for small changes
+    if(coeffName == "relaxationTimes"):
+        k1[numpy.where(k1<0)] = 0
+        k2[numpy.where(k2<0)] = 0
+        k1[numpy.where(k1>1e15)] = 0
+        k2[numpy.where(k2>1e15)] = 0
+    if(coeffName == "linewidths"):
+        k1[numpy.where(k1==None)] = 0
+        k2[numpy.where(k2==None)] = 0
+
     diff = ((k1 - k2)/numpy.max(k1)).sum()
     if abs(diff) > tol:
         print(diff, k1, k2, sep="\n")

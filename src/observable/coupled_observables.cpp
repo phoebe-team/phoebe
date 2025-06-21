@@ -48,9 +48,9 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
   kappaPh.resize(numCalculations, dimensionality, dimensionality);
   kappaDrag.resize(numCalculations, dimensionality, dimensionality);
 
-  kappaMom.resize(numCalculations, dimensionality, dimensionality); 
-  seebeckMom.resize(numCalculations, dimensionality, dimensionality); 
-  sigmaMom.resize(numCalculations, dimensionality, dimensionality); 
+  kappaMom.resize(numCalculations, dimensionality, dimensionality);
+  seebeckMom.resize(numCalculations, dimensionality, dimensionality);
+  sigmaMom.resize(numCalculations, dimensionality, dimensionality);
 
   seebeckDrag.setZero(); seebeckSelf.setZero();
   alphaEl.setZero(); alphaPh.setZero();
@@ -747,7 +747,6 @@ void CoupledCoefficients::calcSpecialEigenvectors(StatisticsSweep& statisticsSwe
 */
   // throw errors if normalization fails
   if( abs(theta_e.dot(theta_e) - 1.) > 1e-4 || abs(theta0.dot(theta0) - 1.) > 1e-4) {
-    // std::cout << theta_e.dot(theta_e) << " " << theta0.dot(theta0) << std::endl;
     Warning("Developer error: Your energy or charge conservation eigenvectors do not"
                 " normalize to 1.\nThis indicates something has gone very wrong "
                 "with your relaxons solve (or your mesh is super small), please report this.");
@@ -893,11 +892,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   //Eigen::Tensor<double,3> sigmaSMom;
   Eigen::Matrix3d sigmaMomLocal, sigmaSMomLocal;
   int iCalc = 0; // relaxons currently not run with more than one T and mu
-  sigmaMomLocal.setZero(); sigmaMomLocal.setZero(); kappaMom.setZero();
-
-  std::cout << kappaMom.dimensions() << std::endl;
-  std::cout << sigmaMom.dimensions() << std::endl;
-  std::cout << seebeckMom.dimensions() << std::endl;
+  sigmaMomLocal.setZero(); sigmaSMomLocal.setZero(); kappaMom.setZero();
 
   for (int i = 0; i<dimensionality; i++) {
     for (int j = 0; j<dimensionality; j++) {
@@ -914,7 +909,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
       sigmaMom(iCalc, i, j) = sigmaMomLocal(i,j);
       seebeckMom(iCalc, i, j) = seebeckMomLocal(i,j);
     }
-  } 
+  }
 
   // NOTE we cannot use nested vectors from the start, as
   // vector<vector> is not necessarily contiguous and MPI

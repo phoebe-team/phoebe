@@ -1,0 +1,25 @@
+appName = "coupledTransport"
+phFC2FileName = "../Silicon-el/qe-elph/silicon.fc"
+sumRuleFC2 = "crystal"
+electronH0Name = "../Silicon-el/qe-elph/si_tb.dat",
+elphFileName = "../Silicon-el/qe-elph/silicon.phoebe.elph.hdf5"
+#wsVecFileName = "../Silicon-el/qe-elph/si_wsvec.dat"
+
+# phonon-phonon files
+phFC3FileName = "../Silicon-ph/thirdorder.py-anharmonic/FORCE_CONSTANTS_3RD"
+
+kMesh = [25, 25, 25]
+qMesh = [5, 5, 5]
+temperatures = [200.]
+dopings = [1.e21]
+
+smearingMethod = "gaussian"
+smearingWidth = 0.1 eV
+windowType = "population"
+windowPopulationLimit = 1e-3
+numOccupiedStates = 4
+
+#reconstructLinewidths = true # typically, this should be set to true for drag calculations
+symmetrizeMatrix = true
+scatteringMatrixInMemory=true
+solverBTE = ["relaxons"]

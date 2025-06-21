@@ -136,7 +136,6 @@ jobs:
         if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' }}
         working-directory: example/Silicon-coupled
         run: |
-          # Note: don't run this as it runs out-of-memory on the VM
           mpirun -np 4 --oversubscribe ../../build/phoebe -in coupledTransport.in
           python3 reference/run_check.py
 

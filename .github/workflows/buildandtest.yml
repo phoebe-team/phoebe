@@ -137,3 +137,9 @@ jobs:
           mpirun -np 4 --oversubscribe ../../../build/phoebe -ps 2 -in electronLifetimes.in
           cd ../
           python3 reference/run_check.py
+      - name: Run coupled BTE example with MPI
+        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' }}
+        working-directory: example/Silicon-coupled
+        run: |
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in coupledTransport.in
+          python3 reference/run_check.py

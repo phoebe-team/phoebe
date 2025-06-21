@@ -48,6 +48,10 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
   kappaPh.resize(numCalculations, dimensionality, dimensionality);
   kappaDrag.resize(numCalculations, dimensionality, dimensionality);
 
+  kappaMom.resize(numCalculations, dimensionality, dimensionality); 
+  seebeckMom.resize(numCalculations, dimensionality, dimensionality); 
+  sigmaMom.resize(numCalculations, dimensionality, dimensionality); 
+
   seebeckDrag.setZero(); seebeckSelf.setZero();
   alphaEl.setZero(); alphaPh.setZero();
   kappaEl.setZero(); kappaPh.setZero(); kappaDrag.setZero();
@@ -64,8 +68,7 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep& statisticsSweep_,
 
 }
 
-/** Calc coupled relaxons transport coefficients 
-*/
+/* Calc coupled relaxons transport coefficients */
 void CoupledCoefficients::calcFromRelaxons(
                         CoupledScatteringMatrix& scatteringMatrix,
                         Eigen::VectorXd& eigenvalues, ParallelMatrix<double>& eigenvectors) {
@@ -127,14 +130,14 @@ void CoupledCoefficients::calcFromRelaxons(
   dragVphi.setZero(); elVphi.setZero(); phVphi.setZero(); Vphi.setZero();
 
   // if boundary length isn't set, set a giant one
-  double suppressionLength = 1e12; 
+  double suppressionLength = 1e12;
   if(!std::isnan(context.getBoundaryLength())) suppressionLength = context.getBoundaryLength() / sqrt(3.);
   if(context.getBoundaryLength() <= 0) Error("Boundary length should not be zero or less!");
 
   auto v_sqrtTau = [&] (double vj, double tau) {
     double vSqrt = std::copysign(1.0, vj) * sqrt(twoPi* abs(vj));
     double lambdaSqrt=sqrt( 1.0/ (1.0/(abs(twoPi*vj) * tau) + (1./ (twoPi*suppressionLength))) );
-    return lambdaSqrt * vSqrt/twoPi; 
+    return lambdaSqrt * vSqrt/twoPi;
   };
 
   // sum over the alpha and v states that this process owns
@@ -186,7 +189,7 @@ void CoupledCoefficients::calcFromRelaxons(
       if (energy < phEnergyCutoff) { continue; }
 
       for (auto j : {0, 1, 2}) {
- 
+
         phV0(gamma, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * theta0(is);
         phVe(gamma, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * theta_e(is);
 
@@ -222,17 +225,17 @@ void CoupledCoefficients::calcFromRelaxons(
 
   // update the participation ratio to normalize for number of el and ph states
   for(int gamma = 0; gamma < numRelaxons; gamma++) {
-    double PW = phPR[gamma]/numPhStates; 
-    double EW = elPR[gamma]/numElStates; 
-    elPR[gamma] = EW / (PW + EW); 
-    phPR[gamma] = PW / (PW + EW); 
+    double PW = phPR[gamma]/numPhStates;
+    double EW = elPR[gamma]/numElStates;
+    elPR[gamma] = EW / (PW + EW);
+    phPR[gamma] = PW / (PW + EW);
   }
 
   // Calculate the transport coefficients -------------------------------------------------
 
   // local copies for linear algebra ops with eigen
   Eigen::Matrix3d sigmaLocal, totalSigmaLocal, selfSigmaS, dragSigmaS, totalSigmaS;
-  sigmaLocal.setZero(); totalSigmaLocal.setZero(), selfSigmaS.setZero(); dragSigmaS.setZero(); totalSigmaS.setZero(); 
+  sigmaLocal.setZero(); totalSigmaLocal.setZero(), selfSigmaS.setZero(); dragSigmaS.setZero(); totalSigmaS.setZero();
 
   // containers to calculate the specific contributions to the transport tensors
   kappaContrib.resize(numRelaxons, 3, 3);    kappaContrib.setZero();
@@ -375,7 +378,7 @@ void CoupledCoefficients::calcFromRelaxons(
   output["chemicalPotentialUnit"] = "eV";
   output["phononParticipationRatio"] = phPR;
   output["electronParticipationRatio"] = elPR;
-  std::ofstream o("coupled_participation_ratios.json");
+  std::ofstream o("coupled_relaxons_participation_ratios.json");
   o << std::setw(3) << output << std::endl;
   o.close();
 
@@ -445,7 +448,7 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
   std::vector<std::vector<std::vector<double>>> sigmaOut, sigmaTotalOut, mobilityOut, mobilityTotalOut;
   std::vector<std::vector<std::vector<double>>> kappaOut, kappaPhOut, kappaElOut, kappaDragOut, kappaTotalOut;
   std::vector<std::vector<std::vector<double>>> seebeckOut, seebeckDragOut,seebeckSelfOut,seebeckTotalOut;
-  std::vector<std::vector<double>> sigmaMomOut, seebeckMomOut, kappaMomOut; 
+  std::vector<std::vector<std::vector<double>>> sigmaMomOut, seebeckMomOut, kappaMomOut;
 
   for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
 
@@ -479,16 +482,11 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
     appendTransportTensorForOutput(seebeckSelf, dimensionality, convSeebeck, iCalc, seebeckSelfOut);
     appendTransportTensorForOutput(seebeckTotal, dimensionality, convSeebeck, iCalc, seebeckTotalOut);
 
-  }
+    // convert momentum contributions
+    appendTransportTensorForOutput(sigmaMom, dimensionality, convSigma, iCalc, sigmaMomOut);
+    appendTransportTensorForOutput(kappaMom, dimensionality, convKappa, iCalc, kappaMomOut);
+    appendTransportTensorForOutput(seebeckMom, dimensionality, convSeebeck, iCalc, seebeckMomOut);
 
-  // convert momentum contributions 
-  sigma_mom *= convSigma; 
-  seebeck_mom *= convSeebeck; 
-  kappa_mom *= convKappa; 
-  for(auto i : {0,1,2}) {
-    sigmaMomOut.push_back({sigma_mom(i,0), sigma_mom(i,1), sigma_mom(i,2)});
-    seebeckMomOut.push_back({seebeck_mom(i,0), seebeck_mom(i,1), seebeck_mom(i,2)});
-    kappaMomOut.push_back({kappa_mom(i,0), kappa_mom(i,1), kappa_mom(i,2)});
   }
 
   { // so that the output json goes out of scope and it can be reused below
@@ -518,9 +516,9 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
     output["totalSeebeckCoefficient"] = seebeckTotalOut;
     output["seebeckCoefficientUnit"] = unitsSeebeck;
 
-    output["momentumElectricalConductivity"] = sigmaMomOut; 
-    output["momentumSeebeck"] = seebeckMomOut; 
-    output["momentumThermalConductivity"] = kappaMomOut; 
+    output["momentumElectricalConductivity"] = sigmaMomOut;
+    output["momentumSeebeck"] = seebeckMomOut;
+    output["momentumThermalConductivity"] = kappaMomOut;
 
     std::ofstream o(outFileName);
     o << std::setw(3) << output << std::endl;
@@ -569,7 +567,7 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 
   output["iiiiViscosityContribution"] = iiiiContrib;
 
-  std::ofstream o("coupled_transport_coeffs_contributions.json");
+  std::ofstream o("coupled_relaxons_transport_contributions.json");
   o << std::setw(3) << output << std::endl;
   o.close();
 
@@ -771,11 +769,11 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
   // write D to file before diagonalizing, as the scattering matrix
   // will be destroyed by scalapack
-  Eigen::Matrix3d Du, DuEl, DuDragEl, DuDragPh, DuPh; 
-  Du.setZero(); DuPh.setZero(); DuDragPh.setZero(); 
+  Eigen::Matrix3d Du, DuEl, DuDragEl, DuDragPh, DuPh;
+  Du.setZero(); DuPh.setZero(); DuDragPh.setZero();
   DuDragEl.setZero(); DuEl.setZero();
 
-  Eigen::Matrix3d Wjie, Wji0, elWji0, phWji0; 
+  Eigen::Matrix3d Wjie, Wji0, elWji0, phWji0;
   Wjie.setZero(); Wji0.setZero(); elWji0.setZero(); phWji0.setZero();
 
   // sum over the alpha and v states that this process owns
@@ -830,14 +828,14 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   theta0_phi.setZero(); theta_e_phi.setZero();
 
   // if boundary length isn't set, set a giant one
-  double suppressionLength = 1e12; 
+  double suppressionLength = 1e12;
   if(!std::isnan(context.getBoundaryLength())) suppressionLength = context.getBoundaryLength() / sqrt(3.);
   if(context.getBoundaryLength() <= 0) Error("Boundary length should not be zero or less!");
 
   auto v_sqrtTau = [&] (double vj, double tau) {
     double vSqrt = std::copysign(1.0, vj) * sqrt(twoPi* abs(vj));
     double lambdaSqrt=sqrt( 1.0/ (1.0/(abs(twoPi*vj) * tau) + (1./ (twoPi*suppressionLength))) );
-    return lambdaSqrt * vSqrt/twoPi; 
+    return lambdaSqrt * vSqrt/twoPi;
   };
 
   // Calculate and write to file Wji0, Wjie, Wj0i, Wjei --------------------------------
@@ -852,7 +850,7 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
         elWji0(j,i) += phi(i,is) * v(j) * theta0(is);
         Wjie(j,i) += phi(i,is) * v(j) * theta_e(is);
 
-        theta0_phi(j,i) += theta0(is) * v_sqrtTau(v(j), invDuEl(i,i)) * phi(i,is);  
+        theta0_phi(j,i) += theta0(is) * v_sqrtTau(v(j), invDuEl(i,i)) * phi(i,is);
         theta_e_phi(j,i) += theta_e(is) * v_sqrtTau(v(j), invDuEl(i,i)) * phi(i,is);
       }
     }
@@ -883,27 +881,40 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
   mpi->allReduceSum(&phWji0); mpi->allReduceSum(&elWji0);
   mpi->allReduceSum(&theta0_phi); mpi->allReduceSum(&theta_e_phi);
 
-  // TODO we should fix this all 
-  if(isSymmetrized) {
+  // TODO we should fix this all
+  /*if(isSymmetrized) {
     symmetrize(Du); symmetrize(DuEl); symmetrize(DuPh);
     symmetrize(DuDragPh); symmetrize(DuDragEl);
     symmetrize(Wji0); symmetrize(elWji0); symmetrize(phWji0); symmetrize(Wjie);
-  }
+  }*/
 
   // calculate part of transport coefficients due to momentum eigenvectors
-  Eigen::Matrix3d sigmaS_mom;  
-  sigma_mom.setZero(); kappa_mom.setZero(); sigmaS_mom.setZero();
+  //std::vector<Eigen::Matrix3d> sigmaSMom;
+  //Eigen::Tensor<double,3> sigmaSMom;
+  Eigen::Matrix3d sigmaMomLocal, sigmaSMomLocal;
+  int iCalc = 0; // relaxons currently not run with more than one T and mu
+  sigmaMomLocal.setZero(); sigmaMomLocal.setZero(); kappaMom.setZero();
+
+  std::cout << kappaMom.dimensions() << std::endl;
+  std::cout << sigmaMom.dimensions() << std::endl;
+  std::cout << seebeckMom.dimensions() << std::endl;
+
   for (int i = 0; i<dimensionality; i++) {
     for (int j = 0; j<dimensionality; j++) {
       for (int alpha = 0; alpha<6; alpha++) {
-        sigma_mom(i,j) += U * theta_e_phi(i,alpha) * theta_e_phi(j,alpha);
-        sigmaS_mom(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * theta_e_phi(i,alpha) * theta0_phi(j,alpha);
-        kappa_mom(i,j) += Ctot / kBoltzmannRy * theta0_phi(i,alpha) * theta0_phi(j,alpha);
+        sigmaMomLocal(i,j) += U * theta_e_phi(i,alpha) * theta_e_phi(j,alpha);
+        sigmaSMomLocal(i,j) -= 1. / kBoltzmannRy * sqrt(Ctot * U / T) * theta_e_phi(i,alpha) * theta0_phi(j,alpha);
+        kappaMom(iCalc,i,j) += Ctot / kBoltzmannRy * theta0_phi(i,alpha) * theta0_phi(j,alpha);
       }
     }
   }
-  seebeck_mom = sigma_mom.inverse() * sigmaS_mom;
-
+  Eigen::Matrix3d seebeckMomLocal = sigmaMomLocal.inverse() * sigmaSMomLocal;
+  for (int i = 0; i<dimensionality; i++) {
+    for (int j = 0; j<dimensionality; j++) {
+      sigmaMom(iCalc, i, j) = sigmaMomLocal(i,j);
+      seebeckMom(iCalc, i, j) = seebeckMomLocal(i,j);
+    }
+  } 
 
   // NOTE we cannot use nested vectors from the start, as
   // vector<vector> is not necessarily contiguous and MPI
@@ -966,8 +977,8 @@ void CoupledCoefficients::outputDuToJSON(CoupledScatteringMatrix& coupledScatter
 
   if(mpi->mpiHead()) {
     // output to json
-    std::string outFileName = "coupled_relaxons_real_space_coeffs.json";
-    if(isSymmetrized)  outFileName = "sym_coupled_relaxons_real_space_coeffs.json";
+    std::string outFileName = "coupled_relaxons_real_space_coefficients.json";
+    if(isSymmetrized)  outFileName = "sym_coupled_relaxons_real_space_coefficients.json";
     nlohmann::json output;
     output["temperature"] = kBT * temperatureAuToSi;
     output["Wji0"] = vecWji0;
@@ -1025,7 +1036,7 @@ void CoupledCoefficients::symmetrize3x3Tensors() {
   symmetrize(alphaPh);
   symmetrize(alpha);
 
-  outputToJSON("sym_coupled_relaxons_transport_coeffs.json");
+  outputToJSON("sym_coupled_relaxons_transport_coefficients.json");
 
 }
 

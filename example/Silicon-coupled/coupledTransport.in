@@ -3,7 +3,6 @@ phFC2FileName = "../Silicon-el/qe-elph/silicon.fc"
 sumRuleFC2 = "crystal"
 electronH0Name = "../Silicon-el/qe-elph/si_tb.dat",
 elphFileName = "../Silicon-el/qe-elph/silicon.phoebe.elph.hdf5"
-#wsVecFileName = "../Silicon-el/qe-elph/si_wsvec.dat"
 
 # phonon-phonon files
 phFC3FileName = "../Silicon-ph/thirdorder.py-anharmonic/FORCE_CONSTANTS_3RD"

@@ -132,6 +132,7 @@ jobs:
           mpirun -np 4 --oversubscribe ../../../build/phoebe -ps 2 -in electronLifetimes.in
           cd ../
           python3 reference/run_check.py
+      # run coupled BTE ------------------
       - name: Run coupled BTE example with MPI
         if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' && matrix.omp == 'OFF' }}
         working-directory: example/Silicon-coupled
@@ -142,4 +143,11 @@ jobs:
         working-directory: example/Silicon-coupled
         run: |
           mpirun -np 4 --oversubscribe ../../build/phoebe -in coupledTransport.in
+          python3 reference/run_check.py
+      # run rta kappa with phph and phel ------------------
+      - name: Run RTA kappa with phph and phel
+        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' && matrix.omp == 'ON' }}
+        working-directory: example/Silicon-ph/kappa_phph-phel/
+        run: |
+          mpirun -np 2 --oversubscribe ../../../build/phoebe -in phononTransport.in
           python3 reference/run_check.py

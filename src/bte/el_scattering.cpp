@@ -469,8 +469,10 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
             double rate = prefactor * std::pow(denominator,2) * delta;
 
             // compute the extra 1-cosTheta term needed for MRTA
-            double cosTheta = 1. - (v1s.row(ib1).dot(v2s.row(ib2))
-                                        / (v1s.row(ib1).norm() * v2s.row(ib2).norm()));
+            double cosTheta = 1.; 
+            if((v1s.row(ib1).norm() * v2s.row(ib2).norm()) > 1e-8) { // avoid overflow
+              cosTheta -= (v1s.row(ib1).dot(v2s.row(ib2)) / (v1s.row(ib1).norm() * v2s.row(ib2).norm()));
+            }
             double rateMR = rate * cosTheta;
 
             if (switchCase == 0) { // case of matrix construction

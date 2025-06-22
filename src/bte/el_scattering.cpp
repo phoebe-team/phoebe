@@ -235,8 +235,11 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
               if (delta1 <= 0. && delta2 <= 0.) { continue; } // doesn't contribute
 
               // compute the extra 1-cosTheta term needed for MRTA
-              double cosTheta = 1. - (v1s.row(ib1).dot(v2s.row(ib2))
-                    / (v1s.row(ib1).norm() * v2s.row(ib2).norm()));
+              double cosTheta = 1.;
+              double v2Norm = v1s.row(ib1).norm() * v2s.row(ib2).norm();
+              if(v2Norm > 1e-8) { // avoid overflow
+                cosTheta -= (v1s.row(ib1).dot(v2s.row(ib2)) / v2Norm);
+              }
 
               // loop on temperature
               for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
@@ -248,7 +251,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                 //double mu = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
 
                 // Calculate transition probability W+
-                double rate = 
+                double rate =
                     coupling(ib1, ib2, ib3) * ((fermi2 + bose3) * delta1
                        + (1. - fermi2 + bose3) * delta2) * norm / en3 * pi;
 
@@ -370,9 +373,8 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
 
   // the object which contains temperatures, dopings, chemical potentials
   StatisticsSweep &statisticsSweep = matrix.statisticsSweep;
-  bool withSymmetries = context.getUseSymmetries();
+  //bool withSymmetries = context.getUseSymmetries();
   int numCalculations = statisticsSweep.getNumCalculations();
-  double norm = 1. / context.getKMesh().prod(); // the intermediate mesh summed over
 
   // set up the dirac delta function we will use
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, innerBandStructure);
@@ -469,9 +471,10 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
             double rate = prefactor * std::pow(denominator,2) * delta;
 
             // compute the extra 1-cosTheta term needed for MRTA
-            double cosTheta = 1.; 
-            if((v1s.row(ib1).norm() * v2s.row(ib2).norm()) > 1e-8) { // avoid overflow
-              cosTheta -= (v1s.row(ib1).dot(v2s.row(ib2)) / (v1s.row(ib1).norm() * v2s.row(ib2).norm()));
+            double cosTheta = 1.;
+            double v2Norm = v1s.row(ib1).norm() * v2s.row(ib2).norm();
+            if(v2Norm > 1e-8) { // avoid overflow
+              cosTheta -= (v1s.row(ib1).dot(v2s.row(ib2)) / v2Norm);
             }
             double rateMR = rate * cosTheta;
 
@@ -549,7 +552,7 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
 void add_eeDMFT(BaseElScatteringMatrix &matrix, const Context &context,
                 //std::vector<VectorBTE> &inPopulations,
                 //std::vector<VectorBTE> &outPopulations,
-                const int &switchCase,
+                [[maybe_unused]] const int &switchCase,
                 BaseBandStructure &outerBandStructure,
                 std::shared_ptr<VectorBTE> linewidth) {
 
@@ -562,7 +565,7 @@ void add_eeDMFT(BaseElScatteringMatrix &matrix, const Context &context,
   // we will have to call an allReduceSum after this is called.
 
   StatisticsSweep &statisticsSweep = matrix.statisticsSweep;
-  bool withSymmetries = context.getUseSymmetries();
+  //bool withSymmetries = context.getUseSymmetries();
   int numCalculations = statisticsSweep.getNumCalculations();
 
   // C coefficient in Ry^-1

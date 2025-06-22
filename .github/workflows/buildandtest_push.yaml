@@ -139,12 +139,12 @@ jobs:
         run: |
           mpirun -np 4 --oversubscribe ../../build/phoebe -in coupledTransport.in
           python3 reference/run_check.py
-      - name: Run coupled BTE example without MPI
-        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'OFF' && matrix.omp == 'ON' }}
-        working-directory: example/Silicon-coupled
-        run: |
-          mpirun -np 4 --oversubscribe ../../build/phoebe -in coupledTransport.in
-          python3 reference/run_check.py
+      #- name: Run coupled BTE example without MPI (too slow...)
+      #  if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'OFF' && matrix.omp == 'ON' }}
+      #  working-directory: example/Silicon-coupled
+      #  run: |
+      #    mpirun -np 4 --oversubscribe ../../build/phoebe -in coupledTransport.in
+      #    python3 reference/run_check.py
       # run rta kappa with phph and phel ------------------
       - name: Run RTA kappa with phph and phel with MPI and OMP
         if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' && matrix.omp == 'ON' }}

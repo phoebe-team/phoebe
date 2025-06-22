@@ -113,14 +113,23 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
   auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
   double kBT = calcStat.temperature;
   double chemPot = calcStat.chemicalPotential;
-
-  // print info about the special eigenvectors
+  
+  // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
-  relaxonEigenvectorsCheck(eigenvectors, numRelaxons);
+  alpha0 = relaxonEigenvectorOverlap(eigenvectors, theta0, "theta0");
+  alpha_e = relaxonEigenvectorOverlap(eigenvectors, theta_e, "theta_e");
+  
+  // drift eigenvector overlaps ----------
+  // for now, we don't save these drift eigenvector indices
+  {
+    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::all), "phi_x");
+    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::all), "phi_y");
+    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
+  }
 
   size_t states = eigenvectors.size();
-  LoopPrint loopPrint("Transforming relaxon populations","relaxons", eigenvectors.getAllLocalStates().size()); 
-
+  //LoopPrint loopPrint("Transforming relaxon populations","relaxons", eigenvectors.getAllLocalStates().size());
+/*
   // transform from the relaxon population basis to the electron population ------------
   Eigen::Tensor<double, 3> fRelaxons(3, 3, int(numStates));
   fRelaxons.setZero();
@@ -140,7 +149,7 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
     StateIndex isIdx(is);
     Eigen::Vector3d kPt = bandStructure.getWavevector(isIdx);
     kPt = bandStructure.getPoints().bzToWs(kPt,Points::cartesianCoordinates);
-   
+
     Eigen::Vector3d vel = bandStructure.getGroupVelocity(isIdx);
     double en = bandStructure.getEnergy(isIdx);
     double sqrtPop = sqrt(particle.getPopPopPm1(en, kBT, chemPot));
@@ -148,7 +157,7 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
     // true sets a sqrt term
     for (int k = 0; k < dimensionality; k++) {
       for (int l = 0; l < dimensionality; l++) {
-        #pragma omp critical 
+        #pragma omp critical
         {
         fRelaxons(k, l, alpha) += kPt(k) * vel(l) * sqrtPop / kBT /
                                   eigenvalues(alpha) * eigenvectors(is, alpha);
@@ -205,10 +214,10 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
   mpi->allReduceSum(&tensordxdxdxd);
 
   Kokkos::Profiling::popRegion();
-
+*/
 }
 
-void ElectronViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors, int& numRelaxons) {
+/* void ElectronViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors, int& numRelaxons) {
 
   Kokkos::Profiling::pushRegion("electronRelaxonsEigenvectorsCheck");
 
@@ -222,7 +231,7 @@ void ElectronViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenve
   Kokkos::Profiling::popRegion();
 
 }
-
+ */
 // calculate special eigenvectors
 void ElectronViscosity::calcSpecialEigenvectors() {
 

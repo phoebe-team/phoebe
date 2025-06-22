@@ -5,6 +5,37 @@
 #include "mpiHelper.h"
 #include <nlohmann/json.hpp>
 
+std::tuple<std::string, std::string, std::string, double, double, double> 
+        getTransportUnitsWithDimensions(const double dimensionality) {
+
+  std::string unitsSigma, unitsKappa, unitsViscosity;
+  double convSigma, convKappa, convViscosity;
+  // TODO check the kappa units, I think it's missing a kb
+  if (dimensionality == 1) {
+    unitsSigma = "S m";
+    unitsKappa = "W m / K";
+    unitsViscosity = "Pa s / m^2";
+    convSigma = elConductivityAuToSi * rydbergSi * rydbergSi;
+    convKappa = thConductivityAuToSi * rydbergSi * rydbergSi;
+    convViscosity = viscosityAuToSi * rydbergSi * rydbergSi;
+  } else if (dimensionality == 2) {
+    unitsSigma = "S";
+    unitsKappa = "W / K";
+    unitsViscosity = "Pa s / m";
+    convSigma = elConductivityAuToSi * rydbergSi;
+    convKappa = thConductivityAuToSi * rydbergSi;
+    convViscosity = viscosityAuToSi * rydbergSi;
+  } else {
+    unitsSigma = "S / m";
+    unitsKappa = "W / m / K";
+    unitsViscosity = "Pa s";
+    convSigma = elConductivityAuToSi;
+    convKappa = thConductivityAuToSi;
+    convViscosity = viscosityAuToSi;
+  }
+  return std::make_tuple(unitsSigma, unitsKappa, unitsViscosity, convSigma, convKappa, convViscosity);
+}
+
 void onsagerToTransportCoeffs(StatisticsSweep& statisticsSweep, int& dimensionality,
                         Eigen::Tensor<double, 3>& LEE, Eigen::Tensor<double, 3>& LTE,
                         Eigen::Tensor<double, 3>& LET, Eigen::Tensor<double, 3>& LTT,
@@ -88,24 +119,8 @@ void printHelper(StatisticsSweep& statisticsSweep, int& dimensionality,
     return; 
   }
 
-  std::string unitsSigma, unitsKappa;
-  double convSigma, convKappa;
-  if (dimensionality == 1) {
-    unitsSigma = "S m";
-    unitsKappa = "W m / K";
-    convSigma = elConductivityAuToSi * rydbergSi * rydbergSi;
-    convKappa = thConductivityAuToSi * rydbergSi * rydbergSi;
-  } else if (dimensionality == 2) {
-    unitsSigma = "S";
-    unitsKappa = "W / K";
-    convSigma = elConductivityAuToSi * rydbergSi;
-    convKappa = thConductivityAuToSi * rydbergSi;
-  } else {
-    unitsSigma = "S / m";
-    unitsKappa = "W / m / K";
-    convSigma = elConductivityAuToSi;
-    convKappa = thConductivityAuToSi;
-  }
+  [[maybe_unused]] auto [unitsSigma, unitsKappa, unitsViscosity, 
+      convSigma, convKappa, convViscosity] = getTransportUnitsWithDimensions(dimensionality); 
 
   double convMobility = mobilityAuToSi * 100 * 100; // from m^2/Vs to cm^2/Vs
   std::string unitsMobility = "cm^2 / V / s";
@@ -245,24 +260,8 @@ void outputCoeffsToJSON(const std::string &outFileName,
 
   int numCalculations = statisticsSweep.getNumCalculations();
 
-  std::string unitsSigma, unitsKappa;
-  double convSigma, convKappa;
-  if (dimensionality == 1) {
-    unitsSigma = "S m";
-    unitsKappa = "W m / K";
-    convSigma = elConductivityAuToSi * rydbergSi * rydbergSi;
-    convKappa = thConductivityAuToSi * rydbergSi * rydbergSi;
-  } else if (dimensionality == 2) {
-    unitsSigma = "S";
-    unitsKappa = "W / K";
-    convSigma = elConductivityAuToSi * rydbergSi;
-    convKappa = thConductivityAuToSi * rydbergSi;
-  } else {
-    unitsSigma = "S / m";
-    unitsKappa = "W / m / K";
-    convSigma = elConductivityAuToSi;
-    convKappa = thConductivityAuToSi;
-  }
+  [[maybe_unused]] auto [unitsSigma, unitsKappa, unitsViscosity, 
+      convSigma, convKappa, convViscosity] = getTransportUnitsWithDimensions(dimensionality); 
 
   double convMobility = mobilityAuToSi * pow(100., 2); // from m^2/Vs to cm^2/Vs
   std::string unitsMobility = "cm^2 / V / s";
@@ -271,10 +270,7 @@ void outputCoeffsToJSON(const std::string &outFileName,
   std::string unitsSeebeck = "muV / K";
 
   std::vector<double> temps, dopings, chemPots;
-  std::vector<std::vector<std::vector<double>>> sigmaOut;
-  std::vector<std::vector<std::vector<double>>> mobilityOut;
-  std::vector<std::vector<std::vector<double>>> kappaOut;
-  std::vector<std::vector<std::vector<double>>> seebeckOut;
+  std::vector<std::vector<std::vector<double>>> sigmaOut, mobilityOut, kappaOut, seebeckOut;
   for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
 
     // store temperatures

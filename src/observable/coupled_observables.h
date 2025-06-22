@@ -14,9 +14,8 @@ public:
 
   /** Constructor method
    */
-  CoupledCoefficients(StatisticsSweep& statisticsSweep_,
-                                       Crystal &crystal_,
-                                       Context &context_);
+  CoupledCoefficients(StatisticsSweep &statisticsSweep_,
+                      Crystal &crystal_, Context &context_);
 
   /** Prints to screen the transport properties at various temperatures
    * in a a nicely formatted way.
@@ -37,8 +36,6 @@ public:
    * @param scatteringMatrix: $\tilde{\Omega}$
    */
   void calcFromRelaxons(CoupledScatteringMatrix& scatteringMatrix,
-                      //SpecificHeat& phSpecificHeat,
-                      //SpecificHeat& elSpecificHeat,
                       Eigen::VectorXd& eigenvalues,
                       ParallelMatrix<double>& eigenvectors);
 
@@ -109,8 +106,6 @@ protected:
   // normalization coeff A ("phonon specific momentum")
   // A = 1/(V*Nq) * (1/kT) sum_qs (hbar*q)^2 * N(1+N)
   Eigen::Vector3d A;
-  // M = G + A
-  Eigen::Vector3d M; // = G + A;
 
   double Ctot; //the total electron and phonon specific heats, Cph + Cel
   double Cph, Cel; // phonon and electron specific heats
@@ -119,7 +114,7 @@ protected:
   Eigen::Tensor<double, 3> kappaContrib;
   Eigen::Tensor<double, 3> sigmaContrib;
   Eigen::Tensor<double, 3> sigmaSContrib;
-  std::vector<double> iiiiContrib;
+  std::vector<std::vector<double>> iiiiContrib;
 
   /** Functions to symmetrize the transport tensors. CURRENTLY PROBLEMATIC!
   */

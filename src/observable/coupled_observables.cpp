@@ -287,9 +287,9 @@ void CoupledCoefficients::calcFromRelaxons(
         alphaPh(0,i,j) += sqrt(Ctot * U * T) * phV0(gamma,i) * elVe(gamma,j) * tau;
 
         // thermal conductivity
-        kappaEl(0,i,j) += Ctot / kBoltzmannRy * (elV0(gamma,i) * elV0(gamma,j));
-        kappaPh(0,i,j) += Ctot / kBoltzmannRy * (phV0(gamma,i) * phV0(gamma,j));
-        kappaDrag(0,i,j) += Ctot / kBoltzmannRy * (elV0(gamma,i) * phV0(gamma,j) + phV0(gamma,i) * elV0(gamma,j));
+        kappaEl(0,i,j) += Ctot / kBoltzmannRy * (elV0(gamma,i) * elV0(gamma,j)) * tau;
+        kappaPh(0,i,j) += Ctot / kBoltzmannRy * (phV0(gamma,i) * phV0(gamma,j)) * tau;
+        kappaDrag(0,i,j) += Ctot / kBoltzmannRy * (elV0(gamma,i) * phV0(gamma,j) + phV0(gamma,i) * elV0(gamma,j)) * tau;
         kappaTotal(0,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * tau;
         kappaContrib(gamma,i,j) += Ctot / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * tau;
 

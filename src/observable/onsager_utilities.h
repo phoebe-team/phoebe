@@ -31,6 +31,13 @@
                                 Eigen::Tensor<double, 3>& kappa,
                                 Eigen::Tensor<double, 3>& sigma);
 
+
+  /** Outputs the quantity to a json file.
+    * return tuple of strings and units for sigma, kappa, nu (which all depend on dimension)
+   */
+   std::tuple<std::string, std::string, std::string, double, double, double> 
+        getTransportUnitsWithDimensions(const double dimensionality); 
+
   /** After the Onsager coefficients L_EE, L_TT, L_ET, L_TE have been computed
    * this function evaluates the transport coefficients such as electrical
    * conductivity, Seebeck and thermal conductivity.

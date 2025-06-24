@@ -32,29 +32,22 @@ void CoupledTransportApp::run(Context &context) {
 
   // set up the electron and phonon hamiltonians from file --------------------------
   // Read the necessary input files
-  auto tup = Parser::parsePhHarmonic(context);
-  auto crystal = std::get<0>(tup);
-  auto phononH0 = std::get<1>(tup);
+  auto [crystal, phononH0] = Parser::parsePhHarmonic(context);
 
-  // in the JDFTx case this crystal object is not used. 
-  // In QE, it sets the crystal to the phonon one because 
+  // in the JDFTx case this crystal object is not used.
+  // In QE, it sets the crystal to the phonon one because
   // Wannier90 does not write the crysal structure to file
-  auto t1 = Parser::parseElHarmonicWannier(context, &crystal);
-  auto crystalEl = std::get<0>(t1);
-  auto electronH0 = std::get<1>(t1);
+  auto [crystalEl, electronH0] = Parser::parseElHarmonicWannier(context, &crystal);
+
   // TODO maybe add a check that these crystals are the same
 
   // Set up phonon bandstructure information ---------------------------------------------
   Points qPoints(crystal, context.getQMesh());
-  auto tup1 = ActiveBandStructure::builder(context, phononH0, qPoints);
-  auto phBandStructure = std::get<0>(tup1);
-  auto phStatisticsSweep = std::get<1>(tup1);
+  auto [phBandStructure, phStatisticsSweep] = ActiveBandStructure::builder(context, phononH0, qPoints);
 
   // Set up electron bandstructure information ---------------------------------------------
   Points kPoints(crystal, context.getKMesh());
-  auto t3 = ActiveBandStructure::builder(context, electronH0, kPoints);
-  auto elBandStructure = std::get<0>(t3);
-  auto elStatisticsSweep = std::get<1>(t3);
+  auto [elBandStructure, elStatisticsSweep] = ActiveBandStructure::builder(context, electronH0, kPoints);
 
   // stop the code if someone tries to run it with more than one value of (mu, T)
   if(elStatisticsSweep.getNumChemicalPotentials() != 1) {
@@ -65,7 +58,7 @@ void CoupledTransportApp::run(Context &context) {
   // output bandstructure to a JSON file for both electrons and phonons
   phBandStructure.outputComponentsToJSON("phonon_bandstructure.json");
   elBandStructure.outputComponentsToJSON("electron_bandstructure.json");
-  if (mpi->mpiHead()) { std::cout << "Bandstructures output to JSON files.\n" << std::endl; } 
+  if (mpi->mpiHead()) { std::cout << "Bandstructures output to JSON files.\n" << std::endl; }
 
   // Construct the full C matrix
   // the dimensions of this matrix are (numElStates + numPhStates, numElStates + numPhStates)
@@ -91,7 +84,7 @@ void CoupledTransportApp::run(Context &context) {
     if (s.compare("relaxons") == 0) {    doRelaxons = true; }
   }
 
-  // TODO these should all be moved to some input sanity checking code 
+  // TODO these should all be moved to some input sanity checking code
   // here we do validation of the input, to check for consistency
   if (doRelaxons && !context.getScatteringMatrixInMemory()) {
     Error("Relaxons require matrix kept in memory.");
@@ -146,7 +139,7 @@ void CoupledTransportApp::run(Context &context) {
 
     // output relaxation times (the eigenvalues)
     // note this must come before the transport calculation below, as
-    // we will 
+    // we will
     // TODO also write the relaxons visulation function?
     scatteringMatrix.relaxonsToJSON("coupled_relaxons_relaxation_times.json", eigenvalues);
 
@@ -154,8 +147,8 @@ void CoupledTransportApp::run(Context &context) {
     coupledCoeffs.calcFromRelaxons(scatteringMatrix, eigenvalues, eigenvectors);
     coupledCoeffs.print();
     // note: viscosities are output by default internally in calcFromRelaxons
-    coupledCoeffs.outputToJSON("coupled_relaxons_transport_coeffs.json");
-    coupledCoeffs.symmetrize3x3Tensors();
+    coupledCoeffs.outputToJSON("coupled_relaxons_transport_coefficients.json");
+    //coupledCoeffs.symmetrize3x3Tensors();
 
     if (mpi->mpiHead()) {
       std::cout << "Finished relaxons BTE solver\n\n";

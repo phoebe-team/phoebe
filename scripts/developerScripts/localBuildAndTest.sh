@@ -1,4 +1,4 @@
-# run this in an empty directory, or in one directory outside your 
+# run this in an empty directory, or in one directory outside your
 # phoebe directory
 
 # change the items below this line ===============
@@ -6,7 +6,7 @@
 export OMP_ON="ON"
 export MPI_ON="ON"
 
-# choose if you want to set up the code, download the 
+# choose if you want to set up the code, download the
 # test data, or run the tests
 BUILD=false
 DOWNLOAD=false
@@ -81,7 +81,9 @@ then
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in phononTransport.in >> phTest.out
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in phononBands.in >> phTest.out
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in phononDos.in >> phTest.out
-  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in phononLifetimes.in >> phTest.out
+  cd path_lifetimes
+  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in phononLifetimes.in >> phTest.out
+  cd ../
   python3 reference/run_check.py
   cd ../../
 
@@ -92,14 +94,25 @@ then
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierTransport.in >> elTest.out
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierBands.in >> elTest.out
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierDos.in >> elTest.out
-  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronLifetimes.in >> elTest.out
+  cd path_lifetimes
+  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in electronLifetimes.in >> elTest.out
+  cd ../
   python3 reference/run_check.py
+  cd ../../
+
+  echo "Run coupled BTE example"
+  cd example/Silicon-coupled
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in coupledTransport.in >> coupledTest.out
+  python3 reference/run_check.py
+  cd ../../
 
   # if we have mpi also check these with pools
   if [ "$MPI_ON" == "ON" ]
   then
     ${mpiCommand} ../../${BUILD_DIR}/phoebe -ps 2 -in electronWannierTransport.in >> elTest.out
-    ${mpiCommand} ../../${BUILD_DIR}/phoebe -ps 2 -in electronLifetimes.in >> elTest.out
+    cd path_lifetimes
+    ${mpiCommand} ../../../${BUILD_DIR}/phoebe -ps 2 -in electronLifetimes.in >> elTest.out
+    cd ../
     python3 reference/run_check.py
   fi
   cd ../

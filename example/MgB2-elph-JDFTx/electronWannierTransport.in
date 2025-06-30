@@ -15,7 +15,6 @@ smearingWidth = 0.5 eV
 windowType = "population"
 numOccupiedStates = 4
 
-# for a production relaxons run, use this -- otherwise, false
-symmetrizeMatrix = true
-scatteringMatrixInMemory=true
-solverBTE = ["iterative","variational","relaxons"]
+useSymmetries = true
+scatteringMatrixInMemory=false
+#solverBTE = ["iterative","variational","relaxons"] # just run RTA for now

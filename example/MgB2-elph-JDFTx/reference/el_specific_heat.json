@@ -1,0 +1,11 @@
+{
+   "particleType": "electron",
+   "specificHeat": [
+      24802.678602210006
+   ],
+   "specificHeatUnit": "J / K / m^3",
+   "temperatureUnit": "K",
+   "temperatures": [
+      300.0
+   ]
+}

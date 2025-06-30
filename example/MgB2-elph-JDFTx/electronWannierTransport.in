@@ -1,0 +1,21 @@
+appName = "electronWannierTransport"
+
+JDFTxScfOutFile = "jdftx-elph/totalE.out"
+phFC2FileName = "jdftx-elph/jdftx.elph.phoebe.hdf5"
+sumRuleFC2 = "simple"
+electronH0Name = "jdftx-elph/jdftx.elph.phoebe.hdf5",
+elphFileName = "jdftx-elph/jdftx.elph.phoebe.hdf5"
+
+kMesh = [10,10,10]
+temperatures = [300.]
+dopings = [1.e21]
+
+smearingMethod = "gaussian"
+smearingWidth = 0.5 eV
+windowType = "population"
+numOccupiedStates = 4
+
+# for a production relaxons run, use this -- otherwise, false
+symmetrizeMatrix = true
+scatteringMatrixInMemory=true
+solverBTE = ["iterative","variational","relaxons"]

@@ -154,7 +154,7 @@ jobs:
           mpirun -np 2 --oversubscribe ../../../build/phoebe -in phononTransport.in
           python3 reference/run_check.py
       # run JDFTx tests -----------------------------------
-      - name: Run RTA kappa with phph and phel with MPI and OMP
+      - name: Run a test with JDFTx files
         if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' && matrix.omp == 'ON' }}
         working-directory: example/MgB2-elph-JDFTx/
         run: |
@@ -163,5 +163,5 @@ jobs:
           python ../../../scripts/developerScripts/jdftx2Phoebe.py
           cd ../
           export OMP_NUM_THREADS=2
-          mpirun -np 2 --oversubscribe ../../../build/phoebe -in electronWannierTransport.in
+          mpirun -np 2 --oversubscribe ../../build/phoebe -in electronWannierTransport.in
           python3 reference/run_check.py

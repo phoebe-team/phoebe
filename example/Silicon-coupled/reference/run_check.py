@@ -29,7 +29,7 @@ def checkCoefficient(coeffName, data1, data2, tol):
     if abs(diff) > tol:
         print(diff, k1, k2, sep="\n")
         print(filename)
-        #sys.exit(1)
+        sys.exit(1)
     diff2 = (numpy.max(k1) - numpy.max(k2))/numpy.max(k1)
     if abs(diff2) > tol:
         print("failed max element check",diff2)
@@ -37,7 +37,7 @@ def checkCoefficient(coeffName, data1, data2, tol):
         print("max element difference", numpy.max(k1-k2))
         print("max element % difference", numpy.max(k1-k2)/numpy.max(k1))
         print(filename)
-        #sys.exit(1)
+        sys.exit(1)
 
 if __name__ == "__main__":
 

@@ -98,13 +98,6 @@ then
   ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in electronLifetimes.in >> elTest.out
   cd ../
   python3 reference/run_check.py
-  cd ../../
-
-  echo "Run coupled BTE example"
-  cd example/Silicon-coupled
-  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in coupledTransport.in >> coupledTest.out
-  python3 reference/run_check.py
-  cd ../../
 
   # if we have mpi also check these with pools
   if [ "$MPI_ON" == "ON" ]
@@ -115,5 +108,22 @@ then
     cd ../
     python3 reference/run_check.py
   fi
+  cd ../../
+
+  echo "Run coupled BTE example"
+  cd example/Silicon-coupled
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in coupledTransport.in >> coupledTest.out
+  python3 reference/run_check.py
+  cd ../../
+
+  echo "Run an example with JDFTx"
+  cd example/MgB2-elph-JDFTx/jdftx-elph/
+  # create the Phoebe hdf5 file from jdftx inputs
+  python ../../../scripts/developerScripts/jdftx2Phoebe.py
+  cd ../
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierTransport.in #>> jdftxTest.out
+  python3 reference/run_check.py
+  cd ../../
+
   cd ../
 fi

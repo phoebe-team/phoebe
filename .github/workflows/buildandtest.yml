@@ -24,7 +24,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt install -y libopenblas-dev liblapack-dev libhdf5-dev libhdf5-openmpi-dev libscalapack-openmpi-dev python3-pip gfortran cmake -o Acquire::Retries=3 --fix-missing
-          pip3 install numpy --break-system-packages
+          pip3 install numpy h5py --break-system-packages
       - name: Checkout
         uses: actions/checkout@v2
         with:
@@ -64,6 +64,7 @@ jobs:
           unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-phonons/*" -d "example/Silicon-ph/qe-phonons"
           unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-ph-anharmonic/*" -d "example/Silicon-ph/thirdorder.py-anharmonic"
           unzip -j master.zip "phoebe-data-master/example/Silicon-el/qe-elph/*" -d "example/Silicon-el/qe-elph"
+          unzip -j master.zip "phoebe-data-master/example/MgB2-elph-JDFTx/jdftx-elph/outputs/*" -d "example/MgB2-elph-JDFTx/jdftx-elph"
           unzip 'example/Silicon-el/qe-elph/silicon.phoebe.*.dat.zip' -d example/Silicon-el/qe-elph/
           cp example/Silicon-el/qe-elph/* example/Silicon-epa/qe-elph
           mkdir example/Silicon-epa/qe-elph/out
@@ -144,16 +145,23 @@ jobs:
         run: |
           mpirun -np 4 --oversubscribe ../../build/phoebe -in coupledTransport.in
           python3 reference/run_check.py
-      #- name: Run coupled BTE example without MPI (too slow...)
-      #  if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'OFF' && matrix.omp == 'ON' }}
-      #  working-directory: example/Silicon-coupled
-      #  run: |
-      #    mpirun -np 4 --oversubscribe ../../build/phoebe -in coupledTransport.in
-      #    python3 reference/run_check.py
       # run rta kappa with phph and phel ------------------
       - name: Run RTA kappa with phph and phel with MPI and OMP
         if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' && matrix.omp == 'ON' }}
         working-directory: example/Silicon-ph/kappa_phph-phel/
         run: |
+          export OMP_NUM_THREADS=2
           mpirun -np 2 --oversubscribe ../../../build/phoebe -in phononTransport.in
+          python3 reference/run_check.py
+      # run JDFTx tests -----------------------------------
+      - name: Run a test with JDFTx files
+        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' && matrix.omp == 'ON' }}
+        working-directory: example/MgB2-elph-JDFTx/
+        run: |
+          # test that conversion script is the same
+          cd jdftx-elph
+          python ../../../scripts/developerScripts/jdftx2Phoebe.py
+          cd ../
+          export OMP_NUM_THREADS=2
+          mpirun -np 2 --oversubscribe ../../build/phoebe -in electronWannierTransport.in
           python3 reference/run_check.py

@@ -53,6 +53,8 @@ then
   unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-phonons/*" -d "example/Silicon-ph/qe-phonons"
   unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-ph-anharmonic/*" -d "example/Silicon-ph/thirdorder.py-anharmonic"
   unzip -j master.zip "phoebe-data-master/example/Silicon-el/qe-elph/*" -d "example/Silicon-el/qe-elph"
+  mkdir -p example/MgB2-elph-JDFTx/jdftx-elph/
+  unzip -j master.zip "phoebe-data-master/example/MgB2-elph-JDFTx/jdftx-elph/outputs/*" -d "example/MgB2-elph-JDFTx/jdftx-elph"
   unzip 'example/Silicon-el/qe-elph/silicon.phoebe.*.dat.zip' -d example/Silicon-el/qe-elph/
   cp example/Silicon-el/qe-elph/* example/Silicon-epa/qe-elph
   mkdir example/Silicon-epa/qe-elph/out

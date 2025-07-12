@@ -4,12 +4,18 @@ sumRuleFC2 = "simple"
 phFC2FileName = "../qe-phonons/silicon.fc"
 phFC3FileName = "../thirdorder.py-anharmonic/FORCE_CONSTANTS_3RD"
 
+electronH0Name = "../../Silicon-el/qe-elph/si_tb.dat"
+elphFileName = "../../Silicon-el/qe-elph/silicon.phoebe.elph.hdf5"
+
 useSymmetries = true
-qMesh = [6,6,6]
+kMesh = [35, 35, 35]
+qMesh = [5,5,5]
 temperatures = [300.]
 
 smearingMethod = "gaussian"
 smearingWidth = 10. cmm1
+numOccupiedStates = 4
+dopings = [1.e21]
 
 solverBTE = ["iterative"]
 symmetrizeMatrix = false
@@ -19,3 +25,4 @@ outputUNTimes = true
 boundaryLength = 1. mum
 
 windowType = "population"
+windowPopulationLimit = 1e-3

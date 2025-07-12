@@ -81,34 +81,6 @@ jobs:
           mpirun -np 4 --oversubscribe ../../build/phoebe -in electronFourierBands.in
           mpirun -np 4 --oversubscribe ../../build/phoebe -in electronFourierDos.in
           python3 reference/run_check.py
-      - name: Run ph example without MPI
-        if: ${{ matrix.compiler == 'GCC' }}
-        working-directory: example/Silicon-ph
-        run: |
-          ../../build/phoebe -in phononTransport.in
-          ../../build/phoebe -in phononBands.in
-          ../../build/phoebe -in phononDos.in
-          cd path_lifetimes
-          ../../../build/phoebe -in phononLifetimes.in
-          cd ../
-          cd sym_transport
-          mpirun -np 4 --oversubscribe ../../../build/phoebe -in phononTransport.in
-          cd ../
-          python3 reference/run_check.py
-      - name: Run ph example with MPI
-        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' }}
-        working-directory: example/Silicon-ph
-        run: |
-          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononTransport.in
-          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononBands.in
-          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononDos.in
-          cd path_lifetimes
-          mpirun -np 4 --oversubscribe ../../../build/phoebe -in phononLifetimes.in
-          cd ../
-          cd sym_transport
-          mpirun -np 4 --oversubscribe ../../../build/phoebe -in phononTransport.in
-          cd ../
-          python3 reference/run_check.py
       - name: Run el example without MPI
         if: ${{ matrix.compiler == 'GCC' }}
         working-directory: example/Silicon-el
@@ -143,6 +115,34 @@ jobs:
           cd ../
           cd sym_transport
           mpirun -np 4 --oversubscribe ../../../build/phoebe -ps 2 -in electronWannierTransport.in
+          cd ../
+          python3 reference/run_check.py
+      - name: Run ph example without MPI
+        if: ${{ matrix.compiler == 'GCC' }}
+        working-directory: example/Silicon-ph
+        run: |
+          ../../build/phoebe -in phononTransport.in
+          ../../build/phoebe -in phononBands.in
+          ../../build/phoebe -in phononDos.in
+          cd path_lifetimes
+          ../../../build/phoebe -in phononLifetimes.in
+          cd ../
+          cd sym_transport
+          mpirun -np 4 --oversubscribe ../../../build/phoebe -in phononTransport.in
+          cd ../
+          python3 reference/run_check.py
+      - name: Run ph example with MPI
+        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' }}
+        working-directory: example/Silicon-ph
+        run: |
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononTransport.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononBands.in
+          mpirun -np 4 --oversubscribe ../../build/phoebe -in phononDos.in
+          cd path_lifetimes
+          mpirun -np 4 --oversubscribe ../../../build/phoebe -in phononLifetimes.in
+          cd ../
+          cd sym_transport
+          mpirun -np 4 --oversubscribe ../../../build/phoebe -in phononTransport.in
           cd ../
           python3 reference/run_check.py
       # run coupled BTE ------------------

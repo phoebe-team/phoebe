@@ -328,14 +328,14 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
           // returns |g(m,m',nu)|^2
           Eigen::Tensor<double, 3>& couplingSq = couplingElPhWan.getCouplingSquared(iQBatch);
 
-          Eigen::Vector3d qCartesian = allQCartesian[iQBatch];
+          //Eigen::Vector3d qCartesian = allQCartesian[iQBatch];
           WavevectorIndex iQIdx(iQ);
 
           // pull out the energies, etc, for this batch of points
           Eigen::VectorXd stateEnergiesQ = allStateEnergiesQ[iQBatch];
           Eigen::VectorXd stateEnergiesKp = allStateEnergiesKp[iQBatch];
           Eigen::MatrixXd vKp = allVKps[iQBatch];
-          auto kpCartesian = allKpCartesian[iQBatch]; // TODO remove this it's a test statement
+          //auto kpCartesian = allKpCartesian[iQBatch]; // TODO remove this it's a test statement
 
 	        // number of bands
           int nbQ = int(stateEnergiesQ.size());
@@ -343,7 +343,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
           //Eigen::Vector3d kCrys = electronBandStructure.getPoints().cartesianToCrystal(kCartesian);
           //Eigen::Vector3d kpCrys = electronBandStructure.getPoints().cartesianToCrystal(kpCartesian);
-          Eigen::Vector3d qCrys = phononBandStructure.getPoints().cartesianToCrystal(qCartesian);
+          //Eigen::Vector3d qCrys = phononBandStructure.getPoints().cartesianToCrystal(qCartesian);
 
           // Calculate the scattering rate  -------------------------------------------
           // Loop over state bands

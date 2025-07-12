@@ -307,16 +307,16 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                 // as coupled matrix never has sym, is always case = 0
                 int iBte1Shift = iBte1;
                 int iBte2Shift = iBte2;
-                BteIndex iBte1ShiftIdx(iBte1);
-                BteIndex iBte2ShiftIdx(iBte2);
+                //BteIndex iBte1ShiftIdx(iBte1);
+                //BteIndex iBte2ShiftIdx(iBte2);
                 if(matrix.isCoupled) {
                   // translate these into the phonon-phonon quadrant if it's a coupled bte
                   std::tuple<int,int> tup =
                         matrix.shiftToCoupledIndices(iBte1, iBte2, particle, particle);
                   iBte1Shift = std::get<0>(tup);
                   iBte2Shift = std::get<1>(tup);
-                  iBte1ShiftIdx = BteIndex(iBte1Shift);
-                  iBte2ShiftIdx = BteIndex(iBte2Shift);
+                  //iBte1ShiftIdx = BteIndex(iBte1Shift);
+                  //iBte2ShiftIdx = BteIndex(iBte2Shift);
                 }
 
                 if (switchCase == 0) { // case of matrix construction
@@ -606,12 +606,12 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
   // generate basic properties from the function arguments
   int numAtoms = innerBandStructure.getPoints().getCrystal().getNumAtoms();
   int numCalculations = matrix.statisticsSweep.getNumCalculations();
-  Particle particle = innerBandStructure.getParticle();
+  //Particle particle = innerBandStructure.getParticle();
 
   // note: innerNumFullPoints is the number of points in the full grid
   // may be larger than innerNumPoints, when we use ActiveBandStructure
   double norm = 1. / context.getQMesh().prod();
-  bool outputUNTimes = matrix.outputUNTimes;
+  //bool outputUNTimes = matrix.outputUNTimes;
 
   // create vector with the interaction strength
   Eigen::VectorXd massVariance = Eigen::VectorXd::Zero(numAtoms);
@@ -632,10 +632,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
   }
 
   // loop over points pairs
-  for (auto tup : qPairIterator) {
-
-    auto iq1Indexes = std::get<0>(tup);
-    int iq2 = std::get<1>(tup);
+  for (auto [iq1Indexes, iq2] : qPairIterator) {
 
     // collect information about s2
     WavevectorIndex iq2Index(iq2);
@@ -645,10 +642,8 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
     Eigen::MatrixXd v2s = innerBandStructure.getGroupVelocities(iq2Index);
 
     auto q2 = innerBandStructure.getPoint(iq2).getCoordinates(Points::cartesianCoordinates);
-    auto t = innerBandStructure.getRotationToIrreducible(q2, Points::cartesianCoordinates);
     // rotation such that qIrr = R * qRed
-    int iq2Irr = std::get<0>(t);
-    Eigen::Matrix3d rotation = std::get<1>(t);
+    auto [iq2Irr, rotation] = innerBandStructure.getRotationToIrreducible(q2, Points::cartesianCoordinates);
 
     // this index is MPI parallelized over
     for (auto iq1 : iq1Indexes) {
@@ -731,94 +726,13 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
 
             double rateIso = termIso * (bose1 * bose2 + 0.5 * (bose1 + bose2));
 
-            // shift the indices if it's necessary
-            int iBte1Shift = iBte1;   int iBte2Shift = iBte2;
-            if(matrix.isCoupled) {
-              std::tuple<int,int> tup =
-                    matrix.shiftToCoupledIndices(iBte1, iBte2, particle, particle);
-              iBte1Shift = std::get<0>(tup);
-              iBte2Shift = std::get<1>(tup);
-            }
+            matrix.addRateToMatrix(context, switchCase, rateIso, rateIso, iCalc, is1, is2Irr, iBte1, iBte2, rotation, linewidth, inPopulations, outPopulations); 
 
-	    if (switchCase == 0) { // case of matrix construction
-              if (context.getUseSymmetries()) {
-                BteIndex iBte1Idx(iBte1);
-                BteIndex iBte2Idx(iBte2);
-                for (int i : {0, 1, 2}) {
-                  CartIndex iIndex(i);
-                  int iMat1 = matrix.getSMatrixIndex(iBte1Idx, iIndex);
-                  for (int j : {0, 1, 2}) {
-                    CartIndex jIndex(j);
-                    int iMat2 = matrix.getSMatrixIndex(iBte2Idx, jIndex);
-                    if (matrix.theMatrix.indicesAreLocal(iMat1, iMat2)) {
-                      if (i == 0 && j == 0) {
-                        linewidth->operator()(iCalc, 0, iBte1) += rateIso;
-                      }
-                      if (is1 != is2Irr) {
-                        matrix.theMatrix(iMat1, iMat2) -=
-                            rotation.inverse()(i, j) * rateIso;
-                      }
-                    }
-                  }
-                }
-              } else {
-                if (matrix.theMatrix.indicesAreLocal(iBte1Shift, iBte2Shift)) {
-
-   	          linewidth->operator()(iCalc, 0, iBte1Shift) += rateIso;
-                  // if we're not symmetrizing the matrix, and we have
-                  // dropped down to only using the upper triangle of the matrix, we must fill
-                  // in linewidths twice, using detailed balance, in order to get the right ratest
-  		  if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
-                    linewidth->operator()(iCalc, 0, iBte2Shift) += rateIso;
-		  }
-                  matrix.theMatrix(iBte1Shift, iBte2Shift) -= rateIso;
-                }
-              }
-            } else if (switchCase == 1) { // case of matrix-vector multiplication
-              for (unsigned int iInput = 0; iInput < inPopulations.size(); iInput++) {
-
-                // here we rotate the populations from the irreducible point
-                Eigen::Vector3d inPopRot;
-                inPopRot.setZero();
-                for (int i : {0, 1, 2}) {
-                  for (int j : {0, 1, 2}) {
-                    inPopRot(i) += rotation.inverse()(i, j) *
-                                   inPopulations[iInput](iCalc, j, iBte2);
-                  }
-                }
-                for (int i : {0, 1, 2}) {
-		  // off diagonals
-      		  if (is1 != is2Irr) {
-                    outPopulations[iInput](iCalc, i, iBte1) -= rateIso * inPopRot(i);
-                  } // diagonals
-                  outPopulations[iInput](iCalc, i, iBte1) +=
-                      rateIso * inPopulations[iInput](iCalc, i, iBte1);
-                }
-              }
-
-            } else { // case of linewidth construction
-
-              linewidth->operator()(iCalc, 0, iBte1) += rateIso;
-
-              if(outputUNTimes) {
-                Point q1 = outerBandStructure.getPoint(iq1);
-                Point q2 = innerBandStructure.getPoint(iq2);
-                // check if this process is umklapp
-                // TODO put this in hasUmklapp function
-                Eigen::Vector3d q1Cart = q1.getCoordinates(Points::cartesianCoordinates);
-                Eigen::Vector3d q2Cart = q2.getCoordinates(Points::cartesianCoordinates);
-                Eigen::Vector3d q1WS = outerBandStructure.getPoints().bzToWs(q1Cart, Points::cartesianCoordinates);
-                Eigen::Vector3d q2WS = outerBandStructure.getPoints().bzToWs(q2Cart, Points::cartesianCoordinates);
-                Eigen::Vector3d q3Cart = q1WS + q2WS;
-                Eigen::Vector3d q3fold = outerBandStructure.getPoints().bzToWs(q3Cart, Points::cartesianCoordinates);
-                bool isUmklapp = false;
-                if(abs((q3Cart-q3fold).norm()) > 1e-6) { isUmklapp = true; }
-                if(isUmklapp) {
-                  matrix.internalDiagonalUmklapp->operator()(iCalc, 0, iBte1) += rateIso;
-                } else {
-                  matrix.internalDiagonalNormal->operator()(iCalc, 0, iBte1) += rateIso;
-                }
-              }
+            // for now, we only do UN scattering in the case of linewidth contruction 
+            if(switchCase == 2) {
+              std::array<Point, 2> pts{outerBandStructure.getPoint(iq1), innerBandStructure.getPoint(iq2)};
+              auto momentumCons = [](Eigen::Vector3d &qWs1, Eigen::Vector3d &qWs2){return qWs1 + qWs2;}; 
+              matrix.addUNRates(int(iCalc), int(iBte1), rateIso, pts, momentumCons); 
             }
           }
         }

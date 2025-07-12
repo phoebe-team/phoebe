@@ -342,6 +342,37 @@ public:
   */
   std::vector<int> getExcludeIndices(BaseBandStructure& bandStructure);
 
+
+  /** Method to add scattering rate to matrix and linewidth containers
+   * @param context the context for the calculation 
+   * @param switchCase the type of matrix construction 
+   * @param rate the scattering rate being added 
+   * @param iBte1 the BTE index of the first state
+   * @param iBte2 the BTE index of the second state
+   * @param inPopulations 
+   * @param outPopulations
+   */
+  void addRateToMatrix(const Context &context, int switchCase, double linewidthRate, double matrixRate, 
+                                      int iCalc, int is1, int is2Irr, int iBte1, int iBte2, 
+                                      const Eigen::Matrix3d &rotation, 
+                                      std::shared_ptr<VectorBTE> linewidth, 
+                                      const std::vector<VectorBTE> &inPopulations,
+                                      std::vector<VectorBTE> &outPopulations); 
+
+
+  /** Generic function to add UN times to their containers 
+   * @param iCalc the calculation index labeling T and mu
+   * @param iBte the index of the linewidth container 
+   * @param rate scattering rate of this process
+   * @param crysPoints list of Points objects which will be used to calculate if is U process. 
+   *          NOTE: this must be a list in the same order as the momentumConservation expects them... 
+   * @param momentumConservationExpr lambda function returning the expression for the final wavevector to be folded 
+   */
+   //void addUNRates(int iCalc, int iBte, double rate, const std::vector<Point> &crysPoints, auto momentumConservationExpr); 
+
+  // TODO make this a lambda function owned by specific kinds of matrices. 
+  // for coupled it should shift, for not coupled, nothing. 
+
   /* If we have a coupled scattering matrix, we need to shift the bte indices
   * before using them, to correspond to the quadrant of the smatrix for ee, pp, ep, or pe
   * rates. Otherwise, this function does nothing.
@@ -359,8 +390,7 @@ public:
 
   /** Replace the linewidths of the scatterng matrix with the supplied 
    * VectorBTE values.
-   // * @param switchCase: the type of matrix we have stored, see notes in *_scattering_matrix.cpp
-   * @param linewidths: the linewidths to replace the diagonal with
+   * @param switchCase: the type of matrix we have stored, see notes in *_scattering_matrix.cpp
    **/
   void replaceMatrixLinewidths(const int &switchCase);
 
@@ -381,12 +411,41 @@ public:
 
   // friend functions for scattering
   friend void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
-                                //std::vector<std::tuple<std::vector<int>, int>> pairIterator,
                                 std::vector<VectorBTE> &inPopulations,
                                 std::vector<VectorBTE> &outPopulations,
                                 int switchCase,
                                 BaseBandStructure &outerBandStructure,
                                 std::shared_ptr<VectorBTE> linewidth);
+
+
+  // TODO change this so that we avoid checking if outputUNTimes
+template <size_t n>
+  void addUNRates(int iCalc, int iBte, double rate, 
+                                    const std::array<Point, n> &crysPoints, auto momentumConservationExpr) {
+
+    if(outputUNTimes) {
+
+      // Note : for the purpose of folding bzToWs for points, 
+      // the bandstructure we use doesn't matter, only the points object
+
+      // get vectors in ws cell 
+      std::array<Eigen::Vector3d, n> wsVectors;  
+      for(size_t ipt = 0; ipt < n; ipt++) {
+        Eigen::Vector3d wvCart = crysPoints[ipt].getCoordinates(Points::cartesianCoordinates); 
+        Eigen::Vector3d wvWS = outerBandStructure.getPoints().bzToWs(wvCart, Points::cartesianCoordinates); 
+        wsVectors[ipt] = wvWS;  //wsVectors.push_back(wvWS);
+      }
+
+      // check if this process is umklapp
+      Eigen::Vector3d wvFinalCart = std::apply(momentumConservationExpr, wsVectors);
+      Eigen::Vector3d wvFinalFold = outerBandStructure.getPoints().bzToWs(wvFinalCart, Points::cartesianCoordinates);
+      if(abs((wvFinalCart-wvFinalFold).norm()) > 1e-6) {
+        internalDiagonalUmklapp->operator()(iCalc, 0, iBte) += rate;
+      } else {
+        internalDiagonalNormal->operator()(iCalc, 0, iBte) += rate;
+      }
+    }
+  }
 };
 
 #endif

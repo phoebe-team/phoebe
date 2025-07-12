@@ -5,6 +5,7 @@
 #include "eigen.h"
 #include "exceptions.h"
 
+// TODO this should be an enum 
 const int crystalCoordinates_ = 0;
 const int cartesianCoordinates_ = 1;
 
@@ -39,7 +40,7 @@ public:
    * @return coordinates: a 3d vector of coordinates
    */
   Eigen::Vector3d getCoordinates(const int &basis = crystalCoordinates_,
-                                 const bool &inWignerSeitz = false);
+                                 const bool &inWignerSeitz = false) const;
 
   /** Sum of two wavevectors (this + b)
    * The vector is folded in the Wigner Seitz zone with an Umklapp vector.

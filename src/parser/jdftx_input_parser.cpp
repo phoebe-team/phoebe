@@ -26,7 +26,7 @@ std::tuple<Crystal, PhononH0> JDFTxParser::parsePhHarmonic(Context &context) {
   // ========================================================================
   Crystal crystal = parseCrystal(context);
   int numAtoms = crystal.getNumAtoms();
-  auto directUnitCell = crystal.getDirectUnitCell();
+  //auto directUnitCell = crystal.getDirectUnitCell();
   auto atomicSpecies = crystal.getAtomicSpecies();
   auto speciesMasses = crystal.getSpeciesMasses();
 
@@ -171,7 +171,7 @@ JDFTxParser::parseElHarmonicWannier(Context &context) {
   int nBands = 0;
   double nElectrons = 0;
   int spinFactor = 2;
-  double fermiLevel;
+  //double fermiLevel;
 
 #ifdef HDF5_AVAIL
 

@@ -1,4 +1,3 @@
-//#include "ph_scattering_matrix.h"
 #include "constants.h"
 #include "helper_3rd_state.h"
 #include "io.h"
@@ -166,8 +165,6 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // Add in the phel contribution
     // TODO better to just add the vectorBTE objects?
     linewidth->data = linewidth->data + phelLinewidths->data;
-
-    //std::cout << phelLinewidths->data << std::endl;
 
     // convert the matrix back to A to carry on as usual
     if(highMemory) omega2A();

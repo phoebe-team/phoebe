@@ -131,7 +131,7 @@ void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
 
   auto points = bandStructure.getPoints();
   std::vector<int> states = bandStructure.parallelIrrStateIterator();
-  int numStates = states.size();
+  //int numStates = states.size();
 
   for (int is : bandStructure.parallelIrrStateIterator()) {
 

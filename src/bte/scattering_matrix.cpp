@@ -1059,6 +1059,80 @@ void ScatteringMatrix::degeneracyAveragingLinewidths(std::shared_ptr<VectorBTE> 
   }
 }
 
+void ScatteringMatrix::addRateToMatrix(const Context &context, int switchCase, double linewidthRate, double matrixRate, 
+                                      int iCalc, int is1, int is2Irr, int iBte1, int iBte2,
+                                      const Eigen::Matrix3d &rotation, 
+                                      std::shared_ptr<VectorBTE> linewidth, 
+                                      const std::vector<VectorBTE> &inPopulations,
+                                      std::vector<VectorBTE> &outPopulations) { 
+
+  // shift the indices if it's necessary
+  int iBte1Shift = iBte1;   int iBte2Shift = iBte2;
+  if(isCoupled) {
+    auto [iBte1Shift, iBte2Shift] = shiftToCoupledIndices(iBte1, iBte2, 
+                                  innerBandStructure.getParticle(), outerBandStructure.getParticle());
+  }
+
+  if (switchCase == 0) { // case of matrix construction
+    if (context.getUseSymmetries()) {
+      BteIndex iBte1Idx(iBte1);
+      BteIndex iBte2Idx(iBte2);
+      for (int i : {0, 1, 2}) {
+        CartIndex iIndex(i);
+        int iMat1 = getSMatrixIndex(iBte1Idx, iIndex);
+        for (int j : {0, 1, 2}) {
+          CartIndex jIndex(j);
+          int iMat2 = getSMatrixIndex(iBte2Idx, jIndex);
+          if (theMatrix.indicesAreLocal(iMat1, iMat2)) {
+            if (i == 0 && j == 0) {
+              linewidth->operator()(iCalc, 0, iBte1) += linewidthRate;
+            }
+            if (is1 != is2Irr) {
+             operator()(iMat1, iMat2) -=
+                  rotation.inverse()(i, j) * matrixRate;
+            }
+          }
+        }
+      }
+    } else {
+      if (theMatrix.indicesAreLocal(iBte1Shift, iBte2Shift)) {
+
+        linewidth->operator()(iCalc, 0, iBte1Shift) += linewidthRate;
+        // if we're not symmetrizing the matrix, and we have
+        // dropped down to only using the upper triangle of the matrix, we must fill
+        // in linewidths twice, using detailed balance, in order to get the right ratest
+        if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
+          linewidth->operator()(iCalc, 0, iBte2Shift) += linewidthRate;
+        }
+        operator()(iBte1Shift, iBte2Shift) -= matrixRate;
+      }
+    }
+  } else if (switchCase == 1) { // case of matrix-vector multiplication
+    for (unsigned int iInput = 0; iInput < inPopulations.size(); iInput++) {
+
+      // here we rotate the populations from the irreducible point
+      Eigen::Vector3d inPopRot;
+      inPopRot.setZero();
+      for (int i : {0, 1, 2}) {
+        for (int j : {0, 1, 2}) {
+          inPopRot(i) += rotation.inverse()(i, j) *
+                          inPopulations[iInput](iCalc, j, iBte2);
+        }
+      }
+      for (int i : {0, 1, 2}) {
+        // off diagonals
+        if (is1 != is2Irr) {
+          outPopulations[iInput](iCalc, i, iBte1) -= matrixRate * inPopRot(i);
+        } // diagonals
+        outPopulations[iInput](iCalc, i, iBte1) +=
+            linewidthRate * inPopulations[iInput](iCalc, i, iBte1);
+      }
+    }
+  } else { // case of linewidth construction
+    linewidth->operator()(iCalc, 0, iBte1) += linewidthRate;
+  }
+}
+
 void ScatteringMatrix::symmetrizeCoupling(Eigen::Tensor<double,3>& coupling,
                                           const Eigen::VectorXd& energies1,
                                           const Eigen::VectorXd& energies2,
@@ -1527,9 +1601,6 @@ void ScatteringMatrix::reinforceLinewidths() {
       // don't print zeros 
       if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue; 
 
-      //newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
-      //continue; 
-
       if(newLinewidths(0,i) < 0 || std::isnan(newLinewidths(0,i))) {
         StateIndex sIdx(i-numElStates);
         std::cout << std::setprecision(4) << "Found a negative ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << internalDiagonal->data(0,i) << " " << newLinewidths(0,i) << std::endl;
@@ -1538,23 +1609,14 @@ void ScatteringMatrix::reinforceLinewidths() {
       }
       // flag bad linewidth ratios 
       else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.25 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.75) {
-        //StateIndex sIdx(i-numElStates);
-        //auto tup = innerBandStructure.getIndex(sIdx);
-        //BandIndex band = std::get<1>(tup);
-        // " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " 
-        //if(mpi->mpiHead()) std::cout << "Found a bad ph linewidth ratio: state, new, old, new/old " << i << " " << newLinewidths(0,i) << " / " << internalDiagonal->data(0,i) << " = " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;
         StateIndex sIdx(i-numElStates);
         std::cout << std::setprecision(4) << "Found a bad ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << newLinewidths(0,i) << " " << internalDiagonal->data(0,i)  << " " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;
-        //if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.1) 
         newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
       }
     }
 
     std::cout << "Checking quality of el states: " << std::endl;
     for (int i = 0; i<numElStates; i++) {
-
-      //newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
-      //continue;
 
       if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue;
 
@@ -1564,29 +1626,12 @@ void ScatteringMatrix::reinforceLinewidths() {
         newLinewidths(0,i) = internalDiagonal->data(0, i);
       }
       else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.25 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.75) {
-        //StateIndex sIdx(i);
         if(mpi->mpiHead()) std::cout << "Found a bad el linewidth ratio: state, new, old, new/old " << i << " " << newLinewidths(0,i) << " / " << internalDiagonal->data(0,i) << " = " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;
-        //if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.1) newLinewidths(0,i) = 100*std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
       }
     }
   }
 
   if(mpi->mpiHead()) {
-
-   /*   std::cout << "print all energies: " << std::endl;
-    for (int i = 0; i<numElStates; i++) {
-
-      StateIndex sIdx(i);
-      auto kidx = outerBandStructure.getPointIndex(outerBandStructure.getPoints().cartesianToCrystal(outerBandStructure.getWavevector(sIdx)));
-      WavevectorIndex k(kidx);
-
-      if(kidx == 805) {
-        std::cout << i << " " << outerBandStructure.getEnergy(sIdx) << " " << outerBandStructure.getPoints().cartesianToCrystal(outerBandStructure.getWavevector(sIdx)).transpose() << std::endl;
-        std::cout << outerBandStructure.getEnergies(k) << std::endl;
-        std::cout << outerBandStructure.getGroupVelocity(sIdx) << std::endl;
-        std::cout << outerBandStructure.getEigenvectors(k) << std::endl;
-      }
-    }*/
 
     std::cout << "compare first 50 el states, new vs. old " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl;
     for (int i = 0; i<50; i++) {

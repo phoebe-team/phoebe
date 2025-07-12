@@ -1,0 +1,21 @@
+appName = "phononTransport"
+
+sumRuleFC2 = "simple"
+phFC2FileName = "../qe-phonons/silicon.fc"
+phFC3FileName = "../thirdorder.py-anharmonic/FORCE_CONSTANTS_3RD"
+
+useSymmetries = true
+qMesh = [6,6,6]
+temperatures = [300.]
+
+smearingMethod = "gaussian"
+smearingWidth = 10. cmm1
+
+solverBTE = ["iterative"]
+symmetrizeMatrix = false
+scatteringMatrixInMemory = true
+
+outputUNTimes = true
+boundaryLength = 1. mum
+
+windowType = "population"

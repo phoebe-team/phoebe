@@ -593,25 +593,19 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
     std::cout << "\nAdding isotope scattering to the scattering matrix." << std::endl;
   }
 
-  // copy a few small things that don't take
-  // much memory but will keep the code easier to read
-  auto excludeIndices = matrix.excludeIndices;
-
   // setup smearing using phonon band structure
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, innerBandStructure);
   if (smearing->getType() == DeltaFunction::tetrahedron) {
-    Error("Developer error: Tetrahedron smearing for transport untested and thus blocked");
+    DeveloperError("Tetrahedron smearing for transport untested and thus blocked");
   }
 
   // generate basic properties from the function arguments
   int numAtoms = innerBandStructure.getPoints().getCrystal().getNumAtoms();
   int numCalculations = matrix.statisticsSweep.getNumCalculations();
-  //Particle particle = innerBandStructure.getParticle();
 
   // note: innerNumFullPoints is the number of points in the full grid
   // may be larger than innerNumPoints, when we use ActiveBandStructure
   double norm = 1. / context.getQMesh().prod();
-  //bool outputUNTimes = matrix.outputUNTimes;
 
   // create vector with the interaction strength
   Eigen::VectorXd massVariance = Eigen::VectorXd::Zero(numAtoms);
@@ -670,8 +664,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
 
         // stop the calculation for indices which are
         // acoustic modes at the gamma point
-        if (std::find(excludeIndices.begin(), excludeIndices.end(), iBte1) !=
-            excludeIndices.end()) {
+        if (std::ranges::find(matrix.excludeIndices, iBte1) != matrix.excludeIndices.end()) {
           continue;
         }
         if (en1 < phEnergyCutoff) {  continue; }
@@ -679,15 +672,14 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
         for (int ib2 = 0; ib2 < nb2; ib2++) {
 
           double en2 = state2Energies(ib2);
-          int is2Irr = innerBandStructure.getIndex(WavevectorIndex(iq2Irr),
-                                                     BandIndex(ib2));
+          int is2Irr = innerBandStructure.getIndex(WavevectorIndex(iq2Irr), BandIndex(ib2));
           int is2 = innerBandStructure.getIndex(WavevectorIndex(iq2), BandIndex(ib2));
           StateIndex is2IrrIdx(is2Irr);
           StateIndex is2Idx(is2);
           int iBte2 = innerBandStructure.stateToBte(is2IrrIdx).get();
 
           // remove gamma point acoustic phonon frequencies
-          if (std::find(excludeIndices.begin(), excludeIndices.end(), iBte2) != excludeIndices.end()) {
+          if (std::ranges::find(matrix.excludeIndices, iBte1) != matrix.excludeIndices.end()) {
             continue;
           }
           if (en2 < phEnergyCutoff) { continue; }
@@ -726,13 +718,15 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
 
             double rateIso = termIso * (bose1 * bose2 + 0.5 * (bose1 + bose2));
 
-            matrix.addRateToMatrix(context, switchCase, rateIso, rateIso, iCalc, is1, is2Irr, iBte1, iBte2, rotation, linewidth, inPopulations, outPopulations); 
+            matrix.addRateToMatrix(context, switchCase, rateIso, rateIso, iCalc, is1, is2Irr, iBte1, iBte2, 
+                innerBandStructure.getParticle(), outerBandStructure.getParticle(), 
+                rotation, linewidth, inPopulations, outPopulations); 
 
             // for now, we only do UN scattering in the case of linewidth contruction 
             if(switchCase == 2) {
               std::array<Point, 2> pts{outerBandStructure.getPoint(iq1), innerBandStructure.getPoint(iq2)};
               auto momentumCons = [](Eigen::Vector3d &qWs1, Eigen::Vector3d &qWs2){return qWs1 + qWs2;}; 
-              matrix.addUNRates(int(iCalc), int(iBte1), rateIso, pts, momentumCons); 
+              matrix.addUNRates(iCalc, iBte1, rateIso, pts, momentumCons); 
             }
           }
         }
@@ -743,4 +737,3 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
     std::cout << "Finished adding isotope scattering to the scattering matrix.\n" << std::endl;
   }
 }
-

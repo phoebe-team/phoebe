@@ -261,6 +261,10 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
   // write RTA times to output
   getLinewidths(*linewidth).outputToJSON("rta_ph_relaxation_times.json", outerBandStructure);
+  if(outputUNTimes) { 
+    getLinewidths(*internalDiagonalNormal).outputToJSON("rta_ph_N_relaxation_times.json", outerBandStructure); 
+    getLinewidths(*internalDiagonalUmklapp).outputToJSON("rta_ph_U_relaxation_times.json", outerBandStructure); 
+  }
 }
 
 

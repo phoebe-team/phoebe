@@ -164,6 +164,11 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // remember to first convert to a vector BTE object without symmetrization
   getLinewidths(*linewidthMR).outputToJSON("mrta_el_relaxation_times.json", outerBandStructure);
   getLinewidths(*linewidth).outputToJSON("rta_el_relaxation_times.json", outerBandStructure);
+  
+  if(outputUNTimes) { 
+    getLinewidths(*internalDiagonalNormal).outputToJSON("rta_el_N_relaxation_times.json", outerBandStructure); 
+    getLinewidths(*internalDiagonalUmklapp).outputToJSON("rta_el_U_relaxation_times.json", outerBandStructure); 
+  }
 }
 
 // function called on shared ptrs of linewidths

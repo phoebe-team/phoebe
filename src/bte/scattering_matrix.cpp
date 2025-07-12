@@ -1061,17 +1061,16 @@ void ScatteringMatrix::degeneracyAveragingLinewidths(std::shared_ptr<VectorBTE> 
 
 void ScatteringMatrix::addRateToMatrix(const Context &context, int switchCase, double linewidthRate, double matrixRate, 
                                       int iCalc, int is1, int is2Irr, int iBte1, int iBte2,
+                                      const Particle &p1, const Particle &p2, 
                                       const Eigen::Matrix3d &rotation, 
                                       std::shared_ptr<VectorBTE> linewidth, 
                                       const std::vector<VectorBTE> &inPopulations,
                                       std::vector<VectorBTE> &outPopulations) { 
 
-  // shift the indices if it's necessary
-  int iBte1Shift = iBte1;   int iBte2Shift = iBte2;
-  if(isCoupled) {
-    auto [iBte1Shift, iBte2Shift] = shiftToCoupledIndices(iBte1, iBte2, 
-                                  innerBandStructure.getParticle(), outerBandStructure.getParticle());
-  }
+  // "particle type" passed in here because for coupled BTE we cannot use inner/outer BS the same way                         
+  // shift the indices if it's necessary. shiftToCoupledIndices should be 
+  // moved to work as a lambda function stored by each matrix type. 
+  auto [iBte1Shift, iBte2Shift] = shiftToCoupledIndices(iBte1, iBte2, p1, p2);
 
   if (switchCase == 0) { // case of matrix construction
     if (context.getUseSymmetries()) {
@@ -1301,39 +1300,8 @@ std::vector<int> ScatteringMatrix::getExcludeIndices(BaseBandStructure& bandStru
   return indices;
 }
 
-/* probably never called on regular Scattering matrix, but this is here just in case */
-// TODO we should make this a function which does nothing if it's not the coupled calculation 
-std::tuple<int,int> ScatteringMatrix::shiftToCoupledIndices(
-            const int& iBte1, const int& iBte2, const Particle& p1, const Particle& p2) {
-
-  // we shift the iBte indices into the relevant quadrant before savign things to the
-  // scattering matrix in the coupled case
-  // ibte1 = row, ibte2 = col
-
-  int iBte1Shift = iBte1;
-  int iBte2Shift = iBte2;
-
-  if(isCoupled) {
-    if(!p1.isPhonon() && p2.isPhonon()) { // electron-phonon drag
-      iBte2Shift += numElStates;
-    }
-    else if(p1.isPhonon() && !p2.isPhonon()) { // phonon-electron drag
-      iBte1Shift += numElStates;
-    }
-    else if(p1.isPhonon() && p2.isPhonon()) { // phonon-self quadrant
-      iBte1Shift += numElStates;
-      iBte2Shift += numElStates;
-    }
-    return std::make_tuple(iBte1Shift, iBte2Shift);
-  }
-  Error("Developer error: there's no reason to shift regular scattering matrix indices!");
-  return std::make_tuple(iBte1Shift, iBte2Shift);
-}
-
 std::vector<std::tuple<int, int>> ScatteringMatrix::getAllLocalStates() {
-
   return theMatrix.getAllLocalStates();
-
 }
 
 // TODO there's some issue with this function... it's not
@@ -1378,7 +1346,7 @@ void ScatteringMatrix::replaceMatrixLinewidths(const int &switchCase) {
   }
 }
 
-/* there should be a way to simplify out of this */
+/* TODO this should be a lambda function owned by the coupled matrix, perhaps. */
 std::tuple<int,int> ScatteringMatrix::coupledToBandStructureIndices(
             const int& iBteShift1, const int& iBteShift2, const Particle& p1, const Particle& p2) {
 
@@ -1487,15 +1455,12 @@ void ScatteringMatrix::reinforceLinewidths() {
 
   LoopPrint loopPrint("Reinforcing the linewidths","matrix elements",getAllLocalStates().size());
 
+  // NOTE: if later we want to use symmetries here,
+  // these would actually be iBTE instead of iState, and we would convert
   // sum over the v' states owned by this process
-  for (auto tup : getAllLocalStates()) {
+  for (auto [ibte1, ibte2] : getAllLocalStates()) {
 
     loopPrint.update();
-
-    // if later we want to use symmetries here,
-    // these would actually be iBTE instead of iState, and we would convert
-    size_t ibte1 = std::get<0>(tup);
-    size_t ibte2 = std::get<1>(tup);
 
     // throw out lower triangle states
     // TODO DOESNT WORK!

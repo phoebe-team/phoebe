@@ -252,6 +252,16 @@ public:
   // save the scattering rates differently
   bool isCoupled = false;
 
+  /* function which shifts the indices to the correct quadrant in the CBTE case. 
+  * for a pure ph or el matrix, does nothing (default defined here)
+  * @param iBte1, iBte2: the bte indices used to index this quadrant.
+  * @param p1, p2: the particle types indicating the desired quadrant
+  * @return: a tuple containing the shifted indices
+  */
+  std::function<std::tuple<long,long>(long, long, const Particle&, const Particle &)> shiftToCoupledIndices 
+      = [](long iBte1, long iBte2, [[maybe_unused]] const Particle &p1, [[maybe_unused]] const Particle &p2){ 
+          return std::make_tuple(iBte1, iBte2); }; 
+
   // we save the diagonal matrix element in a dedicated vector
   std::shared_ptr<VectorBTE> internalDiagonal, internalDiagonalUmklapp, internalDiagonalNormal;
   // the scattering matrix, initialized if highMemory==true
@@ -349,47 +359,25 @@ public:
    * @param rate the scattering rate being added 
    * @param iBte1 the BTE index of the first state
    * @param iBte2 the BTE index of the second state
+   * @param p1 the particle type associated with iBte1
+   * @param p2 the particle type associated with iBte2
    * @param inPopulations 
    * @param outPopulations
    */
   void addRateToMatrix(const Context &context, int switchCase, double linewidthRate, double matrixRate, 
                                       int iCalc, int is1, int is2Irr, int iBte1, int iBte2, 
+                                      const Particle &p1, const Particle &p2, 
                                       const Eigen::Matrix3d &rotation, 
                                       std::shared_ptr<VectorBTE> linewidth, 
                                       const std::vector<VectorBTE> &inPopulations,
                                       std::vector<VectorBTE> &outPopulations); 
-
-
-  /** Generic function to add UN times to their containers 
-   * @param iCalc the calculation index labeling T and mu
-   * @param iBte the index of the linewidth container 
-   * @param rate scattering rate of this process
-   * @param crysPoints list of Points objects which will be used to calculate if is U process. 
-   *          NOTE: this must be a list in the same order as the momentumConservation expects them... 
-   * @param momentumConservationExpr lambda function returning the expression for the final wavevector to be folded 
-   */
-   //void addUNRates(int iCalc, int iBte, double rate, const std::vector<Point> &crysPoints, auto momentumConservationExpr); 
-
-  // TODO make this a lambda function owned by specific kinds of matrices. 
-  // for coupled it should shift, for not coupled, nothing. 
-
-  /* If we have a coupled scattering matrix, we need to shift the bte indices
-  * before using them, to correspond to the quadrant of the smatrix for ee, pp, ep, or pe
-  * rates. Otherwise, this function does nothing.
-  * @param iBte1, iBte2: the bte indices used to index this quadrant.
-  * @param p1, p2: the particle types indicating the desired quadrant
-  * @return: a tuple containing the shifted indices
-  */
-  std::tuple<int,int> shiftToCoupledIndices(
-        const int& iBte1, const int& iBte2, const Particle& p1, const Particle& p2);
 
   /** A function to fix the linewidths to agree with the off diagonal elements, to enforce finding the
    * special eigenvectors. 
    */
   void reinforceLinewidths();
 
-  /** Replace the linewidths of the scatterng matrix with the supplied 
-   * VectorBTE values.
+  /** Replace the linewidths of the scatterng matrix with the supplied VectorBTE values.
    * @param switchCase: the type of matrix we have stored, see notes in *_scattering_matrix.cpp
    **/
   void replaceMatrixLinewidths(const int &switchCase);
@@ -409,22 +397,19 @@ public:
   std::tuple<int,int> coupledToBandStructureIndices(const int& iBte1, const int& iBte2,
                                                     const Particle& p1, const Particle& p2);
 
-  // friend functions for scattering
-  friend void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
-                                std::vector<VectorBTE> &inPopulations,
-                                std::vector<VectorBTE> &outPopulations,
-                                int switchCase,
-                                BaseBandStructure &outerBandStructure,
-                                std::shared_ptr<VectorBTE> linewidth);
-
-
-  // TODO change this so that we avoid checking if outputUNTimes
-template <size_t n>
+  /** Generic function to add UN times to their containers 
+   * @param iCalc the calculation index labeling T and mu
+   * @param iBte the index of the linewidth container 
+   * @param rate scattering rate of this process
+   * @param crysPoints list of Points objects which will be used to calculate if is U process. 
+   *          NOTE: this must be a list in the same order as the momentumConservation expects them... 
+   * @param momentumConsnExpr lambda function returning the expression for the final wavevector to be folded 
+   */
+  template <size_t n>
   void addUNRates(int iCalc, int iBte, double rate, 
-                                    const std::array<Point, n> &crysPoints, auto momentumConservationExpr) {
+                                    const std::array<Point, n> &crysPoints, auto momentumConsExpr) {
 
     if(outputUNTimes) {
-
       // Note : for the purpose of folding bzToWs for points, 
       // the bandstructure we use doesn't matter, only the points object
 
@@ -433,11 +418,11 @@ template <size_t n>
       for(size_t ipt = 0; ipt < n; ipt++) {
         Eigen::Vector3d wvCart = crysPoints[ipt].getCoordinates(Points::cartesianCoordinates); 
         Eigen::Vector3d wvWS = outerBandStructure.getPoints().bzToWs(wvCart, Points::cartesianCoordinates); 
-        wsVectors[ipt] = wvWS;  //wsVectors.push_back(wvWS);
+        wsVectors[ipt] = wvWS; 
       }
-
+      
       // check if this process is umklapp
-      Eigen::Vector3d wvFinalCart = std::apply(momentumConservationExpr, wsVectors);
+      Eigen::Vector3d wvFinalCart = std::apply(momentumConsExpr, wsVectors); 
       Eigen::Vector3d wvFinalFold = outerBandStructure.getPoints().bzToWs(wvFinalCart, Points::cartesianCoordinates);
       if(abs((wvFinalCart-wvFinalFold).norm()) > 1e-6) {
         internalDiagonalUmklapp->operator()(iCalc, 0, iBte) += rate;
@@ -446,6 +431,15 @@ template <size_t n>
       }
     }
   }
+  
+  // friend functions for scattering
+  friend void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
+    std::vector<VectorBTE> &inPopulations,
+    std::vector<VectorBTE> &outPopulations,
+    int switchCase,
+    BaseBandStructure &outerBandStructure,
+    std::shared_ptr<VectorBTE> linewidth);
+
 };
 
 #endif

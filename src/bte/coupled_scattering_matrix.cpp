@@ -125,6 +125,17 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   std::vector<std::tuple<std::vector<int>, int>> qkPairIterator = allPairIterators[2];
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator = allPairIterators[3];
 
+  // set up lambda function which shifts indices into appropriate quadrants 
+  size_t nElStates = numElStates; // very stupid workaround -- numElStates should only live in CBTE object, anyway. 
+  shiftToCoupledIndices 
+      = [nElStates](long iBte1, long iBte2, const Particle &p1, const Particle &p2){ 
+    // we shift the iBte indices into the relevant quadrant before savign things to the
+    // scattering matrix in the coupled case --  ibte1 = row, ibte2 = col
+    if(p1.isPhonon()) iBte1 += nElStates;
+    if(p2.isPhonon()) iBte2 += nElStates;
+    return std::make_tuple(iBte1, iBte2);
+  };
+      
   // TODO we should let this go out of scope
   // read in elph coupling
   InteractionElPhWan couplingElPh =
@@ -365,8 +376,6 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   if(mpi->mpiHead()) std::cout << "\nFinished computing the coupled scattering matrix." << std::endl;
 
-  //this->outputToHDF5("coupled_matrix.hdf5");
-
   if(context.getEnforcePositiveSemiDefinite()) {
     theMatrix.enforcePositiveSemiDefinite();
   }
@@ -383,29 +392,23 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
   }
 
   int iCalc = 0; // as there can only be one temperature
-
   auto particle = innerBandStructure.getParticle();
   auto calcStatistics = statisticsSweep.getCalcStatistics(iCalc);
   double temp = calcStatistics.temperature;
   double chemPot = 0;
 
-  auto allLocalStates = theMatrix.getAllLocalStates();
-  size_t numAllLocalStates = allLocalStates.size();
-
+  //auto allLocalStates = theMatrix.getAllLocalStates();
+  //size_t numAllLocalStates = allLocalStates.size();
+  
+  // when there are no symmetries, ibte = imat
+  // However, for band structure access,
+  // remember that these states are in quadrant 4 for ph-self,
+  // and need to be shifted back to bandstructure indices
 //#pragma omp parallel for
-  for (size_t iTup=0; iTup<numAllLocalStates; iTup++) {
-
-    auto tup = allLocalStates[iTup];
-
-    // when there are no symmetries, ibte = imat
-    // However, for band structure access,
-    // remember that these states are in quadrant 4 for ph-self,
-    // and need to be shifted back to bandstructure indices
-    size_t iBte1 = std::get<0>(tup);
-    size_t iBte2 = std::get<1>(tup);
+  for (auto [iBte1, iBte2] : theMatrix.getAllLocalStates()) {
 
     // we skip any state that's not a phonon one
-    if(iBte1 < size_t(numElStates) || iBte2 < size_t(numElStates)) {
+    if(iBte1 < numElStates || iBte2 < numElStates) {
       continue;
     }
     // TODO excludeIndices... are they for ph indices or global ones?
@@ -477,6 +480,7 @@ void addWavevectorToMap(std::unordered_map<int,std::vector<int>>& pairMap, int& 
   }
 }
 
+// TODO this should probably be generic 
 // helper function to add some dummy indices to each
 // MPI procs iterator of indices to make sure they have the same number
 // If this isn't the case, a pooled calculation will hang

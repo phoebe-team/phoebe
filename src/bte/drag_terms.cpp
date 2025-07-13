@@ -4,6 +4,7 @@
 #include "periodic_table.h"
 #include "interaction_elph.h"
 #include "drag_terms.h"
+#include "scattering_matrix.h"
 #include "vector_bte.h"
 
 
@@ -20,6 +21,10 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                 "drag calculation is the wrong type!");
   }
 
+  if(matrix.matrixCase != fullMatrix) { 
+    DeveloperError("Drag is only implemented for the fullMatrix case currently.");
+  }
+  
   // Notes:
   // The matrix we are trying to fill in here is the coupled BTE matrix
   // * We are trying to fill here the upper right hand side of it, D_{el-ph},
@@ -454,7 +459,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   // if we're peforming a matrix*vector product, just filling in linewidths,
                   // or filling the whole matrix.
                   // In this class, for now we only use the whole matrix, and therefore I only
-		              // implement switch case = 0
+		              // implement matrix case = fullMatrix
                   //
                   // Additionally, there's no reason here to fill in the "linewidths" variable,
                   // as we'll never have two of the same state, when dimensions are nph, nel states

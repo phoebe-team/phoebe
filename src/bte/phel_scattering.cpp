@@ -48,6 +48,8 @@ std::vector<std::tuple<int, std::vector<int>>> getPhElIterator(
 }
 
 void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
+                      std::vector<VectorBTE> &inPopulations,
+                      std::vector<VectorBTE> &outPopulations,
                       BaseBandStructure& phBandStructure,
                       BaseBandStructure& elBandStructure,
                       StatisticsSweep& statisticsSweep,
@@ -223,8 +225,8 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
     // This means we need to multiply by the weights of the irr k1s
     // in our integration over the BZ. This returns the list of kpoints
     // that map to this irr kpoint
-    double k1Weight = elBandStructure.getPoints().
-                                getReducibleStarFromIrreducible(ik1).size();
+    //double k1Weight = elBandStructure.getPoints().
+    //                            getReducibleStarFromIrreducible(ik1).size();
 
     // precompute first fourier transform + rotation by k1
     couplingElPhWan.cacheElPh(eigenVector1, k1Cartesian);
@@ -386,7 +388,10 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
             BteIndex ibteIdx3 = phBandStructure.stateToBte(isIdx3);
             int ibte3 = ibteIdx3.get();
             double en3 = state3Energies(ib3);
-
+            // rotation such that qIrr = R * qRed
+            Eigen::Vector3d q3 = phBandStructure.getWavevector(isIdx3);
+            [[maybe_unused]] auto [_, rotation] = phBandStructure.getRotationToIrreducible(q3, Points::cartesianCoordinates);
+            
             // remove small divergent phonon energies
             if (en3 < phEnergyCutoff) { continue; }
 
@@ -398,9 +403,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
               double en2 = state2Energies(ib2);
               double en1 = state1Energies(ib1);
-
-              //double fermi1 = elBandStructure.getParticle().getPopulation(en1,temp,chemPot);
-              //double fermi2 = elBandStructure.getParticle().getPopulation(en2,temp,chemPot);
 
               // loop on temperature
                 // https://arxiv.org/pdf/1409.1268.pdf
@@ -425,26 +427,27 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 double rate =
                     coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)
                     smearingValues(ib1, ib2, ib3)
-                    * norm * pi / en3 * k1Weight
+                    * norm * pi / en3 //* k1Weight
                     * sinh(0.5 * en3 / temperatures(iCalc)) /
                     (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
                     * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)));
 
-                // if it's not a coupled matrix, this will be ibte3
-                // We have to define shifted ibte3, or it will be further
-                // shifted every loop.
-                //
-                // Additionally, these are only needed in no-sym case,
-                // as coupled matrix never has sym, is always case = 0
-                //int iBte3Shift = ibte3;
-                //if(matrix.isCoupled) {
-                // translate into the phonon-self quadrant if it's a coupled bte
-                auto [iBte3Shift, [[maybe_unused]] x ] = matrix.shiftToCoupledIndices(ibte3, ibte3, particle, particle);
-                //}
-
                 // case of linewidth construction (the only case, for ph-el)
-                linewidth->operator()(iCalc, 0, iBte3Shift) += rate;
-              
+                //linewidth->operator()(iCalc, 0, iBte3Shift) += rate;
+                
+                matrix.addRateToMatrix(context, rate, rate, iCalc, 
+                  is3, is3, ibte3, ibte3, 
+                  particle, particle, 
+                  rotation, linewidth, 
+                  inPopulations, outPopulations); 
+  
+                // for now, we only do UN scattering in the case of linewidth contruction 
+                if(matrix.matrixCase == linewidthOnly) {
+                  std::array<Point, 2> pts{phBandStructure.getPoint(iq3), elBandStructure.getPoint(ik1)};
+                  auto momentumCons = [](Eigen::Vector3d &qWs3, Eigen::Vector3d &kWs1){return qWs3 + kWs1;}; 
+                  matrix.addUNRates(iCalc, ibte3, rate, pts, momentumCons); 
+                }
+                
                 //NOTE: for eliashberg function, we could here add another vectorBTE object
                 // as done with the linewidths here, slightly modified
 
@@ -455,7 +458,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
       }
     }
   }
-  
   // all reduce the calculated phel linewidths
   mpi->allReduceSum(&linewidth->data);
   mpi->barrier();

@@ -18,7 +18,6 @@
 void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
                                 std::vector<VectorBTE> &inPopulations,
                                 std::vector<VectorBTE> &outPopulations,
-                                int switchCase,
                                 BaseBandStructure &bandStructure,
                                 std::shared_ptr<VectorBTE> linewidth) {
   if(mpi->mpiHead()) {
@@ -39,7 +38,7 @@ void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
 
   #pragma omp parallel for default(none) shared(                            \
    bandStructure, numCalculations, statisticsSweep, boundaryLength,   \
-   particle, outPopulations, inPopulations, linewidth, switchCase, excludeIndices, is1s, matrix)
+   particle, outPopulations, inPopulations, linewidth, excludeIndices, is1s, matrix)
   for (size_t iis1 = 0; iis1 < size_t(is1s.size()); iis1++ ) {
 
       int is1 = is1s[iis1]; // we do this because an iterator cannot be omp parallelized
@@ -75,10 +74,10 @@ void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
           rate = sqrt(vel.squaredNorm()) / boundaryLength;
         }
 
-        if (switchCase == 0) {// case of matrix construction
+        if (matrix.matrixCase == fullMatrix) {// case of matrix construction
           linewidth->operator()(iCalc, 0, iBte1) += rate;
 
-        } else if (switchCase == 1) {// case of matrix-vector multiplication
+        } else if (matrix.matrixCase == matrixVectorProduct) {// case of matrix-vector multiplication
           for (unsigned int iVec = 0; iVec < inPopulations.size(); iVec++) {
             for (int i = 0; i < 3; i++) {
               outPopulations[iVec](iCalc, i, iBte1) +=

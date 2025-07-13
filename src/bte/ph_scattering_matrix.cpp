@@ -31,26 +31,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   if(mpi->mpiHead())
     std::cout << "============== Building phonon scattering matrix ==============\n" << std::endl;
 
-  // 3 cases:
-  // theMatrix and linewidth is passed: we compute and store in memory the
-  // scattering matrix and the diagonal
-  // inPopulation+outPopulation is passed: we compute the action of the
-  //       scattering matrix on the in vector, returning outVec = sMatrix*vector
-  // only linewidth is passed: we compute only the linewidths
-
-  int switchCase = 0;
-  if (theMatrix.rows() != 0 && linewidth != nullptr && inPopulations.empty() &&
-      outPopulations.empty()) {
-    switchCase = 0;  // build matrix and linewidths
-  } else if (theMatrix.rows() == 0 && linewidth == nullptr &&
-             !inPopulations.empty() && !outPopulations.empty()) {
-    switchCase = 1;
-  } else if (theMatrix.rows() == 0 && linewidth != nullptr &&
-             inPopulations.empty() && outPopulations.empty()) {
-    switchCase = 2;
-  } else {
-    DeveloperError("builderPh found a non-supported case");
-  }
+  // set in the parent object what kind of matrix this is                            
+  setMatrixCase(linewidth, inPopulations, outPopulations);
 
   if ((linewidth != nullptr) && (linewidth->dimensionality != 1)) {
     DeveloperError("The linewidths shouldn't have dimensionality!");
@@ -64,7 +46,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // generate the points on which these processes will be computed
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator =
-                                        getIteratorWavevectorPairs(switchCase);
+                                        getIteratorWavevectorPairs();
 
   Crystal crystal = innerBandStructure.getPoints().getCrystal();
 
@@ -74,7 +56,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     Interaction3Ph coupling3Ph = IFC3Parser::parse(context, crystal);
 
     addPhPhScattering(*this, context, inPopulations, outPopulations,
-                                    switchCase, qPairIterator,
+                                    qPairIterator,
                                     innerBose, outerBose,
                                     innerBandStructure, outerBandStructure,
                                     *phononH0, coupling3Ph, linewidth);
@@ -86,7 +68,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // Isotope scattering
   if (context.getWithIsotopeScattering()) {
     addIsotopeScattering(*this, context, inPopulations, outPopulations,
-                                  switchCase, qPairIterator,
+                                  qPairIterator,
                                   innerBose, outerBose,
                                   innerBandStructure, outerBandStructure,
                                   linewidth);
@@ -96,12 +78,12 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   if (!std::isnan(context.getBoundaryLength())) {
     if (context.getBoundaryLength() > 0.) {
       addBoundaryScattering(*this, context, inPopulations, outPopulations,
-                                  switchCase, outerBandStructure, linewidth);
+                                  outerBandStructure, linewidth);
     }
   }
 
   // MPI reduce the distributed data
-  if (switchCase == 1) {
+  if (matrixCase == matrixVectorProduct) {
     for (auto & outPopulation : outPopulations) {
       mpi->allReduceSum(&outPopulation.data);
     }
@@ -151,7 +133,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
-    addPhElScattering(*this, context,
+    addPhElScattering(*this, context, inPopulations, outPopulations,
                       innerBandStructure, elBandStructure, elStatisticsSweep,
                       couplingElPh, phelLinewidths);
 
@@ -169,7 +151,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }// braces to have elph coupling go out of scope
 
   // Average over degenerate eigenstates.
-  if (switchCase == 2) {
+  if (matrixCase == linewidthOnly) {
     degeneracyAveragingLinewidths(linewidth);
     if(outputUNTimes) {
       degeneracyAveragingLinewidths(internalDiagonalUmklapp);
@@ -184,7 +166,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // some phonons like acoustic modes at the gamma, with omega = 0,
   // might have zero frequencies, and infinite populations. We set those
   // matrix elements to zero.
-  if (switchCase == 0) {
+  if (matrixCase == fullMatrix) {
     // case of matrix construction
     if (context.getUseSymmetries()) {
       for (auto iBte1 : excludeIndices) {
@@ -211,7 +193,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
         }
       }
     }
-  } else if (switchCase == 1) {
+  } else if (matrixCase == matrixVectorProduct) {
     // case of matrix-vector multiplication
     for (auto iBte1 : excludeIndices) {
       for (auto & outPopulation : outPopulations) {
@@ -219,7 +201,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
       }
     }
 
-  } else if (switchCase == 2) {
+  } else if (matrixCase == linewidthOnly) {
     // case of linewidth construction
     for (auto iBte1 : excludeIndices) {
       linewidth->data.col(iBte1).setZero();
@@ -229,7 +211,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths
-  if (switchCase == 0) { // case of matrix construction
+  if (matrixCase == fullMatrix) { // case of matrix construction
     int iCalc = 0;
     if (context.getUseSymmetries()) {
       // numStates is defined in scattering.cpp as # of irrStates

@@ -18,7 +18,6 @@
 void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                                  std::vector<VectorBTE> &inPopulations,
                                  std::vector<VectorBTE> &outPopulations,
-                                 int &switchCase,
                                  std::vector<std::tuple<std::vector<int>, int>> qPairIterator,
                                  Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
                                  BaseBandStructure &innerBandStructure,
@@ -319,7 +318,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                   //iBte2ShiftIdx = BteIndex(iBte2Shift);
                 }
 
-                if (switchCase == 0) { // case of matrix construction
+                if (matrix.matrixCase == fullMatrix) { // case of matrix construction
                   if (context.getUseSymmetries()) {
                     for (int i : {0, 1, 2}) {
                       for (int j : {0, 1, 2}) {
@@ -351,7 +350,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                     }
                   }
 
-                } else if (switchCase == 1) { // case of matrix-vector multiplication
+                } else if (matrix.matrixCase == matrixVectorProduct) { // case of matrix-vector multiplication
                   // we build the scattering matrix A = S*n(n+1)
                   // here we rotate the populations from the irreducible point
                   for (unsigned int iInput = 0; iInput < inPopulations.size();
@@ -473,7 +472,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                   iBte2ShiftIdx = BteIndex(iBte2Shift);
                 }
 
-                if (switchCase == 0) { // case of matrix construction
+                if (matrix.matrixCase == fullMatrix) { // case of matrix construction
                   if (context.getUseSymmetries()) {
                     for (int i : {0, 1, 2}) {
                       for (int j : {0, 1, 2}) {
@@ -508,7 +507,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                     }
 
                   }
-                } else if (switchCase == 1) { // matrix-vector multiplication
+                } else if (matrix.matrixCase == matrixVectorProduct) { // matrix-vector multiplication
                   for (unsigned int iInput = 0; iInput < inPopulations.size(); iInput++) {
                     Eigen::Vector3d inPopRot;
                     inPopRot.setZero();
@@ -580,7 +579,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
 
 void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
                                 std::vector<VectorBTE> &inPopulations,
-                                std::vector<VectorBTE> &outPopulations, int &switchCase,
+                                std::vector<VectorBTE> &outPopulations, 
                                 std::vector<std::tuple<std::vector<int>, int>> qPairIterator,
                                 Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
                                 BaseBandStructure &innerBandStructure,
@@ -718,12 +717,12 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
 
             double rateIso = termIso * (bose1 * bose2 + 0.5 * (bose1 + bose2));
 
-            matrix.addRateToMatrix(context, switchCase, rateIso, rateIso, iCalc, is1, is2Irr, iBte1, iBte2, 
+            matrix.addRateToMatrix(context, rateIso, rateIso, iCalc, is1, is2Irr, iBte1, iBte2, 
                 innerBandStructure.getParticle(), outerBandStructure.getParticle(), 
                 rotation, linewidth, inPopulations, outPopulations); 
 
             // for now, we only do UN scattering in the case of linewidth contruction 
-            if(switchCase == 2) {
+            if(matrix.matrixCase == linewidthOnly) {
               std::array<Point, 2> pts{outerBandStructure.getPoint(iq1), innerBandStructure.getPoint(iq2)};
               auto momentumCons = [](Eigen::Vector3d &qWs1, Eigen::Vector3d &qWs2){return qWs1 + qWs2;}; 
               matrix.addUNRates(iCalc, iBte1, rateIso, pts, momentumCons); 

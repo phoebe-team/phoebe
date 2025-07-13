@@ -6,6 +6,16 @@
 #include "delta_function.h"
 #include "vector_bte.h"
 
+// 3 cases:
+// we compute and store in memory the scattering matrix and the diagonal
+// we compute the action of the scattering matrix on the in vector, returning outVec = sMatrix*vector
+// we compute only the linewidths
+enum MatrixCase {
+  fullMatrix,
+  matrixVectorProduct,
+  linewidthOnly
+};
+
 /** Base class of the scattering matrix.
  * Note: this is an abstract class, which can only work if builder() is defined
  */
@@ -229,7 +239,9 @@ public:
 
   BaseBandStructure &innerBandStructure;
   BaseBandStructure &outerBandStructure;
-
+  
+  enum MatrixCase matrixCase;
+  
   // constant relaxation time approximation -> the matrix is just a scalar
   // and there are simplified evaluations taking place
   bool constantRTA = false;
@@ -287,14 +299,6 @@ public:
 
   /** Method that actually computes the scattering matrix.
    * Pure virtual function: needs an implementation in every subclass.
-   * Builder has three behaviors:
-   * 1) if matrix.size()==0 and linewidth is passed, builder computes the
-   * quasiparticle linewidths.
-   * 2) if matrix.size > 0 and linewidth is passed, builder computes the
-   * quasiparticle linewidths and the scattering matrix. Memory intensive!
-   * 3) if matrix.size()==0, linewidth is not passed, but we pass in+out
-   * populations, we compute outPopulation = scatteringMatrix * inPopulation.
-   * This doesn't require to store the matrix in memory.
    */
   virtual void builder(std::shared_ptr<VectorBTE> linewidth,
                        std::vector<VectorBTE> &inPopulations,
@@ -302,10 +306,6 @@ public:
 
   /** Returns a vector of pairs of wavevector indices to iterate over during
    * the construction of the scattering matrix.
-   * @param switchCase: if 0, returns the pairs of wavevectors to loop for
-   * the case where the scattering matrix is built in memory.
-   * If != 0, returns the pairs of wavevectors to loop for the case where
-   * only the action of the scattering matrix is computed.
    * @param rowMajor: set to true if the loop is in the form
    * for iq1 { for iq2 {...}}. False for the opposite (default).
    * @return vector<tuple<iq1,iq2>>: a tuple of wavevector indices to loop
@@ -322,7 +322,6 @@ public:
    * loop on points.
    */
   std::vector<std::tuple<std::vector<int>, int>> getIteratorWavevectorPairs(
-                                                const int &switchCase,
                                                 const bool &rowMajor = false);
 
   /** Performs an average of the linewidths over degenerate states.
@@ -352,10 +351,21 @@ public:
   */
   std::vector<int> getExcludeIndices(BaseBandStructure& bandStructure);
 
+  /* Set the use case of the scattering matrix into a class enum. 
+  * Choices are 
+  * we compute and store in memory the scattering matrix and the diagonal
+  * we compute the action of the scattering matrix on the in vector, returning outVec = sMatrix*vector
+  * we compute only the linewidths
+  * @param linewidths pointer to a vectorBTE containing the internal diagonal of the scattering matrix 
+  * @param inPopulations particle population the scattering matrix acts on 
+  * @param outPopulations particle population Smatrix * inPopulation 
+  */
+  void setMatrixCase(std::shared_ptr<VectorBTE> linewidth, 
+    std::vector<VectorBTE> &inPopulations,
+    std::vector<VectorBTE> &outPopulations); 
 
   /** Method to add scattering rate to matrix and linewidth containers
    * @param context the context for the calculation 
-   * @param switchCase the type of matrix construction 
    * @param rate the scattering rate being added 
    * @param iBte1 the BTE index of the first state
    * @param iBte2 the BTE index of the second state
@@ -364,7 +374,7 @@ public:
    * @param inPopulations 
    * @param outPopulations
    */
-  void addRateToMatrix(const Context &context, int switchCase, double linewidthRate, double matrixRate, 
+  void addRateToMatrix(const Context &context, double linewidthRate, double matrixRate, 
                                       int iCalc, int is1, int is2Irr, int iBte1, int iBte2, 
                                       const Particle &p1, const Particle &p2, 
                                       const Eigen::Matrix3d &rotation, 
@@ -378,9 +388,8 @@ public:
   void reinforceLinewidths();
 
   /** Replace the linewidths of the scatterng matrix with the supplied VectorBTE values.
-   * @param switchCase: the type of matrix we have stored, see notes in *_scattering_matrix.cpp
    **/
-  void replaceMatrixLinewidths(const int &switchCase);
+  void replaceMatrixLinewidths();
 
   /** Returns a tuple of final and initial particles for a give state
   * @param iBte1, iBte2: the bte indices used to index this state
@@ -436,7 +445,6 @@ public:
   friend void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
     std::vector<VectorBTE> &inPopulations,
     std::vector<VectorBTE> &outPopulations,
-    int switchCase,
     BaseBandStructure &outerBandStructure,
     std::shared_ptr<VectorBTE> linewidth);
 

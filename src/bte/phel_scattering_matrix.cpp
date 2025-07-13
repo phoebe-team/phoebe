@@ -32,16 +32,19 @@ PhElScatteringMatrix::PhElScatteringMatrix(Context &context_,
 // In the phononElectron case, we only compute the diagonal of the
 // scattering matrix. Therefore, we compute only the linewidths
 void PhElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
-                                   [[maybe_unused]] std::vector<VectorBTE> &inPopulations,
-                                   [[maybe_unused]] std::vector<VectorBTE> &outPopulations) {
+                                   std::vector<VectorBTE> &inPopulations,
+                                   std::vector<VectorBTE> &outPopulations) {
 
-  if (linewidth == nullptr) {
+/*   if (linewidth == nullptr) {
     Error("builderPhEl found a non-supported case");
-  }
+  } */
   if (linewidth->dimensionality != 1) {
-    Error("Linewidths shouldn't have dimensionality");
+    DeveloperError("Linewidths shouldn't have dimensionality");
   }
-
+  
+  // set in the parent object what kind of matrix this is                            
+  setMatrixCase(linewidth, inPopulations, outPopulations);
+  
   // construct electronic band structure
   Points fullPoints(getPhBandStructure().getPoints().getCrystal(), context.getKMesh());
   
@@ -57,7 +60,8 @@ void PhElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                       *phononH0);
 
   // compute the phonon electron lifetimes
-  addPhElScattering(*this, context, getPhBandStructure(), elBandStructure,
+  addPhElScattering(*this, context, inPopulations, outPopulations, 
+                    getPhBandStructure(), elBandStructure,
                     statisticsSweep, 
                     couplingElPh, linewidth);
 

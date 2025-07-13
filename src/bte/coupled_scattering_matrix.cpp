@@ -7,6 +7,7 @@
 #include "phel_scattering.h"
 #include "ifc3_parser.h"
 #include "interaction_elph.h"
+#include "scattering_matrix.h"
 #include <map>
 
 CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
@@ -96,7 +97,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // by defintion this is switch case 0 -- matrix construction only.
   // We will never have only linewidth or matrix-vector product
-  int switchCase = 0;
+  //matrixCase == fullMatrix; // It's the default behavior
 
   // internal diagonal should be allocated, as well as the matrix
   if (linewidth == nullptr || theMatrix.rows() == 0) {
@@ -143,14 +144,14 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // add el-ph scattering ----------------------------------------------
   addElPhScattering(*this, context, inPopulations, outPopulations,
-                          switchCase, kPairIterator,
+                          kPairIterator,
                           fermiOccupations,
                           outerBandStructure, outerBandStructure,
                           *phononH0, couplingElPh, linewidth);
 
   // add charged impurity electron scattering  ------------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
-                       switchCase, kPairIterator,
+                       kPairIterator,
                        innerBandStructure, outerBandStructure, linewidth);
 */
 
@@ -161,7 +162,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
         IFC3Parser::parse(context, innerBandStructure.getPoints().getCrystal());
 
     addPhPhScattering(*this, context, inPopulations, outPopulations,
-                                    switchCase, qPairIterator,
+                                    qPairIterator,
                                     boseOccupations, boseOccupations,
                                     innerBandStructure, innerBandStructure,
                                     *phononH0, coupling3Ph, linewidth); 
@@ -170,7 +171,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // Isotope scattering ------------------------------------------------
   if (context.getWithIsotopeScattering()) {
     addIsotopeScattering(*this, context, inPopulations, outPopulations,
-                            switchCase, qPairIterator,
+                            qPairIterator,
                             boseOccupations, boseOccupations,
                             innerBandStructure, innerBandStructure, linewidth);
   }
@@ -183,11 +184,11 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     if (context.getBoundaryLength() > 0.) {
       // phonon boundary scattering
       //addBoundaryScattering(*this, context, inPopulations, outPopulations,
-      //                      switchCase, innerBandStructure, linewidth);
+      //                      innerBandStructure, linewidth);
       //std::cout << std::endl;
       // electron boundary scattering
       //addBoundaryScattering(*this, context, inPopulations, outPopulations,
-      //                      switchCase, outerBandStructure, linewidth);
+      //                      outerBandStructure, linewidth);
     }
   }
 
@@ -223,7 +224,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
 
-    addPhElScattering(*this, context,
+    addPhElScattering(*this, context, inPopulations, outPopulations, 
                       innerBandStructure, outerBandStructure,
                       statisticsSweep,
                       couplingElPh, postSymLinewidths);
@@ -258,9 +259,9 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // Average over degenerate eigenstates.
   // we turn it off for now and leave the code if needed in the future << what does this mean?
-  // TODO why is this only in switchcase 2? Feels like it should absolutely also be in 0,
+  // TODO why is this for linewidthOnly? Feels like it should absolutely also be in 0,
   // before things are re-saved to the diagonal
-  if (switchCase == 2) {
+  if (matrixCase == linewidthOnly) {
     degeneracyAveragingLinewidths(linewidth);
     if(outputUNTimes) {
       degeneracyAveragingLinewidths(internalDiagonalUmklapp);
@@ -274,7 +275,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // some phonons like acoustic modes at the gamma, with omega = 0,
   // might have zero frequencies, and infinite populations. We set those
   // matrix elements to zero.
-  if (switchCase == 0) {
+  if (matrixCase == fullMatrix) {
     // case of matrix construction
     if (context.getUseSymmetries()) {
       for (auto iBte1 : excludeIndices) {
@@ -346,7 +347,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // TODO debug the "replaceLinewidths" function and use it instead
   // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths
-  if (switchCase == 0) { // case of matrix construction
+  if (matrixCase == fullMatrix) { // case of matrix construction
     int iCalc = 0;
     if (context.getUseSymmetries()) {
       // numStates is defined in scattering.cpp as # of irrStates
@@ -500,8 +501,7 @@ void mpiPoolsIteratorCorrection(std::vector<std::tuple<std::vector<int>, int>>& 
 }
 
 std::vector<std::vector<std::tuple<std::vector<int>, int>>>
-  CoupledScatteringMatrix::getIteratorWavevectorPairs([[maybe_unused]] const int& switchCase,
-                                                      [[maybe_unused]] const bool& rowMajor) {
+  CoupledScatteringMatrix::getIteratorWavevectorPairs([[maybe_unused]] const bool& rowMajor) {
 
   // this function gets the k,k, k,q, or q,q pairs needed to calculate scattering rates
   // for the coupled scattering matrix. The matrix is always in memory,

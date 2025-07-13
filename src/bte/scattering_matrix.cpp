@@ -74,6 +74,23 @@ ScatteringMatrix::ScatteringMatrix(Context &context_,
   }
 }
 
+void ScatteringMatrix::setMatrixCase(std::shared_ptr<VectorBTE> linewidth, 
+                                    std::vector<VectorBTE> &inPopulations,
+                                    std::vector<VectorBTE> &outPopulations) { 
+                                          
+  if (theMatrix.rows() != 0 && linewidth != nullptr && inPopulations.empty() && outPopulations.empty()) {
+    matrixCase = fullMatrix;  // build matrix and linewidths
+  } else if (theMatrix.rows() == 0 && linewidth == nullptr &&
+             !inPopulations.empty() && !outPopulations.empty()) {
+    matrixCase = matrixVectorProduct;
+  } else if (theMatrix.rows() == 0 && linewidth != nullptr &&
+             inPopulations.empty() && outPopulations.empty()) {
+    matrixCase = linewidthOnly; 
+  } else {
+    DeveloperError("Unsupported scattering matrix build case.");
+  }
+}
+
 void ScatteringMatrix::setup() {
 
   // note: here we want to build the matrix or its diagonal
@@ -751,13 +768,12 @@ ScatteringMatrix::diagonalize(int numEigenvalues) {
 }
 
 std::vector<std::tuple<std::vector<int>, int>>
-ScatteringMatrix::getIteratorWavevectorPairs(const int &switchCase,
-                                             const bool &rowMajor) {
+ScatteringMatrix::getIteratorWavevectorPairs(const bool &rowMajor) {
 
   if (rowMajor) { // case for el-ph scattering
     std::vector<std::tuple<std::vector<int>, int>> pairIterator;
 
-    if (switchCase == 1 || switchCase == 2) { // case for linewidth construction
+    if (matrixCase == matrixVectorProduct || matrixCase == linewidthOnly) { // case for linewidth construction
       // here I parallelize over ik1
       // which is the outer loop on q-points
       std::vector<int> k1Iterator =
@@ -874,7 +890,7 @@ ScatteringMatrix::getIteratorWavevectorPairs(const int &switchCase,
 
   } else { // case for ph_scattering
 
-    if (switchCase == 1 || switchCase == 2) { // case for dot
+    if (matrixCase == matrixVectorProduct || matrixCase == linewidthOnly) { // case for dot
       // must parallelize over the inner band structure (iq2 in phonons)
       // which is the outer loop on q-points
       size_t a = innerBandStructure.getNumPoints();
@@ -1059,7 +1075,7 @@ void ScatteringMatrix::degeneracyAveragingLinewidths(std::shared_ptr<VectorBTE> 
   }
 }
 
-void ScatteringMatrix::addRateToMatrix(const Context &context, int switchCase, double linewidthRate, double matrixRate, 
+void ScatteringMatrix::addRateToMatrix(const Context &context, double linewidthRate, double matrixRate, 
                                       int iCalc, int is1, int is2Irr, int iBte1, int iBte2,
                                       const Particle &p1, const Particle &p2, 
                                       const Eigen::Matrix3d &rotation, 
@@ -1072,7 +1088,7 @@ void ScatteringMatrix::addRateToMatrix(const Context &context, int switchCase, d
   // moved to work as a lambda function stored by each matrix type. 
   auto [iBte1Shift, iBte2Shift] = shiftToCoupledIndices(iBte1, iBte2, p1, p2);
 
-  if (switchCase == 0) { // case of matrix construction
+  if (matrixCase == fullMatrix) { // case of matrix construction
     if (context.getUseSymmetries()) {
       BteIndex iBte1Idx(iBte1);
       BteIndex iBte2Idx(iBte2);
@@ -1106,7 +1122,7 @@ void ScatteringMatrix::addRateToMatrix(const Context &context, int switchCase, d
         operator()(iBte1Shift, iBte2Shift) -= matrixRate;
       }
     }
-  } else if (switchCase == 1) { // case of matrix-vector multiplication
+  } else if (matrixCase == matrixVectorProduct) { // case of matrix-vector multiplication
     for (unsigned int iInput = 0; iInput < inPopulations.size(); iInput++) {
 
       // here we rotate the populations from the irreducible point
@@ -1307,7 +1323,7 @@ std::vector<std::tuple<int, int>> ScatteringMatrix::getAllLocalStates() {
 // TODO there's some issue with this function... it's not
 // the same as the code blocks in the individual matrices.
 // For now, do not use this.
-void ScatteringMatrix::replaceMatrixLinewidths(const int &switchCase) {
+void ScatteringMatrix::replaceMatrixLinewidths() {
 
   DeveloperError("This function currently doesn't work and needs to be debugged!");
 
@@ -1318,7 +1334,7 @@ void ScatteringMatrix::replaceMatrixLinewidths(const int &switchCase) {
 //    internalDiagonal->data = newLinewidths->data;
 //  }
 
-  if (switchCase == 0) { // case of matrix construction TODO is this really the only case?
+  if (matrixCase == fullMatrix) { // case of matrix construction TODO is this really the only case?
     int iCalc = 0;
     if (context.getUseSymmetries()) {
       // numStates is defined in scattering.cpp as # of irrStates

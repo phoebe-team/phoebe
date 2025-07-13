@@ -21,7 +21,6 @@
 void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                        std::vector<VectorBTE> &inPopulations,
                        std::vector<VectorBTE> &outPopulations,
-                       int &switchCase,
                        std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
                        Eigen::MatrixXd &innerFermi, //Eigen::MatrixXd &outerBose,
                        BaseBandStructure &innerBandStructure,
@@ -261,7 +260,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                       coupling(ib1, ib2, ib3) * bose3Symm * (delta1 + delta2)
                       * norm / en3 * pi;
 
-                if (switchCase == 0) {
+                if (matrix.matrixCase == fullMatrix) {
 
                   if (withSymmetries) {
                     for (int i : {0, 1, 2}) {
@@ -302,7 +301,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
 		                  }
                     }
                   }
-                } else if (switchCase == 1) {
+                } else if (matrix.matrixCase == matrixVectorProduct) {
                   // case of matrix-vector multiplication
                   // we build the scattering matrix A = S*n(n+1)
 
@@ -344,7 +343,6 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
 void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &context,
                        std::vector<VectorBTE> &inPopulations,
                        std::vector<VectorBTE> &outPopulations,
-                       int &switchCase,
                        std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
                        BaseBandStructure &innerBandStructure,
                        BaseBandStructure &outerBandStructure,
@@ -478,7 +476,7 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
             }
             double rateMR = rate * cosTheta;
 
-            if (switchCase == 0) { // case of matrix construction
+            if (matrix.matrixCase == fullMatrix) { // case of matrix construction
               if (context.getUseSymmetries()) {
                 BteIndex iBte1Idx(iBte1);
                 BteIndex iBte2Idx(iBte2);
@@ -515,7 +513,7 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
 		              }
                 }
               }
-            } else if (switchCase == 1) { // case of matrix-vector multiplication
+            } else if (matrix.matrixCase == matrixVectorProduct) { // case of matrix-vector multiplication
               for (unsigned int iInput = 0; iInput < inPopulations.size(); iInput++) {
 
                 // here we rotate the populations from the irreducible point
@@ -552,7 +550,6 @@ void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &conte
 void add_eeDMFT(BaseElScatteringMatrix &matrix, const Context &context,
                 //std::vector<VectorBTE> &inPopulations,
                 //std::vector<VectorBTE> &outPopulations,
-                [[maybe_unused]] const int &switchCase,
                 BaseBandStructure &outerBandStructure,
                 std::shared_ptr<VectorBTE> linewidth) {
 

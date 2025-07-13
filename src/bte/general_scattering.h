@@ -12,7 +12,6 @@ void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
                                 //std::vector<std::tuple<std::vector<int>, int>> pairIterator,
                                 std::vector<VectorBTE> &inPopulations,
                                 std::vector<VectorBTE> &outPopulations,
-                                int switchCase,
                                 BaseBandStructure &outerBandStructure,
                                 std::shared_ptr<VectorBTE> linewidth);
 

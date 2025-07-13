@@ -95,13 +95,12 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
   * Therefore, we always distribute over the states of the parallel matrix which are local,
   * and return these kq pairs. Both arguments here are unused, but left in place because this function
   * should override the scattering matrix one, to ensure that function isn't called for this Smatrix.
-  * @param switchCase: dummy variable
   * @param rowMajor: dummy variable
   * @return : a vector containing the four necessary iterators, over k pairs, kq pairs, or q pairs
   *     needed to compute the scattering rates.
   */
   std::vector<std::vector<std::tuple<std::vector<int>, int>>>
-  getIteratorWavevectorPairs(const int &switchCase = 0, const bool &rowMajor = 0);
+  getIteratorWavevectorPairs(const bool &rowMajor = 0);
 
   /** Function to reweight the different quadrants of the matrix
    * coupled matrix to account for spin dengeneracy */
@@ -112,7 +111,6 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
   friend void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                   std::vector<VectorBTE> &inPopulations,
                   std::vector<VectorBTE> &outPopulations,
-                  int &switchCase,
                   std::vector<std::tuple<std::vector<int>, int>> qPairIterator,
                   Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
                   BaseBandStructure &innerBandStructure,
@@ -123,23 +121,25 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
 
   friend void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
                   std::vector<VectorBTE> &inPopulations,
-                  std::vector<VectorBTE> &outPopulations, int &switchCase,
+                  std::vector<VectorBTE> &outPopulations, 
                   std::vector<std::tuple<std::vector<int>, int>> qPairIterator,
                   Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
                   BaseBandStructure &innerBandStructure,
                   BaseBandStructure &outerBandStructure,
                   VectorBTE *linewidth);
 
-  friend void addPhElScattering(BasePhScatteringMatrix& matrix, Context& context,
-                  BaseBandStructure& phBandStructure,
-                  BaseBandStructure& elBandStructure,
-                  InteractionElPhWan& couplingElPhWan,
-                  std::shared_ptr<VectorBTE> linewidth);
+  friend void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
+                    std::vector<VectorBTE> &inPopulations,
+                    std::vector<VectorBTE> &outPopulations,
+                    BaseBandStructure &phBandStructure,
+                    BaseBandStructure &elBandStructure,
+                    StatisticsSweep& statisticsSweep, 
+                    InteractionElPhWan &couplingElPhWan,
+                    std::shared_ptr<VectorBTE> linewidth);
 
   friend void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                   std::vector<VectorBTE> &inPopulations,
                   std::vector<VectorBTE> &outPopulations,
-                  int &switchCase,
                   std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
                   Eigen::MatrixXd &innerFermi, Eigen::MatrixXd &outerBose,
                   BaseBandStructure &innerBandStructure,
@@ -151,7 +151,6 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
   friend void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &context,
                   std::vector<VectorBTE> &inPopulations,
                   std::vector<VectorBTE> &outPopulations,
-                  int &switchCase,
                   std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
                   BaseBandStructure &innerBandStructure,
                   BaseBandStructure &outerBandStructure,

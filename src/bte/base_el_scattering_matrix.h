@@ -29,7 +29,6 @@ class BaseElScatteringMatrix : virtual public ScatteringMatrix {
   friend void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                       std::vector<VectorBTE> &inPopulations,
                       std::vector<VectorBTE> &outPopulations,
-                      int &switchCase,
                       std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
                       Eigen::MatrixXd &innerFermi, //Eigen::MatrixXd &outerBose,
                       BaseBandStructure &innerBandStructure,
@@ -41,7 +40,6 @@ class BaseElScatteringMatrix : virtual public ScatteringMatrix {
   friend void addChargedImpurityScattering(BaseElScatteringMatrix &matrix, Context &context,
                       std::vector<VectorBTE> &inPopulations,
                       std::vector<VectorBTE> &outPopulations,
-                      int &switchCase,
                       std::vector<std::tuple<std::vector<int>, int>> kPairIterator,
                       BaseBandStructure &innerBandStructure,
                       BaseBandStructure &outerBandStructure,
@@ -50,7 +48,6 @@ class BaseElScatteringMatrix : virtual public ScatteringMatrix {
   friend void add_eeDMFT(BaseElScatteringMatrix &matrix, const Context &context,
                       //std::vector<VectorBTE> &inPopulations,
                       //std::vector<VectorBTE> &outPopulations,
-                      const int &switchCase,
                       BaseBandStructure &outerBandStructure,
                       std::shared_ptr<VectorBTE> linewidth); 
 

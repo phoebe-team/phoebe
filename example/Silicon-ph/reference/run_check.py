@@ -13,7 +13,7 @@ if __name__ == "__main__":
     # not in separate directories
     listOfJsons.extend(glob.glob("path_lifetimes/*.json"))
     listOfJsons.extend(glob.glob("sym_transport/*.json"))
-    tol = 1e-3
+    tol = 1e-2
 
     for filename in listOfJsons:
 

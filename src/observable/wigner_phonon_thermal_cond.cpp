@@ -55,7 +55,7 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
         // exclude acoustic phonons, cutoff at 0.1 cm^-1
         // setting this to zero here causes acoustic ph
         // contribution below to evaluate to zero
-        if (energies(ib1) < 0.1 / ryToCmm1) {
+        if (energies(ib1) < phEnergyCutoff) {
           bose(iCalc, ib1) = 0.0;
         }
       }
@@ -93,25 +93,44 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
           auto is2Idx = StateIndex(is2);
           int iBte1 = bandStructure.stateToBte(is1Idx).get();
           int iBte2 = bandStructure.stateToBte(is2Idx).get();
-
+          
+          // ensure nearly degenerate states do not cause numerical issues
+          if( abs(energies(ib1) - energies(ib2)) <  0.0001 / energyRyToEv) {
+            velRot(ib1, ib2, 0) = 0; 
+            velRot(ib1, ib2, 1) = 0; 
+            velRot(ib1, ib2, 2) = 0; 
+            velRot(ib2, ib1, 0) = 0; 
+            velRot(ib2, ib1, 1) = 0; 
+            velRot(ib2, ib1, 2) = 0; 
+          }
+                      
           for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+            
+            // avoid the possibility of states with zero scattering time
+            double gamma1 = 0; double gamma2 = 0; 
+            if(!std::isinf(1. / smaRelTimes(iCalc, 0, iBte1))) { 
+              gamma1 = 1. / smaRelTimes(iCalc, 0, iBte1); 
+            }
+            if(!std::isinf(1. / smaRelTimes(iCalc, 0, iBte2))) { 
+              gamma2 = 1. / smaRelTimes(iCalc, 0, iBte2); 
+            }
+            
+            
             for (int ic1 = 0; ic1 < dimensionality; ic1++) {
               for (int ic2 = 0; ic2 < dimensionality; ic2++) {
-
+                               
                 double num =
                     energies(ib1) * bose(iCalc, ib1) * (bose(iCalc, ib1) + 1.) +
                     energies(ib2) * bose(iCalc, ib2) * (bose(iCalc, ib2) + 1.);
                 double vel =
                     (velRot(ib1, ib2, ic1) * velRot(ib2, ib1, ic2)).real();
+                    
                 double den = 4. * pow(energies(ib1) - energies(ib2), 2) +
-                             pow(1. / smaRelTimes(iCalc, 0, iBte1) +
-                                     1. / smaRelTimes(iCalc, 0, iBte2),
-                                 2);
+                             pow(gamma1 + gamma2, 2);
 
                 wignerCorrection(iCalc, ic1, ic2) +=
                     (energies(ib1) + energies(ib2)) * vel * num / den *
-                    (1. / smaRelTimes(iCalc, 0, iBte1) +
-                     1. / smaRelTimes(iCalc, 0, iBte2)) *
+                    (gamma1 + gamma2) *
                     norm(iCalc);
               }
             }

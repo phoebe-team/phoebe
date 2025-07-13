@@ -34,9 +34,7 @@ void PhononTransportApp::run(Context &context) {
   // first we make compute the band structure on the fine grid
   Points fullPoints(crystal, context.getQMesh());
 
-  auto tup1 = ActiveBandStructure::builder(context, phononH0, fullPoints);
-  auto bandStructure = std::get<0>(tup1);
-  auto statisticsSweep = std::get<1>(tup1);
+  auto [bandStructure, statisticsSweep] = ActiveBandStructure::builder(context, phononH0, fullPoints);
 
   // build/initialize the scattering matrix and the smearing
   PhScatteringMatrix scatteringMatrix(context, statisticsSweep, bandStructure,

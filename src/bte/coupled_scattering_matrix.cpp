@@ -220,6 +220,8 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // it calculates internally a third, denser el bandstructure
     // It also internally generates it's k-q pair iterator, as it's only a
     // linewidth calculation and therefore can be parallelized differently.
+    
+    // Below note changed -- it now does update the SMatrix. 
     // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
@@ -245,8 +247,6 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
 
     // Add in the phel contribution
-    // NOTE: would be nicer to use the add operatore from VectorBTE, but bad inheritance design
-    // is causing trouble -- Jenny
     linewidth->data = linewidth->data + postSymLinewidths->data;
 
   }// braces to have postSymLinewidths go out of scope
@@ -517,24 +517,16 @@ std::vector<std::vector<std::tuple<std::vector<int>, int>>>
   // with scattering matrix in mem
 
   // maps of k and q states for self terms
-  std::unordered_map<int, std::vector<int>> kPairMap;
-  std::unordered_map<int, std::vector<int>> qPairMap;
+  std::unordered_map<int, std::vector<int>> kPairMap, qPairMap;
   // maps of k,q pairs and vice versa for drag terms
-  std::unordered_map<int, std::vector<int>> qkPairMap;
-  std::unordered_map<int, std::vector<int>> kqPairMap;
+  std::unordered_map<int, std::vector<int>> qkPairMap, kqPairMap;
 
   // select out the states in each quadrant
-  for(auto matrixState : matrixStateIter) {
-
-    // unpack the state info into matrix indices
-    int iMat1 = std::get<0>(matrixState);
-    int iMat2 = std::get<1>(matrixState);
+  for(auto [iMat1, iMat2] : matrixStateIter) {
 
     // convert to BTE indices (just removing cartesian direction, if sym was present)
-    auto tup = getSMatrixIndex(iMat1);
-    BteIndex iBte1 = std::get<0>(tup);
-    tup = getSMatrixIndex(iMat2);
-    BteIndex iBte2 = std::get<0>(tup);
+    [[maybe_unused]] auto [iBte1, x1] = getSMatrixIndex(iMat1);
+    [[maybe_unused]] auto [iBte2, x2] = getSMatrixIndex(iMat2);
 
     // if it's the el-el one, we do nothing. s1 = el, s2 = el
     if (iBte1.get() < numElStates && iBte2.get() < numElStates) {
@@ -587,8 +579,7 @@ std::vector<std::vector<std::tuple<std::vector<int>, int>>>
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator;
   // both drag terms expect indexes as qindices, k
   // NOTE: realize these are indeed different lists, as the states which are local are different
-  std::vector<std::tuple<std::vector<int>, int>> kqPairIterator;
-  std::vector<std::tuple<std::vector<int>, int>> qkPairIterator;
+  std::vector<std::tuple<std::vector<int>, int>> kqPairIterator, qkPairIterator;
 
   for(auto [ik1, ik2Indices] : kPairMap) {
     std::tuple<std::vector<int>,int> temp = std::make_tuple(ik2Indices,ik1);

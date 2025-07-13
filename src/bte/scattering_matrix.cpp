@@ -510,13 +510,12 @@ VectorBTE ScatteringMatrix::getSingleModeTimes(const VectorBTE& anyInternalDiago
 
   // just using the shape of internalDiagonal, will be overwritten
   VectorBTE times(statisticsSweep, outerBandStructure, 1);
+  times = anyInternalDiagonal.reciprocal();
 
   if (constantRTA) {
     times.setConst(context.getConstantRelaxationTime() / twoPi);
   } else {
-    if (isMatrixOmega) {
-      times = anyInternalDiagonal.reciprocal();
-    } else { // A_nu,nu = N(1+-N) / tau  -- for phonon case
+    if (!isMatrixOmega) { // A_nu,nu = N(1+-N) / tau  -- for phonon case
       auto particle = outerBandStructure.getParticle();
       #pragma omp parallel for
       for (int iBte = 0; iBte < numStates; iBte++) {
@@ -529,7 +528,7 @@ VectorBTE ScatteringMatrix::getSingleModeTimes(const VectorBTE& anyInternalDiago
           double chemPot = calcStatistics.chemicalPotential;
           // n(n+1) for bosons, n(1-n) for fermions
           double popTerm = particle.getPopPopPm1(en, temp, chemPot);
-          times(iCalc, 0, iBte) = popTerm / anyInternalDiagonal(iCalc, 0, iBte);
+          times(iCalc, 0, iBte) = popTerm * times(iCalc, 0, iBte);
         }
       }
     }

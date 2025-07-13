@@ -3,7 +3,6 @@
 #include "mpiHelper.h"
 #include "periodic_table.h"
 #include "interaction_elph.h"
-#include "phel_scattering_matrix.h"
 #include "coupled_scattering_matrix.h"
 
 /** Method to construct the kq pair iterator for this class.
@@ -437,12 +436,11 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 //
                 // Additionally, these are only needed in no-sym case,
                 // as coupled matrix never has sym, is always case = 0
-                int iBte3Shift = ibte3;
-                if(matrix.isCoupled) {
-                  // translate into the phonon-self quadrant if it's a coupled bte
-                  std::tuple<int,int> tup = matrix.shiftToCoupledIndices(ibte3, ibte3, particle, particle);
-                  iBte3Shift = std::get<0>(tup);
-                }
+                //int iBte3Shift = ibte3;
+                //if(matrix.isCoupled) {
+                // translate into the phonon-self quadrant if it's a coupled bte
+                auto [iBte3Shift, [[maybe_unused]] x ] = matrix.shiftToCoupledIndices(ibte3, ibte3, particle, particle);
+                //}
 
                 // case of linewidth construction (the only case, for ph-el)
                 linewidth->operator()(iCalc, 0, iBte3Shift) += rate;

@@ -457,6 +457,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
       }
     }
   }
+  
+  // all reduce the calculated phel linewidths
+  mpi->allReduceSum(&linewidth->data);
   mpi->barrier();
   // better to close loopPrint after the MPI barrier: all MPI are synced here
   loopPrint.close();

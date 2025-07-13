@@ -229,8 +229,6 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                       couplingElPh, postSymLinewidths);
     mpi->barrier();
 
-    // all reduce the calculated phel linewidths
-    mpi->allReduceSum(&postSymLinewidths->data);
     // TODO maybe output these phel linewidths?
 
     // Add drag terms ----------------------------------------------

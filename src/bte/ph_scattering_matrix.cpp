@@ -155,9 +155,6 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                       innerBandStructure, elBandStructure, elStatisticsSweep,
                       couplingElPh, phelLinewidths);
 
-    // all reduce the calculated phel linewidths
-    mpi->allReduceSum(&phelLinewidths->data);
-
     // output these phel linewidths (these do not need "getLinewidths")
     // as phel does not recieve a symmetrization factor
     phelLinewidths->outputToJSON("rta_phel_relaxation_times.json", outerBandStructure);

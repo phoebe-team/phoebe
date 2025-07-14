@@ -86,9 +86,9 @@ void PhononThermalConductivity::calcFromPopulation(VectorBTE &n) {
       int iBte = bandStructure.stateToBte(isIdx).get();
 
       // skip the acoustic phonons
-      if (std::find(excludeIndices.begin(), excludeIndices.end(), iBte) !=
-          excludeIndices.end())
+      if (std::ranges::find(excludeIndices, iBte) != excludeIndices.end()) {
         return;
+      }
 
       auto rots = bandStructure.getRotationsStar(isIdx);
       for (const Eigen::Matrix3d &rot : rots) {
@@ -224,7 +224,7 @@ void PhononThermalConductivity::calcFromRelaxons(
 
   int iCalc = 0; // relaxons only allows one calc in memory
   double temp = statisticsSweep.getCalcStatistics(iCalc).temperature;
-  double chemPot = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
+  double chemPot = 0; //statisticsSweep.getCalcStatistics(iCalc).chemicalPotential; // must be zero 
   VectorBTE population(statisticsSweep, bandStructure, dimensionality);
 
   // if we only calculated some eigenvalues,

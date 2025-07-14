@@ -265,8 +265,8 @@ at the mesoscale,
    -D_{\mathrm{pe}}^{ij} u_e^j
 
 
-which reduce to the Gurzhi equation, the Viscous Heat Equations, or diffusive thermoelectric equations in certain limits.
-Using ``SolViTE`` (soon to be linked here), one can use a finite element differential equation solution to produce the solution
+which reduce to the Gurzhi equation, the Viscous Heat Equations, or diffusive thermoelectric equations in certain limits. 
+One can use a finite element differential equation solution to produce the solution
 a non-trivial sample geometry, as exemplified below for a mixing device with specified boundary conditions.
 
 .. image:: ../images/VTE.png

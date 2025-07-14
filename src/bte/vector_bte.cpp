@@ -311,9 +311,6 @@ void VectorBTE::outputToJSON(const std::string &outFileName, BaseBandStructure& 
     energyConversion *= 1000;
     relaxationTimeUnit = "ps"; // phonon times more commonly in ps
     energyToTime *= 1e-3;
-    // this is a bit of a hack to deal with phel scattering, where stat sweep
-    // has nonzero mu values in spite of it being a phonon case
-
   } else {
     particleType = "electron";
   }

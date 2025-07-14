@@ -8,14 +8,14 @@ electronH0Name = "../../Silicon-el/qe-elph/si_tb.dat"
 elphFileName = "../../Silicon-el/qe-elph/silicon.phoebe.elph.hdf5"
 
 useSymmetries = true
-kMesh = [35, 35, 35]
-qMesh = [5,5,5]
-temperatures = [300.]
+kMesh = [50, 50, 50]
+qMesh = [10,10,10]
+temperatures = [100.]
 
 smearingMethod = "gaussian"
-smearingWidth = 10. cmm1
+smearingWidth = 50. cmm1
 numOccupiedStates = 4
-dopings = [1.e21]
+dopings = [1.e22]
 
 solverBTE = ["iterative"]
 symmetrizeMatrix = false

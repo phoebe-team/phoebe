@@ -72,13 +72,14 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
   Crystal crystal = innerBandStructure.getPoints().getCrystal();
-  InteractionElPhWan couplingElPh =
-      InteractionElPhWan::parse(context, crystal, phononH0);
+  auto couplingElPh =
+        InteractionElPhWan::parse(context, crystal, phononH0);
 
-  addElPhScattering(*this, context, inPopulations, outPopulations, switchCase,
-                                  kPairIterator, innerFermi, //outerFermi,
-                                  innerBandStructure, outerBandStructure, phononH0,
-                                  couplingElPh, linewidth);
+    addElPhScattering(*this, context, inPopulations, outPopulations, switchCase,
+                                    kPairIterator, innerFermi,
+                                    innerBandStructure, outerBandStructure,
+                                    phononH0, couplingElPh,
+                                    linewidth);
   }
   // add charged impurity electron scattering  -------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
@@ -87,10 +88,10 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 */
   // TODO was there previously an all reduce between these two on
   //the linewidths? why is that?
-  // probably because boundary scattering was earlier not distributed 
+  // probably because boundary scattering was earlier not distributed
 
   // add DMFT fermi liquid contribution  -------------------
-  // currently we don't add ee time to linewidthMR. I think this is correct. 
+  // currently we don't add ee time to linewidthMR. I think this is correct.
   //add_eeDMFT(*this, context, switchCase, outerBandStructure, linewidth);
 
   // Add boundary scattering ------------------------------------
@@ -160,7 +161,7 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
   Kokkos::Profiling::popRegion();
 
-  // before closing, write the relaxation times to file 
+  // before closing, write the relaxation times to file
   // remember to first convert to a vector BTE object without symmetrization
   getLinewidths(*linewidthMR).outputToJSON("mrta_el_relaxation_times.json", outerBandStructure);
   getLinewidths(*linewidth).outputToJSON("rta_el_relaxation_times.json", outerBandStructure);

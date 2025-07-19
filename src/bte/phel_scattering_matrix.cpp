@@ -51,15 +51,15 @@ void PhElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // TODO we should let this go out of scope 
   // read in elph coupling 
-  InteractionElPhWan couplingElPh = 
-                      InteractionElPhWan::parse(context, 
-                      innerBandStructure.getPoints().getCrystal(), // crystal associated with ph 
-                      *phononH0);
+  auto couplingElPh =
+      InteractionElPhWan::parse(context,
+                                innerBandStructure.getPoints().getCrystal(), // crystal associated with ph
+                                *phononH0);
 
   // compute the phonon electron lifetimes
   addPhElScattering(*this, context, getPhBandStructure(), elBandStructure,
-                    statisticsSweep, 
-                    couplingElPh, linewidth);
+                    statisticsSweep, couplingElPh, linewidth);
+
 
   // reduce as this is parallelized over mpi processes for wavevectrors
   mpi->allReduceSum(&linewidth->data);

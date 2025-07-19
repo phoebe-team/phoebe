@@ -238,7 +238,7 @@ public:
         const Eigen::Matrix3d &epsilon,
         const Eigen::Tensor<double, 3> &bornCharges,
         const Eigen::MatrixXd &atomicPositions,
-        const Eigen::Vector3i &qCoarseMesh); // No dimensionality as in original header
+        const Eigen::Vector3i &qCoarseMesh);
 
 
     /** Static version of polarCorrectionPart1.
@@ -257,7 +257,7 @@ public:
         const Eigen::Vector3d& q3, const Eigen::MatrixXcd& ev3,
         const double& volume, const Eigen::Matrix3d& reciprocalUnitCell,
         const Eigen::Matrix3d &epsilon, const Eigen::Tensor<double, 3> &bornCharges,
-        const Eigen::MatrixXd &atomicPositions, const Eigen::Vector3i &qCoarseMesh); // No dimensionality as in original header
+        const Eigen::MatrixXd &atomicPositions, const Eigen::Vector3i &qCoarseMesh);
 
 
     /** Static version of polarCorrectionPart2.

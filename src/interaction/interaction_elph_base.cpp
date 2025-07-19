@@ -46,7 +46,12 @@ InteractionElPhBase::InteractionElPhBase(Crystal &crystal_, PhononH0 *phononH0_,
         usePolarCorrection = true;
       }
     }
-  }
+}
+
+void InteractionElPhBase::requirePhononH0() const {
+    if (phononH0 == nullptr) {
+        throw std::runtime_error("PhononH0 required for this operation but was not provided.");
+    }
 }
 
 void InteractionElPhBase::requirePhononH0() const {

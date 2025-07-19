@@ -310,7 +310,8 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
         #pragma omp parallel for
         for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
-          matrix.symmetrizeCoupling(couplingElPhWan.getCouplingSquared(iQBatch),
+          Eigen::Tensor<double, 3> coupling = couplingElPhWan.getCouplingSquared(iQBatch);
+          matrix.symmetrizeCoupling(coupling,
                     stateEnergiesK, allStateEnergiesKp[iQBatch], allStateEnergiesQ[iQBatch]
           );
         }
@@ -326,7 +327,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
 
           // grab the coupling matrix elements for the batch of q points
           // returns |g(m,m',nu)|^2
-          Eigen::Tensor<double, 3>& couplingSq = couplingElPhWan.getCouplingSquared(iQBatch);
+          Eigen::Tensor<double, 3> couplingSq = couplingElPhWan.getCouplingSquared(iQBatch);
 
           Eigen::Vector3d qCartesian = allQCartesian[iQBatch];
           WavevectorIndex iQIdx(iQ);

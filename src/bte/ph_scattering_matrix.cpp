@@ -29,8 +29,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                  std::vector<VectorBTE> &inPopulations,
                                  std::vector<VectorBTE> &outPopulations) {
 
-  if(mpi->mpiHead()) 
-    std::cout << "============== Building phonon scattering matrix ==============\n" << std::endl; 
+  if(mpi->mpiHead())
+    std::cout << "============== Building phonon scattering matrix ==============\n" << std::endl;
 
   // 3 cases:
   // theMatrix and linewidth is passed: we compute and store in memory the
@@ -71,7 +71,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // here we call the function to add ph-ph scattering
   if(!context.getPhFC3FileName().empty()) {
-    // read this in and let it go out of scope afterwards 
+    // read this in and let it go out of scope afterwards
     Interaction3Ph coupling3Ph = IFC3Parser::parse(context, crystal);
 
     addPhPhScattering(*this, context, inPopulations, outPopulations,
@@ -101,7 +101,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
 
-  // MPI reduce the distributed data 
+  // MPI reduce the distributed data
   if (switchCase == 1) {
     for (auto & outPopulation : outPopulations) {
       mpi->allReduceSum(&outPopulation.data);
@@ -122,7 +122,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // IMPORTANT NOTE: the ph-el scattering does not receive symmetrization factor
     // because it doesn't have these factors of n(n+1) in the scattering rates.
     // Therefore, we should symmetrize here, then add these term afterwards.
-    // Only needs to be done if matrix is in memory already 
+    // Only needs to be done if matrix is in memory already
     if(highMemory) a2Omega();
     mpi->barrier(); // need to finish this before adding phel scattering
 
@@ -156,11 +156,12 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
-    addPhElScattering(*this, context, 
-                      innerBandStructure, elBandStructure, elStatisticsSweep,  
-                      couplingElPh, phelLinewidths);
+    addPhElScattering(*this, context,
+                      innerBandStructure, outerBandStructure,
+                      statisticsSweep, couplingElPh,
+                      linewidth);
 
-    // all reduce the calculated phel linewidths 
+    // all reduce the calculated phel linewidths
     mpi->allReduceSum(&phelLinewidths->data);
 
     // output these phel linewidths (these do not need "getLinewidths")
@@ -168,13 +169,13 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     phelLinewidths->outputToJSON("rta_phel_relaxation_times.json", outerBandStructure);
 
     // Add in the phel contribution
-    // TODO better to just add the vectorBTE objects? 
+    // TODO better to just add the vectorBTE objects?
     linewidth->data = linewidth->data + phelLinewidths->data;
 
     //std::cout << phelLinewidths->data << std::endl;
 
     // convert the matrix back to A to carry on as usual
-    if(highMemory) omega2A(); 
+    if(highMemory) omega2A();
 
   }// braces to have elph coupling go out of scope
 
@@ -187,8 +188,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
 
-  // recalculate the phonon linewidths from the off diagonals 
-  // we should do this if phel is not involved, otherwise it wipes out phel 
+  // recalculate the phonon linewidths from the off diagonals
+  // we should do this if phel is not involved, otherwise it wipes out phel
   //reinforceLinewidths();
 
   // some phonons like acoustic modes at the gamma, with omega = 0,
@@ -266,9 +267,6 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
       }
     }
   }
-  // write RTA times to output 
+  // write RTA times to output
   getLinewidths(*linewidth).outputToJSON("rta_ph_relaxation_times.json", outerBandStructure);
 }
-
-
-

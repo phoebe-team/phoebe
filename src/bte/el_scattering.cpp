@@ -144,10 +144,14 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
       Kokkos::Profiling::pushRegion("symmetrize coupling");
 #pragma omp parallel for
       for (int ik2Batch = 0; ik2Batch < batch_size; ik2Batch++) {
-        matrix.symmetrizeCoupling(
-            couplingElPhWan.getCouplingSquared(ik2Batch),
-            state1Energies, allState2Energies[ik2Batch], allStates3Energies[ik2Batch]
-        );
+          // Create a local, non-const copy of the tensor
+          Eigen::Tensor<double, 3> coupling_copy = couplingElPhWan.getCouplingSquared(ik2Batch);
+
+          // Pass the safe, modifiable copy to the function
+          matrix.symmetrizeCoupling(
+              coupling_copy,
+              state1Energies, allState2Energies[ik2Batch], allStates3Energies[ik2Batch]
+          );
       }
       Kokkos::Profiling::popRegion();
 
@@ -157,7 +161,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
 
         int ik2 = ik2Indexes[start + ik2Batch];
 
-        Eigen::Tensor<double, 3>& coupling = couplingElPhWan.getCouplingSquared(ik2Batch);
+        Eigen::Tensor<double, 3> coupling = couplingElPhWan.getCouplingSquared(ik2Batch);
 
         Eigen::Vector3d k2C = allK2C[ik2Batch];
         auto t3 = innerBandStructure.getRotationToIrreducible(k2C, Points::cartesianCoordinates);
@@ -248,7 +252,7 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                 //double mu = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
 
                 // Calculate transition probability W+
-                double rate = 
+                double rate =
                     coupling(ib1, ib2, ib3) * ((fermi2 + bose3) * delta1
                        + (1. - fermi2 + bose3) * delta2) * norm / en3 * pi;
 

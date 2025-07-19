@@ -127,15 +127,16 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // TODO we should let this go out of scope
   // read in elph coupling
-  InteractionElPhWan couplingElPh =
+  auto couplingElPh =
         InteractionElPhWan::parse(context, innerBandStructure.getPoints().getCrystal(), *phononH0);
 
   // add el-ph scattering ----------------------------------------------
   addElPhScattering(*this, context, inPopulations, outPopulations,
-                          switchCase, kPairIterator,
-                          fermiOccupations,
-                          outerBandStructure, outerBandStructure,
-                          *phononH0, couplingElPh, linewidth);
+                    switchCase, kPairIterator,
+                    fermiOccupations,
+                    innerBandStructure, outerBandStructure,
+                    *phononH0, couplingElPh,
+                    linewidth);
 
   // add charged impurity electron scattering  ------------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
@@ -153,7 +154,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                     switchCase, qPairIterator,
                                     boseOccupations, boseOccupations,
                                     innerBandStructure, innerBandStructure,
-                                    *phononH0, coupling3Ph, linewidth); 
+                                    *phononH0, coupling3Ph, linewidth);
   }
 
   // Isotope scattering ------------------------------------------------
@@ -231,7 +232,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                          couplingElPh, innerBandStructure, outerBandStructure);
       // now the ph drag term
       addDragTerm(*this, context, qkPairIterator, 1,
-                         couplingElPh, innerBandStructure, outerBandStructure);
+                         couplingElPh, outerBandStructure, innerBandStructure);
     }
 
     // Add in the phel contribution
@@ -322,10 +323,10 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
    if(context.getUseDragTerms()) {
 
     // use drag ASR to correct the drag terms and recompute the phel linewidths
-    phononElectronAcousticSumRule(*this, context, 
+    phononElectronAcousticSumRule(*this, context,
                                   outerBandStructure,   // electron bands
                                   innerBandStructure);  // phonon bands
-  }  
+  }
 
   // use the off diagonals to calculate the linewidths,
   // to ensure the special eigenvectors can be found/preserve conservation of momentum
@@ -673,5 +674,3 @@ void CoupledScatteringMatrix::reweightQuadrants() {
 
 BaseBandStructure* CoupledScatteringMatrix::getPhBandStructure() { return &innerBandStructure; }
 BaseBandStructure* CoupledScatteringMatrix::getElBandStructure() { return &outerBandStructure; }
-
-

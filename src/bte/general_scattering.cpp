@@ -20,9 +20,9 @@ void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
                                 std::vector<VectorBTE> &outPopulations,
                                 BaseBandStructure &bandStructure,
                                 std::shared_ptr<VectorBTE> linewidth) {
+
   if(mpi->mpiHead()) {
-    std::cout <<
-        "Adding boundary scattering to the scattering matrix." << std::endl;
+    std::cout << "\n------------- Boundary scattering -------------" << std::endl;
   }
 
   double boundaryLength = context.getBoundaryLength();
@@ -90,5 +90,6 @@ void addBoundaryScattering(ScatteringMatrix &matrix, Context &context,
       }
     }
   Kokkos::Profiling::popRegion();
+  if(mpi->mpiHead()) std::cout << std::endl;
 }
 

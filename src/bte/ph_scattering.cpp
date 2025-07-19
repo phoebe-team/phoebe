@@ -26,7 +26,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                                  Interaction3Ph& coupling3Ph,
                                  std::shared_ptr<VectorBTE> linewidth) {
   if(mpi->mpiHead())
-    std::cout << "------------- Phonon-phonon scattering -------------\n" << std::endl;
+    std::cout << "------------- Phonon-phonon scattering -------------" << std::endl;
 
   // notes: + process is (1+2) -> 3
   //        - processes are (1+3)->2 and (3+2)->1
@@ -75,10 +75,8 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
    * PointHelper too assumes that order of loop execution.
    */
   // outer loop over q2
-  for (auto tup : qPairIterator) {
+  for (auto [iq1Indexes,iq2] : qPairIterator) {
 
-    std::vector<int> iq1Indexes = std::get<0>(tup);
-    int iq2 = std::get<1>(tup);
     WavevectorIndex iq2Index(iq2);
 
     Point q2Point = innerBandStructure.getPoint(iq2);
@@ -90,11 +88,9 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
 
     auto nq1 = int(iq1Indexes.size());
 
-    auto t = innerBandStructure.getRotationToIrreducible(
+    auto [iq2Irr, rotation] = innerBandStructure.getRotationToIrreducible(
         q2Point.getCoordinates(Points::cartesianCoordinates), Points::cartesianCoordinates);
-    int iq2Irr = std::get<0>(t);
     WavevectorIndex iq2IrrIndex(iq2Irr);
-    Eigen::Matrix3d rotation = std::get<1>(t);
     // rotation such that qIrr = R * qRed
 
     loopPrint.update();
@@ -182,11 +178,9 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
       }
 
       // calculate batch of couplings
-      auto tuple1 = coupling3Ph.getCouplingsSquared(
+      auto [couplingPlus_v, couplingMinus_v] = coupling3Ph.getCouplingsSquared(
           q1_v, q2, ev1_v, ev2, ev3Plus_v, ev3Minus_v,
           nb1_v, nb2, nb3Plus_v, nb3Minus_v);
-      auto couplingPlus_v = std::get<0>(tuple1);
-      auto couplingMinus_v = std::get<1>(tuple1);
 
 #pragma omp parallel for
       for (int iq1Batch = 0; iq1Batch < batch_size; iq1Batch++) {
@@ -306,16 +300,12 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                 // as coupled matrix never has sym, is always case = 0
                 int iBte1Shift = iBte1;
                 int iBte2Shift = iBte2;
-                //BteIndex iBte1ShiftIdx(iBte1);
-                //BteIndex iBte2ShiftIdx(iBte2);
                 if(matrix.isCoupled) {
                   // translate these into the phonon-phonon quadrant if it's a coupled bte
                   std::tuple<int,int> tup =
                         matrix.shiftToCoupledIndices(iBte1, iBte2, particle, particle);
                   iBte1Shift = std::get<0>(tup);
                   iBte2Shift = std::get<1>(tup);
-                  //iBte1ShiftIdx = BteIndex(iBte1Shift);
-                  //iBte2ShiftIdx = BteIndex(iBte2Shift);
                 }
 
                 if (matrix.matrixCase == fullMatrix) { // case of matrix construction
@@ -505,7 +495,6 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                         linewidth->operator()(iCalc, 0, iBte2Shift) += 0.5 * (rateMinus1 + rateMinus2);
                       }
                     }
-
                   }
                 } else if (matrix.matrixCase == matrixVectorProduct) { // matrix-vector multiplication
                   for (unsigned int iInput = 0; iInput < inPopulations.size(); iInput++) {
@@ -573,6 +562,7 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
     }
   }
   loopPrint.close();
+  //if(mpi->mpiHead()) std::cout << std::endl; // print just for aesthetics 
 }
 
 // ISOTOPE SCATTERING =====================================================
@@ -589,7 +579,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
   // TODO add developer safety checks on these functions to make ssure it's bose , ph bands , etc
 
   if(mpi->mpiHead()) {
-    std::cout << "\nAdding isotope scattering to the scattering matrix." << std::endl;
+    std::cout << "\n------------- Phonon-isotope scattering -------------" << std::endl;
   }
 
   // setup smearing using phonon band structure

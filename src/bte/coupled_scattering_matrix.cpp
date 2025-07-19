@@ -9,7 +9,12 @@
 #include "interaction_elph.h"
 #include "scattering_matrix.h"
 #include <map>
-
+/* 
+enum DragType {
+  elph,
+  phel
+};
+ */
 CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
                                       StatisticsSweep &statisticsSweep_,
                                       BaseBandStructure &innerBandStructure_, // phonon
@@ -31,6 +36,9 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
   numPhStates = int(innerBandStructure.getNumStates());
   numElStates = int(outerBandStructure.getNumStates());
   isCoupled = true;
+  
+  matrixCase = fullMatrix; 
+  
   // TODO this is only actually true after we call phononOnlyA2Omega at the bottom of the scattering
   // process addition section.
   // Otherwise, because ph scattering not symmetrized and el scattering is symmetrized,
@@ -80,12 +88,12 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
   }
   // scattering matrix also must be in memory
   if(!highMemory) {
-    DeveloperError("Cannot construct coupled matrix without full matrix in memory.");
+    Error("Cannot construct coupled matrix without full matrix in memory. Set scatteringMatrixInMemory=true");
   }
   // block symmetry use as relaxons solver cannot benefit from this,
   // and relaxons are the only point of this matrix
   if (context.getUseSymmetries()) {
-    DeveloperError("Currently cannot use symmetry for the calculation of the coupled scattering matrix.");
+    Error("Currently cannot use symmetry for the calculation of the coupled scattering matrix.");
   }
 }
 
@@ -396,9 +404,6 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
   double temp = calcStatistics.temperature;
   double chemPot = 0;
 
-  //auto allLocalStates = theMatrix.getAllLocalStates();
-  //size_t numAllLocalStates = allLocalStates.size();
-  
   // when there are no symmetries, ibte = imat
   // However, for band structure access,
   // remember that these states are in quadrant 4 for ph-self,

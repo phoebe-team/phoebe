@@ -57,7 +57,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                       std::shared_ptr<VectorBTE> linewidth) {
 
   if(mpi->mpiHead())
-    std::cout << "\n------------- Phonon-electron scattering -------------\n" << std::endl;
+    std::cout << "\n------------- Phonon-electron scattering -------------" << std::endl;
 
   // throw error if it's not a correct band structure
   if(!phBandStructure.getParticle().isPhonon()
@@ -225,8 +225,8 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
     // This means we need to multiply by the weights of the irr k1s
     // in our integration over the BZ. This returns the list of kpoints
     // that map to this irr kpoint
-    //double k1Weight = elBandStructure.getPoints().
-    //                            getReducibleStarFromIrreducible(ik1).size();
+    double k1Weight = elBandStructure.getPoints().
+                                getReducibleStarFromIrreducible(ik1).size();
 
     // precompute first fourier transform + rotation by k1
     couplingElPhWan.cacheElPh(eigenVector1, k1Cartesian);
@@ -315,7 +315,12 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         Eigen::VectorXd state3Energies = phBandStructure.getEnergies(iq3Idx); // iq3Idx
         Eigen::VectorXd state2Energies = elBandStructure.getEnergies(ik2Idx); // iq3Idx
         auto nb2 = int(state2Energies.size());
-
+        
+        // rotation such that qIrr = R * qRed -- TODO used in matVecProd only? 
+        Eigen::Vector3d q3 = phBandStructure.getWavevector(iq3Idx);
+        auto [iq3Irr, rotation] = phBandStructure.getRotationToIrreducible(q3, Points::cartesianCoordinates);
+        WavevectorIndex iq3IrrIdx(iq3Irr);
+        
         // NOTE: these loops are already set up to be applicable to gpus
         // the precomputaton of the smearing values and the open mp loops could
         // be converted to GPU relevant version
@@ -380,17 +385,19 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         for (int ib3 = 0; ib3 < nb3; ib3++) {
           for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
 
-            int is3 = phBandStructure.getIndex(iq3Idx, BandIndex(ib3));
+            //BteIndex ibteIdx3 = phBandStructure.stateToBte(isIdx3);
+            //int ibte3 = ibteIdx3.get();
+            double en3 = state3Energies(ib3);
+            
+            //int is3 = phBandStructure.getIndex(iq3Idx, BandIndex(ib3));
             // the BTE index is an irr point which indexes VectorBTE objects
             // like the linewidths + scattering matrix -- as these are
-            // only allocated for irr points when sym is on
-            StateIndex isIdx3(is3);
-            BteIndex ibteIdx3 = phBandStructure.stateToBte(isIdx3);
-            int ibte3 = ibteIdx3.get();
-            double en3 = state3Energies(ib3);
-            // rotation such that qIrr = R * qRed
-            Eigen::Vector3d q3 = phBandStructure.getWavevector(isIdx3);
-            [[maybe_unused]] auto [_, rotation] = phBandStructure.getRotationToIrreducible(q3, Points::cartesianCoordinates);
+            // only allocated for irr points when sym is on    
+            int is3 = phBandStructure.getIndex(iq3Idx, BandIndex(ib3));
+            int is3Irr = phBandStructure.getIndex(iq3IrrIdx, BandIndex(ib3));
+            StateIndex is3Idx(is3);
+            StateIndex is3IrrIdx(is3Irr);
+            int iBte3 = phBandStructure.stateToBte(is3IrrIdx).get();
             
             // remove small divergent phonon energies
             if (en3 < phEnergyCutoff) { continue; }
@@ -423,29 +430,34 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 //    * norm / temperatures(iCalc) * pi * k1Weight;
 
                 if (smearingValues(ib1, ib2, ib3) <= 0.) { continue; }
-
+                
+                double symFac = 1; 
+                if(matrix.isCoupled) {
+                  symFac = sinh(0.5 * en3 / temperatures(iCalc)) /
+                  (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
+                  * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)));
+                }
+                
                 double rate =
                     coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)
                     smearingValues(ib1, ib2, ib3)
-                    * norm * pi / en3 //* k1Weight
-                    * sinh(0.5 * en3 / temperatures(iCalc)) /
-                    (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
-                    * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)));
+                    * norm * pi / en3 * k1Weight * symFac; 
 
                 // case of linewidth construction (the only case, for ph-el)
-                //linewidth->operator()(iCalc, 0, iBte3Shift) += rate;
+                //linewidth->operator()(iCalc, 0, iBte3) += rate;
                 
+                // TODO should these 
                 matrix.addRateToMatrix(context, rate, rate, iCalc, 
-                  is3, is3, ibte3, ibte3, 
+                  is3, is3Irr, iBte3, iBte3, 
                   particle, particle, 
                   rotation, linewidth, 
                   inPopulations, outPopulations); 
-  
+
                 // for now, we only do UN scattering in the case of linewidth contruction 
                 if(matrix.matrixCase == linewidthOnly) {
                   std::array<Point, 2> pts{phBandStructure.getPoint(iq3), elBandStructure.getPoint(ik1)};
                   auto momentumCons = [](Eigen::Vector3d &qWs3, Eigen::Vector3d &kWs1){return qWs3 + kWs1;}; 
-                  matrix.addUNRates(iCalc, ibte3, rate, pts, momentumCons); 
+                  matrix.addUNRates(iCalc, iBte3, rate, pts, momentumCons); 
                 }
                 
                 //NOTE: for eliashberg function, we could here add another vectorBTE object
@@ -458,11 +470,12 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
       }
     }
   }
-  // all reduce the calculated phel linewidths
-  mpi->allReduceSum(&linewidth->data);
   mpi->barrier();
   // better to close loopPrint after the MPI barrier: all MPI are synced here
   loopPrint.close();
+  // all reduce the calculated phel linewidths
+  mpi->allReduceSum(&linewidth->data);
+  if(mpi->mpiHead()) std::cout << std::endl;
 }
 
 // TODO move this to coupled BTE object

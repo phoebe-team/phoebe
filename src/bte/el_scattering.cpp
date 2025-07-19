@@ -29,6 +29,9 @@ void addElPhScattering(BaseElScatteringMatrix &matrix, Context &context,
                        InteractionElPhWan &couplingElPhWan,
                        std::shared_ptr<VectorBTE> linewidth) {
 
+  if(mpi->mpiHead())
+    std::cout << "------------- Electron-phonon scattering -------------" << std::endl;
+
   StatisticsSweep &statisticsSweep = matrix.statisticsSweep;
 
   DeltaFunction *smearing = DeltaFunction::smearingFactory(context, innerBandStructure);

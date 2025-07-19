@@ -25,6 +25,10 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
     DeveloperError("Drag is only implemented for the fullMatrix case currently.");
   }
   
+  if(mpi->mpiHead()) {
+    if(dragTermType == 0) std::cout << "------------- El-ph Drag scattering -------------" << std::endl;
+    else { std::cout << "------------- El-ph Drag scattering -------------" << std::endl; }
+  }
   // Notes:
   // The matrix we are trying to fill in here is the coupled BTE matrix
   // * We are trying to fill here the upper right hand side of it, D_{el-ph},
@@ -508,5 +512,6 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
     } // loop over batches
   } // pair iterator loop
   loopPrint.close();
+  if(mpi->mpiHead()) std::cout << std::endl;
 }
 

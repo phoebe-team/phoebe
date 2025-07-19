@@ -54,7 +54,6 @@ class BasePhScatteringMatrix : virtual public ScatteringMatrix {
                                   StatisticsSweep& statisticsSweep, 
                                   InteractionElPhWan &couplingElPhWan,
                                   std::shared_ptr<VectorBTE> linewidth);
-
 };
 
 #endif

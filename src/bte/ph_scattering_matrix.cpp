@@ -9,6 +9,7 @@
 #include "phel_scattering.h"
 #include "ifc3_parser.h"
 #include "interaction_elph.h"
+#include "scattering_matrix.h"
 
 PhScatteringMatrix::PhScatteringMatrix(Context &context_,
                                        StatisticsSweep &statisticsSweep_,
@@ -80,7 +81,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
       addBoundaryScattering(*this, context, inPopulations, outPopulations,
                                   outerBandStructure, linewidth);
     }
-  }
+  } 
 
   // MPI reduce the distributed data
   if (matrixCase == matrixVectorProduct) {
@@ -98,13 +99,15 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   if(!context.getElphFileName().empty()) {
 
     // output the phph linewidths -- getLinewidths removes sym factors as needed 
-    getLinewidths(*linewidth).outputToJSON("rta_phph_relaxation_times.json", outerBandStructure);
-
-    // IMPORTANT NOTE: the ph-el scattering does not receive symmetrization factor
-    // because it doesn't have these factors of n(n+1) in the scattering rates.
-    // Therefore, we should symmetrize here, then add these term afterwards.
-    // Only needs to be done if matrix is in memory already
-    if(highMemory) a2Omega();
+    if(matrixCase != matrixVectorProduct) getLinewidths(*linewidth).outputToJSON("rta_phph_relaxation_times.json", outerBandStructure);
+    
+    // Phonon scattering matrix is by default constructured without symmetrization factors 
+    // as in, it's A from Fugallo et al. 
+    
+    // in the ph only case, the matrix is constructed without symmetrization. 
+    // here, phel is constructed that way as well. Inside phel scattering, it's only 
+    // going to add symmetrization if the matrix is coupled. 
+    
     mpi->barrier(); // need to finish this before adding phel scattering
 
     // later add these to the linewidths
@@ -127,32 +130,25 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
               "but crystals used for ph-ph and \n"
               "ph-el scattering are not the same!");
     }
-
+    
     // Phel gerates it's k-q pair iterator, as it's only a
     // linewidth calculation and therefore can be parallelized differently.
-    // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
-    // requires the replacing of the linewidths object into the SMatrix diagonal at the
-    // end of this function
     addPhElScattering(*this, context, inPopulations, outPopulations,
                       innerBandStructure, elBandStructure, elStatisticsSweep,
                       couplingElPh, phelLinewidths);
 
     // output these phel linewidths (these do not need "getLinewidths")
-    // as phel does not recieve a symmetrization factor
-    //getLinewidths(*phelLinewidths).outputToJSON("rta_phel_relaxation_times.json", outerBandStructure);
-    phelLinewidths->outputToJSON("rta_phel_relaxation_times.json", outerBandStructure);
-
-    // Add in the phel contribution
-    // TODO better to just add the vectorBTE objects?
-    linewidth->data = linewidth->data + phelLinewidths->data;
-
-    // convert the matrix back to A to carry on as usual
-    if(highMemory) omega2A();
+    // as phel does not recieve a symmetrization factor        
+    if(matrixCase != matrixVectorProduct) {
+      phelLinewidths->outputToJSON("rta_phel_relaxation_times.json", outerBandStructure);
+      // add the phel data to the final linewidth data 
+      linewidth->data = linewidth->data + phelLinewidths->data;
+    }
 
   }// braces to have elph coupling go out of scope
 
   // Average over degenerate eigenstates.
-  if (matrixCase == linewidthOnly) {
+  if (matrixCase == linewidthOnly) { 
     degeneracyAveragingLinewidths(linewidth);
     if(outputUNTimes) {
       degeneracyAveragingLinewidths(internalDiagonalUmklapp);
@@ -235,16 +231,18 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
       }
     } else {
       for (int is = 0; is < numStates; is++) {
-        theMatrix(is, is) = linewidth->operator()(iCalc, 0, is);
+        theMatrix(is, is) = linewidth->operator()(iCalc, 0, is);  // TODO is this an issue, actually... ? += ? 
       }
     }
   }
   // write RTA times to output
   // getLinewidths will remove symmetrization factors, preparing these times to be output. 
-  getLinewidths(*linewidth).outputToJSON("rta_ph_relaxation_times.json", outerBandStructure);
-  if(outputUNTimes) { 
-    getLinewidths(*internalDiagonalNormal).outputToJSON("rta_ph_N_relaxation_times.json", outerBandStructure); 
-    getLinewidths(*internalDiagonalUmklapp).outputToJSON("rta_ph_U_relaxation_times.json", outerBandStructure); 
+  if(matrixCase != matrixVectorProduct) {
+    getLinewidths(*linewidth).outputToJSON("rta_ph_relaxation_times.json", outerBandStructure);
+    if(outputUNTimes) { 
+      getLinewidths(*internalDiagonalNormal).outputToJSON("rta_ph_N_relaxation_times.json", outerBandStructure); 
+      getLinewidths(*internalDiagonalUmklapp).outputToJSON("rta_ph_U_relaxation_times.json", outerBandStructure); 
+    }
   }
 }
 

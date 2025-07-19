@@ -64,7 +64,6 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
     size_t size = numPoints;
     size *= numFullBands; 
     size *= size_t(numFullBands) * size_t(3); 
-    if(mpi->mpiHead()) std::cout << "size " << size << std::endl;
     if(withVelocities) velocities.resize(size, complexZero);
   } catch(std::bad_alloc& e) {
     Error("Failed to allocate band structure velocities.\n"

@@ -24,6 +24,9 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                  std::vector<VectorBTE> &inPopulations,
                                  std::vector<VectorBTE> &outPopulations) {
 
+  if(mpi->mpiHead())
+    std::cout << "============== Building electron scattering matrix ==============" << std::endl;
+
   Kokkos::Profiling::pushRegion("ElScatteringMatrix::builder");
 
   // set in the parent object what kind of matrix this is                            
@@ -143,13 +146,16 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // before closing, write the relaxation times to file 
   // remember to first convert to a vector BTE object without symmetrization
-  getLinewidths(*linewidthMR).outputToJSON("mrta_el_relaxation_times.json", outerBandStructure);
-  getLinewidths(*linewidth).outputToJSON("rta_el_relaxation_times.json", outerBandStructure);
-  
-  if(outputUNTimes) { 
-    getLinewidths(*internalDiagonalNormal).outputToJSON("rta_el_N_relaxation_times.json", outerBandStructure); 
-    getLinewidths(*internalDiagonalUmklapp).outputToJSON("rta_el_U_relaxation_times.json", outerBandStructure); 
-  }
+  if(matrixCase != matrixVectorProduct) {
+
+    getLinewidths(*linewidthMR).outputToJSON("mrta_el_relaxation_times.json", outerBandStructure);
+    getLinewidths(*linewidth).outputToJSON("rta_el_relaxation_times.json", outerBandStructure);
+    
+    if(outputUNTimes) { 
+      getLinewidths(*internalDiagonalNormal).outputToJSON("rta_el_N_relaxation_times.json", outerBandStructure); 
+      getLinewidths(*internalDiagonalUmklapp).outputToJSON("rta_el_U_relaxation_times.json", outerBandStructure); 
+    }
+}
 }
 
 // function called on shared ptrs of linewidths

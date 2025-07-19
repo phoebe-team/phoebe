@@ -74,10 +74,10 @@ ScatteringMatrix::ScatteringMatrix(Context &context_,
   }
 }
 
-void ScatteringMatrix::setMatrixCase(std::shared_ptr<VectorBTE> linewidth, 
+void ScatteringMatrix::setMatrixCase(std::shared_ptr<VectorBTE> linewidth,
                                     std::vector<VectorBTE> &inPopulations,
-                                    std::vector<VectorBTE> &outPopulations) { 
-                                          
+                                    std::vector<VectorBTE> &outPopulations) {
+
   if (theMatrix.rows() != 0 && linewidth != nullptr && inPopulations.empty() && outPopulations.empty()) {
     matrixCase = fullMatrix;  // build matrix and linewidths
   } else if (theMatrix.rows() == 0 && linewidth == nullptr &&
@@ -85,7 +85,7 @@ void ScatteringMatrix::setMatrixCase(std::shared_ptr<VectorBTE> linewidth,
     matrixCase = matrixVectorProduct;
   } else if (theMatrix.rows() == 0 && linewidth != nullptr &&
              inPopulations.empty() && outPopulations.empty()) {
-    matrixCase = linewidthOnly; 
+    matrixCase = linewidthOnly;
   } else {
     DeveloperError("Unsupported scattering matrix build case.");
   }
@@ -202,9 +202,7 @@ VectorBTE ScatteringMatrix::offDiagonalDot(VectorBTE &inPopulation) {
       if (context.getUseSymmetries()) {
 #pragma omp for
         for (size_t iTup = 0; iTup < numAllLocalStates; iTup++) {
-          auto tup = allLocalStates[iTup];
-          int iMat1 = std::get<0>(tup);
-          int iMat2 = std::get<1>(tup);
+          auto [iMat1, iMat2] = allLocalStates[iTup];
           auto t1 = getSMatrixIndex(iMat1);
           auto t2 = getSMatrixIndex(iMat2);
           int iBte1 = std::get<0>(t1).get();
@@ -219,9 +217,7 @@ VectorBTE ScatteringMatrix::offDiagonalDot(VectorBTE &inPopulation) {
       } else {
 #pragma omp for
         for (size_t iTup = 0; iTup < numAllLocalStates; iTup++) {
-          auto tup = allLocalStates[iTup];
-          auto iBte1 = std::get<0>(tup);
-          auto iBte2 = std::get<1>(tup);
+          auto [iBte1, iBte2] = allLocalStates[iTup];
           if (iBte1 == iBte2)
             continue;
           for (int i : {0, 1, 2}) {
@@ -292,9 +288,7 @@ VectorBTE ScatteringMatrix::dot(VectorBTE &inPopulation) {
       if (context.getUseSymmetries()) {
 #pragma omp for
         for (size_t iTup = 0; iTup < numAllLocalStates; iTup++) {
-          auto tup = allLocalStates[iTup];
-          int iMat1 = std::get<0>(tup);
-          int iMat2 = std::get<1>(tup);
+          auto [iMat1, iMat2] = allLocalStates[iTup];
           auto t1 = getSMatrixIndex(iMat1);
           auto t2 = getSMatrixIndex(iMat2);
           int iBte1 = std::get<0>(t1).get();
@@ -313,9 +307,7 @@ VectorBTE ScatteringMatrix::dot(VectorBTE &inPopulation) {
       } else {
 #pragma omp for
         for (size_t iTup = 0; iTup < numAllLocalStates; iTup++) {
-          auto tup = allLocalStates[iTup];
-          auto iBte1 = std::get<0>(tup);
-          auto iBte2 = std::get<1>(tup);
+          auto [iBte1, iBte2] = allLocalStates[iTup];
 
           if (std::find(excludeIndices.begin(), excludeIndices.end(), iBte1) != excludeIndices.end())
             continue;
@@ -341,8 +333,7 @@ VectorBTE ScatteringMatrix::dot(VectorBTE &inPopulation) {
   } else {
     VectorBTE outPopulation(statisticsSweep, outerBandStructure, 3);
     outPopulation.data.setZero();
-    std::vector<VectorBTE> outPopulations;
-    std::vector<VectorBTE> inPopulations;
+    std::vector<VectorBTE> outPopulations, inPopulations;
     inPopulations.push_back(inPopulation);
     outPopulations.push_back(outPopulation);
     builder(nullptr, inPopulations, outPopulations);
@@ -497,7 +488,7 @@ void ScatteringMatrix::omega2A() {
     double term1 = particle.getPopPopPm1(en1, temp, chemPot);
     double term2 = particle.getPopPopPm1(en2, temp, chemPot);
 
-    if (is1Idx.get() == is2Idx.get()) { // diagonal 
+    if (is1Idx.get() == is2Idx.get()) { // diagonal
       internalDiagonal->operator()(0, 0, iBte1) *= term1;
     }
     theMatrix(iMat1, iMat2) *= sqrt(term1 * term2);
@@ -556,19 +547,22 @@ VectorBTE ScatteringMatrix::getLinewidths() {
 // symmetrized
 VectorBTE ScatteringMatrix::getLinewidths(const VectorBTE& anyInternalDiagonal) {
 
+  if(matrixCase == matrixVectorProduct) {
+    DeveloperError("getLinewidths should never be called in matrixVectorProd case!");
+  }
+
   if (constantRTA) {
     VectorBTE linewidths(statisticsSweep, outerBandStructure, 1);
     linewidths.setConst(twoPi / context.getConstantRelaxationTime());
     linewidths.excludeIndices = excludeIndices;
     return linewidths;
   } else {
-    VectorBTE linewidths = anyInternalDiagonal; // TODO make sure this copies properly 
+    VectorBTE linewidths = anyInternalDiagonal;
     linewidths.excludeIndices = excludeIndices;
     auto particle = outerBandStructure.getParticle();
 
     if (isMatrixOmega) {
       return linewidths;
-
     } else {
       // A_nu,nu = Gamma / N(1+N) for phonons, Omega_nu,nu = Gamma for electrons
       if (particle.isElectron()) {
@@ -580,17 +574,16 @@ VectorBTE ScatteringMatrix::getLinewidths(const VectorBTE& anyInternalDiagonal) 
         auto iBteIdx = BteIndex(iBte);
         StateIndex isIdx = outerBandStructure.bteToState(iBteIdx);
         double en = outerBandStructure.getEnergy(isIdx);
-        for (int iCalc = 0; iCalc < internalDiagonal->numCalculations; iCalc++) {
+        for (int iCalc = 0; iCalc < anyInternalDiagonal.numCalculations; iCalc++) {
           auto calcStatistics = statisticsSweep.getCalcStatistics(iCalc);
           double temp = calcStatistics.temperature;
           double chemPot = calcStatistics.chemicalPotential;
           // n(n+1) for bosons, n(1-n) for fermions
           double popTerm = particle.getPopPopPm1(en, temp, chemPot);
           linewidths(iCalc, 0, iBte) =
-              internalDiagonal->operator()(iCalc, 0, iBte) / popTerm;
+              anyInternalDiagonal(iCalc, 0, iBte) / popTerm;
         }
       }
-      linewidths.excludeIndices = excludeIndices;
       return linewidths;
     }
   }
@@ -674,7 +667,7 @@ void ScatteringMatrix::outputToHDF5(const std::string &outFileName) {
 // TODO this feels redundant with above function, maybe could be simplified
 void ScatteringMatrix::relaxonsToJSON(const std::string &outFileName,
                                       const Eigen::VectorXd &eigenvalues) {
-  
+
   if (!mpi->mpiHead()) return;
 
   Eigen::VectorXd times = 1. / eigenvalues.array();
@@ -800,7 +793,7 @@ ScatteringMatrix::getIteratorWavevectorPairs(const bool &rowMajor) {
         // first unpack Bloch Index and get all wavevector pairs
 #pragma omp for nowait
         for(int ilocalState = 0; ilocalState < nlocalStates; ilocalState++){
-          auto [iMat1, iMat2] = localStates[ilocalState]; 
+          auto [iMat1, iMat2] = localStates[ilocalState];
           auto tup1 = getSMatrixIndex(iMat1);
           auto tup2 = getSMatrixIndex(iMat2);
           BteIndex iBte1 = std::get<0>(tup1);
@@ -1074,17 +1067,18 @@ void ScatteringMatrix::degeneracyAveragingLinewidths(std::shared_ptr<VectorBTE> 
   }
 }
 
-void ScatteringMatrix::addRateToMatrix(const Context &context, double linewidthRate, double matrixRate, 
+// TODO may be nicer if we make a version of this which is linewidth only...
+void ScatteringMatrix::addRateToMatrix(const Context &context, double linewidthRate, double matrixRate,
                                       int iCalc, int is1, int is2Irr, int iBte1, int iBte2,
-                                      const Particle &p1, const Particle &p2, 
-                                      const Eigen::Matrix3d &rotation, 
-                                      std::shared_ptr<VectorBTE> linewidth, 
+                                      const Particle &p1, const Particle &p2,
+                                      const Eigen::Matrix3d &rotation,
+                                      std::shared_ptr<VectorBTE> linewidth,
                                       const std::vector<VectorBTE> &inPopulations,
-                                      std::vector<VectorBTE> &outPopulations) { 
+                                      std::vector<VectorBTE> &outPopulations) {
 
-  // "particle type" passed in here because for coupled BTE we cannot use inner/outer BS the same way                         
-  // shift the indices if it's necessary. shiftToCoupledIndices should be 
-  // moved to work as a lambda function stored by each matrix type. 
+  // "particle type" passed in here because for coupled BTE we cannot use inner/outer BS the same way
+  // shift the indices if it's necessary. shiftToCoupledIndices should be
+  // moved to work as a lambda function stored by each matrix type.
   auto [iBte1Shift, iBte2Shift] = shiftToCoupledIndices(iBte1, iBte2, p1, p2);
 
   if (matrixCase == fullMatrix) { // case of matrix construction
@@ -1504,7 +1498,7 @@ void ScatteringMatrix::reinforceLinewidths() {
     Particle initialParticle = initialBandStructure->getParticle();
     Particle finalParticle = finalBandStructure->getParticle();
 
-    // this removes the drag term contributions, for test reasons 
+    // this removes the drag term contributions, for test reasons
     //if(initialParticle.isPhonon() && finalParticle.isElectron()) continue;
     //if(initialParticle.isElectron() && finalParticle.isPhonon()) continue;
 
@@ -1521,7 +1515,7 @@ void ScatteringMatrix::reinforceLinewidths() {
     // chemical potential must be zero if it's a phonon, else = mu
     double initialChemicalPotential = (initialParticle.isPhonon()) ? 0 : chemicalPotential;
     double finalChemicalPotential = (finalParticle.isPhonon()) ? 0 : chemicalPotential;
-  
+
     double initialEn = initialBandStructure->getEnergy(sIdx1);// - initialChemicalPotential; /
     double finalEn = finalBandStructure->getEnergy(sIdx2);// - finalChemicalPotential;
 
@@ -1535,11 +1529,11 @@ void ScatteringMatrix::reinforceLinewidths() {
     double finalFFm1 = finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
 
     // spin degeneracy info -- TODO may need to put spin factors here
-    double initialD = 1; 
-    double finalD = 1; 
+    double initialD = 1;
+    double finalD = 1;
 
     // self electronic term -- here we do not use energies, as we want to enforce
-    // the charge eigenvector in the electron only case 
+    // the charge eigenvector in the electron only case
     if(initialParticle.isElectron() && finalParticle.isElectron()) {
       initialEn = initialBandStructure->getEnergy(sIdx1);// - initialChemicalPotential;
       finalEn = finalBandStructure->getEnergy(sIdx2);// - finalChemicalPotential;
@@ -1553,12 +1547,12 @@ void ScatteringMatrix::reinforceLinewidths() {
     // electron linewidth from drag
     if(initialParticle.isElectron() && finalParticle.isPhonon()) {
       // let's try not including drag contributions to el linewidths
-      // this is needed to reconstruct charge eigenvector 
-      //continue; 
-      initialEn = initialBandStructure->getEnergy(sIdx1) ; 
+      // this is needed to reconstruct charge eigenvector
+      //continue;
+      initialEn = initialBandStructure->getEnergy(sIdx1) ;
       finalEn = finalBandStructure->getEnergy(sIdx2);   // sqrt(Nq)/sqrt(Nk)
-      finalD = sqrt(Nk/(spinFactor*Nq)); 
-    } 
+      finalD = sqrt(Nk/(spinFactor*Nq));
+    }
 
     if(context.getUseUpperTriangle()) {
       initialD *= 2.0;
@@ -1578,16 +1572,16 @@ void ScatteringMatrix::reinforceLinewidths() {
 
     for (int i = numElStates; i<numStates; i++) {
 
-      // don't print zeros 
-      if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue; 
+      // don't print zeros
+      if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue;
 
       if(newLinewidths(0,i) < 0 || std::isnan(newLinewidths(0,i))) {
         StateIndex sIdx(i-numElStates);
         std::cout << std::setprecision(4) << "Found a negative ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << internalDiagonal->data(0,i) << " " << newLinewidths(0,i) << std::endl;
-        // replace with the standard one to avoid definite issues 
-        newLinewidths(0,i) = internalDiagonal->data(0, i); 
+        // replace with the standard one to avoid definite issues
+        newLinewidths(0,i) = internalDiagonal->data(0, i);
       }
-      // flag bad linewidth ratios 
+      // flag bad linewidth ratios
       else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.25 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.75) {
         StateIndex sIdx(i-numElStates);
         std::cout << std::setprecision(4) << "Found a bad ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << newLinewidths(0,i) << " " << internalDiagonal->data(0,i)  << " " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;

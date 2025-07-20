@@ -3,6 +3,7 @@
 #include "ph_scattering_matrix.h"
 #include "io.h"
 #include "mpiHelper.h"
+#include "scattering_matrix.h"
 #include <cmath>
 
 // 3 cases:
@@ -706,7 +707,7 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
             double bose2 = innerBose(iCalc, iBte2);
 
             double rateIso = termIso * (bose1 * bose2 + 0.5 * (bose1 + bose2));
-
+/* 
             matrix.addRateToMatrix(context, rateIso, rateIso, iCalc, is1, is2Irr, iBte1, iBte2, 
                 innerBandStructure.getParticle(), outerBandStructure.getParticle(), 
                 rotation, linewidth, inPopulations, outPopulations); 
@@ -716,6 +717,83 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
               std::array<Point, 2> pts{outerBandStructure.getPoint(iq1), innerBandStructure.getPoint(iq2)};
               auto momentumCons = [](Eigen::Vector3d &qWs1, Eigen::Vector3d &qWs2){return qWs1 + qWs2;}; 
               matrix.addUNRates(iCalc, iBte1, rateIso, pts, momentumCons); 
+            } */
+
+            // shift the indices if it's necessary
+            int iBte1Shift = iBte1;   int iBte2Shift = iBte2;
+            if(matrix.isCoupled) {
+              std::tuple<int,int> tup =
+                    matrix.shiftToCoupledIndices(iBte1, iBte2, innerBandStructure.getParticle(), outerBandStructure.getParticle());
+              iBte1Shift = std::get<0>(tup);
+              iBte2Shift = std::get<1>(tup);
+            }
+
+	          if (matrix.matrixCase == fullMatrix) { // case of matrix construction
+              if (context.getUseSymmetries()) {
+                BteIndex iBte1Idx(iBte1);
+                BteIndex iBte2Idx(iBte2);
+                for (int i : {0, 1, 2}) {
+                  CartIndex iIndex(i);
+                  int iMat1 = matrix.getSMatrixIndex(iBte1Idx, iIndex);
+                  for (int j : {0, 1, 2}) {
+                    CartIndex jIndex(j);
+                    int iMat2 = matrix.getSMatrixIndex(iBte2Idx, jIndex);
+                    if (matrix.theMatrix.indicesAreLocal(iMat1, iMat2)) {
+                      if (i == 0 && j == 0) {
+                        linewidth->operator()(iCalc, 0, iBte1) += rateIso;
+                      }
+                      if (is1 != is2Irr) {
+                        matrix.theMatrix(iMat1, iMat2) -=
+                            rotation.inverse()(i, j) * rateIso;
+                      }
+                    }
+                  }
+                }
+              } else {
+                if (matrix.theMatrix.indicesAreLocal(iBte1Shift, iBte2Shift)) {
+
+   	              linewidth->operator()(iCalc, 0, iBte1Shift) += rateIso;
+                  // if we're not symmetrizing the matrix, and we have
+                  // dropped down to only using the upper triangle of the matrix, we must fill
+                  // in linewidths twice, using detailed balance, in order to get the right ratest
+  		            if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
+                    linewidth->operator()(iCalc, 0, iBte2Shift) += rateIso;
+		              }
+                  matrix.theMatrix(iBte1Shift, iBte2Shift) -= rateIso;
+                }
+              }
+            } else if (matrix.matrixCase == matrixVectorProduct) { // case of matrix-vector multiplication
+              for (unsigned int iInput = 0; iInput < inPopulations.size(); iInput++) {
+
+                // here we rotate the populations from the irreducible point
+                Eigen::Vector3d inPopRot;
+                inPopRot.setZero();
+                for (int i : {0, 1, 2}) {
+                  for (int j : {0, 1, 2}) {
+                    inPopRot(i) += rotation.inverse()(i, j) *
+                                   inPopulations[iInput](iCalc, j, iBte2);
+                  }
+                }
+                for (int i : {0, 1, 2}) {
+		        // off diagonals
+      		  if (is1 != is2Irr) {
+                    outPopulations[iInput](iCalc, i, iBte1) -= rateIso * inPopRot(i);
+                  } // diagonals
+                  outPopulations[iInput](iCalc, i, iBte1) +=
+                      rateIso * inPopulations[iInput](iCalc, i, iBte1);
+                }
+              }
+            } else { // case of linewidth construction
+
+              linewidth->operator()(iCalc, 0, iBte1) += rateIso;
+
+              // for now, we only do UN scattering in the case of linewidth contruction 
+              if(matrix.matrixCase == linewidthOnly) {
+                std::array<Point, 2> pts{outerBandStructure.getPoint(iq1), innerBandStructure.getPoint(iq2)};
+                auto momentumCons = [](Eigen::Vector3d &qWs1, Eigen::Vector3d &qWs2){return qWs1 + qWs2;}; 
+                matrix.addUNRates(iCalc, iBte1, rateIso, pts, momentumCons); 
+              }
+
             }
           }
         }
@@ -725,4 +803,4 @@ void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
   if(mpi->mpiHead()) {
     std::cout << "Finished adding isotope scattering to the scattering matrix.\n" << std::endl;
   }
-}
+}          

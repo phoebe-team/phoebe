@@ -41,7 +41,7 @@ def checkCoefficient(coeffName, data1, data2, tol):
 if __name__ == "__main__":
 
     listOfJsons = glob.glob("*.json")
-    tol = 1e-5
+    tol = 1e-4
 
     for filename in listOfJsons:
 

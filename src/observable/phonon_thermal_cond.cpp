@@ -195,10 +195,10 @@ void PhononThermalConductivity::calcVariational(VectorBTE &af, VectorBTE &f,
 
   tensordxd = 2 * y2 - y1;
   // we print the unsymmetrized tensor to output file
-  if(mpi->mpiHead()) {
-    std::cout << "Unsymmetrized thermal conductivity:\n" << std::endl;
-    print();
-  }
+  //if(mpi->mpiHead()) {
+  //  std::cout << "Unsymmetrized thermal conductivity:\n" << std::endl;
+  //  print();
+  //}
   // symmetrize the thermal conductivity
   //symmetrize(tensordxd);
 }

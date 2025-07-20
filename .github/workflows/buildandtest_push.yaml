@@ -154,11 +154,10 @@ jobs:
           python3 reference/run_check.py
       # run rta kappa with phph and phel ------------------
       - name: Run RTA kappa with phph and phel
-        if: ${{ matrix.compiler == 'GCC' }}
+        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON'}}
         working-directory: example/Silicon-ph/kappa_phph-phel/
         run: |
-          export OMP_NUM_THREADS=2
-          mpirun -np 2 --oversubscribe ../../../build/phoebe -in phononTransport.in
+          mpirun -np 4 --oversubscribe ../../../build/phoebe -in phononTransport.in
           python3 reference/run_check.py
       # run JDFTx tests -----------------------------------
       - name: Run a test with JDFTx files

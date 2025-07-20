@@ -1106,15 +1106,15 @@ void ScatteringMatrix::addRateToMatrix(const Context &context, double linewidthR
         }
       }
     } else {
-      if (theMatrix.indicesAreLocal(iBte1Shift, iBte2Shift)) {
 
-        linewidth->operator()(iCalc, 0, iBte1Shift) += linewidthRate;
-        // if we're not symmetrizing the matrix, and we have
-        // dropped down to only using the upper triangle of the matrix, we must fill
-        // in linewidths twice, using detailed balance, in order to get the right ratest
-        if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
-          linewidth->operator()(iCalc, 0, iBte2Shift) += linewidthRate;
-        }
+      linewidth->operator()(iCalc, 0, iBte1Shift) += linewidthRate;
+      // if we're not symmetrizing the matrix, and we have
+      // dropped down to only using the upper triangle of the matrix, we must fill
+      // in linewidths twice, using detailed balance, in order to get the right ratest
+      if(!context.getSymmetrizeMatrix() && context.getUseUpperTriangle()) {
+        linewidth->operator()(iCalc, 0, iBte2Shift) += linewidthRate;
+      }
+      if (theMatrix.indicesAreLocal(iBte1Shift, iBte2Shift)) {
         operator()(iBte1Shift, iBte2Shift) -= matrixRate;
       }
     }

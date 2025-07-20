@@ -38,6 +38,10 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
                   temperature / 2.;
   }
 
+  // we use reciprocal here to avoid a div by zero in the case of a 
+  // zero linewidth -- reciprocal handles this nicely 
+  VectorBTE gamma = smaRelTimes.reciprocal(); 
+
   for (int iq : bandStructure.parallelIrrPointsIterator()) {
     WavevectorIndex iqIdx(iq);
 
@@ -93,28 +97,11 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
           auto is2Idx = StateIndex(is2);
           int iBte1 = bandStructure.stateToBte(is1Idx).get();
           int iBte2 = bandStructure.stateToBte(is2Idx).get();
-          
-          // ensure nearly degenerate states do not cause numerical issues
-          if( abs(energies(ib1) - energies(ib2)) <  0.0001 / energyRyToEv) {
-            velRot(ib1, ib2, 0) = 0; 
-            velRot(ib1, ib2, 1) = 0; 
-            velRot(ib1, ib2, 2) = 0; 
-            velRot(ib2, ib1, 0) = 0; 
-            velRot(ib2, ib1, 1) = 0; 
-            velRot(ib2, ib1, 2) = 0; 
-          }
                       
           for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
             
-            // avoid the possibility of states with zero scattering time
-            double gamma1 = 0; double gamma2 = 0; 
-            if(!std::isinf(1. / smaRelTimes(iCalc, 0, iBte1))) { 
-              gamma1 = 1. / smaRelTimes(iCalc, 0, iBte1); 
-            }
-            if(!std::isinf(1. / smaRelTimes(iCalc, 0, iBte2))) { 
-              gamma2 = 1. / smaRelTimes(iCalc, 0, iBte2); 
-            }
-            
+            double gamma1 = gamma(iCalc, 0, iBte1); 
+            double gamma2 = gamma(iCalc, 0, iBte2);             
             
             for (int ic1 = 0; ic1 < dimensionality; ic1++) {
               for (int ic2 = 0; ic2 < dimensionality; ic2++) {
@@ -128,6 +115,7 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
                 double den = 4. * pow(energies(ib1) - energies(ib2), 2) +
                              pow(gamma1 + gamma2, 2);
 
+                if(den < 1e-8) continue; // this will produce a nan
                 wignerCorrection(iCalc, ic1, ic2) +=
                     (energies(ib1) + energies(ib2)) * vel * num / den *
                     (gamma1 + gamma2) *

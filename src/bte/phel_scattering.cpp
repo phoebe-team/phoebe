@@ -4,6 +4,7 @@
 #include "periodic_table.h"
 #include "interaction_elph.h"
 #include "coupled_scattering_matrix.h"
+#include "scattering_matrix.h"
 
 /** Method to construct the kq pair iterator for this class.
 * Slightly different than the others, so we calculate it internally.
@@ -443,15 +444,12 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                     smearingValues(ib1, ib2, ib3)
                     * norm * pi / en3 * k1Weight * symFac; 
 
-                // case of linewidth construction (the only case, for ph-el)
-                //linewidth->operator()(iCalc, 0, iBte3) += rate;
-                
-                // TODO should these 
-                matrix.addRateToMatrix(context, rate, rate, iCalc, 
-                  is3, is3Irr, iBte3, iBte3, 
-                  particle, particle, 
-                  rotation, linewidth, 
-                  inPopulations, outPopulations); 
+                // add rate to matrix in all cases 
+                matrix.addRateToMatrix(context, rate, 0, iCalc, 
+                is3, is3Irr, iBte3, iBte3, 
+                particle, particle, 
+                rotation, linewidth, 
+                inPopulations, outPopulations);  
 
                 // for now, we only do UN scattering in the case of linewidth contruction 
                 if(matrix.matrixCase == linewidthOnly) {

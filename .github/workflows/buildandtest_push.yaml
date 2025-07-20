@@ -82,7 +82,7 @@ jobs:
           mpirun -np 4 --oversubscribe ../../build/phoebe -in electronFourierDos.in
           python3 reference/run_check.py
       - name: Run el example without MPI
-        if: ${{ matrix.compiler == 'GCC' }}
+        if: ${{ matrix.compiler == 'GCC'  && matrix.mpi == 'OFF' }}
         working-directory: example/Silicon-el
         run: |
           ../../build/phoebe -in qeToPhoebeWannier.in
@@ -118,7 +118,7 @@ jobs:
           cd ../
           python3 reference/run_check.py
       - name: Run ph example without MPI
-        if: ${{ matrix.compiler == 'GCC' }}
+        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'OFF' }}
         working-directory: example/Silicon-ph
         run: |
           ../../build/phoebe -in phononTransport.in
@@ -147,14 +147,14 @@ jobs:
           python3 reference/run_check.py
       # run coupled BTE ------------------
       - name: Run coupled BTE example with MPI
-        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' && matrix.omp == 'OFF' }}
+        if: ${{ matrix.compiler == 'GCC' && matrix.omp == 'OFF' }} // avoid oversubscribe
         working-directory: example/Silicon-coupled
         run: |
           mpirun -np 4 --oversubscribe ../../build/phoebe -in coupledTransport.in
           python3 reference/run_check.py
       # run rta kappa with phph and phel ------------------
-      - name: Run RTA kappa with phph and phel with MPI and OMP
-        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' && matrix.omp == 'ON' }}
+      - name: Run RTA kappa with phph and phel
+        if: ${{ matrix.compiler == 'GCC' }}
         working-directory: example/Silicon-ph/kappa_phph-phel/
         run: |
           export OMP_NUM_THREADS=2
@@ -162,7 +162,7 @@ jobs:
           python3 reference/run_check.py
       # run JDFTx tests -----------------------------------
       - name: Run a test with JDFTx files
-        if: ${{ matrix.compiler == 'GCC' && matrix.mpi == 'ON' && matrix.omp == 'ON' }}
+        if: ${{ matrix.compiler == 'GCC'}}
         working-directory: example/MgB2-elph-JDFTx/
         run: |
           # test that conversion script is the same

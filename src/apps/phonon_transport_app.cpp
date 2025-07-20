@@ -145,6 +145,7 @@ void PhononTransportApp::run(Context &context) {
 
     VectorBTE fNext(statisticsSweep, bandStructure, 3);
     VectorBTE sMatrixDiagonal = scatteringMatrix.diagonal();
+    VectorBTE sMatDiagRecip = sMatrixDiagonal.reciprocal();
 
     // from n, we get f, such that n = bose(bose+1)f
     VectorBTE fRTA = popRTA;
@@ -155,7 +156,10 @@ void PhononTransportApp::run(Context &context) {
 
     for (int iter = 0; iter < context.getMaxIterationsBTE(); iter++) {
 
-      fNext = scatteringMatrix.offDiagonalDot(fOld) / sMatrixDiagonal;
+      // here we use .reciprocal and multiply by that rather than using the VBTE 
+      // operators. This is because if reciprocal handles div by 0 elegantly, 
+      // and here we are at risk of encountering a zero. 
+      fNext = scatteringMatrix.offDiagonalDot(fOld) * sMatDiagRecip;
       fNext = fRTA - fNext;
 
       phTCond.calcFromCanonicalPopulation(fNext);

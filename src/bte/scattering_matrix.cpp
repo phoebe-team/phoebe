@@ -1082,9 +1082,12 @@ void ScatteringMatrix::addRateToMatrix(const Context &context, double linewidthR
   auto [iBte1Shift, iBte2Shift] = shiftToCoupledIndices(iBte1, iBte2, p1, p2);
 
   if (matrixCase == fullMatrix) { // case of matrix construction
-    if (context.getUseSymmetries()) {
+    if (context.getUseSymmetries()) { // indices are never shifted in the sym case, currently 
       BteIndex iBte1Idx(iBte1);
       BteIndex iBte2Idx(iBte2);
+      
+      linewidth->operator()(iCalc, 0, iBte1) += linewidthRate;
+
       for (int i : {0, 1, 2}) {
         CartIndex iIndex(i);
         int iMat1 = getSMatrixIndex(iBte1Idx, iIndex);
@@ -1092,9 +1095,9 @@ void ScatteringMatrix::addRateToMatrix(const Context &context, double linewidthR
           CartIndex jIndex(j);
           int iMat2 = getSMatrixIndex(iBte2Idx, jIndex);
           if (theMatrix.indicesAreLocal(iMat1, iMat2)) {
-            if (i == 0 && j == 0) {
-              linewidth->operator()(iCalc, 0, iBte1) += linewidthRate;
-            }
+            //if (i == 0 && j == 0) {
+            //  linewidth->operator()(iCalc, 0, iBte1) += linewidthRate;
+            //}
             if (is1 != is2Irr) {
              operator()(iMat1, iMat2) -=
                   rotation.inverse()(i, j) * matrixRate;

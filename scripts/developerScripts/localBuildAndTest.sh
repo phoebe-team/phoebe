@@ -86,6 +86,9 @@ then
   cd path_lifetimes
   ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in phononLifetimes.in >> phTest.out
   cd ../
+  cd sym_transport
+  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in phononTransport.in >> phTest.out
+  cd ../
   python3 reference/run_check.py
   cd ../../
 
@@ -98,6 +101,9 @@ then
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierDos.in >> elTest.out
   cd path_lifetimes
   ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in electronLifetimes.in >> elTest.out
+  cd ../
+  cd sym_transport
+  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in electronWannierTransport.in >> elTest.out
   cd ../
   python3 reference/run_check.py
 

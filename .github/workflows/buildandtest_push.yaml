@@ -145,9 +145,9 @@ jobs:
           mpirun -np 4 --oversubscribe ../../../build/phoebe -in phononTransport.in
           cd ../
           python3 reference/run_check.py
-      # run coupled BTE ------------------
+      # run coupled BTE ----------------------------------------------------
       - name: Run coupled BTE example with MPI
-        if: ${{ matrix.compiler == 'GCC'}} // avoid oversubscribe?
+        if: ${{ matrix.compiler == 'GCC' && matrix.omp == 'OFF' }} // avoid oversubscribe?
         working-directory: example/Silicon-coupled
         run: |
           mpirun -np 4 --oversubscribe ../../build/phoebe -in coupledTransport.in

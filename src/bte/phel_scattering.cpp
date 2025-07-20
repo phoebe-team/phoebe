@@ -437,10 +437,12 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                   symFac = sinh(0.5 * en3 / temperatures(iCalc)) /
                   (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
                   * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)));
+                } else { 
+                  symFac = fermiTerm(iCalc, ik1, ib1); 
                 }
                 
                 double rate =
-                    coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)
+                    coupling(ib1, ib2, ib3) * 
                     smearingValues(ib1, ib2, ib3)
                     * norm * pi / en3 * k1Weight * symFac; 
 

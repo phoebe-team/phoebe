@@ -3,8 +3,8 @@
 #include "mpiHelper.h"
 #include "periodic_table.h"
 #include "interaction_elph.h"
-#include "phel_scattering_matrix.h"
 #include "coupled_scattering_matrix.h"
+#include "scattering_matrix.h"
 
 /** Method to construct the kq pair iterator for this class.
 * Slightly different than the others, so we calculate it internally.
@@ -49,6 +49,8 @@ std::vector<std::tuple<int, std::vector<int>>> getPhElIterator(
 }
 
 void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
+                      std::vector<VectorBTE> &inPopulations,
+                      std::vector<VectorBTE> &outPopulations,
                       BaseBandStructure& phBandStructure,
                       BaseBandStructure& elBandStructure,
                       StatisticsSweep& statisticsSweep,
@@ -56,7 +58,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                       std::shared_ptr<VectorBTE> linewidth) {
 
   if(mpi->mpiHead())
-    std::cout << "\n------------- Phonon-electron scattering -------------\n" << std::endl;
+    std::cout << "\n------------- Phonon-electron scattering -------------" << std::endl;
 
   // throw error if it's not a correct band structure
   if(!phBandStructure.getParticle().isPhonon()
@@ -67,6 +69,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // throw an error if these meshes are not commensurate. Here, we don't want to
   // generate states on the fly. If we lock k/q = integer, then for any given
   // set of k and q, k' will still be on the electronic band structure
+  // TODO this should be checked at an earlier point. 
   auto kMesh = context.getKMesh();
   auto qMesh = context.getQMesh();
   if( kMesh(0)%qMesh(0) != 0 || kMesh(1)%qMesh(1) != 0 || kMesh(2)%qMesh(2) != 0 ) {
@@ -80,7 +83,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   }
 
   int numCalculations = statisticsSweep.getNumCalculations();
-  //Crystal crystalPh = phBandStructure.getPoints().getCrystal();
 
   Eigen::VectorXd temperatures(numCalculations);
   for (int iCalc=0; iCalc<numCalculations; ++iCalc) {
@@ -131,7 +133,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
     nb1Max = std::max(nb1Max, int(elBandStructure.getEnergies(ikIdx).size()));
   }
 
-  // precompute Fermi-Dirac populations
   // TODO can we fit this into the same format as the other ones
   // to call the helper function instead?
   Eigen::Tensor<double,3> fermiTerm(numCalculations, numKPoints, nb1Max);
@@ -193,14 +194,10 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // In this loop, k1 is fixed at the top, and we compute
   // it's electronic properties in the outer loop.
   // q3 is the list of iq3Indices, and k2 is determined using k1 and q3
-  for (auto t1 : kqPairIterator) {
+  for (auto [ik1, iq3Indexes] : kqPairIterator) {
 
     loopPrint.update();
-
-    int ik1 = std::get<0>(t1);
-
     WavevectorIndex ik1Idx(ik1);
-    auto iq3Indexes = std::get<1>(t1);
 
     // dummy call to make pooled coupling calculation work. We need to make sure
     // calcCouplingSquared is called the same # of times. This is also taken
@@ -252,15 +249,11 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
       // first, we will determine which kp points actually matter, and build a list
       // of the important kp and q points
-      std::vector<int> filteredQIndices;
-      std::vector<int> filteredK2Indices;
+      std::vector<int> filteredQIndices, filteredK2Indices;
 
-      std::vector<Eigen::Vector3d> allQ3Cartesian;
-      std::vector<Eigen::MatrixXcd> allEigenVectors3;
+      std::vector<Eigen::Vector3d> allQ3Cartesian, allK2Cartesian;
+      std::vector<Eigen::MatrixXcd> allEigenVectors3, allEigenVectors2;
       std::vector<Eigen::VectorXcd> allPolarData;
-
-      std::vector<Eigen::Vector3d> allK2Cartesian;
-      std::vector<Eigen::MatrixXcd> allEigenVectors2;
 
       // do prep work for all values of q3 in current batch,
       // store stuff needed for couplings later
@@ -304,7 +297,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
           allEigenVectors3.push_back(phBandStructure.getEigenvectors(iq3Idx));        // ph eigenvectors
         }
       }
-
       batchSize = revisedBatchSize;
 
       // Generate couplings for fixed k1, all k2s and all Q3Cs
@@ -324,7 +316,12 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         Eigen::VectorXd state3Energies = phBandStructure.getEnergies(iq3Idx); // iq3Idx
         Eigen::VectorXd state2Energies = elBandStructure.getEnergies(ik2Idx); // iq3Idx
         auto nb2 = int(state2Energies.size());
-
+        
+        // rotation such that qIrr = R * qRed -- TODO used in matVecProd only? 
+        Eigen::Vector3d q3 = phBandStructure.getWavevector(iq3Idx);
+        auto [iq3Irr, rotation] = phBandStructure.getRotationToIrreducible(q3, Points::cartesianCoordinates);
+        WavevectorIndex iq3IrrIdx(iq3Irr);
+        
         // NOTE: these loops are already set up to be applicable to gpus
         // the precomputaton of the smearing values and the open mp loops could
         // be converted to GPU relevant version
@@ -389,19 +386,22 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         for (int ib3 = 0; ib3 < nb3; ib3++) {
           for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
 
-            int is3 = phBandStructure.getIndex(iq3Idx, BandIndex(ib3));
+            //BteIndex ibteIdx3 = phBandStructure.stateToBte(isIdx3);
+            //int ibte3 = ibteIdx3.get();
+            double en3 = state3Energies(ib3);
+            
+            //int is3 = phBandStructure.getIndex(iq3Idx, BandIndex(ib3));
             // the BTE index is an irr point which indexes VectorBTE objects
             // like the linewidths + scattering matrix -- as these are
-            // only allocated for irr points when sym is on
-            StateIndex isIdx3(is3);
-            BteIndex ibteIdx3 = phBandStructure.stateToBte(isIdx3);
-            int ibte3 = ibteIdx3.get();
-            double en3 = state3Energies(ib3);
-
+            // only allocated for irr points when sym is on    
+            int is3 = phBandStructure.getIndex(iq3Idx, BandIndex(ib3));
+            int is3Irr = phBandStructure.getIndex(iq3IrrIdx, BandIndex(ib3));
+            StateIndex is3Idx(is3);
+            StateIndex is3IrrIdx(is3Irr);
+            int iBte3 = phBandStructure.stateToBte(is3IrrIdx).get();
+            
             // remove small divergent phonon energies
-            if (en3 < phEnergyCutoff) {
-              continue;
-            }
+            if (en3 < phEnergyCutoff) { continue; }
 
             auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
             double chemPot = calcStat.chemicalPotential;
@@ -411,9 +411,6 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
 
               double en2 = state2Energies(ib2);
               double en1 = state1Energies(ib1);
-
-              //double fermi1 = elBandStructure.getParticle().getPopulation(en1,temp,chemPot);
-              //double fermi2 = elBandStructure.getParticle().getPopulation(en2,temp,chemPot);
 
               // loop on temperature
                 // https://arxiv.org/pdf/1409.1268.pdf
@@ -434,31 +431,35 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
                 //    * norm / temperatures(iCalc) * pi * k1Weight;
 
                 if (smearingValues(ib1, ib2, ib3) <= 0.) { continue; }
-
-                double rate =
-                    coupling(ib1, ib2, ib3) * //fermiTerm(iCalc, ik1, ib1)
-                    smearingValues(ib1, ib2, ib3)
-                    * norm * pi / en3 * k1Weight
-                    * sinh(0.5 * en3 / temperatures(iCalc)) /
-                    (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
-                    * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)));
-
-                // if it's not a coupled matrix, this will be ibte3
-                // We have to define shifted ibte3, or it will be further
-                // shifted every loop.
-                //
-                // Additionally, these are only needed in no-sym case,
-                // as coupled matrix never has sym, is always case = 0
-                int iBte3Shift = ibte3;
+                
+                double symFac = 1; 
                 if(matrix.isCoupled) {
-                  // translate into the phonon-self quadrant if it's a coupled bte
-                  std::tuple<int,int> tup = matrix.shiftToCoupledIndices(ibte3, ibte3, particle, particle);
-                  iBte3Shift = std::get<0>(tup);
+                  symFac = sinh(0.5 * en3 / temperatures(iCalc)) /
+                  (2. * cosh( 0.5*(en2 - chemPot)/temperatures(iCalc))
+                  * cosh(0.5 * (en1 - chemPot)/temperatures(iCalc)));
+                } else { 
+                  symFac = fermiTerm(iCalc, ik1, ib1); 
                 }
+                
+                double rate =
+                    coupling(ib1, ib2, ib3) * 
+                    smearingValues(ib1, ib2, ib3)
+                    * norm * pi / en3 * k1Weight * symFac; 
 
-                // case of linewidth construction (the only case, for ph-el)
-                linewidth->operator()(iCalc, 0, iBte3Shift) += rate;
+                // add rate to matrix in all cases 
+                matrix.addRateToMatrix(context, rate, 0, iCalc, 
+                is3, is3Irr, iBte3, iBte3, 
+                particle, particle, 
+                rotation, linewidth, 
+                inPopulations, outPopulations);  
 
+                // for now, we only do UN scattering in the case of linewidth contruction 
+                if(matrix.matrixCase == linewidthOnly) {
+                  std::array<Point, 2> pts{phBandStructure.getPoint(iq3), elBandStructure.getPoint(ik1)};
+                  auto momentumCons = [](Eigen::Vector3d &qWs3, Eigen::Vector3d &kWs1){return qWs3 + kWs1;}; 
+                  matrix.addUNRates(iCalc, iBte3, rate, pts, momentumCons); 
+                }
+                
                 //NOTE: for eliashberg function, we could here add another vectorBTE object
                 // as done with the linewidths here, slightly modified
 
@@ -472,10 +473,13 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   mpi->barrier();
   // better to close loopPrint after the MPI barrier: all MPI are synced here
   loopPrint.close();
+  // all reduce the calculated phel linewidths
+  mpi->allReduceSum(&linewidth->data);
+  if(mpi->mpiHead()) std::cout << std::endl;
 }
 
 // TODO move this to coupled BTE object
-void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
+void phononElectronAcousticSumRule(CoupledScatteringMatrix  &matrix,
 	       			                    Context& context,
 				                          BaseBandStructure& elBandStructure,
                                   BaseBandStructure& phBandStructure) {
@@ -503,14 +507,11 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
   std::vector<double> Rqs(numPhStates);
 
   // calculate Rqs and look at how far it is from zero
-  for(auto matrixState : matrix.getAllLocalStates()) {
-
-    // unpack the state info into matrix indices.
-    auto [iMat1, iMat2] = matrixState;
+  for(auto [iMat1, iMat2] : matrix.getAllLocalStates()) {
 
     // check if this is a drag-related index, iMat1 is electron, iMat2 is phonon
     // ( we only need to sum over one quadrant)
-    if(( iMat1 < numElStates && iMat2 >= numElStates)) { 
+    if(( size_t(iMat1) < numElStates && size_t(iMat2) >= numElStates)) { 
 
        size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon index
 
@@ -535,14 +536,10 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
 
   // now correct the drag terms by calculating
   // Dphel_qs,km^corrected = Dphel_qs,km -  Rqs / sqrt(f(1-f) / Nk
-  for(auto matrixState : matrix.getAllLocalStates()) {
-
-    // unpack the state info into matrix indices
-    size_t iMat1 = std::get<0>(matrixState);
-    size_t iMat2 = std::get<1>(matrixState);
+  for(auto [iMat1, iMat2] : matrix.getAllLocalStates()) {
 
     // if iMat1 is electron, iMat2 is phonon 
-    if(( iMat1 < numElStates && iMat2 >= numElStates)) {
+    if(( size_t(iMat1) < numElStates && size_t(iMat2) >= numElStates)) {
 
       size_t iMat2Ph = iMat2 - numElStates; // shift back to phonon band index
 
@@ -559,7 +556,7 @@ void phononElectronAcousticSumRule(CoupledScatteringMatrix &matrix,
 
     }
     // if iMat1 is phonon, iMat2 is electron 
-    if(( iMat1 >= numElStates && iMat2 < numElStates)) {
+    if(( size_t(iMat1) >= numElStates && size_t(iMat2) < numElStates)) {
 
       size_t iMat1Ph = iMat1 - numElStates; // shift back to phonon band index
 

@@ -396,8 +396,7 @@ public:
   // note: we don't store a matrix: we are storing an object (Nk,Nb),
   // with a variable number of bands Nb per point
   std::vector<double> energies;
-  std::vector<std::complex<double>> velocities;
-  std::vector<std::complex<double>> eigenvectors;
+  std::vector<std::complex<double>> velocities, eigenvectors;
 
   bool hasEigenvectors = false;
   bool hasVelocities = false;
@@ -435,7 +434,6 @@ public:
   std::tuple<int, int> bteComb2Bloch(const int &is);
 
   void buildOnTheFly(Window &window, Points points_, HarmonicHamiltonian &h0,
-                     Context& context,
                      const bool &withEigenvectors = true,
                      const bool &withVelocities = true);
 

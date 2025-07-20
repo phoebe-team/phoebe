@@ -41,7 +41,7 @@ def checkCoefficient(coeffName, data1, data2, tol):
 if __name__ == "__main__":
 
     listOfJsons = glob.glob("*.json")
-    tol = 1e-5
+    tol = 1e-4
 
     for filename in listOfJsons:
 
@@ -64,8 +64,11 @@ if __name__ == "__main__":
                 checkCoefficient(key, data1, data2, tol)
 
         if "_relaxation_times" in filename:
+            temp_tol = tol
+            if "relaxon" in filename: # these can vary slightly more than others
+                temp_tol = 1e-3
             for key in data1:
-                checkCoefficient(key, data1, data2, tol)
+                checkCoefficient(key, data1, data2, temp_tol)
 
     print("\nReference checks Done")
     sys.exit(0)

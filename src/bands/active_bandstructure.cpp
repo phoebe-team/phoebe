@@ -64,7 +64,6 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
     size_t size = numPoints;
     size *= numFullBands; 
     size *= size_t(numFullBands) * size_t(3); 
-    if(mpi->mpiHead()) std::cout << "size " << size << std::endl;
     if(withVelocities) velocities.resize(size, complexZero);
   } catch(std::bad_alloc& e) {
     Error("Failed to allocate band structure velocities.\n"
@@ -541,7 +540,7 @@ ActiveBandStructure::builder(Context &context, HarmonicHamiltonian &h0,
 
     Window window(context, particle, temperatureMin, temperatureMax);
 
-    activeBandStructure.buildOnTheFly(window, points_, h0, context,
+    activeBandStructure.buildOnTheFly(window, points_, h0, 
                                       withEigenvectors, withVelocities);
 
     StatisticsSweep statisticsSweep(context);
@@ -554,7 +553,7 @@ ActiveBandStructure::builder(Context &context, HarmonicHamiltonian &h0,
 
 void ActiveBandStructure::buildOnTheFly(Window &window, Points points_,
                                         HarmonicHamiltonian &h0,
-                                        Context &context,
+                                        //Context &context,
                                         const bool &withEigenvectors,
                                         const bool &withVelocities) {
   // this function proceeds in three logical blocks:
@@ -899,7 +898,7 @@ StatisticsSweep ActiveBandStructure::buildAsPostprocessing(
   std::vector<std::vector<int>> filteredThreadBands;
 
   #pragma omp for nowait schedule(static)
-  for (int iik = 0; iik < parallelIter.size(); iik++) {
+  for (size_t iik = 0; iik < parallelIter.size(); iik++) {
 
     int ik = parallelIter[iik];
 

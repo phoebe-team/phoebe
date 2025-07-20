@@ -17,6 +17,7 @@ dopings = [1.e21]
 smearingMethod = "gaussian"
 smearingWidth = 10. cmm1
 
-scatteringMatrixInMemory = false
+solverBTE = ["iterative", "variational","relaxons"]
+scatteringMatrixInMemory = true
 windowType = "population"
 windowPopulationLimit = 1e-3

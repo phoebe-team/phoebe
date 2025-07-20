@@ -106,6 +106,9 @@ void CoupledTransportApp::run(Context &context) {
   if(doIterative || doVariational) {
     Warning("Coupled BTE app only implemented for relaxons solver.");
   }
+  if(!doRelaxons) {
+    Warning("CBTE only for relaxons solver. Did you forget to turn on the relaxons solver?");
+  }
 
   if (doRelaxons) {
 

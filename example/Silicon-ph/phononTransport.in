@@ -15,6 +15,7 @@ solverBTE = ["iterative", "variational","relaxons"]
 symmetrizeMatrix = true
 scatteringMatrixInMemory = true
 
+outputUNTimes = true
 boundaryLength = 1. mum
 
 windowType = "population"

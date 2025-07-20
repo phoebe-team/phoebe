@@ -82,12 +82,12 @@ void ElectronViscosity::calcRTA(VectorBTE &tau) {
   mpi->allReduceSum(&tensordxdxdxd);
 }
 
-void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelMatrix<double> &eigenvectors) {
+void ElectronViscosity::calcFromRelaxons([[maybe_unused]] Eigen::VectorXd &eigenvalues, ParallelMatrix<double> &eigenvectors) {
 
   Kokkos::Profiling::pushRegion("calcViscosityFromRelaxons");
 
   if (numCalculations > 1) {
-    Error("Developer error: Relaxons electron viscosity cannot be calculated for more than one T or mu value.");
+    DeveloperError("Relaxons electron viscosity cannot be calculated for more than one T or mu value.");
   }
 
   // NOTE: view phonon viscosity for notes about which equations are calculated here.
@@ -103,16 +103,16 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
   //double spinFactor = 2.;
   //if (context.getHasSpinOrbit()) { spinFactor = 1.; }
 
-  double volume = crystal.getVolumeUnitCell(dimensionality);
-  auto particle = bandStructure.getParticle();
-  int numRelaxons = eigenvalues.size();
-  double Nk = context.getKMesh().prod();
-  size_t numStates = bandStructure.getNumStates();
+  //double volume = crystal.getVolumeUnitCell(dimensionality);
+  //auto particle = bandStructure.getParticle();
+  //int numRelaxons = eigenvalues.size();
+  //double Nk = context.getKMesh().prod();
+  //size_t numStates = bandStructure.getNumStates();
 
-  int iCalc = 0; // set to zero because of relaxons
-  auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
-  double kBT = calcStat.temperature;
-  double chemPot = calcStat.chemicalPotential;
+  //int iCalc = 0; // set to zero because of relaxons
+  //auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
+  //double kBT = calcStat.temperature;
+  //double chemPot = calcStat.chemicalPotential;
   
   // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
@@ -127,7 +127,7 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
     relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
   }
 
-  size_t states = eigenvectors.size();
+  //size_t states = eigenvectors.size();
   //LoopPrint loopPrint("Transforming relaxon populations","relaxons", eigenvectors.getAllLocalStates().size());
 /*
   // transform from the relaxon population basis to the electron population ------------
@@ -213,25 +213,10 @@ void ElectronViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues, ParallelM
   }
   mpi->allReduceSum(&tensordxdxdxd);
 
-  Kokkos::Profiling::popRegion();
 */
-}
-
-/* void ElectronViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors, int& numRelaxons) {
-
-  Kokkos::Profiling::pushRegion("electronRelaxonsEigenvectorsCheck");
-
-  // sets alpha0 and alpha_e, the indices
-  // of the special eigenvectors in the eigenvector list,
-  // to be excluded in later calculations
-  Particle particle = bandStructure.getParticle();
-  genericRelaxonEigenvectorsCheck(eigenvectors, numRelaxons, particle,
-                                 theta0, theta_e, phi, alpha0, alpha_e);
-
   Kokkos::Profiling::popRegion();
-
 }
- */
+
 // calculate special eigenvectors
 void ElectronViscosity::calcSpecialEigenvectors() {
 

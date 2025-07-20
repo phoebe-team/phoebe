@@ -19,8 +19,12 @@ else
   mpiCommand=""
 fi
 
-export OMP_NUM_THREADS=4
-export MPI_PROCS=4
+if [ "$OMP_ON" == "ON" ]
+then
+  export OMP_NUM_THREADS=4
+else
+  export OMP_NUM_THREADS=1
+fi
 
 # use this if on a slurm system, replace with
 # your modules
@@ -53,6 +57,8 @@ then
   unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-phonons/*" -d "example/Silicon-ph/qe-phonons"
   unzip -j master.zip "phoebe-data-master/example/Silicon-ph/qe-ph-anharmonic/*" -d "example/Silicon-ph/thirdorder.py-anharmonic"
   unzip -j master.zip "phoebe-data-master/example/Silicon-el/qe-elph/*" -d "example/Silicon-el/qe-elph"
+  mkdir -p example/MgB2-elph-JDFTx/jdftx-elph/
+  unzip -j master.zip "phoebe-data-master/example/MgB2-elph-JDFTx/jdftx-elph/outputs/*" -d "example/MgB2-elph-JDFTx/jdftx-elph"
   unzip 'example/Silicon-el/qe-elph/silicon.phoebe.*.dat.zip' -d example/Silicon-el/qe-elph/
   cp example/Silicon-el/qe-elph/* example/Silicon-epa/qe-elph
   mkdir example/Silicon-epa/qe-elph/out
@@ -70,20 +76,8 @@ then
   rm elpaTest.out
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in qeToPhoebeEPA.in >> elpaTest.out
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in epaTransport.in >> elpaTest.out
-  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierBands.in >> elpaTest.out
+i  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierBands.in >> elpaTest.out
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierDos.in >> elpaTest.out
-  python3 reference/run_check.py
-  cd ../../
-
-  echo "Run ph example"
-  cd example/Silicon-ph
-  rm phTest.out
-  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in phononTransport.in >> phTest.out
-  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in phononBands.in >> phTest.out
-  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in phononDos.in >> phTest.out
-  cd path_lifetimes
-  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in phononLifetimes.in >> phTest.out
-  cd ../
   python3 reference/run_check.py
   cd ../../
 
@@ -96,6 +90,56 @@ then
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierDos.in >> elTest.out
   cd path_lifetimes
   ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in electronLifetimes.in >> elTest.out
+  cd ../
+  cd sym_transport
+  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in electronWannierTransport.in >> elTest.out
+  cd ../
+  python3 reference/run_check.py
+
+  # if we have mpi also check these with pools
+  if [ "$MPI_ON" == "ON" ]
+  then
+    ${mpiCommand} ../../${BUILD_DIR}/phoebe -ps 2 -in electronWannierTransport.in >> elTest.out
+    cd path_lifetimes
+    ${mpiCommand} ../../../${BUILD_DIR}/phoebe -ps 2 -in electronLifetimes.in >> elTest.out
+    cd ../
+    python3 reference/run_check.py
+  fi
+  cd ../../
+
+  echo "Run ph example"
+  cd example/Silicon-ph
+  rm phTest.out
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in phononTransport.in >> phTest.out
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in phononBands.in >> phTest.out
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in phononDos.in >> phTest.out
+  cd path_lifetimes
+  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in phononLifetimes.in >> phTest.out
+  cd ../
+  cd sym_transport
+  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in phononTransport.in >> phTest.out
+  cd ../
+  python3 reference/run_check.py
+  cd ../../
+
+  # run rta kappa with phph and phel ------------------
+  cd example/Silicon-ph/kappa_phph-phel/
+  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in phononTransport.in >> phTest.out
+  python3 reference/run_check.py
+  cd ../../../
+
+  echo "Run el example"
+  cd example/Silicon-el
+  rm elTest.out
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in qeToPhoebeWannier.in >> elTest.out
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierTransport.in >> elTest.out
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierBands.in >> elTest.out
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierDos.in >> elTest.out
+  cd path_lifetimes
+  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in electronLifetimes.in >> elTest.out
+  cd ../
+  cd sym_transport
+  ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in electronWannierTransport.in >> elTest.out
   cd ../
   python3 reference/run_check.py
 

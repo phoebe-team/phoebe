@@ -7,8 +7,14 @@
 #include "phel_scattering.h"
 #include "ifc3_parser.h"
 #include "interaction_elph.h"
+#include "scattering_matrix.h"
 #include <map>
-
+/* 
+enum DragType {
+  elph,
+  phel
+};
+ */
 CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
                                       StatisticsSweep &statisticsSweep_,
                                       BaseBandStructure &innerBandStructure_, // phonon
@@ -30,6 +36,9 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
   numPhStates = int(innerBandStructure.getNumStates());
   numElStates = int(outerBandStructure.getNumStates());
   isCoupled = true;
+  
+  matrixCase = fullMatrix; 
+  
   // TODO this is only actually true after we call phononOnlyA2Omega at the bottom of the scattering
   // process addition section.
   // Otherwise, because ph scattering not symmetrized and el scattering is symmetrized,
@@ -79,12 +88,12 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
   }
   // scattering matrix also must be in memory
   if(!highMemory) {
-    DeveloperError("Cannot construct coupled matrix without full matrix in memory.");
+    Error("Cannot construct coupled matrix without full matrix in memory. Set scatteringMatrixInMemory=true");
   }
   // block symmetry use as relaxons solver cannot benefit from this,
   // and relaxons are the only point of this matrix
   if (context.getUseSymmetries()) {
-    DeveloperError("Currently cannot use symmetry for the calculation of the coupled scattering matrix.");
+    Error("Currently cannot use symmetry for the calculation of the coupled scattering matrix.");
   }
 }
 
@@ -96,7 +105,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // by defintion this is switch case 0 -- matrix construction only.
   // We will never have only linewidth or matrix-vector product
-  int switchCase = 0;
+  //matrixCase == fullMatrix; // It's the default behavior
 
   // internal diagonal should be allocated, as well as the matrix
   if (linewidth == nullptr || theMatrix.rows() == 0) {
@@ -125,6 +134,17 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   std::vector<std::tuple<std::vector<int>, int>> qkPairIterator = allPairIterators[2];
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator = allPairIterators[3];
 
+  // set up lambda function which shifts indices into appropriate quadrants 
+  size_t nElStates = numElStates; // very stupid workaround -- numElStates should only live in CBTE object, anyway. 
+  shiftToCoupledIndices 
+      = [nElStates](long iBte1, long iBte2, const Particle &p1, const Particle &p2){ 
+    // we shift the iBte indices into the relevant quadrant before savign things to the
+    // scattering matrix in the coupled case --  ibte1 = row, ibte2 = col
+    if(p1.isPhonon()) iBte1 += nElStates;
+    if(p2.isPhonon()) iBte2 += nElStates;
+    return std::make_tuple(iBte1, iBte2);
+  };
+      
   // TODO we should let this go out of scope
   // read in elph coupling
   InteractionElPhWan couplingElPh =
@@ -132,14 +152,14 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // add el-ph scattering ----------------------------------------------
   addElPhScattering(*this, context, inPopulations, outPopulations,
-                          switchCase, kPairIterator,
+                          kPairIterator,
                           fermiOccupations,
                           outerBandStructure, outerBandStructure,
                           *phononH0, couplingElPh, linewidth);
 
   // add charged impurity electron scattering  ------------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
-                       switchCase, kPairIterator,
+                       kPairIterator,
                        innerBandStructure, outerBandStructure, linewidth);
 */
 
@@ -150,7 +170,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
         IFC3Parser::parse(context, innerBandStructure.getPoints().getCrystal());
 
     addPhPhScattering(*this, context, inPopulations, outPopulations,
-                                    switchCase, qPairIterator,
+                                    qPairIterator,
                                     boseOccupations, boseOccupations,
                                     innerBandStructure, innerBandStructure,
                                     *phononH0, coupling3Ph, linewidth); 
@@ -159,7 +179,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // Isotope scattering ------------------------------------------------
   if (context.getWithIsotopeScattering()) {
     addIsotopeScattering(*this, context, inPopulations, outPopulations,
-                            switchCase, qPairIterator,
+                            qPairIterator,
                             boseOccupations, boseOccupations,
                             innerBandStructure, innerBandStructure, linewidth);
   }
@@ -172,11 +192,11 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     if (context.getBoundaryLength() > 0.) {
       // phonon boundary scattering
       //addBoundaryScattering(*this, context, inPopulations, outPopulations,
-      //                      switchCase, innerBandStructure, linewidth);
+      //                      innerBandStructure, linewidth);
       //std::cout << std::endl;
       // electron boundary scattering
       //addBoundaryScattering(*this, context, inPopulations, outPopulations,
-      //                      switchCase, outerBandStructure, linewidth);
+      //                      outerBandStructure, linewidth);
     }
   }
 
@@ -208,18 +228,18 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // it calculates internally a third, denser el bandstructure
     // It also internally generates it's k-q pair iterator, as it's only a
     // linewidth calculation and therefore can be parallelized differently.
+    
+    // Below note changed -- it now does update the SMatrix. 
     // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
 
-    addPhElScattering(*this, context,
+    addPhElScattering(*this, context, inPopulations, outPopulations, 
                       innerBandStructure, outerBandStructure,
                       statisticsSweep,
                       couplingElPh, postSymLinewidths);
     mpi->barrier();
 
-    // all reduce the calculated phel linewidths
-    mpi->allReduceSum(&postSymLinewidths->data);
     // TODO maybe output these phel linewidths?
 
     // Add drag terms ----------------------------------------------
@@ -235,8 +255,6 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
 
     // Add in the phel contribution
-    // NOTE: would be nicer to use the add operatore from VectorBTE, but bad inheritance design
-    // is causing trouble -- Jenny
     linewidth->data = linewidth->data + postSymLinewidths->data;
 
   }// braces to have postSymLinewidths go out of scope
@@ -249,9 +267,9 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // Average over degenerate eigenstates.
   // we turn it off for now and leave the code if needed in the future << what does this mean?
-  // TODO why is this only in switchcase 2? Feels like it should absolutely also be in 0,
+  // TODO why is this for linewidthOnly? Feels like it should absolutely also be in 0,
   // before things are re-saved to the diagonal
-  if (switchCase == 2) {
+  if (matrixCase == linewidthOnly) {
     degeneracyAveragingLinewidths(linewidth);
     if(outputUNTimes) {
       degeneracyAveragingLinewidths(internalDiagonalUmklapp);
@@ -265,7 +283,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // some phonons like acoustic modes at the gamma, with omega = 0,
   // might have zero frequencies, and infinite populations. We set those
   // matrix elements to zero.
-  if (switchCase == 0) {
+  if (matrixCase == fullMatrix) {
     // case of matrix construction
     if (context.getUseSymmetries()) {
       for (auto iBte1 : excludeIndices) {
@@ -337,7 +355,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // TODO debug the "replaceLinewidths" function and use it instead
   // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths
-  if (switchCase == 0) { // case of matrix construction
+  if (matrixCase == fullMatrix) { // case of matrix construction
     int iCalc = 0;
     if (context.getUseSymmetries()) {
       // numStates is defined in scattering.cpp as # of irrStates
@@ -365,8 +383,6 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   if(mpi->mpiHead()) std::cout << "\nFinished computing the coupled scattering matrix." << std::endl;
 
-  //this->outputToHDF5("coupled_matrix.hdf5");
-
   if(context.getEnforcePositiveSemiDefinite()) {
     theMatrix.enforcePositiveSemiDefinite();
   }
@@ -383,29 +399,20 @@ void CoupledScatteringMatrix::phononOnlyA2Omega() {
   }
 
   int iCalc = 0; // as there can only be one temperature
-
   auto particle = innerBandStructure.getParticle();
   auto calcStatistics = statisticsSweep.getCalcStatistics(iCalc);
   double temp = calcStatistics.temperature;
   double chemPot = 0;
 
-  auto allLocalStates = theMatrix.getAllLocalStates();
-  size_t numAllLocalStates = allLocalStates.size();
-
+  // when there are no symmetries, ibte = imat
+  // However, for band structure access,
+  // remember that these states are in quadrant 4 for ph-self,
+  // and need to be shifted back to bandstructure indices
 //#pragma omp parallel for
-  for (size_t iTup=0; iTup<numAllLocalStates; iTup++) {
-
-    auto tup = allLocalStates[iTup];
-
-    // when there are no symmetries, ibte = imat
-    // However, for band structure access,
-    // remember that these states are in quadrant 4 for ph-self,
-    // and need to be shifted back to bandstructure indices
-    size_t iBte1 = std::get<0>(tup);
-    size_t iBte2 = std::get<1>(tup);
+  for (auto [iBte1, iBte2] : theMatrix.getAllLocalStates()) {
 
     // we skip any state that's not a phonon one
-    if(iBte1 < size_t(numElStates) || iBte2 < size_t(numElStates)) {
+    if(iBte1 < numElStates || iBte2 < numElStates) {
       continue;
     }
     // TODO excludeIndices... are they for ph indices or global ones?
@@ -477,6 +484,7 @@ void addWavevectorToMap(std::unordered_map<int,std::vector<int>>& pairMap, int& 
   }
 }
 
+// TODO this should probably be generic 
 // helper function to add some dummy indices to each
 // MPI procs iterator of indices to make sure they have the same number
 // If this isn't the case, a pooled calculation will hang
@@ -498,8 +506,7 @@ void mpiPoolsIteratorCorrection(std::vector<std::tuple<std::vector<int>, int>>& 
 }
 
 std::vector<std::vector<std::tuple<std::vector<int>, int>>>
-  CoupledScatteringMatrix::getIteratorWavevectorPairs([[maybe_unused]] const int& switchCase,
-                                                      [[maybe_unused]] const bool& rowMajor) {
+  CoupledScatteringMatrix::getIteratorWavevectorPairs([[maybe_unused]] const bool& rowMajor) {
 
   // this function gets the k,k, k,q, or q,q pairs needed to calculate scattering rates
   // for the coupled scattering matrix. The matrix is always in memory,
@@ -515,24 +522,16 @@ std::vector<std::vector<std::tuple<std::vector<int>, int>>>
   // with scattering matrix in mem
 
   // maps of k and q states for self terms
-  std::unordered_map<int, std::vector<int>> kPairMap;
-  std::unordered_map<int, std::vector<int>> qPairMap;
+  std::unordered_map<int, std::vector<int>> kPairMap, qPairMap;
   // maps of k,q pairs and vice versa for drag terms
-  std::unordered_map<int, std::vector<int>> qkPairMap;
-  std::unordered_map<int, std::vector<int>> kqPairMap;
+  std::unordered_map<int, std::vector<int>> qkPairMap, kqPairMap;
 
   // select out the states in each quadrant
-  for(auto matrixState : matrixStateIter) {
-
-    // unpack the state info into matrix indices
-    int iMat1 = std::get<0>(matrixState);
-    int iMat2 = std::get<1>(matrixState);
+  for(auto [iMat1, iMat2] : matrixStateIter) {
 
     // convert to BTE indices (just removing cartesian direction, if sym was present)
-    auto tup = getSMatrixIndex(iMat1);
-    BteIndex iBte1 = std::get<0>(tup);
-    tup = getSMatrixIndex(iMat2);
-    BteIndex iBte2 = std::get<0>(tup);
+    [[maybe_unused]] auto [iBte1, x1] = getSMatrixIndex(iMat1);
+    [[maybe_unused]] auto [iBte2, x2] = getSMatrixIndex(iMat2);
 
     // if it's the el-el one, we do nothing. s1 = el, s2 = el
     if (iBte1.get() < numElStates && iBte2.get() < numElStates) {
@@ -585,8 +584,7 @@ std::vector<std::vector<std::tuple<std::vector<int>, int>>>
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator;
   // both drag terms expect indexes as qindices, k
   // NOTE: realize these are indeed different lists, as the states which are local are different
-  std::vector<std::tuple<std::vector<int>, int>> kqPairIterator;
-  std::vector<std::tuple<std::vector<int>, int>> qkPairIterator;
+  std::vector<std::tuple<std::vector<int>, int>> kqPairIterator, qkPairIterator;
 
   for(auto [ik1, ik2Indices] : kPairMap) {
     std::tuple<std::vector<int>,int> temp = std::make_tuple(ik2Indices,ik1);

@@ -61,11 +61,13 @@ protected:
   BaseBandStructure& getElBandStructure() { return innerBandStructure; };
 
   friend void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
-                BaseBandStructure &phBandStructure,
-                BaseBandStructure &elBandStructure,
-                StatisticsSweep &statisticsSweep, 
-                InteractionElPhWan &couplingElPhWan,
-                std::shared_ptr<VectorBTE> linewidth);
+              std::vector<VectorBTE> &inPopulations,
+              std::vector<VectorBTE> &outPopulations,
+              BaseBandStructure &phBandStructure,
+              BaseBandStructure &elBandStructure,
+              StatisticsSweep& statisticsSweep, 
+              InteractionElPhWan &couplingElPhWan,
+              std::shared_ptr<VectorBTE> linewidth);
 
 };
 

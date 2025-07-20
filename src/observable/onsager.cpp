@@ -16,7 +16,7 @@ OnsagerCoefficients::OnsagerCoefficients(StatisticsSweep &statisticsSweep_,
     : statisticsSweep(statisticsSweep_), crystal(crystal_),
       bandStructure(bandStructure_), context(context_) {
 
-  // TODO : change this to use the context getSpinDegeneracyFactor 
+  // TODO : change this to use the context getSpinDegeneracyFactor
   if (context.getHasSpinOrbit()) { spinFactor = 1.;
   } else { spinFactor = 2.; }
 
@@ -131,7 +131,6 @@ void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
 
   auto points = bandStructure.getPoints();
   std::vector<int> states = bandStructure.parallelIrrStateIterator();
-  int numStates = states.size();
 
   for (int is : bandStructure.parallelIrrStateIterator()) {
 
@@ -181,7 +180,7 @@ void OnsagerCoefficients::calcFromPopulation(VectorBTE &nE, VectorBTE &nT) {
   Kokkos::Profiling::popRegion();
 }
 
-void OnsagerCoefficients::writeIntegralContributions() { 
+void OnsagerCoefficients::writeIntegralContributions() {
 
   int numCalcs = statisticsSweep.getNumCalculations();
   auto particle = bandStructure.getParticle();
@@ -203,26 +202,26 @@ void OnsagerCoefficients::writeIntegralContributions() {
   }
 
   size_t Nk = bandStructure.getPoints().getNumPoints();
-  double volume = crystal.getVolumeUnitCell(dimensionality); 
-  size_t Nkcount = 0; 
+  double volume = crystal.getVolumeUnitCell(dimensionality);
+  size_t Nkcount = 0;
 
   for (int iCalc = 0; iCalc < numCalcs; iCalc++) {
- 
-    double mu = chemPots[iCalc];	  
-    double temp = temperatures[iCalc];	  
+
+    double mu = chemPots[iCalc];
+    double temp = temperatures[iCalc];
 
     for (int is : bandStructure.parallelIrrStateIterator()) {
 
       StateIndex isIdx(is);
       double energy = bandStructure.getEnergy(isIdx);
       double dfde = particle.getDnde(energy, temp, mu);
-      auto rotations = bandStructure.getRotationsStar(isIdx); 
+      auto rotations = bandStructure.getRotationsStar(isIdx);
 
       // weight by the number of rotations which reduce to this point
       double contrib = dfde * -1.0;
       contrib *= rotations.size();
       dfdeOnly[iCalc] += contrib;
-      dfdeEmu[iCalc] += dfde * (energy - mu) * rotations.size();  
+      dfdeEmu[iCalc] += dfde * (energy - mu) * rotations.size();
       dfdeEmuSq[iCalc] += dfde * (energy - mu) * (energy - mu) * rotations.size();
       Nkcount +=  rotations.size();
     }
@@ -235,27 +234,27 @@ void OnsagerCoefficients::writeIntegralContributions() {
   mpi->allReduceSum(&dfdeEmuSq);
 
   // find g(Ef)
-  std::vector<double> Nmu(numCalcs); 
+  std::vector<double> Nmu(numCalcs);
 
   for (int iCalc = 0; iCalc < numCalcs; iCalc++) {
     for (int jCalc = 0; jCalc < iCalc; jCalc++) {
       Nmu[iCalc] += dfdeOnly[jCalc];
     }
     double deltaMu = (chemPots[iCalc] - chemPots[0]) / iCalc;
-    Nmu[iCalc] *= volume * deltaMu; 
+    Nmu[iCalc] *= volume * deltaMu;
   }
 
-  if(mpi->mpiHead()) { 
+  if(mpi->mpiHead()) {
     // output to json
     nlohmann::json output;
     output["chemicalPotentials"] = chemPots;
     output["chemicalPotentialUnit"] = "eV";
-    output["temperatures"] = temperatures; 
+    output["temperatures"] = temperatures;
     output["temperatureUnit"] = "K";
-    output["sigmaIntegrand"] = dfdeOnly; 
-    output["kappaIntegrand"] = dfdeEmu; 
+    output["sigmaIntegrand"] = dfdeOnly;
+    output["kappaIntegrand"] = dfdeEmu;
     output["sigmaSIntegrand"] = dfdeEmuSq;
-    output["Nmu"] = Nmu; 
+    output["Nmu"] = Nmu;
     output["particleType"] = "electron";
     std::ofstream o("onsager_integrands.json");
     o << std::setw(3) << output << std::endl;
@@ -516,15 +515,15 @@ void OnsagerCoefficients::calcVariational(VectorBTE &afE, VectorBTE &afT,
       std::cout << "Unsymmetrized electronic transport properties:\n" << std::endl;
       print();
     }
-    // symmetrize the conductivity 
+    // symmetrize the conductivity
     //symmetrize(sigma);
     //symmetrize(kappa);
     mpi->barrier();
   }*/
-} 
+}
 
-// TODO this should be a function of observable rather than of onsager, 
-// however, somehow Onsager does not inherit from observable... 
+// TODO this should be a function of observable rather than of onsager,
+// however, somehow Onsager does not inherit from observable...
 void OnsagerCoefficients::symmetrize(Eigen::Tensor<double, 3>& allTransportCoeffs) {
 
   // get symmetry rotations of the crystal in cartesian coords

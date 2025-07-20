@@ -29,7 +29,6 @@ class BasePhScatteringMatrix : virtual public ScatteringMatrix {
   friend void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
                                 std::vector<VectorBTE> &inPopulations,
                                 std::vector<VectorBTE> &outPopulations,
-                                int &switchCase,
                                 std::vector<std::tuple<std::vector<int>, int>> qPairIterator,
                                 Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
                                 BaseBandStructure &innerBandStructure,
@@ -40,20 +39,21 @@ class BasePhScatteringMatrix : virtual public ScatteringMatrix {
 
   friend void addIsotopeScattering(BasePhScatteringMatrix &matrix, Context &context,
                                 std::vector<VectorBTE> &inPopulations,
-                                std::vector<VectorBTE> &outPopulations, int &switchCase,
+                                std::vector<VectorBTE> &outPopulations, 
                                 std::vector<std::tuple<std::vector<int>, int>> qPairIterator,
                                 Eigen::MatrixXd &innerBose, Eigen::MatrixXd &outerBose,
                                 BaseBandStructure &innerBandStructure,
                                 BaseBandStructure &outerBandStructure,
                                 std::shared_ptr<VectorBTE> linewidth);
 
-  friend void addPhElScattering(BasePhScatteringMatrix& matrix, Context& context,
-                                BaseBandStructure& phBandStructure,
-                                BaseBandStructure& elBandStructure,
-                                StatisticsSweep& statisticsSweep, 
-                                InteractionElPhWan& couplingElPhWan,
-                                std::shared_ptr<VectorBTE> linewidth);
-
+  friend void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
+                                  std::vector<VectorBTE> &inPopulations,
+                                  std::vector<VectorBTE> &outPopulations,
+                                  BaseBandStructure &phBandStructure,
+                                  BaseBandStructure &elBandStructure,
+                                  StatisticsSweep& statisticsSweep, 
+                                  InteractionElPhWan &couplingElPhWan,
+                                  std::shared_ptr<VectorBTE> linewidth);
 };
 
 #endif

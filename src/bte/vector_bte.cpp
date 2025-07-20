@@ -9,7 +9,7 @@ VectorBTE::VectorBTE(StatisticsSweep &statisticsSweep_,
     : statisticsSweep(statisticsSweep_), bandStructure(bandStructure_) {
 
   if (dimensionality_ <= 0) {
-    Error("BaseVectorBTE doesn't accept <=0 dimensions");
+   DeveloperError("BaseVectorBTE doesn't accept <=0 dimensions");
   }
 
   dimensionality = dimensionality_;
@@ -66,10 +66,10 @@ VectorBTE &VectorBTE::operator=(const VectorBTE &that) {
 // product operator overload
 Eigen::MatrixXd VectorBTE::dot(const VectorBTE &that) {
   if (that.numCalculations != numCalculations || that.numStates != numStates) {
-    Error("The 2 VectorBTE must be aligned for dot() to work.");
+    DeveloperError("The 2 VectorBTE must be aligned for dot() to work.");
   }
   if (that.dimensionality != 3 ) {
-    Error("VectorBTE dot is implemented for 3D vectors only");
+    DeveloperError("VectorBTE dot is implemented for 3D vectors only");
   }
   Eigen::MatrixXd result(statisticsSweep.getNumCalculations(),3);
   result.setZero();
@@ -137,17 +137,15 @@ VectorBTE VectorBTE::baseOperator(VectorBTE &that, const int &operatorType) {
     } else if (operatorType == operatorDiff) {
       newPopulation.data << this->data.array() - that.data.array();
     } else {
-      Error("Developer error: Operator type for VectorBTE not recognized");
+      DeveloperError("Operator type for VectorBTE not recognized");
     }
   // this adds the same vectorBTE that to every calc in
   // this vector BTE
   } else if (that.dimensionality == 1) {
 
     for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
-      auto tup = loc2Glob(iCalc);
-      auto imu = std::get<0>(tup);
-      auto it = std::get<1>(tup); // temperature
-      auto i2 = that.glob2Loc(imu, it, CartIndex(0)); //cartesian index
+      [[maybe_unused]] auto [imu, iT, iDim] = loc2Glob(iCalc);
+      auto i2 = that.glob2Loc(imu, iT, CartIndex(0)); //cartesian index
 
       if (operatorType == operatorSums) {
         newPopulation.data.row(iCalc) =
@@ -162,11 +160,11 @@ VectorBTE VectorBTE::baseOperator(VectorBTE &that, const int &operatorType) {
         newPopulation.data.row(iCalc) =
             this->data.row(iCalc).array() - that.data.row(i2).array();
       } else {
-        Error("Operator type for VectorBTE not recognized");
+        DeveloperError("Operator type for VectorBTE not recognized");
       }
     }
   } else {
-    Error("Developer error: VectorBTE objects "
+    DeveloperError("VectorBTE objects "
                 "cannot be operated on when dim > 1.");
   }
   for (const int &iBte : excludeIndices) {
@@ -193,7 +191,7 @@ VectorBTE VectorBTE::operator*(const double &scalar) {
 VectorBTE VectorBTE::operator*(const Eigen::MatrixXd &vector) {
   VectorBTE newPopulation(statisticsSweep, bandStructure, dimensionality);
   if (vector.rows() != statisticsSweep.getNumCalculations() || vector.cols() != 3) {
-    Error("VectorBTE * unexpected alignment with MatrixXd");
+    DeveloperError("VectorBTE * unexpected alignment with MatrixXd");
   }
 #pragma omp parallel for
   for (int iBte=0; iBte<numStates; iBte++) {
@@ -211,10 +209,10 @@ VectorBTE VectorBTE::operator*(ParallelMatrix<double> &matrix) {
 
   if (numCalculations != dimensionality) {
     // you'd need to keep in memory a lot of matrices.
-    Error("We didn't implement VectorBTE * matrix for numCalculations > 1");
+    DeveloperError("We didn't implement VectorBTE * matrix for numCalculations > 1");
   }
   if (matrix.rows() != numStates) {
-    Error("VectorBTE and Matrix not aligned");
+    DeveloperError("VectorBTE and Matrix not aligned");
   }
   VectorBTE newPopulation(statisticsSweep, bandStructure, dimensionality);
   newPopulation.data.setZero();
@@ -227,9 +225,7 @@ VectorBTE VectorBTE::operator*(ParallelMatrix<double> &matrix) {
     Eigen::MatrixXd dataPrivate = newPopulation.data;
 #pragma omp for
     for (size_t iTup=0; iTup<numAllLocalStates; iTup++) {
-      auto tup = allLocalStates[iTup];
-      auto i = std::get<0>(tup);
-      auto j = std::get<1>(tup);
+      auto [i,j] = allLocalStates[iTup];
       for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
 	dataPrivate(iCalc, j) += data(iCalc, i) * matrix(i, j);
       }
@@ -311,9 +307,6 @@ void VectorBTE::outputToJSON(const std::string &outFileName, BaseBandStructure& 
     energyConversion *= 1000;
     relaxationTimeUnit = "ps"; // phonon times more commonly in ps
     energyToTime *= 1e-3;
-    // this is a bit of a hack to deal with phel scattering, where stat sweep
-    // has nonzero mu values in spite of it being a phonon case
-
   } else {
     particleType = "electron";
   }
@@ -486,11 +479,8 @@ int VectorBTE::glob2Loc(const ChemPotIndex &imu, const TempIndex &it,
 std::tuple<ChemPotIndex, TempIndex, CartIndex>
 VectorBTE::loc2Glob(
     const int &i) const {
-  auto tup = decompress3Indices(i, numChemPots, numTemps, dimensionality);
-  auto imu = std::get<0>(tup);
-  auto it = std::get<1>(tup);
-  auto iDim = std::get<2>(tup);
-  return std::make_tuple(ChemPotIndex(imu), TempIndex(it), CartIndex(iDim));
+  auto [imu, iT, iDim] = decompress3Indices(i, numChemPots, numTemps, dimensionality);
+  return std::make_tuple(ChemPotIndex(imu), TempIndex(iT), CartIndex(iDim));
 }
 
 void VectorBTE::setConst(const double &constant) {

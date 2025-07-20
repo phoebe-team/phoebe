@@ -9,22 +9,24 @@ import numpy
 if __name__ == "__main__":
 
     listOfJsons = glob.glob("*.json")
-    # path lifetimes will overwrite rta lifetimes if not separated
+    # tests that produce duplicate files will be overwritten if
+    # not in separate directories
     listOfJsons.extend(glob.glob("path_lifetimes/*.json"))
-    tol = 1e-2 # test for 1% changes
+    listOfJsons.extend(glob.glob("sym_transport/*.json"))
+    tol = 1e-2
 
     for filename in listOfJsons:
 
         filename2 = os.path.join("reference", filename)
 
+        print(filename)
+        print(filename2)
+        print(" ")
+
         with open(filename) as f1:
             data1 = json.load(f1)
         with open(filename2) as f2:
             data2 = json.load(f2)
-
-        print(filename)
-        print(filename2)
-        print(" ")
 
         if "thermal_cond" in filename:
             k1 = numpy.array(data1['thermalConductivity'])

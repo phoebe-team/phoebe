@@ -24,28 +24,14 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                  std::vector<VectorBTE> &inPopulations,
                                  std::vector<VectorBTE> &outPopulations) {
 
+  if(mpi->mpiHead())
+    std::cout << "============== Building electron scattering matrix ==============" << std::endl;
+
   Kokkos::Profiling::pushRegion("ElScatteringMatrix::builder");
 
-  // 3 cases:
-  // theMatrix and linewidth is passed: we compute and store in memory the
-  // scattering
-  //       matrix and the diagonal
-  // inPopulation+outPopulation is passed: we compute the action of the
-  //       scattering matrix on the in vector, returning outVec = sMatrix*vector
-  // only linewidth is passed: we compute only the linewidths
-  // Note: this determination is the same for all scattering matrices.
-  // Perhaps we should make a general function for it in the parent class?
-  int switchCase = 0;
-  if (theMatrix.rows() != 0 && linewidth != nullptr && inPopulations.empty() && outPopulations.empty()) {
-    switchCase = 0;
-  } else if (theMatrix.rows() == 0 && linewidth == nullptr && !inPopulations.empty() && !outPopulations.empty()) {
-    switchCase = 1;
-  } else if (theMatrix.rows() == 0 && linewidth != nullptr && inPopulations.empty() && outPopulations.empty()) {
-    switchCase = 2;
-  } else {
-    DeveloperError("El matrix builder found a non-supported case");
-  }
-
+  // set in the parent object what kind of matrix this is                            
+  setMatrixCase(linewidth, inPopulations, outPopulations);
+      
   if ((linewidth != nullptr) && (linewidth->dimensionality != 1)) {
     DeveloperError("The linewidths shouldn't have dimensionality");
   }
@@ -60,7 +46,7 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // compute wavevector pairs for the calculation
   bool rowMajor = true;
   std::vector<std::tuple<std::vector<int>, int>> kPairIterator =
-                                 getIteratorWavevectorPairs(switchCase, rowMajor);
+                                 getIteratorWavevectorPairs(rowMajor);
 
   // add scattering contributions ---------------------------------------
   // add elph scattering
@@ -75,14 +61,14 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   InteractionElPhWan couplingElPh =
       InteractionElPhWan::parse(context, crystal, phononH0);
 
-  addElPhScattering(*this, context, inPopulations, outPopulations, switchCase,
+  addElPhScattering(*this, context, inPopulations, outPopulations, 
                                   kPairIterator, innerFermi, //outerFermi,
                                   innerBandStructure, outerBandStructure, phononH0,
                                   couplingElPh, linewidth);
   }
   // add charged impurity electron scattering  -------------------
 /*  addChargedImpurityScattering(*this, context, inPopulations, outPopulations,
-                       switchCase, kPairIterator,
+                       kPairIterator,
                        innerBandStructure, outerBandStructure, linewidth);
 */
   // TODO was there previously an all reduce between these two on
@@ -91,18 +77,18 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // add DMFT fermi liquid contribution  -------------------
   // currently we don't add ee time to linewidthMR. I think this is correct. 
-  //add_eeDMFT(*this, context, switchCase, outerBandStructure, linewidth);
+  //add_eeDMFT(*this, context, outerBandStructure, linewidth);
 
   // Add boundary scattering ------------------------------------
   if (!std::isnan(context.getBoundaryLength())) {
     if (context.getBoundaryLength() > 0.) {
       addBoundaryScattering(*this, context, inPopulations, outPopulations,
-                            switchCase, outerBandStructure, linewidth);
+                            outerBandStructure, linewidth);
     }
   }
 
   // all reduce the linewidths
-  if (switchCase == 1) {
+  if (matrixCase == matrixVectorProduct) {
     for (unsigned int iVec = 0; iVec < inPopulations.size(); iVec++) {
       mpi->allReduceSum(&outPopulations[iVec].data);
     }
@@ -118,9 +104,7 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
 
   // Average over degenerate eigenstates.
-  // we turn it off for now and leave the code if needed in the future
-  // TODO   ^^ do we?
-  if (switchCase == 2) {
+  if (matrixCase == linewidthOnly) {
     degeneracyAveragingLinewidths(linewidth);
     degeneracyAveragingLinewidths(linewidthMR);
   }
@@ -132,7 +116,7 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
  // we place the linewidths back in the diagonal of the scattering matrix
   // this because we may need an MPI_allReduce on the linewidths
-  if (switchCase == 0) {// case of matrix construction
+  if (matrixCase == fullMatrix) {// case of matrix construction
     int iCalc = 0;
     if (context.getUseSymmetries()) {
       // numStates is defined in scattering.cpp as # of irrStates
@@ -162,8 +146,16 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // before closing, write the relaxation times to file 
   // remember to first convert to a vector BTE object without symmetrization
-  getLinewidths(*linewidthMR).outputToJSON("mrta_el_relaxation_times.json", outerBandStructure);
-  getLinewidths(*linewidth).outputToJSON("rta_el_relaxation_times.json", outerBandStructure);
+  if(matrixCase != matrixVectorProduct) {
+
+    getLinewidths(*linewidthMR).outputToJSON("mrta_el_relaxation_times.json", outerBandStructure);
+    getLinewidths(*linewidth).outputToJSON("rta_el_relaxation_times.json", outerBandStructure);
+    
+    if(outputUNTimes) { 
+      getLinewidths(*internalDiagonalNormal).outputToJSON("rta_el_N_relaxation_times.json", outerBandStructure); 
+      getLinewidths(*internalDiagonalUmklapp).outputToJSON("rta_el_U_relaxation_times.json", outerBandStructure); 
+    }
+}
 }
 
 // function called on shared ptrs of linewidths

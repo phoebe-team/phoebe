@@ -1,7 +1,7 @@
 ![Build and Test](https://github.com/phoebe-team/phoebe/actions/workflows/buildandtest_push.yaml/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/phoebe/badge/?version=develop)](https://phoebe.readthedocs.io/en/develop/?badge=develop)
 
-# Phoebe <img src="doc/sphinx/source/_static/icon.png" width="25"/>
+#  <img src="doc/sphinx/source/_static/icon.png" width="25"/> Phoebe
 
 ### A high-performance framework for solving phonon and electron Boltzmann transport equations
 

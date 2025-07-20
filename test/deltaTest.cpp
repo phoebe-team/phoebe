@@ -17,10 +17,8 @@ TEST(deltaFunctions, testAllDeltas) {
   context.setSumRuleFC2("simple");
 
   // basic hamiltonian properties
-  auto tup = QEParser::parsePhHarmonic(context);
-  auto crystal = std::get<0>(tup);
-  auto phononH0 = std::get<1>(tup);
-  int numBands = phononH0.getNumBands();
+  auto [crystal, phononH0] = QEParser::parsePhHarmonic(context);
+  //int numBands = phononH0.getNumBands();
 
   // setup parameters for active band structure creation
   Eigen::Vector3i qMesh;
@@ -86,15 +84,15 @@ TEST(deltaFunctions, testAllDeltas) {
 //  std::cout << "gaussian " << delta << std::endl;
   //ASSERT_EQ(delta, );
 
-  AdaptiveGaussianDeltaFunction smearing2(phononBandStructure, context);
-  Eigen::Vector3d vdiff = v2 - v3;
-  double delta = smearing2.getSmearing(enDiff, vdiff);
+  //AdaptiveGaussianDeltaFunction smearing2(phononBandStructure, context);
+  //Eigen::Vector3d vdiff = v2 - v3;
+  //double delta = smearing2.getSmearing(enDiff, vdiff);
 //  if(delta > 0) {
 //  std::cout << "adaptive gaussian " << delta;
 //  std::cout << "qs is en " << iq1 << " " << iq2 << " " << iq3 << " " << is1.get() << " " << is2.get() << " " << is3.get() << " " << en1 << " " << en2 << " " << en3 << std::endl;
 
-  SymAdaptiveGaussianDeltaFunction smearing3(phononBandStructure,context);
-  delta = smearing3.getSmearing(enDiff, v1, v2, v3);
+  //SymAdaptiveGaussianDeltaFunction smearing3(phononBandStructure,context);
+  //delta = smearing3.getSmearing(enDiff, v1, v2, v3);
   //std::cout << " sym " << delta << std::endl;
   //ASSERT_EQ(delta, );
   //TetrahedronDeltaFunction smearing4(phononBandStructure);

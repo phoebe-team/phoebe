@@ -34,9 +34,7 @@ void PhononTransportApp::run(Context &context) {
   // first we make compute the band structure on the fine grid
   Points fullPoints(crystal, context.getQMesh());
 
-  auto tup1 = ActiveBandStructure::builder(context, phononH0, fullPoints);
-  auto bandStructure = std::get<0>(tup1);
-  auto statisticsSweep = std::get<1>(tup1);
+  auto [bandStructure, statisticsSweep] = ActiveBandStructure::builder(context, phononH0, fullPoints);
 
   // build/initialize the scattering matrix and the smearing
   PhScatteringMatrix scatteringMatrix(context, statisticsSweep, bandStructure,
@@ -147,6 +145,7 @@ void PhononTransportApp::run(Context &context) {
 
     VectorBTE fNext(statisticsSweep, bandStructure, 3);
     VectorBTE sMatrixDiagonal = scatteringMatrix.diagonal();
+    VectorBTE sMatDiagRecip = sMatrixDiagonal.reciprocal();
 
     // from n, we get f, such that n = bose(bose+1)f
     VectorBTE fRTA = popRTA;
@@ -157,7 +156,10 @@ void PhononTransportApp::run(Context &context) {
 
     for (int iter = 0; iter < context.getMaxIterationsBTE(); iter++) {
 
-      fNext = scatteringMatrix.offDiagonalDot(fOld) / sMatrixDiagonal;
+      // here we use .reciprocal and multiply by that rather than using the VBTE 
+      // operators. This is because if reciprocal handles div by 0 elegantly, 
+      // and here we are at risk of encountering a zero. 
+      fNext = scatteringMatrix.offDiagonalDot(fOld) * sMatDiagRecip;
       fNext = fRTA - fNext;
 
       phTCond.calcFromCanonicalPopulation(fNext);

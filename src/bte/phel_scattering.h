@@ -9,6 +9,8 @@
 // TODO write docstrings for these
 
 void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
+                std::vector<VectorBTE> &inPopulations,
+                std::vector<VectorBTE> &outPopulations,
                 BaseBandStructure &phBandStructure,
                 BaseBandStructure &elBandStructure,
                 StatisticsSweep& statisticsSweep, 

@@ -1,113 +1,100 @@
-// #ifndef EL_PH_SVD_INTERACTION_H
-// #define EL_PH_SVD_INTERACTION_H
+#ifndef EL_PH_SVD_INTERACTION_H
+#define EL_PH_SVD_INTERACTION_H
 
-// #include "highfive/H5File.hpp"
-// #include "interaction_base_elph.h"
+#include "interaction_elph_base.h"
+#include <memory>
+#include <string>
+#include <vector>
 
-// #include <complex>
+// Forward-declare classes to reduce header dependencies
+class Context;
+class Crystal;
+class PhononH0;
+namespace HighFive {
+class Group;
+}
 
-// #include "constants.h"
-// #include "crystal.h"
-// #include "eigen.h"
-// #include "phonon_h0.h"
-// #include "points.h"
-// #include "utilities.h"
-// #include "context.h"
-// #include "common_kokkos.h"
-// #include <Kokkos_Core.hpp>
-// #include <memory>
-// #include <string>
-// #include <vector>
-// #include <regex>
+/**
+ * @class InteractionElPhSVD
+ * @brief An implementation of the electron-phonon interaction using
+ *        a Singular Value Decomposition (SVD) of the coupling matrix.
+ *
+ * This class inherits from InteractionElPhBase and is responsible for
+ * reading pre-computed SVD data from an HDF5 file and reconstructing
+ * the electron-phonon coupling on the fly. It is created via its
+ * static `parse` method.
+ */
+class InteractionElPhSVD : public InteractionElPhBase {
+public:
+  /**
+   * @brief Factory function to parse an HDF5 file and create the SVD
+   * interaction object.
+   *
+   * This is the main, standalone entry point for this class. It reads the HDF5
+   * file containing the SVD data, populates the internal 5D Kokkos containers,
+   * and returns an object ready for calculations.
+   *
+   * @param context The application context, containing the path to the HDF5 file.
+   * @param crystal The crystal structure object.
+   * @param phononH0 The phonon Hamiltonian object (passed by reference).
+   * @return A unique_ptr to the created InteractionElPhSVD object.
+   */
+  static std::unique_ptr<InteractionElPhSVD> parse(Context &context,
+                                                   Crystal &crystal,
+                                                   PhononH0 &phononH0);
 
-// class InteractionElPhSVD: public InteractionElPhBase {
+  // Override the pure virtual functions from InteractionElPhBase
+  void cacheElPh(const Eigen::MatrixXcd &eigvec1,
+                 const Eigen::Vector3d &k1C) override;
+  void calcCouplingSquared(
+      const Eigen::MatrixXcd &eigvec1,
+      const std::vector<Eigen::MatrixXcd> &eigvecs2,
+      const std::vector<Eigen::MatrixXcd> &eigvecs3,
+      const std::vector<Eigen::Vector3d> &q3Cs,
+      const std::vector<Eigen::VectorXcd> &polarData) override;
+  void resetK1() override;
+  const Eigen::Tensor<double, 3> &
+  getCouplingSquared(const int &ik2) const override;
+  const Eigen::VectorXi getCouplingDimensions() const override;
+  const double getDeviceMemoryUsage() const override;
+  int estimateNumBatches(const int &nk2, const int &nb1) const override;
 
-// public:
+  // Public inspection methods to verify the container
+  void printSVDInfo() const;
+  void printSVDSample(size_t i = 0, size_t j = 0, size_t eta = 0) const;
 
-//     InteractionElPhSVD(Crystal& crystal, Context& context, // TODO put ph H0 up here
-//                 //const Eigen::Tensor<std::complex<double>, 5>& couplingWannier,
-//                 //const Eigen::MatrixXd& elBraviasVectors,
-//                 //const Eigen::VectorXd& elBraviasVectorsDegeneracies,
-//                 //const Eigen::MatrixXd& phBravaisVectors,
-//                 //const Eigen::VectorXd& phBraviasVectorsDegeneracies,
-//                 PhononH0* phononH0 = nullptr);
+public: // Public constructor to be accessible by std::make_unique
+  /**
+   * @brief Constructor for InteractionElPhSVD.
+   * @note Users should prefer the static `parse()` factory function to create
+   * instances of this class.
+   */
+  InteractionElPhSVD(Crystal &crystal, Context &context, PhononH0 &phononH0);
 
-//     //~InteractionElPhSVD() = default;
+private:
+  // The core parsing routine that populates the Kokkos views.
+  void parseSVDKokkos(Context &context);
 
-//     void cacheElPh(const Eigen::MatrixXcd &eigvec1, const Eigen::Vector3d &k1C) override ;
+  // Helper struct for temporarily holding data from HDF5 groups
+  struct SVDGroupData {
+    std::unique_ptr<std::vector<double>> singularVector;
+    std::unique_ptr<std::vector<double>> rightMatrix;
+    std::unique_ptr<std::vector<double>> leftMatrix;
+    int idxX, idxY, idxZ;
+  };
+  std::vector<SVDGroupData>
+  processAllSVDGroups(const HighFive::Group &svdGroup, size_t &num_i,
+                      size_t &num_j, size_t &num_eta);
 
-//     void calcCouplingSquared(const Eigen::MatrixXcd &eigvec1,
-//                             const std::vector<Eigen::MatrixXcd> &eigvecs2,
-//                             const std::vector<Eigen::MatrixXcd> &eigvecs3,
-//                             const std::vector<Eigen::Vector3d> &q3Cs,
-//                             const std::vector<Eigen::VectorXcd> &polarData) override;
+  // The massive 5D Kokkos containers for the SVD data
+  ComplexView5D SVD_Y;  // Stores singular values * left matrix (U*S)
+  ComplexView5D SVD_Vt; // Stores the right matrix (V_t)
 
-//     struct SVDGroupData {
-//         std::unique_ptr<std::vector<double>> singularVector;
-//         std::unique_ptr<std::vector<double>> rightMatrix;
-//         std::unique_ptr<std::vector<double>> leftMatrix;
-//         int idxX; // Extracted index X
-//         int idxY; // Extracted index Y
-//         int idxZ; // Extracted index Z
+  // Store Bravais vectors and degeneracies locally.
+  Eigen::MatrixXd elBravaisVectors;
+  Eigen::MatrixXd phBravaisVectors;
+  Eigen::VectorXd elBravaisVectorsDegeneracies;
+  Eigen::VectorXd phBravaisVectorsDegeneracies;
+};
 
-//         // Constructor to initialize all members
-//         SVDGroupData(std::unique_ptr<std::vector<double>> singularVector,
-//                         std::unique_ptr<std::vector<double>> rightMatrix_,
-//                         std::unique_ptr<std::vector<double>> leftMatrix_,
-//                         int idxX_, int idxY_, int idxZ_)
-//             : singularVector(std::move(singularVector)),
-//                 rightMatrix(std::move(rightMatrix_)),
-//                 leftMatrix(std::move(leftMatrix_)),
-//                 idxX(idxX_),
-//                 idxY(idxY_),
-//                 idxZ(idxZ_) {}
-
-//         // Move constructor
-//         SVDGroupData(SVDGroupData&& other) noexcept
-//             : singularVector(std::move(other.singularVector)),
-//                 rightMatrix(std::move(other.rightMatrix)),
-//                 leftMatrix(std::move(other.leftMatrix)),
-//                 idxX(other.idxX),
-//                 idxY(other.idxY),
-//                 idxZ(other.idxZ) {}
-
-//         // Move assignment operator
-//         SVDGroupData& operator=(SVDGroupData&& other) noexcept {
-//             if (this != &other) {
-//                 singularVector = std::move(other.singularVector);
-//                 rightMatrix = std::move(other.rightMatrix);
-//                 leftMatrix = std::move(other.leftMatrix);
-//                 idxX = other.idxX;
-//                 idxY = other.idxY;
-//                 idxZ = other.idxZ;
-//             }
-//             return *this;
-//         }
-
-//         // Disable copying
-//         SVDGroupData(const SVDGroupData&) = delete;
-//         SVDGroupData& operator=(const SVDGroupData&) = delete;
-//     };
-
-//     // Add additional functions HERE
-//     //     // TODO for Keynesh, write this docstring
-//     //     /** Method to read HDF5 files and load data into Kokkos Views */
-//     //
-//     void parseSVDKokkos(const std::string& hdf5FilePath, const std::string& svdGroupName);
-
-//     std::vector<SVDGroupData> processAllSVDGroups(const HighFive::Group& svdGroupsize_t,size_t& num_i, size_t& num_j, size_t& num_eta);
-
-//     // Disable other inherited functions to restrcit theri uses
-//     //InteractionElPhWan& operator=(const InteractionElPhWan&) = delete;
-//     //InteractionElPhSVD(const InteractionElPhSVD&) = delete;
-
-// private:
-//     //Kokkos::View<double***> kokkosContainer;
-//     // the SVD data
-//     ComplexView5D SVD_Y; // i,j,n,Re,gamma
-//     ComplexView5D SVD_Vt; // i,j,n,Rp,gamma
-//     // size_t numSingularValues;
-
-// };
-
-// #endif
+#endif // EL_PH_SVD_INTERACTION_H

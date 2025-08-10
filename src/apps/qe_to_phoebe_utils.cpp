@@ -843,42 +843,45 @@ void performSVD(const Eigen::MatrixXd &matrix, Eigen::MatrixXd &U,
     double maxSingularValue = S.maxCoeff();
     size_t indice = 0;
 
-    //Implement truncation based of truncation amount
-    for (size_t i{}; i != S.size(); ++i){
-        if (S[i] >= truncAmount*0.01* maxSingularValue) {
+    for (size_t i = 0; i < S.size(); ++i) {
+        if (S[i] >= truncAmount * 0.01 * maxSingularValue) {
             indice++;
         } else {
             break;
         }
     }
 
-    // Truncate the singular values and corresponding vectors
     S = S.head(indice);
     U = U.leftCols(indice);
     V = V.leftCols(indice);
-
 }
 
-// Function to save the SVD results to HDF5 using hyperslabs
-void saveSVDToHDF5(HighFive::Group &svdGroup, const Eigen::MatrixXd &U,
+// Save SVD results into the path: SVD/slice_dim3_dim4_dim5/
+void saveSVDToHDF5(HighFive::File &file, const Eigen::MatrixXd &U,
                    const Eigen::VectorXd &S, const Eigen::MatrixXd &V,
                    int dim3, int dim4, int dim5) {
 
-    // Create a subgroup for the specific combination of dim3, dim4, dim5
-    std::string sliceName = "slice_GrR_SVD_" + std::to_string(dim3) + "_" + std::to_string(dim4) + "_" + std::to_string(dim5);
-    HighFive::Group sliceGroup = svdGroup.createGroup(sliceName);
+    // Make sure top-level "SVD" group exists
+    HighFive::Group svdTopGroup;
+    if (!file.exist("zSVD")) { // NOTE: we call it zSVD because the HDF5 file is sorted alphbetically. This way, we dont need to change the way files are being read in Phoebe.
+        svdTopGroup = file.createGroup("zSVD");
+    } else {
+        svdTopGroup = file.getGroup("zSVD");
+    }
 
-    // Write the U matrix into the subgroup
+    // Create a subgroup for this slice
+    std::string sliceName = "slice_" + std::to_string(dim3)
+                          + "_" + std::to_string(dim4)
+                          + "_" + std::to_string(dim5);
+    HighFive::Group sliceGroup = svdTopGroup.createGroup(sliceName);
+
+    // Write U, S, V datasets into that slice group
     sliceGroup.createDataSet("U", U);
-
-    // Write the S vector into the subgroup
     sliceGroup.createDataSet("S", S);
-
-    // Write the V matrix into the subgroup
     sliceGroup.createDataSet("V", V);
 }
 
-// Main function to perform SVD and store results in HDF5
+
 void writeSvdElPhCouplingHDF5(
     Context &context,
     const Eigen::Tensor<std::complex<double>, 5> &gWannier,
@@ -904,27 +907,21 @@ void writeSvdElPhCouplingHDF5(
         HighFive::File file(outFileName, HighFive::File::Truncate, fapl);
         mpi->barrier();
 
-        // Create a group for storing SVD results
-        HighFive::Group svdGroup = file.createGroup("SVD");
-
         int totalSlices = numModes * numWannier * numWannier;
         int slicesPerProc = totalSlices / mpi->getSize();
         int extraSlices = totalSlices % mpi->getSize();
 
-        // Calculate the range of slices for each MPI process
         int startSlice = mpi->getRank() * slicesPerProc + std::min(mpi->getRank(), extraSlices);
         int endSlice = startSlice + slicesPerProc;
         if (mpi->getRank() < extraSlices) {
             endSlice += 1;
         }
 
-        // Loop over the assigned slices
         for (int sliceIndex = startSlice; sliceIndex < endSlice; ++sliceIndex) {
-            int dim3 = sliceIndex / (numWannier * numWannier);
-            int dim4 = (sliceIndex % (numWannier * numWannier)) / numModes;
-            int dim5 = sliceIndex % numModes;
+            int dim5 = sliceIndex % numModes;                  // eta index
+            int dim4 = (sliceIndex / numModes) % numWannier;   // j index
+            int dim3 = sliceIndex / (numWannier * numModes); // i index
 
-            // Extract the slice from the tensor
             Eigen::MatrixXd slice(numWannier, numWannier);
             for (size_t i = 0; i < numWannier; ++i) {
                 for (size_t j = 0; j < numWannier; ++j) {
@@ -936,16 +933,13 @@ void writeSvdElPhCouplingHDF5(
                 }
             }
 
-            // Perform SVD on the slice
             Eigen::MatrixXd U, V;
             Eigen::VectorXd S;
             performSVD(slice, U, S, V, 10);
 
-            // Save the SVD results into the group
-            saveSVDToHDF5(svdGroup, U, S, V, dim3, dim4, dim5);
+            saveSVDToHDF5(file, U, S, V, dim3, dim4, dim5);
         }
 
-        // Ensure all processes are synchronized
         mpi->barrier();
 
     } catch (const HighFive::Exception &e) {

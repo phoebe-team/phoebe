@@ -38,21 +38,19 @@ class InteractionElPhWan {
 
   // kokkos objects for GPU accelerated elph coupling
   ComplexView4D elPhCached;
-  ComplexView5D couplingWannier_k;
-  DoubleView2D wsR2Vectors_k;
-  DoubleView1D wsR2VectorsDegeneracies_k;
-  DoubleView2D wsR1Vectors_k;
-  DoubleView1D wsR1VectorsDegeneracies_k;
-  std::vector<ComplexView4D::HostMirror> elPhCached_hs;
+  ComplexView5D couplingWannier_device;
+  DoubleView2D wsR2Vectors_device;
+  DoubleView1D wsR2VectorsDegeneracies_device;
+  DoubleView2D wsR1Vectors_device;
+  DoubleView1D wsR1VectorsDegeneracies_device;
+  std::vector<ComplexView4D::HostMirror> elPhCached_host;
 
-  // TODO TEMPORARY, for old interpolation method
-  Eigen::MatrixXd wsR1Vectors;
-  Eigen::VectorXd wsR1VectorsDegeneracies;
-  Eigen::MatrixXd wsR2Vectors;
-  Eigen::VectorXd wsR2VectorsDegeneracies;
-  Eigen::Tensor<std::complex<double>, 4> elPhCached_old;
+  // Host storage for initialization (if needed)
+  Eigen::MatrixXd wsR1Vectors_host_eigen;
+  Eigen::VectorXd wsR1VectorsDegeneracies_host_eigen;
+  Eigen::MatrixXd wsR2Vectors_host_eigen;
+  Eigen::VectorXd wsR2VectorsDegeneracies_host_eigen;
   Eigen::Vector3d cachedK1;
-  Eigen::Tensor<std::complex<double>, 5> couplingWannier;
 
 #ifdef MPI_AVAIL
   std::vector<MPI_Request> mpi_requests;
@@ -60,15 +58,21 @@ class InteractionElPhWan {
 
 public:
 
+
+  // Containers for the SVD data, to be populated on the side for testing
+  ComplexView5D SVD_Y;
+  ComplexView5D SVD_Vt;
+  void parseSVDandBuildKokkos(Context &context);
+
   // phase convention options -- TODO switch to ENUM
   // Giustino uses Re, Rp for R vectors
-  // JDFTx uses Re, Re' R vectors 
-  static const int GiustinoPhaseConvention = 0; 
-  static const int JdftxPhaseConvention = 1; 
-  
+  // JDFTx uses Re, Re' R vectors
+  static const int GiustinoPhaseConvention = 0;
+  static const int JdftxPhaseConvention = 1;
+
   // spin types -- TODO switch to ENUM
-  static const int spinNonPolarized = 1; 
-  static const int spinPolarizedOrSOC = 2; 
+  static const int spinNonPolarized = 1;
+  static const int spinPolarizedOrSOC = 2;
 
   /** Main constructor
    * @param crystal_: object describing the crystal unit cell.
@@ -160,12 +164,7 @@ public:
       const Eigen::Vector3d &k1C,
       const std::vector<Eigen::VectorXcd> &polarData);
 
-  void oldCalcCouplingSquared(
-    const Eigen::MatrixXcd &eigvec1,
-    const std::vector<Eigen::MatrixXcd> &eigvecs2,
-    const std::vector<Eigen::MatrixXcd> &eigvecs3, const Eigen::Vector3d &k1C,
-    const std::vector<Eigen::Vector3d> &k2Cs,
-    const std::vector<Eigen::Vector3d> &q3Cs);
+
 
   /** Computes a partial Fourier transform over the k1/R_el variables.
    * @param k1C: values of the k1 cartesian coordinates over which the Fourier

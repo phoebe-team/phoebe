@@ -2,10 +2,64 @@
 #include <KokkosBlas2_gemv.hpp>
 #include <Kokkos_Core.hpp>
 #include <sys/types.h>
+#include <highfive/H5DataSet.hpp>
+#include <highfive/H5File.hpp>
+#include <highfive/H5Group.hpp>
+#include <regex>
+#include <iomanip> // for std::setprecision
 
 #ifdef HDF5_AVAIL
 #include <Kokkos_ScatterView.hpp>
 #endif
+
+
+// Helper to parse the (i,j,eta) indices from a group name like "slice_0_0_0"
+inline std::tuple<int, int, int>
+extractSvdIndicesFromGroupName(const std::string &groupName) {
+  static const std::regex r("slice_(\\d+)_(\\d+)_(\\d+)");
+  std::smatch match;
+  if (std::regex_match(groupName, match, r)) {
+    return {std::stoi(match[1]), std::stoi(match[2]), std::stoi(match[3])};
+  }
+  throw std::invalid_argument("SVD group name has incorrect format: " +
+                              groupName);
+}
+
+// Helper to iterate over all HDF5 subgroups and load their data.
+std::vector<std::tuple<std::unique_ptr<std::vector<double>>, std::unique_ptr<std::vector<double>>, std::unique_ptr<std::vector<double>>, int, int, int>>
+processAllSVDGroups(const HighFive::Group &svdGroup,
+                                        size_t &num_i, size_t &num_j,
+                                        size_t &num_eta) {
+  std::vector<std::tuple<std::unique_ptr<std::vector<double>>, std::unique_ptr<std::vector<double>>, std::unique_ptr<std::vector<double>>, int, int, int>> allData;
+  auto groupNames = svdGroup.listObjectNames();
+
+  size_t max_i = 0, max_j = 0, max_eta = 0;
+
+  for (const auto &groupName : groupNames) {
+    HighFive::Group subGroup = svdGroup.getGroup(groupName);
+    auto [i, j, eta] = extractSvdIndicesFromGroupName(groupName);
+
+    if (size_t(i) > max_i) max_i = i;
+    if (size_t(j) > max_j) max_j = j;
+    if (size_t(eta) > max_eta) max_eta = eta;
+
+    auto s = std::make_unique<std::vector<double>>();
+    auto u = std::make_unique<std::vector<double>>();
+    auto v = std::make_unique<std::vector<double>>();
+    subGroup.getDataSet("S").read(*s);
+    subGroup.getDataSet("U").read(*u);
+    subGroup.getDataSet("V").read(*v);
+
+    allData.emplace_back(std::move(s), std::move(v), std::move(u), i, j, eta);
+  }
+
+  num_i = max_i + 1;
+  num_j = max_j + 1;
+  num_eta = max_eta + 1;
+  return allData;
+}
+
+
 
 // constructor
 InteractionElPhWan::InteractionElPhWan(
@@ -42,12 +96,12 @@ InteractionElPhWan::InteractionElPhWan(
   // in the first call to this function, we must copy the el-ph tensor
   // from the CPU to the accelerator
   {
-    Kokkos::realloc(couplingWannier_k, numWsR1Vectors, numWsR2Vectors,
+    Kokkos::realloc(couplingWannier_device, numWsR1Vectors, numWsR2Vectors,
                     numPhBands, numElBands, numElBands);
-    Kokkos::realloc(wsR1VectorsDegeneracies_k, numWsR1Vectors);
-    Kokkos::realloc(wsR2VectorsDegeneracies_k, numWsR2Vectors);
-    Kokkos::realloc(wsR1Vectors_k, numWsR1Vectors, 3);
-    Kokkos::realloc(wsR2Vectors_k, numWsR2Vectors, 3);
+    Kokkos::realloc(wsR1VectorsDegeneracies_device, numWsR1Vectors);
+    Kokkos::realloc(wsR2VectorsDegeneracies_device, numWsR2Vectors);
+    Kokkos::realloc(wsR1Vectors_device, numWsR1Vectors, 3);
+    Kokkos::realloc(wsR2Vectors_device, numWsR2Vectors, 3);
 
     // note that Eigen has left layout while kokkos has right layout
     HostComplexView5D couplingWannier_h(
@@ -63,11 +117,11 @@ InteractionElPhWan::InteractionElPhWan(
     HostDoubleView2D wsR2Vectors_h((double *)wsR2Vectors_.data(),
                                    numWsR2Vectors, 3);
 
-    Kokkos::deep_copy(couplingWannier_k, couplingWannier_h);
-    Kokkos::deep_copy(wsR2Vectors_k, wsR2Vectors_h);
-    Kokkos::deep_copy(wsR2VectorsDegeneracies_k, wsR2VectorsDegeneracies_h);
-    Kokkos::deep_copy(wsR1Vectors_k, wsR1Vectors_h);
-    Kokkos::deep_copy(wsR1VectorsDegeneracies_k, wsR1VectorsDegeneracies_h);
+    Kokkos::deep_copy(couplingWannier_device, couplingWannier_h);
+    Kokkos::deep_copy(wsR2Vectors_device, wsR2Vectors_h);
+    Kokkos::deep_copy(wsR2VectorsDegeneracies_device, wsR2VectorsDegeneracies_h);
+    Kokkos::deep_copy(wsR1Vectors_device, wsR1Vectors_h);
+    Kokkos::deep_copy(wsR1VectorsDegeneracies_device, wsR1VectorsDegeneracies_h);
 
     double memoryUsed = getDeviceMemoryUsage();
     kokkosDeviceMemory->addDeviceMemoryUsage(memoryUsed);
@@ -77,7 +131,7 @@ InteractionElPhWan::InteractionElPhWan(
 void InteractionElPhWan::resetK1() { cachedK1.setConstant(-1000); }
 
 InteractionElPhWan::~InteractionElPhWan() {
-  if (couplingWannier_k.use_count() == 1) {
+  if (couplingWannier_device.use_count() == 1) {
     double memory = getDeviceMemoryUsage();
     kokkosDeviceMemory->removeDeviceMemoryUsage(memory);
   }
@@ -372,7 +426,7 @@ void InteractionElPhWan::calcCouplingSquared(
 
     Kokkos::Profiling::pushRegion("copy to GPU");
     this->elPhCached = Kokkos::create_mirror_view_and_copy(
-        Kokkos::DefaultExecutionSpace(), elPhCached_hs[pool_rank]);
+        Kokkos::DefaultExecutionSpace(), elPhCached_host[pool_rank]);
     Kokkos::Profiling::popRegion();
   }
 #endif
@@ -380,8 +434,8 @@ void InteractionElPhWan::calcCouplingSquared(
   auto elPhCached = this->elPhCached;
   int numPhBands = this->numPhBands;
   int numWsR2Vectors = this->numWsR2Vectors;
-  DoubleView2D wsR2Vectors_k = this->wsR2Vectors_k;
-  DoubleView1D wsR2VectorsDegeneracies_k = this->wsR2VectorsDegeneracies_k;
+  DoubleView2D wsR2Vectors_device = this->wsR2Vectors_device;
+  DoubleView1D wsR2VectorsDegeneracies_device = this->wsR2VectorsDegeneracies_device;
 
   // get nb2 for each ik and find the max
   // since loops and views must be rectangular, not ragged
@@ -467,7 +521,7 @@ void InteractionElPhWan::calcCouplingSquared(
           if (phaseConvention == JdftxPhaseConvention) { // i,j flipped here due to row/col major,
                                       // this is intentionally a * not a dagger
                                       // e(-q) = e(q)^*
-            eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i)); 
+            eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i));
           } else {
             eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
           }
@@ -504,9 +558,9 @@ void InteractionElPhWan::calcCouplingSquared(
       KOKKOS_LAMBDA(int iq, int irP) {
         double arg = 0.0;
         for (int j = 0; j < 3; j++) {
-          arg += q3Cs_k(iq, j) * wsR2Vectors_k(irP, j);
+          arg += q3Cs_k(iq, j) * wsR2Vectors_device(irP, j);
         }
-        phases(iq, irP) = exp(complexI * arg) / wsR2VectorsDegeneracies_k(irP);
+        phases(iq, irP) = exp(complexI * arg) / wsR2VectorsDegeneracies_device(irP);
       });
   Kokkos::fence();
 
@@ -617,7 +671,7 @@ void InteractionElPhWan::calcCouplingSquared(
 Eigen::VectorXi InteractionElPhWan::getCouplingDimensions() {
   Eigen::VectorXi xx(5);
   for (int i : {0, 1, 2, 3, 4}) {
-    xx(i) = couplingWannier_k.extent(i);
+    xx(i) = couplingWannier_device.extent(i);
   }
   return xx;
 }
@@ -657,12 +711,18 @@ int InteractionElPhWan::estimateNumBatches(const int &nk2, const int &nb1) {
   return numBatches;
 }
 
+
+
+// Make output container to store elph coupling fourier trasformation (applicagtion with k1c) and  
+
+
+
 void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1,
                                    const Eigen::Vector3d &k1C) {
 
   Kokkos::Profiling::pushRegion("cacheElPh");
 
-  auto nb1 = int(eigvec1.cols());
+  auto nb1 = int(eigvec1.cols());   
   Kokkos::complex<double> complexI(0.0, 1.0);
 
   // note: when Kokkos is compiled with GPU support, we must create elPhCached
@@ -684,7 +744,7 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1,
 
 #ifdef MPI_AVAIL
   mpi_requests.resize(pool_size);
-  elPhCached_hs.resize(pool_size);
+  elPhCached_host.resize(pool_size);
 #endif
 
   ComplexView4D g1(Kokkos::ViewAllocateWithoutInitializing("g1"),
@@ -730,10 +790,10 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1,
     }
 
     // now compute the Fourier transform on electronic coordinates.
-    ComplexView5D couplingWannier_k = this->couplingWannier_k;
-    DoubleView2D wsR1Vectors_k = this->wsR1Vectors_k;
-    DoubleView1D wsR1VectorsDegeneracies_k = this->wsR1VectorsDegeneracies_k;
-    // Kokkos::Profiling::popRegion(); // cache setup
+    ComplexView5D couplingWannier_device = this->couplingWannier_device;
+    DoubleView2D wsR1Vectors_device = this->wsR1Vectors_device;
+    DoubleView1D wsR1VectorsDegeneracies_device = this->wsR1VectorsDegeneracies_device;
+    Kokkos::Profiling::popRegion(); 
 
     // first we precompute the phases
     ComplexView1D phases_k("phases", numWsR1Vectors);
@@ -741,9 +801,9 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1,
         "phases_k", numWsR1Vectors, KOKKOS_LAMBDA(int irE) {
           double arg = 0.0;
           for (int j = 0; j < 3; j++) {
-            arg += poolK1C_k(j) * wsR1Vectors_k(irE, j);
+            arg += poolK1C_k(j) * wsR1Vectors_device(irE, j);
           }
-          phases_k(irE) = exp(complexI * arg) / wsR1VectorsDegeneracies_k(irE);
+          phases_k(irE) = exp(complexI * arg) / wsR1VectorsDegeneracies_device(irE);
         });
     Kokkos::fence();
     Kokkos::Profiling::popRegion(); // cache setup
@@ -763,7 +823,7 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1,
           for (int irE = 0; irE < numWsR1Vectors; irE++) {
             // important note: the first index iw2 runs over the k+q transform
             // while iw1 runs over k
-            tmp += couplingWannier_k(irE, irP, nu, iw1, iw2) * phases_k(irE);
+            tmp += couplingWannier_device(irE, irP, nu, iw1, iw2) * phases_k(irE);
           }
           g1(irP, nu, iw1, iw2) = tmp;
         });
@@ -783,7 +843,7 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1,
     Kokkos::View<Kokkos::complex<double> *> g1_1D(
         g1.data(), numWsR2Vectors * numPhBands * numElBands * numElBands);
     Kokkos::View<Kokkos::complex<double> **, Kokkos::LayoutRight> coupling_2D(
-        couplingWannier_k.data(), numWsR1Vectors,
+        couplingWannier_device.data(), numWsR1Vectors,
         numWsR2Vectors * numPhBands * numElBands * numElBands);
     KokkosBlas::gemv("T", Kokkos::complex<double>(1.0), coupling_2D, phases_k,
                      Kokkos::complex<double>(0.0), g1_1D);
@@ -795,7 +855,7 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1,
   g1scatter(g1); Kokkos::parallel_for( "g1", Range5D({0, 0, 0, 0, 0},
                 {numWsR1Vectors, numWsR2Vectors, numPhBands, numElBands,
   numElBands}), KOKKOS_LAMBDA(int irE, int irP, int nu, int iw1, int iw2) { auto
-  g1 = g1scatter.access(); g1(irP, nu, iw1, iw2) += couplingWannier_k(irE, irP,
+  g1 = g1scatter.access(); g1(irP, nu, iw1, iw2) += couplingWannier_device(irE, irP,
   nu, iw1, iw2) * phases_k(irE);
         });
     Kokkos::Experimental::contribute(g1, g1scatter);
@@ -859,7 +919,7 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1,
       Kokkos::deep_copy(poolElPhCached_h, poolElPhCached_k);
       Kokkos::Profiling::popRegion();
 
-      elPhCached_hs[iPool] = poolElPhCached_h;
+      elPhCached_host[iPool] = poolElPhCached_h;
 
 #ifdef MPI_AVAIL
       // start reduction for current iteration
@@ -893,133 +953,75 @@ void InteractionElPhWan::cacheElPh(const Eigen::MatrixXcd &eigvec1,
 }
 
 double InteractionElPhWan::getDeviceMemoryUsage() {
-  double x = 16 * (this->elPhCached.size() + couplingWannier_k.size()) +
-             8 * (wsR2VectorsDegeneracies_k.size() + wsR2Vectors_k.size() +
-                  wsR1Vectors_k.size() + wsR1VectorsDegeneracies_k.size());
+  double x = 16 * (this->elPhCached.size() + couplingWannier_device.size()) +
+             8 * (wsR2VectorsDegeneracies_device.size() + wsR2Vectors_device.size() +
+                  wsR1Vectors_device.size() + wsR1VectorsDegeneracies_device.size());
   return x;
 }
 
-void InteractionElPhWan::oldCalcCouplingSquared(
-    const Eigen::MatrixXcd &eigvec1,
-    const std::vector<Eigen::MatrixXcd> &eigvecs2,
-    const std::vector<Eigen::MatrixXcd> &eigvecs3, const Eigen::Vector3d &k1C,
-    const std::vector<Eigen::Vector3d> &k2Cs,
-    const std::vector<Eigen::Vector3d> &q3Cs) {
 
-  (void)k2Cs;
-  int numWannier = numElBands;
-  int nb1 = eigvec1.cols();
 
-  int numLoops = eigvecs2.size();
-  cacheCoupling.resize(0);
-  cacheCoupling.resize(numLoops);
 
-  if (k1C != cachedK1 || elPhCached.size() == 0) {
-    cachedK1 = k1C;
 
-    Eigen::Tensor<std::complex<double>, 4> g1(numWannier, numWannier,
-                                              numPhBands, numWsR2Vectors);
-    g1.setZero();
+// void InteractionElPhWan::parseSVDandBuildKokkos(Context &context) {
+//   std::string hdf5FileName = context.getElphFileName();
+//   if (mpi->mpiHead()) {
+//       std::cout << "Starting SVD parse and build..." << std::endl;
+//   }
+//   try {
+//     HighFive::File file(hdf5FileName, HighFive::File::ReadOnly);
 
-    std::vector<std::complex<double>> phases(numWsR1Vectors);
-    for (int irE = 0; irE < numWsR1Vectors; irE++) {
-      double arg = k1C.dot(wsR1Vectors.col(irE));
-      phases[irE] = exp(complexI * arg) / double(wsR1VectorsDegeneracies(irE));
-    }
-    for (int irE = 0; irE < numWsR1Vectors; irE++) {
-      for (int irP = 0; irP < numWsR2Vectors; irP++) {
-        for (int nu = 0; nu < numPhBands; nu++) {
-          for (int iw1 = 0; iw1 < numWannier; iw1++) {
-            for (int iw2 = 0; iw2 < numWannier; iw2++) {
-              // important note: the first index iw2 runs over the k+q transform
-              // while iw1 runs over k
-              g1(iw2, iw1, nu, irP) +=
-                  couplingWannier(iw2, iw1, nu, irP, irE) * phases[irE];
-            }
-          }
-        }
-      }
-    }
-    elPhCached_old.resize(numWannier, nb1, numPhBands, numWsR2Vectors);
-    elPhCached_old.setZero();
+//     HighFive::Group svdGroup = file.getGroup("zSVD");
 
-    for (int irP = 0; irP < numWsR2Vectors; irP++) {
-      for (int nu = 0; nu < numPhBands; nu++) {
-        for (int iw1 = 0; iw1 < numWannier; iw1++) {
-          for (int ib1 = 0; ib1 < nb1; ib1++) {
-            for (int iw2 = 0; iw2 < numWannier; iw2++) {
-              elPhCached_old(iw2, ib1, nu, irP) +=
-                  g1(iw2, iw1, nu, irP) * eigvec1(iw1, ib1);
-            }
-          }
-        }
-      }
-    }
-  }
+//     size_t num_i, num_j, num_eta;
+//     auto allSVDData = processAllSVDGroups(svdGroup, num_i, num_j, num_eta);
 
-  for (int ik = 0; ik < numLoops; ik++) {
-    Eigen::Vector3d q3C = q3Cs[ik];
+//     if (allSVDData.empty()) {
+//       throw std::runtime_error("No SVD groups found in the HDF5 file.");
+//     }
 
-    Eigen::MatrixXcd eigvec2 = eigvecs2[ik];
-    int nb2 = eigvec2.cols();
-    Eigen::MatrixXcd eigvec3 = eigvecs3[ik];
+//     size_t numSingularValues = std::get<0>(allSVDData[0])->size();
+//     size_t leftMatrixCols = std::get<2>(allSVDData[0])->size() / numSingularValues;
+//     size_t rightMatrixRows = std::get<1>(allSVDData[0])->size() / numSingularValues;
 
-    Eigen::Tensor<std::complex<double>, 3> g3(numWannier, nb1, numPhBands);
-    g3.setZero();
-    std::vector<std::complex<double>> phases(numWsR2Vectors);
-    for (int irP = 0; irP < numWsR2Vectors; irP++) {
-      double arg = q3C.dot(wsR2Vectors.col(irP));
-      phases[irP] = exp(complexI * arg) / double(wsR2VectorsDegeneracies(irP));
-    }
-    for (int irP = 0; irP < numWsR2Vectors; irP++) {
-      for (int nu = 0; nu < numPhBands; nu++) {
-        for (int ib1 = 0; ib1 < nb1; ib1++) {
-          for (int iw2 = 0; iw2 < numWannier; iw2++) {
-            g3(iw2, ib1, nu) += phases[irP] * elPhCached_old(iw2, ib1, nu, irP);
-          }
-        }
-      }
-    }
+//     Kokkos::realloc(SVD_Y, num_i, num_j, num_eta, leftMatrixCols, numSingularValues);
+//     Kokkos::realloc(SVD_Vt, num_i, num_j, num_eta, rightMatrixRows, numSingularValues);
 
-    Eigen::Tensor<std::complex<double>, 3> g4(numWannier, nb1, numPhBands);
-    g4.setZero();
-    for (int nu = 0; nu < numPhBands; nu++) {
-      for (int nu2 = 0; nu2 < numPhBands; nu2++) {
-        for (int ib1 = 0; ib1 < nb1; ib1++) {
-          for (int iw2 = 0; iw2 < numWannier; iw2++) {
-            g4(iw2, ib1, nu2) += g3(iw2, ib1, nu) * eigvec3(nu, nu2);
-          }
-        }
-      }
-    }
+//     auto SVD_Y_h = Kokkos::create_mirror_view(SVD_Y);
+//     auto SVD_Vt_h = Kokkos::create_mirror_view(SVD_Vt);
 
-    auto eigvec2Dagger = eigvec2.adjoint();
-    Eigen::Tensor<std::complex<double>, 3> gFinal(nb2, nb1, numPhBands);
-    gFinal.setZero();
-    for (int nu = 0; nu < numPhBands; nu++) {
-      for (int ib1 = 0; ib1 < nb1; ib1++) {
-        for (int iw2 = 0; iw2 < numWannier; iw2++) {
-          for (int ib2 = 0; ib2 < nb2; ib2++) {
-            gFinal(ib2, ib1, nu) += eigvec2Dagger(ib2, iw2) * g4(iw2, ib1, nu);
-          }
-        }
-      }
-    }
+//     for (const auto &data : allSVDData) {
+//       size_t i = std::get<3>(data);
+//       size_t j = std::get<4>(data);
+//       size_t eta = std::get<5>(data);
 
-    if (usePolarCorrection && q3C.norm() > 1.0e-8) {
-      gFinal += getPolarCorrection(q3C, eigvec1, eigvec2, eigvec3);
-    }
+//       const auto &sVec = *std::get<0>(data);
+//       const auto &vMat = *std::get<1>(data);
+//       const auto &uMat = *std::get<2>(data);
 
-    Eigen::Tensor<double, 3> coupling(nb1, nb2, numPhBands);
-    for (int nu = 0; nu < numPhBands; nu++) {
-      for (int ib2 = 0; ib2 < nb2; ib2++) {
-        for (int ib1 = 0; ib1 < nb1; ib1++) {
-          // notice the flip of 1 and 2 indices is intentional
-          // coupling is |<k+q,ib2 | dV_nu | k,ib1>|^2
-          coupling(ib1, ib2, nu) = std::norm(gFinal(ib2, ib1, nu));
-        }
-      }
-    }
-    cacheCoupling[ik] = coupling;
-  }
-}
+//       for (size_t l = 0; l < leftMatrixCols; ++l) {
+//         for (size_t s = 0; s < numSingularValues; ++s) {
+//           SVD_Y_h(i, j, eta, l, s) = Kokkos::complex<double>(
+//               uMat[l * numSingularValues + s] * sVec[s], 0.0);
+//         }
+//       }
+//       for (size_t r = 0; r < rightMatrixRows; ++r) {
+//         for (size_t s = 0; s < numSingularValues; ++s) {
+//           SVD_Vt_h(i, j, eta, r, s) =
+//               Kokkos::complex<double>(vMat[r * numSingularValues + s], 0.0);
+//         }
+//       }
+//     }
+//     Kokkos::deep_copy(SVD_Y, SVD_Y_h);
+//     Kokkos::deep_copy(SVD_Vt, SVD_Vt_h);
+
+//     if (mpi->mpiHead()) {
+//         std::cout << "SVD Kokkos containers built successfully." << std::endl;
+//         std::cout << "SVD_Y dimensions: " << SVD_Y.extent(0) << "x" << SVD_Y.extent(1) << "x"
+//                   << SVD_Y.extent(2) << "x" << SVD_Y.extent(3) << "x" << SVD_Y.extent(4) << std::endl;
+//     }
+//   } catch (const HighFive::Exception &e) {
+//     Error("HighFive/HDF5 error while parsing SVD file: " +
+//           std::string(e.what()));
+//   }
+// }

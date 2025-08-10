@@ -72,8 +72,9 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
   Crystal crystal = innerBandStructure.getPoints().getCrystal();
-  auto couplingElPh =
-        InteractionElPhWan::parse(context, crystal, phononH0);
+  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
+
+
 
     addElPhScattering(*this, context, inPopulations, outPopulations, switchCase,
                                     kPairIterator, innerFermi,

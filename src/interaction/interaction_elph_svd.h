@@ -2,6 +2,9 @@
 #define EL_PH_SVD_INTERACTION_H
 
 #include "interaction_elph_base.h"
+#include "common_kokkos.h"
+#include "constants.h"
+#include "eigen.h"
 #include <memory>
 #include <string>
 #include <vector>
@@ -39,9 +42,9 @@ public:
    * @param phononH0 The phonon Hamiltonian object (passed by reference).
    * @return A unique_ptr to the created InteractionElPhSVD object.
    */
-  static std::unique_ptr<InteractionElPhSVD> parse(Context &context,
-                                                   Crystal &crystal,
-                                                   PhononH0 &phononH0);
+  // static std::unique_ptr<InteractionElPhSVD> parse(Context &context,
+  //                                                  Crystal &crystal,
+  //                                                  PhononH0 &phononH0);
 
   // Override the pure virtual functions from InteractionElPhBase
   void cacheElPh(const Eigen::MatrixXcd &eigvec1,
@@ -63,6 +66,9 @@ public:
   void printSVDInfo() const;
   void printSVDSample(size_t i = 0, size_t j = 0, size_t eta = 0) const;
 
+  // Export function for Python analysis
+  void exportElPhMatrixToHDF5(const std::string &filename) const;
+
 public: // Public constructor to be accessible by std::make_unique
   /**
    * @brief Constructor for InteractionElPhSVD.
@@ -70,6 +76,9 @@ public: // Public constructor to be accessible by std::make_unique
    * instances of this class.
    */
   InteractionElPhSVD(Crystal &crystal, Context &context, PhononH0 &phononH0);
+
+
+ // void parse(Context &context);
 
 private:
   // The core parsing routine that populates the Kokkos views.
@@ -86,15 +95,30 @@ private:
   processAllSVDGroups(const HighFive::Group &svdGroup, size_t &num_i,
                       size_t &num_j, size_t &num_eta);
 
-  // The massive 5D Kokkos containers for the SVD data
-  ComplexView5D SVD_Y;  // Stores singular values * left matrix (U*S)
-  ComplexView5D SVD_Vt; // Stores the right matrix (V_t)
+  ComplexView5D ElPh_Matrix;  // Reconstructed from SVD: (i, j, eta, R_e, R_p)
 
   // Store Bravais vectors and degeneracies locally.
   Eigen::MatrixXd elBravaisVectors;
   Eigen::MatrixXd phBravaisVectors;
   Eigen::VectorXd elBravaisVectorsDegeneracies;
   Eigen::VectorXd phBravaisVectorsDegeneracies;
+
+  //kokkos object
+  ComplexView4D elPhCached;
+  ComplexView4D elPhCached_SVD_SY;
+  ComplexView5D couplingWannier_device;
+  DoubleView2D wsR1Vectors_device;  // Electronic Bravais vectors
+  DoubleView1D wsR1VectorsDegeneracies_device;  // Electronic degeneracies
+  DoubleView2D wsR2Vectors_device;  // Phonon Bravais vectors
+  DoubleView1D wsR2VectorsDegeneracies_device;  // Phonon degeneracies
+  std::vector<ComplexView4D::HostMirror> elPhCached_host;
+
+  // Variables needed for SVD cacheElPh
+  int numGamma;  // Number of retained singular values from SVD truncation
+  int numWsR1Vectors;  // Number of electronic Wannier vectors
+  int numWsR2Vectors;  // Number of phonon Wannier vectors
+  int numWannierOrbitals;  // Total number of Wannier orbitals
 };
+
 
 #endif // EL_PH_SVD_INTERACTION_H

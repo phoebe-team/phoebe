@@ -7,6 +7,7 @@
 #include "io.h"
 #include "parser.h"
 #include "points.h"
+#include "interaction_elph_svd.h"
 
 #ifdef HDF5_AVAIL
 #include <highfive/H5Easy.hpp>
@@ -27,7 +28,48 @@ void ElPhCouplingPlotApp::run(Context &context) {
   // load the el-ph coupling
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
-  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
+  auto couplingElPh = InteractionElPhSVD(crystal,context, phononH0);
+  // couplingElPh.parse(context);
+  // ------------------------------------------------------------------
+  // Print kokkos container output for debugging
+  // ------------------------------------------------------------------
+
+  // if (mpi->mpiHead()) {
+  //     std::cout << "\n--- Verifying SVD Kokkos Container Contents ---" << std::endl;
+
+  //     // Create host-side mirrors of the containers to access the data on the CPU
+  //     auto SVD_Y_host = Kokkos::create_mirror_view(couplingElPh.SVD_Y);
+  //     auto SVD_Vt_host = Kokkos::create_mirror_view(couplingElPh.SVD_Vt);
+
+  //     // Deep copy the data from the device (GPU) to the host (CPU)
+  //     Kokkos::deep_copy(SVD_Y_host, couplingElPh.SVD_Y);
+  //     Kokkos::deep_copy(SVD_Vt_host, couplingElPh.SVD_Vt);
+
+  //     // Now you can access the data like a normal multi-dimensional array
+  //     // Let's print the very first element as a sample
+  //     std::cout << "Sample element SVD_Y(0,0,0,0,0): "
+  //               << SVD_Y_host(0, 0, 0, 0, 0) << std::endl;
+  //     std::cout << "Sample element SVD_Vt(0,0,0,0,0): "
+  //               << SVD_Vt_host(0, 0, 0, 0, 0) << std::endl;
+
+  //     // You can also calculate a checksum to verify the entire dataset
+  //     double checksum_Y = 0.0;
+  //     for (size_t i = 0; i < SVD_Y_host.extent(0); ++i) {
+  //         for (size_t j = 0; j < SVD_Y_host.extent(1); ++j) {
+  //             for (size_t k = 0; k < SVD_Y_host.extent(2); ++k) {
+  //                 for (size_t l = 0; l < SVD_Y_host.extent(3); ++l) {
+  //                     for (size_t m = 0; m < SVD_Y_host.extent(4); ++m) {
+  //                         checksum_Y += SVD_Y_host(i, j, k, l, m).real();
+  //                     }
+  //                 }
+  //             }
+  //         }
+  //     }
+  //     std::cout << "Checksum of SVD_Y (real part): " << checksum_Y << std::endl;
+  //     std::cout << "-----------------------------------------------------\n" << std::endl;
+  // }
+  // ------------------------------------------------------------------
+
 
   Eigen::Vector3i mesh;
   if (context.getG2PlotStyle() == "qFixed") {
@@ -269,7 +311,8 @@ void ElPhCouplingPlotApp::run(Context &context) {
     couplingElPh.cacheElPh(eigenVector1,
                            k1C); // fourier transform + rotation by k
     couplingElPh.calcCouplingSquared(
-        eigenVector1, eigenVectors2, eigenVectors3, q3Cs, k1C,
+        eigenVector1, eigenVectors2, eigenVectors3, q3Cs,
+        // k1C,
         polarData); // fourier transform + rotation by k' and q
     auto couplingSq = couplingElPh.getCouplingSquared(
         0); // access the stored matrix elements, which are for the given

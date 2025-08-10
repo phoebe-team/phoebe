@@ -3,12 +3,15 @@
 #include "elph_qe_to_phoebe_app.h"
 #include "interaction_elph.h"
 #include "io.h"
+#include "phonon_h0.h"
 #include "qe_input_parser.h"
 #include "utilities.h"
 #include <Kokkos_Core.hpp>
 #include <exception>
 #include <sstream>
 #include <string>
+#include <valarray>
+
 
 #ifdef HDF5_AVAIL
 #include <highfive/H5Easy.hpp>
@@ -406,9 +409,9 @@ void writeHeaderHDF5(
       HighFive::DataSet dnSpin = file.createDataSet<int>(
           "/numSpin", HighFive::DataSpace::From(numSpin));
       // if we write this with QE, it's the Giustino phase convention, which we deem phaseConv = 0
-      int phaseConvention = 0; 
+      int phaseConvention = 0;
       HighFive::DataSet dphaseConvention = file.createDataSet<int>(
-          "/phaseConvention", HighFive::DataSpace::From(phaseConvention)); 
+          "/phaseConvention", HighFive::DataSpace::From(phaseConvention));
       dnElectrons.write(numFilledWannier);// # of occupied wannier functions
       dnSpin.write(numSpin);
       dphaseConvention.write(phaseConvention);
@@ -836,6 +839,129 @@ void writeElPhCouplingNoHDF5(
 }
 #endif
 
+
+// Function to perform SVD on a single 2D matrix
+void performSVD(const Eigen::MatrixXd &matrix, Eigen::MatrixXd &U,
+                Eigen::VectorXd &S, Eigen::MatrixXd &V, double truncAmount) {
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(matrix, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    U = svd.matrixU();
+    S = svd.singularValues();
+    V = svd.matrixV();
+
+    double maxSingularValue = S.maxCoeff();
+    size_t indice = 0;
+
+    for (size_t i = 0; i < S.size(); ++i) {
+        if (S[i] >= truncAmount * 0.01 * maxSingularValue) {
+            indice++;
+        } else {
+            break;
+        }
+    }
+
+    S = S.head(indice);
+    U = U.leftCols(indice);
+    V = V.leftCols(indice);
+}
+
+// Save SVD results into the path: SVD/slice_dim3_dim4_dim5/
+void saveSVDToHDF5(HighFive::File &file, const Eigen::MatrixXd &U,
+                   const Eigen::VectorXd &S, const Eigen::MatrixXd &V,
+                   int dim3, int dim4, int dim5) {
+
+    // Make sure top-level "SVD" group exists
+    HighFive::Group svdTopGroup;
+    if (!file.exist("zSVD")) { // NOTE: we call it zSVD because the HDF5 file is sorted alphbetically. This way, we dont need to change the way files are being read in Phoebe.
+        svdTopGroup = file.createGroup("zSVD");
+    } else {
+        svdTopGroup = file.getGroup("zSVD");
+    }
+
+    // Create a subgroup for this slice
+    std::string sliceName = "slice_" + std::to_string(dim3)
+                          + "_" + std::to_string(dim4)
+                          + "_" + std::to_string(dim5);
+    HighFive::Group sliceGroup = svdTopGroup.createGroup(sliceName);
+
+    // Write U, S, V datasets into that slice group
+    sliceGroup.createDataSet("U", U);
+    sliceGroup.createDataSet("S", S);
+    sliceGroup.createDataSet("V", V);
+}
+
+
+void writeSvdElPhCouplingHDF5(
+    Context &context,
+    const Eigen::Tensor<std::complex<double>, 5> &gWannier,
+    const int &numFilledWannier, const int &numSpin, const int &numModes,
+    const int &numWannier, const Eigen::VectorXd &phDegeneracies,
+    const Eigen::VectorXd &elDegeneracies,
+    const Eigen::MatrixXd &phBravaisVectors,
+    const Eigen::MatrixXd &elBravaisVectors, const Eigen::Vector3i &qMesh,
+    const Eigen::Vector3i &kMesh) {
+
+    const int fileFormat = 3;
+
+    try {
+        std::string outFileName = context.getQuantumEspressoPrefix() + ".phoebe.elph.hdf5";
+        if (mpi->mpiHead()) {
+            std::cout << "Saving HDF5 file to: " << outFileName << std::endl;
+            std::remove(outFileName.c_str());
+        }
+        mpi->barrier();
+
+        auto fapl = HighFive::FileAccessProps{};
+        fapl.add(HighFive::MPIOFileAccess(MPI_COMM_WORLD, MPI_INFO_NULL));
+        HighFive::File file(outFileName, HighFive::File::Truncate, fapl);
+        mpi->barrier();
+
+        int totalSlices = numModes * numWannier * numWannier;
+        int slicesPerProc = totalSlices / mpi->getSize();
+        int extraSlices = totalSlices % mpi->getSize();
+
+        int startSlice = mpi->getRank() * slicesPerProc + std::min(mpi->getRank(), extraSlices);
+        int endSlice = startSlice + slicesPerProc;
+        if (mpi->getRank() < extraSlices) {
+            endSlice += 1;
+        }
+
+        for (int sliceIndex = startSlice; sliceIndex < endSlice; ++sliceIndex) {
+            int dim5 = sliceIndex % numModes;                  // eta index
+            int dim4 = (sliceIndex / numModes) % numWannier;   // j index
+            int dim3 = sliceIndex / (numWannier * numModes); // i index
+
+            Eigen::MatrixXd slice(numWannier, numWannier);
+            for (size_t i = 0; i < numWannier; ++i) {
+                for (size_t j = 0; j < numWannier; ++j) {
+                    slice(i, j) = std::real(gWannier(static_cast<long>(dim3),
+                                                     static_cast<long>(dim4),
+                                                     static_cast<long>(dim5),
+                                                     static_cast<long>(i),
+                                                     static_cast<long>(j)));
+                }
+            }
+
+            Eigen::MatrixXd U, V;
+            Eigen::VectorXd S;
+            performSVD(slice, U, S, V, 10);
+
+            saveSVDToHDF5(file, U, S, V, dim3, dim4, dim5);
+        }
+
+        mpi->barrier();
+
+    } catch (const HighFive::Exception &e) {
+        std::cerr << "HDF5 error: " << e.what() << std::endl;
+    } catch (const std::exception &e) {
+        std::cerr << "Standard exception: " << e.what() << std::endl;
+    } catch (...) {
+        std::cerr << "Unknown exception occurred." << std::endl;
+    }
+}
+
+
+
+
 void ElPhQeToPhoebeApp::writeWannierCoupling(
     Context &context, Eigen::Tensor<std::complex<double>, 5> &gWannier,
     const int &numFilledWannier, const int &numSpin, const int &numModes,
@@ -856,19 +982,33 @@ void ElPhQeToPhoebeApp::writeWannierCoupling(
     Warning("HDF5 with <4 MPI process may crash (due to a "
             "library's bug),\nuse more MPI processes if that happens");
   }
-
-  if (context.getHdf5ElPhFileFormat()==1) {
+  int fileFormat;
+  if (context.getElPhInterpolation() == "wannierSVD") {
+    fileFormat = 3;
+    writeSvdElPhCouplingHDF5(context, gWannier, numFilledWannier, numSpin,
+                               numModes, numWannier, phDegeneracies,
+                               elDegeneracies, phBravaisVectors,
+                               elBravaisVectors, qMesh, kMesh);
+  } else if (context.getHdf5ElPhFileFormat()==1) {
     writeElPhCouplingHDF5v1(context, gWannier, numFilledWannier, numSpin,
                               numModes, numWannier, phDegeneracies,
                               elDegeneracies, phBravaisVectors,
                               elBravaisVectors, qMesh, kMesh);
   } else {
+    fileFormat = 2;
     writeElPhCouplingHDF5v2(context, gWannier, numFilledWannier, numSpin,
                               numModes, numWannier, phDegeneracies,
                               elDegeneracies, phBravaisVectors,
                               elBravaisVectors, qMesh, kMesh);
   }
 #else
+
+// write the small information to file in serial
+std::string outFileName = context.getQuantumEspressoPrefix() + ".phoebe.elph.hdf5";
+writeHeaderHDF5(outFileName, numFilledWannier, numSpin, numModes, numWannier,
+                phDegeneracies, elDegeneracies, phBravaisVectors,
+                elBravaisVectors, qMesh, kMesh, fileFormat);
+
   writeElPhCouplingNoHDF5(context, gWannier, numFilledWannier, numSpin,
                               numModes, numWannier, phDegeneracies,
                               elDegeneracies, phBravaisVectors,

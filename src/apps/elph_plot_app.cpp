@@ -7,6 +7,8 @@
 #include "io.h"
 #include "parser.h"
 #include "points.h"
+#include "interaction_elph_svd.h"
+
 
 #ifdef HDF5_AVAIL
 #include <highfive/H5Easy.hpp>
@@ -27,7 +29,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
   // load the el-ph coupling
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
-  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
+  auto couplingElPh = InteractionElPhSVD(crystal,context, phononH0);
 
   Eigen::Vector3i mesh;
   if (context.getG2PlotStyle() == "qFixed") {
@@ -269,7 +271,8 @@ void ElPhCouplingPlotApp::run(Context &context) {
     couplingElPh.cacheElPh(eigenVector1,
                            k1C); // fourier transform + rotation by k
     couplingElPh.calcCouplingSquared(
-        eigenVector1, eigenVectors2, eigenVectors3, q3Cs, k1C,
+        eigenVector1, eigenVectors2, eigenVectors3, q3Cs,
+        //k1C,
         polarData); // fourier transform + rotation by k' and q
     auto couplingSq = couplingElPh.getCouplingSquared(
         0); // access the stored matrix elements, which are for the given

@@ -910,7 +910,7 @@ void writeSvdElPhCouplingHDF5(
         }
         mpi->barrier();
 
-        auto fapl = HighFive::FileAccessProps{};
+        HighFive::FileAccessProps fapl;
         fapl.add(HighFive::MPIOFileAccess(MPI_COMM_WORLD, MPI_INFO_NULL));
         HighFive::File file(outFileName, HighFive::File::Truncate, fapl);
         mpi->barrier();

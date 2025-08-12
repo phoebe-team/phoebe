@@ -448,12 +448,13 @@ void InteractionElPhWan::calcCouplingSquared(
     auto eigvecs3_h = Kokkos::create_mirror_view(eigvecs3_k);
     auto q3Cs_h = Kokkos::create_mirror_view(q3Cs_k);
 
+    // TODO collapse(3)
+    
 #pragma omp parallel for default(none)                                         \
     shared(eigvecs3_h, eigvecs2Dagger_h, nb2s_h, q3Cs_h, q3Cs_k, q3Cs, k1C,    \
                numLoops, numWannier, numPhBands, eigvecs2Dagger_k, eigvecs3_k, \
                eigvecs2, eigvecs3, phaseConvention, std::cout)
     for (size_t ik = 0; ik < size_t(numLoops); ik++) {
-
       for (int i = 0; i < numWannier; i++) {
         for (int j = 0; j < nb2s_h(ik); j++) {
           eigvecs2Dagger_h(ik, i, j) = std::conj(eigvecs2[ik](i, j));

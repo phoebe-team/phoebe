@@ -104,9 +104,10 @@ private:
   Eigen::VectorXd phBravaisVectorsDegeneracies;
 
   //kokkos object
-  ComplexView4D elPhCached;
+  ComplexView4D SVD_SY_device;
+  ComplexView4D SVD_Vt_device;
+
   ComplexView4D elPhCached_SVD_SY;
-  ComplexView5D couplingWannier_device;
   DoubleView2D wsR1Vectors_device;  // Electronic Bravais vectors
   DoubleView1D wsR1VectorsDegeneracies_device;  // Electronic degeneracies
   DoubleView2D wsR2Vectors_device;  // Phonon Bravais vectors

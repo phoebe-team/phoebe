@@ -4,7 +4,7 @@ if(NOT CMAKE_BUILD_TYPE)
 endif(NOT CMAKE_BUILD_TYPE)
 
 # set cmake version
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.6)
 # set cpp standard flags
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)

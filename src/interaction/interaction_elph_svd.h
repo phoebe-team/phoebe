@@ -125,7 +125,6 @@ private:
     int numWannierOrbitals = 0;
 
     ComplexView4D SVD_SY_device; //(i, j, eta, RE, gamma)
-
     ComplexView4D SVD_Vt_device; //(i, j, eta, gamma, RP)
 
     IntView3D gammaLen_ijk;
@@ -135,7 +134,7 @@ private:
     DoubleView2D wsR2Vectors_device;
     DoubleView1D wsR2VectorsDegeneracies_device;
 
-    ComplexView4D elPhCached_SVD_SY;
+    ComplexView5D elPhCached_SVD_SY;
 
     std::vector<Eigen::Tensor<double, 3>> cacheCoupling;
 

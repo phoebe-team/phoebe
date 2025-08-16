@@ -115,9 +115,9 @@ private:
 
   private:
     // ---------- Geometry for slices and Wannier lattices ----------
-    int numI = 0;                 // no. of i-slices
-    int numJ = 0;                 // no. of j-slices
-    int numEta = 0;               // no. of phonon branches
+    int numI = 0;                 // no. of i-slices // REFACTOR redundant, it's nWannier_i
+    int numJ = 0;                 // no. of j-slices // REFACTOR redundant, it's nWannier_j
+    //int numEta = 0;               // no. of phonon branches // REFACTOR this is redudant against numPhbands in parent class 
     int maxGamma = 0;
 
     int numWsR1Vectors = 0;       // Re
@@ -135,7 +135,7 @@ private:
     DoubleView1D wsR2VectorsDegeneracies_device;
 
     ComplexView5D elPhCached_SVD_SY;
-    ComplexView5D elPhCached_SVD_Vt;
+    //ComplexView5D elPhCached_SVD_Vt; // can just be defined in the cache function 
 
     std::vector<Eigen::Tensor<double, 3>> cacheCoupling;
 

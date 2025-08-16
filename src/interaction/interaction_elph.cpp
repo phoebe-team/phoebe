@@ -31,14 +31,6 @@ InteractionElPhWan::InteractionElPhWan(
     }
   }
 
-  // TODO REMOVE TEMPORARY VARS
-  // wsR1Vectors = wsR1Vectors_;
-  // wsR1VectorsDegeneracies = wsR1VectorsDegeneracies_;
-  // wsR2Vectors = wsR2Vectors_;
-  // wsR2VectorsDegeneracies = wsR2VectorsDegeneracies_;
-  // cachedK1.setConstant(-1000);
-  // couplingWannier = couplingWannier_;
-
   // in the first call to this function, we must copy the el-ph tensor
   // from the CPU to the accelerator
   {
@@ -74,7 +66,7 @@ InteractionElPhWan::InteractionElPhWan(
   }
 }
 
-void InteractionElPhWan::resetK1() { cachedK1.setConstant(-1000); }
+//void InteractionElPhWan::resetK1() { cachedK1.setConstant(-1000); }
 
 InteractionElPhWan::~InteractionElPhWan() {
   if (couplingWannier_k.use_count() == 1) {
@@ -899,7 +891,7 @@ double InteractionElPhWan::getDeviceMemoryUsage() {
                   wsR1Vectors_k.size() + wsR1VectorsDegeneracies_k.size());
   return x;
 }
-
+/* 
 void InteractionElPhWan::oldCalcCouplingSquared(
     const Eigen::MatrixXcd &eigvec1,
     const std::vector<Eigen::MatrixXcd> &eigvecs2,
@@ -1024,3 +1016,4 @@ void InteractionElPhWan::oldCalcCouplingSquared(
     cacheCoupling[ik] = coupling;
   }
 }
+ */

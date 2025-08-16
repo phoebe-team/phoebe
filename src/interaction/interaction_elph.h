@@ -46,13 +46,13 @@ class InteractionElPhWan {
   std::vector<ComplexView4D::HostMirror> elPhCached_hs;
 
   // TODO TEMPORARY, for old interpolation method
-  Eigen::MatrixXd wsR1Vectors;
+/*   Eigen::MatrixXd wsR1Vectors;
   Eigen::VectorXd wsR1VectorsDegeneracies;
   Eigen::MatrixXd wsR2Vectors;
   Eigen::VectorXd wsR2VectorsDegeneracies;
   Eigen::Tensor<std::complex<double>, 4> elPhCached_old;
   Eigen::Vector3d cachedK1;
-  Eigen::Tensor<std::complex<double>, 5> couplingWannier;
+  Eigen::Tensor<std::complex<double>, 5> couplingWannier; */
 
 #ifdef MPI_AVAIL
   std::vector<MPI_Request> mpi_requests;
@@ -60,13 +60,13 @@ class InteractionElPhWan {
 
 public:
 
-  // phase convention options -- TODO switch to ENUM
+  // phase convention options -- REFACTOR switch to ENUM
   // Giustino uses Re, Rp for R vectors
   // JDFTx uses Re, Re' R vectors 
   static const int GiustinoPhaseConvention = 0; 
   static const int JdftxPhaseConvention = 1; 
   
-  // spin types -- TODO switch to ENUM
+  // spin types -- REFACTOR switch to ENUM
   static const int spinNonPolarized = 1; 
   static const int spinPolarizedOrSOC = 2; 
 
@@ -101,7 +101,7 @@ public:
     const Eigen::VectorXd &wsR2VectorsDegeneracies_,
     const int& phaseConvention, const PhononH0& phononH0_);
 
-    void resetK1(); // just resets the first transform for a new cycle
+    //void resetK1(); // just resets the first transform for a new cycle
 
   /** Almost empty constructor.
    * Used to fake the existence of a coupling with the constant relaxation time

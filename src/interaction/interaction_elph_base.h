@@ -47,11 +47,19 @@ protected:
     DoubleView2D elBravaisVectors_k;
     DoubleView1D elBravaisVectorsDegeneracies_k;
 
-
     // cacheCoupling should be accessible to derived classes to store results
     // and returned by getCouplingSquared.
     // Keeping it protected as per user's provided header for now.
     std::vector<Eigen::Tensor<double, 3>> cacheCoupling;
+
+    // phase convention options -- REFACTOR switch to ENUM
+    // Giustino uses Re, Rp for R vectors
+    // JDFTx uses Re, Re' R vectors 
+    enum phaseConventionType {
+        GiustinoPhaseConvention,
+        JdftxPhaseConvention,
+    }; 
+    enum phaseConventionType phaseConvention;
 
 
 public:
@@ -87,9 +95,6 @@ public:
                         const DoubleView1D &phBravaisVectorsDegeneracies_k_,
                         const DoubleView2D &elBravaisVectors_k_,
                         const DoubleView1D &elBravaisVectorsDegeneracies_k_);
-
-
-
 
     /** Virtual destructor
      * Essential for proper cleanup when deleting derived objects via base pointers.

@@ -12,6 +12,7 @@ using ComplexView2D = Kokkos::View<Kokkos::complex<double> **, Kokkos::LayoutRig
 using ComplexView3D = Kokkos::View<Kokkos::complex<double> ***, Kokkos::LayoutRight>;
 using ComplexView4D = Kokkos::View<Kokkos::complex<double> ****, Kokkos::LayoutRight>;
 using ComplexView5D = Kokkos::View<Kokkos::complex<double> *****, Kokkos::LayoutRight>;
+using ComplexView6D = Kokkos::View<Kokkos::complex<double> ******, Kokkos::LayoutRight>;
 using IntView1D = Kokkos::View<int *, Kokkos::LayoutRight>;
 using IntView2D = Kokkos::View<int **, Kokkos::LayoutRight>;
 using DoubleView1D = Kokkos::View<double *, Kokkos::LayoutRight>;

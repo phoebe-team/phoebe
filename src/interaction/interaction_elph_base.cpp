@@ -34,6 +34,7 @@ InteractionElPhBase::InteractionElPhBase(
       phBravaisVectorsDegeneracies_k(phBravaisVectorsDegeneracies_k_),
       elBravaisVectors_k(elBravaisVectors_k_),
       elBravaisVectorsDegeneracies_k(elBravaisVectorsDegeneracies_k_) {
+        
   // determine if polar correction should be used
   usePolarCorrection = false;
   if (phononH0 != nullptr) {
@@ -46,7 +47,6 @@ InteractionElPhBase::InteractionElPhBase(
 }
 
 // Helper methods ===========================================================
-
 void InteractionElPhBase::requirePhononH0() const {
   if (phononH0 == nullptr) {
     throw std::runtime_error(
@@ -55,7 +55,6 @@ void InteractionElPhBase::requirePhononH0() const {
 }
 
 // Polar correction methods =================================================
-
 Eigen::Tensor<std::complex<double>, 3>
 InteractionElPhBase::getPolarCorrection(const Eigen::Vector3d &q3,
                                         const Eigen::MatrixXcd &ev1,

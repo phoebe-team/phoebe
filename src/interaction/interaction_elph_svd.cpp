@@ -8,8 +8,6 @@
 #include <highfive/H5DataSet.hpp>
 #include <highfive/H5File.hpp>
 #include <highfive/H5Group.hpp>
-
-#include <iomanip> // for std::setprecision
 #include <iostream>
 #include <regex>
 #include <tuple>
@@ -80,107 +78,6 @@ static inline std::tuple<int,int,int> parseSliceName(const std::string &name) {
   if (!std::regex_match(name, m, r))
     throw std::invalid_argument("Bad SVD group name: " + name);
   return {std::stoi(m[1]), std::stoi(m[2]), std::stoi(m[3])};
-
-}
-
-template <typename EC, typename ER>
-static void readMaybeComplex(const HighFive::DataSet &ds, EC &out) {
-  try { ds.read(out); }                        // complex
-  catch (...) { ER tmp; ds.read(tmp); out = tmp.template cast<std::complex<double>>(); }
-}
-
-std::vector<InteractionElPhSVD::SVDGroupData>
-InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
-                                        int &num_i, int &num_j, int &num_eta,
-                                        int &RE, int &RP, int &maxGamma) {
-  using CD = Kokkos::complex<double>;
-  const auto names = svdGroup.listObjectNames();
-  if (names.empty()) throw std::runtime_error("zSVD group is empty.");
-
-  // pass 1: discover geometry & maxGamma
-  size_t mi=0, mj=0, me=0; bool shapeInit=false; maxGamma=0;
-  for (const auto &name : names) {
-    auto [i,j,eta] = parseSliceName(name);
-    mi=std::max(mi,size_t(i)); mj=std::max(mj,size_t(j)); me=std::max(me,size_t(eta));
-
-    auto g = svdGroup.getGroup(name);
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Uc;
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> Vc;
-    readMaybeComplex<
-      Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>,
-      Eigen::Matrix<double,              Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    >(g.getDataSet("U"), Uc);
-    readMaybeComplex<
-      Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>,
-      Eigen::Matrix<double,              Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>
-    >(g.getDataSet("V"), Vc);
-
-    int gamma=0;
-    try { Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1> Sc; g.getDataSet("S").read(Sc); gamma=int(Sc.size()); }
-    catch (...) {
-      try { Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Sm; g.getDataSet("S").read(Sm); gamma=int(Sm.size()); }
-      catch (...) { Eigen::Matrix<double, Eigen::Dynamic, 1> Sr; g.getDataSet("S").read(Sr); gamma=int(Sr.size()); }
-    }
-
-    if (!shapeInit) { RE=int(Uc.rows()); RP=int(Vc.rows()); shapeInit=true; }
-    else if (RE!=Uc.rows() || RP!=Vc.rows()) throw std::runtime_error("Inconsistent RE/RP across slices.");
-    maxGamma = std::max(maxGamma, gamma);
-  }
-  num_i = int(mi)+1; num_j = int(mj)+1; num_eta = int(me)+1;
-
-  // pass 2: read & pack per-slice into flat vectors
-  std::vector<SVDGroupData> out; out.reserve(names.size());
-  for (const auto &name : names) {
-    auto [i,j,eta] = parseSliceName(name);
-    auto g = svdGroup.getGroup(name);
-
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Uc;
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1> Sc;
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> Vc;
-
-    readMaybeComplex<
-      Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>,
-      Eigen::Matrix<double,              Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    >(g.getDataSet("U"), Uc);
-
-    try { Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1> Sc_try; g.getDataSet("S").read(Sc_try); Sc = Sc_try; }
-    catch (...) {
-      try {
-        Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Sm;
-        g.getDataSet("S").read(Sm);
-        Sc.resize(Sm.size());
-        for (int k=0;k<Sm.size();++k) Sc(k)=Sm.data()[k];
-      } catch (...) {
-        Eigen::Matrix<double, Eigen::Dynamic, 1> Sr; g.getDataSet("S").read(Sr);
-        Sc = Sr.cast<std::complex<double>>();
-      }
-    }
-
-    readMaybeComplex<
-      Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>,
-      Eigen::Matrix<double,              Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>
-    >(g.getDataSet("V"), Vc);
-
-    const int gamma = int(Sc.size());
-
-    SVDGroupData d; d.i=i; d.j=j; d.eta=eta; d.RE=RE; d.RP=RP; d.gamma=gamma;
-    d.U.resize(size_t(RE)*size_t(gamma));
-    d.V.resize(size_t(RP)*size_t(gamma));
-    d.S.resize(size_t(gamma));
-
-    for (int re=0; re<RE; ++re)
-      for (int gg=0; gg<gamma; ++gg)
-        d.U[size_t(re)*size_t(gamma)+size_t(gg)] = Uc(re,gg);
-
-    for (int rp=0; rp<RP; ++rp)
-      for (int gg=0; gg<gamma; ++gg)
-        d.V[size_t(rp)*size_t(gamma)+size_t(gg)] = Vc(rp,gg); // store V(rp,g)
-
-    for (int gg=0; gg<gamma; ++gg) d.S[size_t(gg)] = Sc(gg);
-
-    out.push_back(std::move(d));
-  }
-  return out;
 }
 
 // REFACTOR : new name :)
@@ -283,7 +180,6 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
   }
   return out;
 }
-
 
 // Core routine to read data
 void InteractionElPhSVD::parseSVDKokkos(Context &context) {
@@ -437,7 +333,6 @@ void InteractionElPhSVD::parseSVDKokkos(Context &context) {
 //   std::cout << "Total memory usage (approx): " << getDeviceMemoryUsage() / (1024.0 * 1024.0 * 1024.0) << " GB" << std::endl;
 // }
 
-
 // void InteractionElPhSVD::printSVDSample(size_t i, size_t j, size_t eta) const {
 //   if (ElPh_Matrix.data() == nullptr) {
 //     std::cout << "ElPh_Matrix is not initialized." << std::endl;
@@ -453,13 +348,12 @@ void InteractionElPhSVD::parseSVDKokkos(Context &context) {
 //   }
 // }
 
-
 void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
                                    const Eigen::Vector3d  &k1C) {
 
                                        Kokkos::Profiling::pushRegion("cacheElPh_SVD");
 
-
+  // REFACTOR
   const int numGamma            = maxGamma;
   const int numWannierOrbitals  = numI;           // i- (and j-) dimension
   const int numWsR1Vectors_local= numWsR1Vectors; // R_e rows
@@ -468,9 +362,8 @@ void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
 
   // Get dimensions (your names)
   auto nb1 = int(eigvec1.cols()); // number of bands at this kpoint
-
-  auto elPhCached_SVD_SY = this->elPhCached_SVD_SY;
-  auto SVD_SY_device     = this->SVD_SY_device;
+  auto elPhCached_SVD_SY = this->elPhCached_SVD_SY; // final container of output from this function, stored in the class
+  auto SVD_SY_device     = this->SVD_SY_device; // input data of the first part of the SVD
 
   if (mpi->mpiHead()) {
     std::cout << "SVD cacheElPh: nb1=" << nb1
@@ -478,12 +371,6 @@ void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
               << ", numPhBands=" << numPhBands
               << ", numWannierOrbitals=" << numWannierOrbitals << std::endl;
   }
-
-
-  // Create intermediate/"cache" container of size (gamma, eta, i, j)
-  ComplexView4D g_FT1_output(
-      Kokkos::ViewAllocateWithoutInitializing("g1"),
-      numGamma, numPhBands, numWannierOrbitals, numWannierOrbitals);
 
   // Copy the eigenvector and wavevector to the accelerator
   ComplexView2D eigvec1_device("ev1", nb1, numWannierOrbitals);
@@ -495,9 +382,7 @@ void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
     Kokkos::deep_copy(k1C_device,     k1C_host);
   }
 
-
   // REFACTOR maybe we want constructor to do this instead of the function call
-
   if (wsR1Vectors_device.data() == nullptr) {
     Kokkos::resize(wsR1Vectors_device,numWsR1Vectors_local, 3);
     Kokkos::resize(wsR1VectorsDegeneracies_device, numWsR1Vectors_local);
@@ -508,9 +393,7 @@ void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
   }
 
   // ---------------- phases over R_e ----------------
-
   Kokkos::Profiling::pushRegion("precompute_phases_k1");
-
   ComplexView1D phases_device("phases", numWsR1Vectors_local);
   {
     auto r1 = wsR1Vectors_device;
@@ -553,11 +436,9 @@ void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
                    coupling_2D, phases_device,
                    Kokkos::complex<double>(0.0, 0.0), g_FT_output_1D);
 
-
   if (mpi->mpiHead()) {
     std::cout << "Applied Fourier transform via gemv with flattened_size="
               << flattened_size << std::endl;
-<<<<<<< HEAD
     std::cout << "g_FT_output_1D dimensions: "
               << g_FT_output_1D.extent(0) << std::endl;
     std::cout << "coupling_2D dimensions: ("
@@ -587,7 +468,6 @@ void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
       KOKKOS_LAMBDA(int igamma, int ieta, int ib1, int iw1, int iw2) {
         Kokkos::complex<double> tmp(0.0);
         elPhCached_SVD_SY(igamma, ieta, ib1, iw1, iw2) = g_FT_output(igamma, ieta, iw1, iw2) * eigvec1_device(ib1, iw1);
-
       });
   Kokkos::fence();
 
@@ -601,21 +481,6 @@ void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
 }
 
 
-
-
-//TODO: check below
-//
-// Print index 1,2,3,4 in cacheELPh
-//
-// implement first fourier transform (and then rotation second), but first import phases_k(check interaction.cpp)
-//
-// Try to set up views as previously done but matches nodes (flatten index i,j, eta).
-//
-// eigen & kokkos bound checking
-
-
-
->>>>>>> 67efb4dd (Fixed minor mismatch in cacheElPh, loaded all variables in constructor to pass to device)
 void InteractionElPhSVD::calcCouplingSquared(
     const Eigen::MatrixXcd &eigvec1,
     const std::vector<Eigen::MatrixXcd> &eigvecs2,
@@ -623,24 +488,249 @@ void InteractionElPhSVD::calcCouplingSquared(
     const std::vector<Eigen::Vector3d> &q3Cs,
     const std::vector<Eigen::VectorXcd> &polarData) {
 
-  if (mpi->mpiHead()) {
-    // std::cout << "\n--------------------------------------------------" << std::endl;
-    // std::cout << "CHECKPOINT: SVD Interaction Module Triggered" << std::endl;
-    // std::cout << "--------------------------------------------------" << std::endl;
+  Kokkos::Profiling::pushRegion("calcCouplingSquared");
+
+  // set up all information used by this function
+  const int numWannierOrbitals = numI;     // match cacheElPh naming
+  const int numWannier         = numElBands; // legacy alias, used only in a couple loops
+  const int nb1                = int(eigvec1.cols());
+  const int numK2              = int(eigvecs2.size()); // the number of k2 and q points
+
+
+  auto elPhCached_SVD_SY = this->elPhCached_SVD_SY; // (γ,η, ib1, j)
+
+  const int numGamma        = maxGamma;
+  const int numPhBands      = this->numPhBands;
+  const int numWsR2Vectors  = this->numWsR2Vectors;
+
+  // R2 lattice (could be Rp or Re' in JDFTx case)
+  DoubleView2D wsR2Vectors_device             = this->wsR2Vectors_device;
+  DoubleView1D wsR2VectorsDegeneracies_device = this->wsR2VectorsDegeneracies_device;
+
+  // each k2 may have a different number of bands: find max, pad to rectangular
+  IntView1D nb2s_device("nb2s", numK2);
+  int nb2max = 0;
+  auto nb2s_h = Kokkos::create_mirror_view(nb2s_device);
+  for (int ik = 0; ik < numK2; ++ik) {
+    nb2s_h(ik) = int(eigvecs2[ik].cols());
+    if (nb2s_h(ik) > nb2max) nb2max = nb2s_h(ik);
+  }
+  Kokkos::deep_copy(nb2s_device, nb2s_h);
+
+  // -------------------- Polar corrections  --------------------
+  IntView1D   usePolarCorrections_device("usePolarCorrections", numK2);
+  ComplexView4D polarCorrections_device(
+      Kokkos::ViewAllocateWithoutInitializing("polarCorrections"),
+      numK2, numPhBands, nb1, nb2max);
+
+  auto usePolarCorrections_host = Kokkos::create_mirror_view(usePolarCorrections_device);
+  auto polarCorrections_host    = Kokkos::create_mirror_view(polarCorrections_device);
+
+  #pragma omp parallel for
+  for (int ik = 0; ik < numK2; ++ik) {
+    const Eigen::Vector3d q3C = q3Cs[ik];
+    const Eigen::MatrixXcd &eigvec2 = eigvecs2[ik];
+
+    usePolarCorrections_host(ik) = usePolarCorrection && std::abs(q3C.norm()) > 1.0e-8;
+
+    if (usePolarCorrections_host(ik)) {
+      // returns (b1, b2, nu)
+      Eigen::Tensor<std::complex<double>, 3> single =
+          polarCorrectionPart2(eigvec1, eigvec2, polarData[ik]);
+
+      for (int nu = 0; nu < numPhBands; ++nu) {
+        for (int ib1_ = 0; ib1_ < nb1; ++ib1_) {
+          for (int ib2 = 0; ib2 < nb2s_h(ik); ++ib2) {
+            polarCorrections_host(ik, nu, ib1_, ib2) = single(ib1_, ib2, nu);
+          }
+        }
+      }
+    } else {
+      const Kokkos::complex<double> kZero(0., 0.);
+      for (int nu = 0; nu < numPhBands; ++nu) {
+        for (int ib1_ = 0; ib1_ < nb1; ++ib1_) {
+          for (int ib2 = 0; ib2 < nb2s_h(ik); ++ib2) {
+            polarCorrections_host(ik, nu, ib1_, ib2) = kZero;
+          }
+        }
+      }
+    }
+  }
+  Kokkos::deep_copy(polarCorrections_device,    polarCorrections_host);
+  Kokkos::deep_copy(usePolarCorrections_device, usePolarCorrections_host);
+
+  // -------------------- Copy to device --------------------
+  DoubleView2D q3Cs_k("q3", numK2, 3);
+  ComplexView3D eigvecs2Dagger_k("ev2Dagger", numK2, numWannierOrbitals, nb2max);
+  ComplexView3D eigvecs3_k      ("ev3",       numK2, numPhBands,         numPhBands);
+
+  {
+    auto eigvecs2Dagger_h = Kokkos::create_mirror_view(eigvecs2Dagger_k);
+    auto eigvecs3_h       = Kokkos::create_mirror_view(eigvecs3_k);
+    auto q3Cs_h           = Kokkos::create_mirror_view(q3Cs_k);
+
+    #pragma omp parallel for
+    for (int ik = 0; ik < numK2; ++ik) {
+      for (int j = 0; j < numWannierOrbitals; ++j) {
+        for (int ib2 = 0; ib2 < nb2s_h(ik); ++ib2) {
+          eigvecs2Dagger_h(ik, j, ib2) = std::conj(eigvecs2[ik](j, ib2));
+        }
+      }
+      // phonon eigenvectors e(ik): (nu2,nu). Your legacy uses [cols x rows] copy.
+      for (int nu2 = 0; nu2 < eigvecs3[ik].cols(); ++nu2) {
+        for (int nu  = 0; nu  < eigvecs3[ik].rows(); ++nu) {
+          if (phaseConvention == JdftxPhaseConvention) {
+            // If JDFTx: caller should have adjusted phases; use conj transpose mapping
+            eigvecs3_h(ik, nu2, nu) = std::conj(eigvecs3[ik](nu, nu2));
+          } else {
+            eigvecs3_h(ik, nu2, nu) = eigvecs3[ik](nu, nu2);
+          }
+        }
+      }
+
+      for (int a = 0; a < 3; ++a) {
+        // If JDFTx variant needs k', assume the caller preloaded q3Cs accordingly
+        q3Cs_h(ik, a) = q3Cs[ik](a);
+      }
+    }
+
+    Kokkos::deep_copy(eigvecs2Dagger_k, eigvecs2Dagger_h);
+    Kokkos::deep_copy(eigvecs3_k,       eigvecs3_h);
+    Kokkos::deep_copy(q3Cs_k,           q3Cs_h);
+  }
+
+  // -------------------- Phases over R2 --------------------
+  ComplexView2D phases("phases", numK2, numWsR2Vectors);
+  {
+    const Kokkos::complex<double> complexI(0.0, 1.0);
+    Kokkos::parallel_for(
+        "Interaction elph: calculate phase 2",
+        Range2D({0, 0}, {numK2, numWsR2Vectors}),
+        KOKKOS_LAMBDA(const int ik, const int irP) {
+          double arg = 0.0;
+          for (int j = 0; j < 3; ++j) arg += q3Cs_k(ik, j) * wsR2Vectors_device(irP, j);
+          phases(ik, irP) = exp(complexI * arg) / wsR2VectorsDegeneracies_device(irP);
+        });
+    Kokkos::fence();
   }
 
 
-  cacheCoupling.resize(eigvecs2.size());
-  for (size_t i = 0; i < eigvecs2.size(); ++i) {
-    auto nb1 = eigvec1.cols();
-    auto nb2 = eigvecs2[i].cols();
-    cacheCoupling[i] = Eigen::Tensor<double, 3>(nb1, nb2, numPhBands);
-    cacheCoupling[i].setZero();
+  const size_t flattened_size_vt =
+      size_t(numGamma) * size_t(numPhBands) * size_t(numWannierOrbitals);
+
+  ComplexView4D v_FT_output(
+      Kokkos::ViewAllocateWithoutInitializing("v_FT_output"),
+      numK2, numGamma, numPhBands, numWannierOrbitals);
+
+  Kokkos::View<Kokkos::complex<double> **, Kokkos::LayoutRight>
+      v_FT_output_2D(v_FT_output.data(), numK2, flattened_size_vt);
+
+
+  Kokkos::View<Kokkos::complex<double> **, Kokkos::LayoutRight>
+      coupling_2D(this->SVD_Vt_device.data(), numWsR2Vectors, flattened_size_vt);
+
+
+  KokkosBlas::gemv("T", Kokkos::complex<double>(1.0, 0.0),
+                   Vt_2D, phases_device,Kokkos::complex<double>(0.0, 0.0), v_FT_output_1D);
+
+
+
+  // -------------------- Unitary rotation --------------------
+  Kokkos::realloc(this->elPhCached_SVD_Vt,
+                  numK2, numGamma, numPhBands, nb2max, numWannierOrbitals);
+
+  auto elPhCached_SVD_Vt = this->elPhCached_SVD_Vt;
+  Kokkos::parallel_for(
+      "rotate using U^dagger eigenvectors. elPhCached_SVD_Vt_device",
+      Range5D({0, 0, 0, 0, 0},
+              {numK2, numGamma, numPhBands, nb2max, numWannierOrbitals}),
+      KOKKOS_LAMBDA(const int ik, const int g, const int eta,
+                    const int ib2, const int j) {
+        elPhCached_SVD_Vt(ik, g, eta, ib2, j) = v_FT_output(g, eta, j) * eigvecs2Dagger_k(ik, j, ib2);
+      });
+  Kokkos::fence();
+
+
+  // -------------------- Phonon rotation --------------------
+  Kokkos::Profiling::pushRegion("phonon_rotation");
+
+  auto elPhCached_SVD_Vt = this->elPhCached_SVD_Vt;
+
+  ComplexView5D elPhCached_SVD_Vt_Final(
+      Kokkos::ViewAllocateWithoutInitializing("elPhCached_SVD_Vt_Final"),
+      numK2, numGamma, numPhBands, nb2max, numWannierOrbitals);
+
+  Kokkos::parallel_for(
+      "phonon_rotation",
+      Range5D({0, 0, 0, 0, 0},
+              {numK2, numGamma, numPhBands, nb2max, numWannierOrbitals}),
+      KOKKOS_LAMBDA(const int iK2, const int iGamma, const int iNu2,
+                    const int iBand2, const int iWannierJ) {
+        Kokkos::complex<double> accumulator(0.0, 0.0);
+        for (int iEta = 0; iEta < numPhBands; ++iEta) {
+          accumulator += elPhCached_SVD_Vt(iK2, iGamma, iEta, iBand2, iWannierJ)
+                       * eigvecs3_k(iK2, iNu2, iEta);
+        }
+        elPhCached_SVD_Vt_Final(iK2, iGamma, iNu2, iBand2, iWannierJ) = accumulator;
+      });
+  Kokkos::fence();
+
+  // keep the rotated tensor for downstream steps
+  this->elPhCached_SVD_Vt = elPhCached_SVD_Vt_Final;
+
+  Kokkos::Profiling::popRegion();
+  // we now add the precomputed polar corrections, before taking the norm of g
+    Kokkos::parallel_for(
+        "re-add polar correction to g",
+        Range4D({0, 0, 0, 0}, {numK2, numPhBands, nb1, nb2max}),
+        KOKKOS_LAMBDA(const int ik, const int nu, const int ib1_, const int ib2) {
+          gFinal(ik, nu, ib1_, ib2) += polarCorrections_device(ik, nu, ib1_, ib2);
+        });
   }
-  if (mpi->mpiHead()) {
-      // std::cout << "Populated coupling cache with zero-tensors to allow execution to continue." << std::endl;
-      // std::cout << "--------------------------------------------------\n" << std::endl;
+  Kokkos::realloc(polarCorrections_device, 0, 0, 0, 0);
+
+  // -------------------- |g|^2 --------------------
+  DoubleView4D coupling_k(
+      Kokkos::ViewAllocateWithoutInitializing("gSq"),
+      numK2, numPhBands, nb2max, nb1);
+
+  Kokkos::parallel_for(
+      "Interaction elph: modulus coupling",
+      Range4D({0, 0, 0, 0}, {numK2, numPhBands, nb2max, nb1}),
+      KOKKOS_LAMBDA(const int ik, const int nu, const int ib2, const int ib1_) {
+        const auto z = gFinal(ik, nu, ib1_, ib2);
+        coupling_k(ik, nu, ib2, ib1_) = z.real()*z.real() + z.imag()*z.imag();
+      });
+  Kokkos::realloc(gFinal, 0, 0, 0, 0);
+
+  //now, copy back to CPU cacheCoupling
+  cacheCoupling.resize(0);
+  cacheCoupling.resize(numK2);
+
+  auto coupling_h = Kokkos::create_mirror_view(coupling_k);
+  Kokkos::deep_copy(coupling_h, coupling_k);
+
+  #pragma omp parallel for
+    shared(numLoops, cacheCoupling, coupling_h, nb1, nb2s_h, numPhBands)
+  for (int ik = 0; ik < numK2; ++ik) {
+    Eigen::Tensor<double, 3> coupling(nb1, nb2s_h(ik), numPhBands);
+    for (int nu = 0; nu < numPhBands; ++nu) {
+      for (int ib2 = 0; ib2 < nb2s_h(ik); ++ib2) {
+        for (int ib1_ = 0; ib1_ < nb1; ++ib1_) {
+          coupling(ib1_, ib2, nu) = coupling_h(ik, nu, ib2, ib1_);
+        }
+      }
+    }
+    cacheCoupling[ik] = coupling;
   }
+
+  Kokkos::Profiling::popRegion(); // calcCouplingSquared
+}
+
+
+
+
+
 }
 
 void InteractionElPhSVD::resetK1() {

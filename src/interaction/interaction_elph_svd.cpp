@@ -490,14 +490,13 @@ void InteractionElPhSVD::calcCouplingSquared(
 
   Kokkos::Profiling::pushRegion("calcCouplingSquared");
 
-  // set up all information used by this function
-  const int numWannierOrbitals = numI;     // match cacheElPh naming
-  const int numWannier         = numElBands; // legacy alias, used only in a couple loops
+  const int numWannierOrbitals = numI;
+  const int numWannier         = numElBands; s
   const int nb1                = int(eigvec1.cols());
-  const int numK2              = int(eigvecs2.size()); // the number of k2 and q points
+  const int numK2              = int(eigvecs2.size());
 
 
-  auto elPhCached_SVD_SY = this->elPhCached_SVD_SY; // (γ,η, ib1, j)
+  auto elPhCached_SVD_SY = this->elPhCached_SVD_SY;
 
   const int numGamma        = maxGamma;
   const int numPhBands      = this->numPhBands;
@@ -576,7 +575,6 @@ void InteractionElPhSVD::calcCouplingSquared(
           eigvecs2Dagger_h(ik, j, ib2) = std::conj(eigvecs2[ik](j, ib2));
         }
       }
-      // phonon eigenvectors e(ik): (nu2,nu). Your legacy uses [cols x rows] copy.
       for (int nu2 = 0; nu2 < eigvecs3[ik].cols(); ++nu2) {
         for (int nu  = 0; nu  < eigvecs3[ik].rows(); ++nu) {
           if (phaseConvention == JdftxPhaseConvention) {

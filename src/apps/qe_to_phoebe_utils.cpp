@@ -841,42 +841,52 @@ void writeElPhCouplingNoHDF5(
 
 
 // Function to perform SVD on a single 2D matrix
-void performSVDComplex(const Eigen::MatrixXcd &A,
-                       Eigen::MatrixXcd &U, Eigen::VectorXd &Sreal, Eigen::MatrixXcd &V,
-                       double truncAmount) {
-  Eigen::JacobiSVD<Eigen::MatrixXcd> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
-  U     = svd.matrixU();
-  Sreal = svd.singularValues(); // still real, non-negative
-  V     = svd.matrixV();
+void performSVD(const Eigen::MatrixXd &matrix, Eigen::MatrixXd &U,
+                Eigen::VectorXd &S, Eigen::MatrixXd &V, double truncAmount) {
+    Eigen::JacobiSVD<Eigen::MatrixXd> svd(matrix, Eigen::ComputeThinU | Eigen::ComputeThinV);
+    U = svd.matrixU();
+    S = svd.singularValues();
+    V = svd.matrixV();
 
-  const double maxS = Sreal.maxCoeff();
-  size_t r = 0;
-  for (size_t i = 0; i < (size_t)Sreal.size(); ++i) {
-    if (Sreal[i] >= truncAmount * 0.01 * maxS) ++r; else break;
-  }
-  Sreal = Sreal.head(r);
-  U = U.leftCols(r);
-  V = V.leftCols(r);
+    double maxSingularValue = S.maxCoeff();
+    size_t indice = 0;
+
+    for (size_t i = 0; i < S.size(); ++i) {
+        if (S[i] >= truncAmount * 0.01 * maxSingularValue) {
+            indice++;
+        } else {
+            break;
+        }
+    }
+
+    S = S.head(indice);
+    U = U.leftCols(indice);
+    V = V.leftCols(indice);
 }
 
 // Save SVD results into the path: SVD/slice_dim3_dim4_dim5/
-void saveSVDToHDF5Complex(HighFive::File &file, const Eigen::MatrixXcd &U,
-                          const Eigen::VectorXd &Sreal, const Eigen::MatrixXcd &V,
-                          int dim3, int dim4, int dim5) {
-  // store S as complex for uniform typing
-  Eigen::VectorXcd S = Sreal.cast<std::complex<double>>();
+void saveSVDToHDF5(HighFive::File &file, const Eigen::MatrixXd &U,
+                   const Eigen::VectorXd &S, const Eigen::MatrixXd &V,
+                   int dim3, int dim4, int dim5) {
 
-  HighFive::Group svdTopGroup = file.exist("zSVD") ? file.getGroup("zSVD")
-                                                   : file.createGroup("zSVD");
+    // Make sure top-level "SVD" group exists
+    HighFive::Group svdTopGroup;
+    if (!file.exist("zSVD")) { // NOTE: we call it zSVD because the HDF5 file is sorted alphbetically. This way, we dont need to change the way files are being read in Phoebe.
+        svdTopGroup = file.createGroup("zSVD");
+    } else {
+        svdTopGroup = file.getGroup("zSVD");
+    }
 
-  std::string sliceName = "slice_" + std::to_string(dim3)
-                        + "_" + std::to_string(dim4)
-                        + "_" + std::to_string(dim5);
-  HighFive::Group sliceGroup = svdTopGroup.createGroup(sliceName);
+    // Create a subgroup for this slice
+    std::string sliceName = "slice_" + std::to_string(dim3)
+                          + "_" + std::to_string(dim4)
+                          + "_" + std::to_string(dim5);
+    HighFive::Group sliceGroup = svdTopGroup.createGroup(sliceName);
 
-  sliceGroup.createDataSet("U", U);
-  sliceGroup.createDataSet("S", S);  // complex
-  sliceGroup.createDataSet("V", V);
+    // Write U, S, V datasets into that slice group
+    sliceGroup.createDataSet("U", U);
+    sliceGroup.createDataSet("S", S);
+    sliceGroup.createDataSet("V", V);
 }
 
 
@@ -900,7 +910,7 @@ void writeSvdElPhCouplingHDF5(
         }
         mpi->barrier();
 
-        HighFive::FileAccessProps fapl;
+        auto fapl = HighFive::FileAccessProps{};
         fapl.add(HighFive::MPIOFileAccess(MPI_COMM_WORLD, MPI_INFO_NULL));
         HighFive::File file(outFileName, HighFive::File::Truncate, fapl);
         mpi->barrier();
@@ -916,20 +926,26 @@ void writeSvdElPhCouplingHDF5(
         }
 
         for (int sliceIndex = startSlice; sliceIndex < endSlice; ++sliceIndex) {
-          int dim5 = sliceIndex % numModes;                       // eta
-          int dim4 = (sliceIndex / numModes) % numWannier;        // j
-          int dim3 = sliceIndex / (numWannier * numModes);        // i
+            int dim5 = sliceIndex % numModes;                  // eta index
+            int dim4 = (sliceIndex / numModes) % numWannier;   // j index
+            int dim3 = sliceIndex / (numWannier * numModes); // i index
 
-          Eigen::MatrixXcd sliceC(numWannier, numWannier);
-          for (int i = 0; i < numWannier; ++i)
-            for (int j = 0; j < numWannier; ++j)
-              sliceC(i, j) = gWannier(dim3, dim4, dim5, i, j); // keep complex!
+            Eigen::MatrixXd slice(numWannier, numWannier);
+            for (size_t i = 0; i < numWannier; ++i) {
+                for (size_t j = 0; j < numWannier; ++j) {
+                    slice(i, j) = std::real(gWannier(static_cast<long>(dim3),
+                                                     static_cast<long>(dim4),
+                                                     static_cast<long>(dim5),
+                                                     static_cast<long>(i),
+                                                     static_cast<long>(j)));
+                }
+            }
 
-          Eigen::MatrixXcd Uc, Vc;
-          Eigen::VectorXd  Sreal;
-          performSVDComplex(sliceC, Uc, Sreal, Vc, 10);
+            Eigen::MatrixXd U, V;
+            Eigen::VectorXd S;
+            performSVD(slice, U, S, V, 10);
 
-          saveSVDToHDF5Complex(file, Uc, Sreal, Vc, dim3, dim4, dim5);
+            saveSVDToHDF5(file, U, S, V, dim3, dim4, dim5);
         }
 
         mpi->barrier();
@@ -942,7 +958,6 @@ void writeSvdElPhCouplingHDF5(
         std::cerr << "Unknown exception occurred." << std::endl;
     }
 }
-
 
 
 

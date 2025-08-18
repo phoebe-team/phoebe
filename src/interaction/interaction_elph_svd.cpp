@@ -1,4 +1,5 @@
 #include "interaction_elph_svd.h"
+#include <iomanip>
 #include "common_kokkos.h"
 #include "context.h"
 #include "crystal.h"
@@ -107,104 +108,111 @@ static inline std::tuple<int,int,int> parseSliceName(const std::string &name) {
   return {std::stoi(m[1]), std::stoi(m[2]), std::stoi(m[3])};
 }
 
-// REFACTOR : new name :)
-template <typename EC, typename ER>
-static void readMaybeComplex(const HighFive::DataSet &ds, EC &out) {
-  try { ds.read(out); }                        // complex
-  catch (...) { ER tmp; ds.read(tmp); out = tmp.template cast<std::complex<double>>(); }
-}
-
 std::vector<InteractionElPhSVD::SVDGroupData>
 InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
                                         int &num_i, int &num_j, int &num_eta,
                                         int &RE, int &RP, int &maxGamma) {
-  const auto names = svdGroup.listObjectNames();
-  if (names.empty()) throw std::runtime_error("zSVD group is empty.");
-
-  // pass 1: discover geometry & maxGamma
-  size_t mi=0, mj=0, me=0; bool shapeInit=false; maxGamma=0;
+  std::vector<std::string> names = svdGroup.listObjectNames();
+  
+  std::cout << "DEBUG: Processing " << names.size() << " slices" << std::endl;
+  
+  size_t mi=0, mj=0, me=0;
+  RE = 0; RP = 0; maxGamma = 0;  // Initialize properly
   for (const auto &name : names) {
     auto [i,j,eta] = parseSliceName(name);
     mi=std::max(mi,size_t(i)); mj=std::max(mj,size_t(j)); me=std::max(me,size_t(eta));
 
     auto g = svdGroup.getGroup(name);
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Uc;
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> Vc;
-    readMaybeComplex<
-      Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>,
-      Eigen::Matrix<double,              Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    >(g.getDataSet("U"), Uc);
-    readMaybeComplex<
-      Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>,
-      Eigen::Matrix<double,              Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>
-    >(g.getDataSet("V"), Vc);
+    Eigen::MatrixXd Ur, Vr;
+    g.getDataSet("U").read(Ur);
+    g.getDataSet("V").read(Vr);
 
-    int gamma=0;
-    try { Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1> Sc; g.getDataSet("S").read(Sc); gamma=int(Sc.size()); }
-    catch (...) {
-      try { Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Sm; g.getDataSet("S").read(Sm); gamma=int(Sm.size()); }
-      catch (...) { Eigen::Matrix<double, Eigen::Dynamic, 1> Sr; g.getDataSet("S").read(Sr); gamma=int(Sr.size()); }
-    }
-
-    if (!shapeInit) { RE=int(Uc.rows()); RP=int(Vc.rows()); shapeInit=true; }
-    else if (RE!=Uc.rows() || RP!=Vc.rows()) throw std::runtime_error("Inconsistent RE/RP across slices.");
-    maxGamma = std::max(maxGamma, gamma);
+    RE = std::max(RE, (int)Ur.rows());
+    RP = std::max(RP, (int)Vr.rows());
   }
-  num_i = int(mi)+1; num_j = int(mj)+1; num_eta = int(me)+1;
+  num_i = int(mi+1); num_j = int(mj+1); num_eta = int(me+1);
 
-  // pass 2: read & pack per-slice into flat vectors
-  std::vector<SVDGroupData> out; out.reserve(names.size());
+  std::vector<SVDGroupData> slices;
+  int sliceCount = 0;
   for (const auto &name : names) {
     auto [i,j,eta] = parseSliceName(name);
     auto g = svdGroup.getGroup(name);
 
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Uc;
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1> Sc;
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> Vc;
-
-    readMaybeComplex<
-      Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>,
-      Eigen::Matrix<double,              Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>
-    >(g.getDataSet("U"), Uc);
-
-    try { Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1> Sc_try; g.getDataSet("S").read(Sc_try); Sc = Sc_try; }
-    catch (...) {
-      try {
-        Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Sm;
-        g.getDataSet("S").read(Sm);
-        Sc.resize(Sm.size());
-        for (int k=0;k<Sm.size();++k) Sc(k)=Sm.data()[k];
-      } catch (...) {
-        Eigen::Matrix<double, Eigen::Dynamic, 1> Sr; g.getDataSet("S").read(Sr);
-        Sc = Sr.cast<std::complex<double>>();
+    Eigen::MatrixXd Ur, Vr;
+    Eigen::VectorXd Sr;
+    
+    try {
+      g.getDataSet("U").read(Ur);
+      g.getDataSet("V").read(Vr);
+      
+      // Handle S which might be stored as 2D matrix {n,1} or 1D vector {n}
+      // Also handle both real and complex formats
+      Eigen::MatrixXd S_matrix;
+      g.getDataSet("S").read(S_matrix);
+      
+      if (S_matrix.cols() == 1) {
+        Sr = S_matrix.col(0);
+      } else if (S_matrix.rows() == 1) {
+        Sr = S_matrix.row(0);
+      } else if (S_matrix.rows() == S_matrix.cols() && S_matrix.rows() > 1) {
+        // If it's a square matrix, take the diagonal (singular values)
+        Sr = S_matrix.diagonal();
+      } else {
+        std::cerr << "ERROR: S has unexpected dimensions: " << S_matrix.rows() << "x" << S_matrix.cols() << std::endl;
+        throw std::runtime_error("Invalid S matrix dimensions");
       }
+      
+    } catch (const std::exception& e) {
+      std::cerr << "ERROR: Failed to read slice " << name << ": " << e.what() << std::endl;
+      throw;
     }
 
-    readMaybeComplex<
-      Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>,
-      Eigen::Matrix<double,              Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor>
-    >(g.getDataSet("V"), Vc);
+    if (sliceCount < 5) {
+      std::cout << "DEBUG: Slice " << name << " - U: " << Ur.rows() << "x" << Ur.cols() 
+                << ", S: " << Sr.size() << ", V: " << Vr.rows() << "x" << Vr.cols() << std::endl;
+      
+      // Show first few singular values
+      std::cout << "DEBUG: S values:";
+      for (int k = 0; k < std::min(5, (int)Sr.size()); ++k) {
+        std::cout << " " << std::fixed << std::setprecision(8) << Sr(k);
+      }
+      std::cout << std::endl;
+    }
+
+    // Convert real matrices to complex for internal use
+    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Uc = Ur.cast<std::complex<double>>();
+    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1> Sc = Sr.cast<std::complex<double>>();
+    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> Vc = Vr.cast<std::complex<double>>();
 
     const int gamma = int(Sc.size());
+
+    if (sliceCount < 5) {
+      std::cout << "DEBUG: Slice " << name << " gamma=" << gamma << std::endl;
+      std::cout << "DEBUG: Slice " << sliceCount << " gamma=" << gamma 
+                << ", oldMaxGamma=" << maxGamma << ", newMaxGamma=" << std::max(maxGamma, gamma) << std::endl;
+    }
 
     SVDGroupData d; d.i=i; d.j=j; d.eta=eta; d.RE=RE; d.RP=RP; d.gamma=gamma;
     d.U.resize(size_t(RE)*size_t(gamma));
     d.V.resize(size_t(RP)*size_t(gamma));
     d.S.resize(size_t(gamma));
 
-    for (int re=0; re<RE; ++re)
-      for (int gg=0; gg<gamma; ++gg)
-        d.U[size_t(re)*size_t(gamma)+size_t(gg)] = Uc(re,gg);
-
-    for (int rp=0; rp<RP; ++rp)
-      for (int gg=0; gg<gamma; ++gg)
-        d.V[size_t(rp)*size_t(gamma)+size_t(gg)] = Vc(rp,gg); // store V(rp,g)
-
-    for (int gg=0; gg<gamma; ++gg) d.S[size_t(gg)] = Sc(gg);
-
-    out.push_back(std::move(d));
+    for (int g=0; g<gamma; ++g) {
+      for (int re=0; re<RE; ++re) {
+        d.U[size_t(re)*size_t(gamma)+size_t(g)] = Uc(re,g);
+      }
+      for (int rp=0; rp<RP; ++rp) {
+        d.V[size_t(rp)*size_t(gamma)+size_t(g)] = Vc(rp,g);
+      }
+      d.S[size_t(g)] = Sc(g);
+    }
+    slices.push_back(d);
+    maxGamma = std::max(maxGamma, gamma);
+    sliceCount++;
   }
-  return out;
+  
+  std::cout << "DEBUG: Final maxGamma=" << maxGamma << " from " << names.size() << " slices" << std::endl;
+  return slices;
 }
 
 // Core routine to read data
@@ -212,6 +220,7 @@ void InteractionElPhSVD::parseSVDKokkos(Context &context) {
   const std::string fileName = context.getElphFileName();
   if (mpi->mpiHead()) {
     std::cout << "Loading SVD slices from " << fileName << " ...\n";
+    std::cout << "DEBUG: Starting parseSVDKokkos" << std::endl;
   }
 
   // Head gathers from HDF5 and packs to flat buffers, then broadcasts.
@@ -223,17 +232,28 @@ void InteractionElPhSVD::parseSVDKokkos(Context &context) {
 
   try {
     if (mpi->mpiHead()) {
+      std::cout << "DEBUG: Opening HDF5 file" << std::endl;
       HighFive::File file(fileName, HighFive::File::ReadOnly);
+      std::cout << "DEBUG: Getting zSVD group" << std::endl;
       HighFive::Group svdGroup = file.getGroup("zSVD");
-
+      std::cout << "DEBUG: Processing SVD groups" << std::endl;
+      
       int ni, nj, ne, mG;
       auto slices = processAllSVDGroups(svdGroup, ni, nj, ne, RE, RP, mG);
+      std::cout << "DEBUG: Found " << slices.size() << " SVD groups" << std::endl;
+      std::cout << "DEBUG: Geometry - numI=" << ni << ", numJ=" << nj << ", numEta=" << ne << ", RE=" << RE << ", RP=" << RP << std::endl;
+      std::cout << "DEBUG: After processAllSVDGroups: maxGamma=" << mG << std::endl;
       numI=ni; numJ=nj; numPhBands=ne; maxGamma=mG;
+      
+      std::cout << "DEBUG: Processing " << slices.size() << " slices" << std::endl;
 
       const int L = numI * numJ * numPhBands;
+      std::cout << "DEBUG: Found " << slices.size() << " slices, maxGamma=" << maxGamma << std::endl;
+      std::cout << "DEBUG: Allocating buffers: L=" << L << ", RE=" << RE << ", RP=" << RP << std::endl;
       SY_buf.assign(size_t(L)*size_t(RE)*size_t(maxGamma), std::complex<double>(0,0));
       Vt_buf.assign(size_t(L)*size_t(maxGamma)*size_t(RP), std::complex<double>(0,0));
       gammaLens.assign(L, 0);
+      std::cout << "DEBUG: Buffer allocation complete" << std::endl;
 
       auto mapL = [J=numJ, E=numPhBands](int i,int j,int eta){ return i*(J*E) + j*E + eta; };
 
@@ -273,20 +293,27 @@ void InteractionElPhSVD::parseSVDKokkos(Context &context) {
 
       const int L = numI * numJ * numPhBands;
       gammaLens.resize(L);
+      std::cout << "DEBUG: Broadcasting geometry data" << std::endl;
       mpi->bcast(gammaLens.data(), L);
 
       SY_buf.resize(size_t(L)*size_t(RE)*size_t(maxGamma));
       Vt_buf.resize(size_t(L)*size_t(maxGamma)*size_t(RP));
+      std::cout << "DEBUG: Broadcasting payload data" << std::endl;
       mpi->bcast(reinterpret_cast<double*>(SY_buf.data()), int(SY_buf.size())*2);
       mpi->bcast(reinterpret_cast<double*>(Vt_buf.data()), int(Vt_buf.size())*2);
+      std::cout << "DEBUG: Broadcast complete" << std::endl;
     }
 
+
     // ---- allocate device views (4D fused) ----
+    std::cout << "DEBUG: Allocating device views" << std::endl;
     Kokkos::realloc(SVD_SY_device, numI, numJ, numPhBands, RE*maxGamma);
     Kokkos::realloc(SVD_Vt_device, numI, numJ, numPhBands, maxGamma*RP);
     Kokkos::realloc(gammaLen_ijk,  numI, numJ, numPhBands);
 
+
     // ---- fill host mirrors by converting std::complex -> Kokkos::complex ----
+    std::cout << "DEBUG: Creating host mirrors" << std::endl;
     auto SY_h  = Kokkos::create_mirror_view(SVD_SY_device);
     auto Vt_h  = Kokkos::create_mirror_view(SVD_Vt_device);
     auto gLenH = Kokkos::create_mirror_view(gammaLen_ijk);
@@ -324,11 +351,13 @@ void InteractionElPhSVD::parseSVDKokkos(Context &context) {
             }
         }
 
+    std::cout << "DEBUG: Copying to device" << std::endl;
     Kokkos::deep_copy(SVD_SY_device, SY_h);
     Kokkos::deep_copy(SVD_Vt_device, Vt_h);
     Kokkos::deep_copy(gammaLen_ijk,  gLenH);
 
     // finalize
+    std::cout << "DEBUG: Finalization complete" << std::endl;
     numWsR1Vectors = RE;
     numWsR2Vectors = RP;
     numWannierOrbitals = numElBands;
@@ -514,6 +543,13 @@ void InteractionElPhSVD::calcCouplingSquared(
   //const int numPhBands      = this->numPhBands;
   const int numWsR2Vectors  = this->numWsR2Vectors;
 
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: calcCouplingSquared - maxGamma=" << maxGamma 
+              << ", nb1=" << nb1 << ", numK2=" << numK2 
+              << ", numWsR2Vectors=" << numWsR2Vectors << std::endl;
+    std::cout << "DEBUG: numPhBands=" << numPhBands << ", numWannierOrbitals=" << numWannierOrbitals << std::endl;
+  }
+
   // R2 lattice (could be Rp or Re' in JDFTx case)
   DoubleView2D wsR2Vectors_device             = this->wsR2Vectors_device;
   DoubleView1D wsR2VectorsDegeneracies_device = this->wsR2VectorsDegeneracies_device;
@@ -527,6 +563,14 @@ void InteractionElPhSVD::calcCouplingSquared(
     if (nb2s_h(ik) > nb2max) nb2max = nb2s_h(ik);
   }
   Kokkos::deep_copy(nb2s_device, nb2s_h);
+  
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: nb2max=" << nb2max << ", first few nb2s: ";
+    for (int ik = 0; ik < std::min(3, numK2); ++ik) {
+      std::cout << nb2s_h(ik) << " ";
+    }
+    std::cout << std::endl;
+  }
 
   // -------------------- Polar corrections  --------------------
   // ================ REFACTOR : strip this out into polar helper functions, maybe in parent =========================
@@ -623,6 +667,10 @@ void InteractionElPhSVD::calcCouplingSquared(
         phases_device(ik, irP) = exp(complexI * arg) / wsR2VectorsDegeneracies_device(irP);
       });
   Kokkos::fence();
+  
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: Phases computed for " << numK2 << " k-points and " << numWsR2Vectors << " R-vectors" << std::endl;
+  }
 
  // -------------------- Fourier transform for K2 --------------------
   const size_t flattened_size_vt =
@@ -637,9 +685,21 @@ void InteractionElPhSVD::calcCouplingSquared(
   Kokkos::View<Kokkos::complex<double> **, Kokkos::LayoutRight>
       coupling_2D(this->SVD_Vt_device.data(), numWsR2Vectors, flattened_size_vt);
       
-  // KEYNESH : before this said gemv ! these are two 2D matrices, therefore it's a gemm
-  KokkosBlas::gemm("N", "T", Kokkos::complex<double>(1.0, 0.0),
-        coupling_2D, phases_device, Kokkos::complex<double>(0.0, 0.0), v_FT_output_2D);
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: GEMM dimensions - phases_device: (" << phases_device.extent(0) << ", " << phases_device.extent(1) 
+              << "), coupling_2D: (" << coupling_2D.extent(0) << ", " << coupling_2D.extent(1) 
+              << "), v_FT_output_2D: (" << v_FT_output_2D.extent(0) << ", " << v_FT_output_2D.extent(1) << ")" << std::endl;
+    std::cout << "DEBUG: flattened_size_vt=" << flattened_size_vt << std::endl;
+  }
+      
+  // Fixed: phases_device * coupling_2D = v_FT_output_2D
+  // (numK2, numWsR2Vectors) * (numWsR2Vectors, flattened_size_vt) = (numK2, flattened_size_vt)
+  KokkosBlas::gemm("N", "N", Kokkos::complex<double>(1.0, 0.0),
+        phases_device, coupling_2D, Kokkos::complex<double>(0.0, 0.0), v_FT_output_2D);
+        
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: Fourier transform GEMM completed successfully" << std::endl;
+  }
 
   // -------------------- Unitary rotation --------------------
   ComplexView5D elPhCached_SVD_Vt(Kokkos::ViewAllocateWithoutInitializing("elPhCached_SVD_Vt"), 
@@ -654,6 +714,13 @@ void InteractionElPhSVD::calcCouplingSquared(
         elPhCached_SVD_Vt(ik, g, eta, ib2, j) = v_FT_output(ik, g, eta, j) * eigvecs2Dagger_device(ik, j, ib2);
       });
   Kokkos::fence();
+  
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: Unitary rotation completed, elPhCached_SVD_Vt dimensions: (" 
+              << elPhCached_SVD_Vt.extent(0) << ", " << elPhCached_SVD_Vt.extent(1) << ", " 
+              << elPhCached_SVD_Vt.extent(2) << ", " << elPhCached_SVD_Vt.extent(3) << ", " 
+              << elPhCached_SVD_Vt.extent(4) << ")" << std::endl;
+  }
         
   // -------------------- Phonon rotation --------------------
   Kokkos::Profiling::pushRegion("phonon_rotation");
@@ -671,9 +738,17 @@ void InteractionElPhSVD::calcCouplingSquared(
               {numK2, numGamma, numPhBands, numPhBands, nb2max, numWannierOrbitals}),
       KOKKOS_LAMBDA(const int iK2, const int iGamma, const int iEta, const int iPh, const int iBand2, const int iWannierJ) {
         elPhCached_SVD_Vt_ph(iK2, iGamma, iEta, iPh, iBand2, iWannierJ) = elPhCached_SVD_Vt(iK2, iGamma, iEta, iBand2, iWannierJ)
-                       * eigvecs3_device(iK2, iEta, iPh); // FIXME possibility need to check which index is which, I think this is ok 
+                       * eigvecs3_device(iK2, iPh, iEta); // Fixed: match original indexing pattern
     });
   Kokkos::fence(); 
+  
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: Phonon rotation completed, elPhCached_SVD_Vt_ph dimensions: (" 
+              << elPhCached_SVD_Vt_ph.extent(0) << ", " << elPhCached_SVD_Vt_ph.extent(1) << ", " 
+              << elPhCached_SVD_Vt_ph.extent(2) << ", " << elPhCached_SVD_Vt_ph.extent(3) << ", " 
+              << elPhCached_SVD_Vt_ph.extent(4) << ", " << elPhCached_SVD_Vt_ph.extent(5) << ")" << std::endl;
+  }
+  
   Kokkos::Profiling::popRegion(); // phonon rotation 
   // done with elPhCached_SVD_Vt, deallocate
   Kokkos::realloc(elPhCached_SVD_Vt, 0, 0, 0, 0, 0);
@@ -693,27 +768,40 @@ void InteractionElPhSVD::calcCouplingSquared(
         size_t(numGamma) * size_t(numPhBands) * size_t(numWannierOrbitals) * size_t(numWannierOrbitals);
   
   // container for final output 
-  // KEYNESH FIXME indexing here will be a total mess, I am sure it's wrong somehow. 
   ComplexView4D gFinal(Kokkos::ViewAllocateWithoutInitializing("gFinal"), numK2, nb1, nb2max, numPhBands);
   // full views for data used in gemm below 
   ComplexView3D SVD_SY_3D(this->elPhCached_SVD_SY.data(), numK2, size_t(nb1), flattened_size);
   ComplexView3D SVD_Vt_3D(elPhCached_SVD_Vt_ph.data(), numK2, size_t(nb2max) * size_t(numPhBands), flattened_size);
-  // KEYNESH FIXME indexing here will be a total mess, I am sure it's wrong somehow. 
   ComplexView3D gFinal_gemm_output_3D(gFinal.data(), numK2, size_t(nb1), size_t(nb2max) * size_t(numPhBands));
+  
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: Starting GEMM loop for " << numK2 << " k2-points" << std::endl;
+    std::cout << "DEBUG: gFinal dimensions: (" << gFinal.extent(0) << ", " << gFinal.extent(1) 
+              << ", " << gFinal.extent(2) << ", " << gFinal.extent(3) << ")" << std::endl;
+    std::cout << "DEBUG: flattened_size=" << flattened_size << std::endl;
+  }
     
   // Feels like there must be a better way to do this!
   // NOTE : no OMP HERE because gemm will use threads!
   for (long ik2 = 0; ik2 < numK2; ++ik2) {  
             
     // subviews of the SVD pieces for each k2 point
-    // FIXME unsure if making a pair this way will do any iterator or will cause an issue 
     ComplexView2D SVD_SY_2D_k2 = Kokkos::subview(SVD_SY_3D, ik2, Kokkos::ALL, Kokkos::ALL);
     ComplexView2D SVD_Vt_2D_k2 = Kokkos::subview(SVD_Vt_3D, ik2, Kokkos::ALL, Kokkos::ALL);
     ComplexView2D gFinal_gemm_output_2d_k2 = Kokkos::subview(gFinal_gemm_output_3D, ik2, Kokkos::ALL, Kokkos::ALL);
 
     // this is product of [ nBands, i * j * eta * gamma ] [ mBands, i * j * eta * gamma].transpose
+    if (mpi->mpiHead() && ik2 < 3) {
+      std::cout << "DEBUG: GEMM for ik2=" << ik2 << " - SVD_SY_2D: (" << SVD_SY_2D_k2.extent(0) << ", " << SVD_SY_2D_k2.extent(1) 
+                << "), SVD_Vt_2D: (" << SVD_Vt_2D_k2.extent(0) << ", " << SVD_Vt_2D_k2.extent(1) << ")" << std::endl;
+    }
+    
     KokkosBlas::gemm("N","T", Kokkos::complex<double>(1.0, 0.0),
           SVD_SY_2D_k2, SVD_Vt_2D_k2, Kokkos::complex<double>(0.0, 0.0), gFinal_gemm_output_2d_k2);
+  }
+  
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: GEMM loop completed for all " << numK2 << " k2-points" << std::endl;
   }
   Kokkos::Profiling::popRegion(); // sum over g_ij eta gamma
   // now we are done with elPhCached_SVD_SY and elPhCached_SVD_Vt_ph
@@ -725,8 +813,8 @@ void InteractionElPhSVD::calcCouplingSquared(
   if (usePolarCorrection) {
     Kokkos::parallel_for(
         "re-add polar correction to g",
-        Range4D({0, 0, 0, 0}, {numK2, numPhBands, nb1, nb2max}),
-        KOKKOS_LAMBDA(const int ik, const int nu, const int ib1_, const int ib2) {
+        Range4D({0, 0, 0, 0}, {numK2, nb1, nb2max, numPhBands}),
+        KOKKOS_LAMBDA(const int ik, const int ib1_, const int ib2, const int nu) {
           gFinal(ik, ib1_, ib2, nu) += polarCorrections_device(ik, nu, ib1_, ib2);
         });
   }
@@ -735,14 +823,20 @@ void InteractionElPhSVD::calcCouplingSquared(
   // -------------------- |g|^2 --------------------
   DoubleView4D coupling_device(
       Kokkos::ViewAllocateWithoutInitializing("gSq"),
-      numK2, numPhBands, nb2max, nb1);
+      numK2, nb1, nb2max, numPhBands);
+
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: Computing |g|^2, coupling_device dimensions: (" 
+              << coupling_device.extent(0) << ", " << coupling_device.extent(1) << ", " 
+              << coupling_device.extent(2) << ", " << coupling_device.extent(3) << ")" << std::endl;
+  }
 
   Kokkos::parallel_for(
       "Interaction elph: modulus coupling",
-      Range4D({0, 0, 0, 0}, {numK2, numPhBands, nb2max, nb1}),
-      KOKKOS_LAMBDA(const int ik, const int nu, const int ib2, const int ib1_) {
+      Range4D({0, 0, 0, 0}, {numK2, nb1, nb2max, numPhBands}),
+      KOKKOS_LAMBDA(const int ik, const int ib1_, const int ib2, const int nu) {
         const auto z = gFinal(ik, ib1_, ib2, nu);
-        coupling_device(ik, ib2, ib1_, nu) = z.real()*z.real() + z.imag()*z.imag();
+        coupling_device(ik, ib1_, ib2, nu) = z.real()*z.real() + z.imag()*z.imag();
       });
   Kokkos::realloc(gFinal, 0, 0, 0, 0);
 
@@ -751,19 +845,31 @@ void InteractionElPhSVD::calcCouplingSquared(
   cacheCoupling.resize(numK2);
   auto coupling_host = Kokkos::create_mirror_view(coupling_device);
   Kokkos::deep_copy(coupling_host, coupling_device);
+  
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: Copying results to CPU, cacheCoupling size=" << cacheCoupling.size() << std::endl;
+  }
 
   #pragma omp parallel for default(none) shared(numK2, cacheCoupling, coupling_host, nb1, nb2s_h, numPhBands)
   for (int ik = 0; ik < numK2; ++ik) {
     Eigen::Tensor<double, 3> coupling(nb1, nb2s_h(ik), numPhBands);
     for (int nu = 0; nu < numPhBands; ++nu) {
       for (int ib2 = 0; ib2 < nb2s_h(ik); ++ib2) {
-        for (int ib1_ = 0; ib1_ < nb1; ++ib1_) {
-          coupling(ib1_, ib2, nu) = coupling_host(ik, nu, ib2, ib1_);
+        for (int ib1 = 0; ib1 < nb1; ++ib1) {
+          coupling(ib1, ib2, nu) = coupling_host(ik, ib1, ib2, nu);
         }
       }
     }
     cacheCoupling[ik] = coupling;
   }
+  
+  if (mpi->mpiHead()) {
+    std::cout << "DEBUG: calcCouplingSquared completed successfully" << std::endl;
+    std::cout << "DEBUG: Final cacheCoupling[0] dimensions: (" 
+              << cacheCoupling[0].dimension(0) << ", " << cacheCoupling[0].dimension(1) 
+              << ", " << cacheCoupling[0].dimension(2) << ")" << std::endl;
+  }
+  
   Kokkos::Profiling::popRegion(); // calcCouplingSquared
 }
 

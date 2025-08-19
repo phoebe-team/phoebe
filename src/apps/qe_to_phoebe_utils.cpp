@@ -848,20 +848,17 @@ void performSVD(const Eigen::MatrixXd &matrix, Eigen::MatrixXd &U,
     S = svd.singularValues();
     V = svd.matrixV();
 
-    double maxSingularValue = S.maxCoeff();
-    size_t indice = 0;
+    // Calculate how many singular values to keep based on percentage
+    size_t totalSingularValues = S.size();
+    size_t indicesToKeep = static_cast<size_t>(std::ceil(truncAmount * 0.01 * totalSingularValues));
+    
+    // Clamp to valid range [1, totalSingularValues]
+    indicesToKeep = std::max(static_cast<size_t>(1), indicesToKeep);
+    indicesToKeep = std::min(indicesToKeep, totalSingularValues);
 
-    for (size_t i = 0; i < S.size(); ++i) {
-        if (S[i] >= truncAmount * 0.01 * maxSingularValue) {
-            indice++;
-        } else {
-            break;
-        }
-    }
-
-    S = S.head(indice);
-    U = U.leftCols(indice);
-    V = V.leftCols(indice);
+    S = S.head(indicesToKeep);
+    U = U.leftCols(indicesToKeep);
+    V = V.leftCols(indicesToKeep);
 }
 
 // Save SVD results into the path: SVD/slice_dim3_dim4_dim5/
@@ -915,6 +912,8 @@ void writeSvdElPhCouplingHDF5(
         HighFive::File file(outFileName, HighFive::File::Truncate, fapl);
         mpi->barrier();
 
+
+
         int totalSlices = numModes * numWannier * numWannier;
         int slicesPerProc = totalSlices / mpi->getSize();
         int extraSlices = totalSlices % mpi->getSize();
@@ -943,7 +942,7 @@ void writeSvdElPhCouplingHDF5(
 
             Eigen::MatrixXd U, V;
             Eigen::VectorXd S;
-            performSVD(slice, U, S, V, 10);
+            performSVD(slice, U, S, V, 100);
 
             saveSVDToHDF5(file, U, S, V, dim3, dim4, dim5);
         }
@@ -991,6 +990,7 @@ void ElPhQeToPhoebeApp::writeWannierCoupling(
                                elDegeneracies, phBravaisVectors,
                                elBravaisVectors, qMesh, kMesh);
   } else if (context.getHdf5ElPhFileFormat()==1) {
+    fileFormat = 1;
     writeElPhCouplingHDF5v1(context, gWannier, numFilledWannier, numSpin,
                               numModes, numWannier, phDegeneracies,
                               elDegeneracies, phBravaisVectors,
@@ -1002,6 +1002,15 @@ void ElPhQeToPhoebeApp::writeWannierCoupling(
                               elDegeneracies, phBravaisVectors,
                               elBravaisVectors, qMesh, kMesh);
   }
+
+  // write the small information to file in serial (only for SVD, others do it internally)
+  if (context.getElPhInterpolation() == "wannierSVD") {
+    std::string outFileName = context.getQuantumEspressoPrefix() + ".phoebe.elph.hdf5";
+    writeHeaderHDF5(outFileName, numFilledWannier, numSpin, numModes, numWannier,
+                    phDegeneracies, elDegeneracies, phBravaisVectors,
+                    elBravaisVectors, qMesh, kMesh, fileFormat);
+  }
+
 #else
 
 // write the small information to file in serial

@@ -1299,6 +1299,8 @@ int Context::getEpaNumBins() const { return epaNumBins; }
 double Context::getEpaEnergyRange() const { return epaEnergyRange; }
 double Context::getEpaEnergyStep() const { return epaEnergyStep; }
 
+
+
 double Context::getElectronFourierCutoff() const {
   return electronFourierCutoff;
 }

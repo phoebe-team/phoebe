@@ -134,8 +134,8 @@ InteractionElPhWan parseNoHDF5(Context &context, Crystal &crystal,
   if (spinType == InteractionElPhWan::spinPolarizedOrSOC) {
     Error("Spin-polarized and spin-non-colinear calculations are not currently supported.");
   }
-  // if number of occupied states is not set already in input, 
-  // use the value in the file. Otherwise, keep the user supplied value. 
+  // if number of occupied states is not set already in input,
+  // use the value in the file. Otherwise, keep the user supplied value.
   if(std::isnan(context.getNumOccupiedStates())) context.setNumOccupiedStates(numElectrons);
 
   if (!mpi->mpiHeadPool()) { // head already allocated these
@@ -195,7 +195,7 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
         // read in the number of electrons and the spin
         HighFive::DataSet dnelec = file.getDataSet("/numElectrons");
         // this is the spinType, but I don't want to change it to avoid making a mess wrt using older hdf5 files
-        HighFive::DataSet dnspin = file.getDataSet("/numSpin"); 
+        HighFive::DataSet dnspin = file.getDataSet("/numSpin");
         dnelec.read(numElectrons);
         dnspin.read(spinType);
 
@@ -273,21 +273,21 @@ std::tuple<int, int, int, Eigen::MatrixXd, Eigen::MatrixXd, std::vector<size_t>,
     mpi->bcast(&numElBravaisVectors, mpi->interPoolComm);
     mpi->bcast(&phaseConvention);
 
-    // JDFTx supports spin, QE does not. 
+    // JDFTx supports spin, QE does not.
     // spinType 2 = SOC or spin-pol. Both will have a spin factor of 1
-    if (spinType == InteractionElPhWan::spinPolarizedOrSOC 
+    if (spinType == InteractionElPhWan::spinPolarizedOrSOC
           && phaseConvention == InteractionElPhWan::GiustinoPhaseConvention) {
       Error("Spin is not currently supported when using QE.");
-    } else if (spinType == InteractionElPhWan::spinPolarizedOrSOC 
-          && phaseConvention == InteractionElPhWan::JdftxPhaseConvention) { 
+    } else if (spinType == InteractionElPhWan::spinPolarizedOrSOC
+          && phaseConvention == InteractionElPhWan::JdftxPhaseConvention) {
       Warning("Spin-polarized JDFTx calculations should be closely monitored, as they are not well tested!");
       context.setHasSpinOrbit(true);
       context.setSpinDegeneracyFactor(1); // TODO switch everywhere to using spinDegeneracyFactor
-    } else { 
+    } else {
       context.setSpinDegeneracyFactor(2); // spin non polarized, gs = 2
     }
-    // if number of occupied states is not set already in input, 
-    // use the value in the file. Otherwise, keep the user supplied value. 
+    // if number of occupied states is not set already in input,
+    // use the value in the file. Otherwise, keep the user supplied value.
     if(std::isnan(context.getNumOccupiedStates())) context.setNumOccupiedStates(numElectrons);
 
     if (!mpi->mpiHeadPool()) {// head already allocated these

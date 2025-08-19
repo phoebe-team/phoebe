@@ -31,6 +31,14 @@ InteractionElPhWan::InteractionElPhWan(
     }
   }
 
+  // TODO REMOVE TEMPORARY VARS
+  // wsR1Vectors = wsR1Vectors_;
+  // wsR1VectorsDegeneracies = wsR1VectorsDegeneracies_;
+  // wsR2Vectors = wsR2Vectors_;
+  // wsR2VectorsDegeneracies = wsR2VectorsDegeneracies_;
+  // cachedK1.setConstant(-1000);
+  // couplingWannier = couplingWannier_;
+
   // in the first call to this function, we must copy the el-ph tensor
   // from the CPU to the accelerator
   {
@@ -66,7 +74,7 @@ InteractionElPhWan::InteractionElPhWan(
   }
 }
 
-//void InteractionElPhWan::resetK1() { cachedK1.setConstant(-1000); }
+void InteractionElPhWan::resetK1() { cachedK1.setConstant(-1000); }
 
 InteractionElPhWan::~InteractionElPhWan() {
   if (couplingWannier_k.use_count() == 1) {
@@ -440,13 +448,12 @@ void InteractionElPhWan::calcCouplingSquared(
     auto eigvecs3_h = Kokkos::create_mirror_view(eigvecs3_k);
     auto q3Cs_h = Kokkos::create_mirror_view(q3Cs_k);
 
-    // TODO collapse(3)
-    
 #pragma omp parallel for default(none)                                         \
     shared(eigvecs3_h, eigvecs2Dagger_h, nb2s_h, q3Cs_h, q3Cs_k, q3Cs, k1C,    \
                numLoops, numWannier, numPhBands, eigvecs2Dagger_k, eigvecs3_k, \
                eigvecs2, eigvecs3, phaseConvention, std::cout)
     for (size_t ik = 0; ik < size_t(numLoops); ik++) {
+
       for (int i = 0; i < numWannier; i++) {
         for (int j = 0; j < nb2s_h(ik); j++) {
           eigvecs2Dagger_h(ik, i, j) = std::conj(eigvecs2[ik](i, j));
@@ -460,7 +467,7 @@ void InteractionElPhWan::calcCouplingSquared(
           if (phaseConvention == JdftxPhaseConvention) { // i,j flipped here due to row/col major,
                                       // this is intentionally a * not a dagger
                                       // e(-q) = e(q)^*
-            eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i)); 
+            eigvecs3_h(ik, i, j) = std::conj(eigvecs3[ik](j, i));
           } else {
             eigvecs3_h(ik, i, j) = eigvecs3[ik](j, i);
           }
@@ -891,7 +898,7 @@ double InteractionElPhWan::getDeviceMemoryUsage() {
                   wsR1Vectors_k.size() + wsR1VectorsDegeneracies_k.size());
   return x;
 }
-/* 
+
 void InteractionElPhWan::oldCalcCouplingSquared(
     const Eigen::MatrixXcd &eigvec1,
     const std::vector<Eigen::MatrixXcd> &eigvecs2,
@@ -1016,4 +1023,3 @@ void InteractionElPhWan::oldCalcCouplingSquared(
     cacheCoupling[ik] = coupling;
   }
 }
- */

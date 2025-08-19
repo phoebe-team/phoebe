@@ -30,7 +30,7 @@ void ElPhQeToPhoebeApp::run(Context &context) {
 
   int numModes = 3 * crystal.getNumAtoms();
 
-  if (context.getElPhInterpolation() == "wannier") {
+  if (context.getElPhInterpolation() == "wannier" || context.getElPhInterpolation() == "wannierSVD") {
 
     postProcessingWannier(context, crystal, phononH0, kPoints, qPoints,
                           numQEBands, numModes, numIrrQPoints, numElectrons,
@@ -50,14 +50,14 @@ void ElPhQeToPhoebeApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getQuantumEspressoPrefix(),
                     "QuantumEspressoPrefix");
 
-  choices = {"wannier", "epa"};
+  choices = {"wannier", "epa", "wannierSVD"};
   std::string x = context.getElPhInterpolation();
   throwErrorIfUnset(x, "elPhInterpolation");
   if (std::find(choices.begin(), choices.end(), x) == choices.end()) {
     Error("The elPhInterpolation value has not been recognized.");
   }
 
-  if (x == "wannier") {
+  if (x == "wannier"|| x == "wannierSVD") {
     throwErrorIfUnset(context.getWannier90Prefix(), "Wannier90Prefix");
   } else {
     throwErrorIfUnset(context.getEpaSmearingEnergy(), "epaSmearingEnergy");

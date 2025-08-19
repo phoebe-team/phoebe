@@ -127,7 +127,7 @@ public:
         const Eigen::MatrixXcd &eigvec1,
         const std::vector<Eigen::MatrixXcd> &eigvecs2,
         const std::vector<Eigen::MatrixXcd> &eigvecs3,
-        const std::vector<Eigen::Vector3d> &q3Cs,
+        const std::vector<Eigen::Vector3d> &q3Cs, const Eigen::Vector3d &k1C,
         const std::vector<Eigen::VectorXcd> &polarData) = 0;
 
     /** Computes a partial Fourier transform over the k1/R_el variables and caches the result.
@@ -167,7 +167,7 @@ public:
      * This is often used for memory management and batching.
      * @return a memory estimate in bytes.
      */
-    virtual const double getDeviceMemoryUsage() const = 0;
+    virtual double getDeviceMemoryUsage() const = 0;
 
     /** Estimate the number of batches that the list of k2 wavevectors must be
     * split into, in order to fit in memory or optimize computation.

@@ -52,7 +52,7 @@ template <class T> using H1D = Kokkos::View<T*,  LR, Kokkos::HostSpace,
 class InteractionElPhSVD : public InteractionElPhBase {
 public:
 
-    InteractionElPhSVD(Crystal &crystal, Context &context, PhononH0 &phononH0);
+    InteractionElPhSVD(Context& context, Crystal& crystal, PhononH0& phononH0);
   /**
    * @brief Factory function to parse an HDF5 file and create the SVD
    * interaction object.
@@ -70,11 +70,12 @@ public:
   // Override the pure virtual functions from InteractionElPhBase
   void cacheElPh(const Eigen::MatrixXcd &eigvec1,
                  const Eigen::Vector3d &k1C) override;
+  // Override base class method - k1C is dummy variable for legacy code consistency
   void calcCouplingSquared(
       const Eigen::MatrixXcd &eigvec1,
       const std::vector<Eigen::MatrixXcd> &eigvecs2,
       const std::vector<Eigen::MatrixXcd> &eigvecs3,
-      const std::vector<Eigen::Vector3d> &q3Cs,
+      const std::vector<Eigen::Vector3d> &q3Cs, const Eigen::Vector3d &k1C,
       const std::vector<Eigen::VectorXcd> &polarData) override;
 
   void resetK1() override;
@@ -83,7 +84,7 @@ public:
 
   const Eigen::VectorXi getCouplingDimensions() const override;
 
-  const double getDeviceMemoryUsage() const override;
+  double getDeviceMemoryUsage() const override;
 
   int estimateNumBatches(const int &nk2, const int &nb1) const override;
 
@@ -117,7 +118,7 @@ private:
     // ---------- Geometry for slices and Wannier lattices ----------
     int numI = 0;                 // no. of i-slices // REFACTOR redundant, it's nWannier_i
     int numJ = 0;                 // no. of j-slices // REFACTOR redundant, it's nWannier_j
-    //int numEta = 0;               // no. of phonon branches // REFACTOR this is redudant against numPhbands in parent class 
+    //int numEta = 0;               // no. of phonon branches // REFACTOR this is redudant against numPhbands in parent class
     int maxGamma = 0;
 
     int numWsR1Vectors = 0;       // Re
@@ -135,7 +136,7 @@ private:
     DoubleView1D wsR2VectorsDegeneracies_device;
 
     ComplexView5D elPhCached_SVD_SY;
-    //ComplexView5D elPhCached_SVD_Vt; // can just be defined in the cache function 
+    //ComplexView5D elPhCached_SVD_Vt; // can just be defined in the cache function
 
     std::vector<Eigen::Tensor<double, 3>> cacheCoupling;
 

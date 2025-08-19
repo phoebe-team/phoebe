@@ -17,7 +17,7 @@
 #include <KokkosBlas3_gemm.hpp>
 
 // Constructor
-InteractionElPhSVD::InteractionElPhSVD(Crystal &crystal, Context &context,
+InteractionElPhSVD::InteractionElPhSVD(Context& context,Crystal &crystal,
                                        PhononH0 &phononH0)
     : InteractionElPhBase(crystal, &phononH0) {
 
@@ -27,7 +27,7 @@ InteractionElPhSVD::InteractionElPhSVD(Crystal &crystal, Context &context,
   Eigen::VectorXd wsR1VectorsDegeneracies;
   Eigen::MatrixXd wsR2Vectors;
   Eigen::VectorXd wsR2VectorsDegeneracies;
-  
+
   if (mpi->mpiHead()) {
     HighFive::File file(fileName, HighFive::File::ReadOnly);
     file.getDataSet("/numElBands").read(numElBands);
@@ -48,16 +48,16 @@ InteractionElPhSVD::InteractionElPhSVD(Crystal &crystal, Context &context,
   // Initialize SVD-specific variables
   numWsR1Vectors = wsR1Vectors.size();
   numWsR2Vectors = wsR2Vectors.size();
-  numWannierOrbitals = numElBands; // this is redundant, but we do it to improve readability 
+  numWannierOrbitals = numElBands; // this is redundant, but we do it to improve readability
 
-  // Copy the R vectors to the device 
+  // Copy the R vectors to the device
   {
     Kokkos::realloc(wsR1VectorsDegeneracies_device, numWsR1Vectors);
     Kokkos::realloc(wsR2VectorsDegeneracies_device, numWsR2Vectors);
     Kokkos::realloc(wsR1Vectors_device, numWsR1Vectors, 3);
     Kokkos::realloc(wsR2Vectors_device, numWsR2Vectors, 3);
 
-    // set up host views of the data 
+    // set up host views of the data
     // note that Eigen has left layout while kokkos has right layout
     HostDoubleView1D wsR1VectorsDegeneracies_host(
         (double *)wsR1VectorsDegeneracies.data(), numWsR1Vectors);
@@ -66,7 +66,7 @@ InteractionElPhSVD::InteractionElPhSVD(Crystal &crystal, Context &context,
     HostDoubleView2D wsR1Vectors_host((double *)wsR1Vectors.data(), numWsR1Vectors, 3);
     HostDoubleView2D wsR2Vectors_host((double *)wsR2Vectors.data(), numWsR2Vectors, 3);
 
-    // copy to the device containers held by the class 
+    // copy to the device containers held by the class
     Kokkos::deep_copy(wsR2Vectors_device, wsR2Vectors_host);
     Kokkos::deep_copy(wsR2VectorsDegeneracies_device, wsR2VectorsDegeneracies_host);
     Kokkos::deep_copy(wsR1Vectors_device, wsR1Vectors_host);
@@ -113,9 +113,9 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
                                         int &num_i, int &num_j, int &num_eta,
                                         int &RE, int &RP, int &maxGamma) {
   std::vector<std::string> names = svdGroup.listObjectNames();
-  
+
   std::cout << "DEBUG: Processing " << names.size() << " slices" << std::endl;
-  
+
   size_t mi=0, mj=0, me=0;
   RE = 0; RP = 0; maxGamma = 0;  // Initialize properly
   for (const auto &name : names) {
@@ -140,16 +140,16 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
 
     Eigen::MatrixXd Ur, Vr;
     Eigen::VectorXd Sr;
-    
+
     try {
       g.getDataSet("U").read(Ur);
       g.getDataSet("V").read(Vr);
-      
+
       // Handle S which might be stored as 2D matrix {n,1} or 1D vector {n}
       // Also handle both real and complex formats
       Eigen::MatrixXd S_matrix;
       g.getDataSet("S").read(S_matrix);
-      
+
       if (S_matrix.cols() == 1) {
         Sr = S_matrix.col(0);
       } else if (S_matrix.rows() == 1) {
@@ -161,16 +161,16 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
         std::cerr << "ERROR: S has unexpected dimensions: " << S_matrix.rows() << "x" << S_matrix.cols() << std::endl;
         throw std::runtime_error("Invalid S matrix dimensions");
       }
-      
+
     } catch (const std::exception& e) {
       std::cerr << "ERROR: Failed to read slice " << name << ": " << e.what() << std::endl;
       throw;
     }
 
     if (sliceCount < 5) {
-      std::cout << "DEBUG: Slice " << name << " - U: " << Ur.rows() << "x" << Ur.cols() 
+      std::cout << "DEBUG: Slice " << name << " - U: " << Ur.rows() << "x" << Ur.cols()
                 << ", S: " << Sr.size() << ", V: " << Vr.rows() << "x" << Vr.cols() << std::endl;
-      
+
       // Show first few singular values
       std::cout << "DEBUG: S values:";
       for (int k = 0; k < std::min(5, (int)Sr.size()); ++k) {
@@ -188,7 +188,7 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
 
     if (sliceCount < 5) {
       std::cout << "DEBUG: Slice " << name << " gamma=" << gamma << std::endl;
-      std::cout << "DEBUG: Slice " << sliceCount << " gamma=" << gamma 
+      std::cout << "DEBUG: Slice " << sliceCount << " gamma=" << gamma
                 << ", oldMaxGamma=" << maxGamma << ", newMaxGamma=" << std::max(maxGamma, gamma) << std::endl;
     }
 
@@ -210,7 +210,7 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
     maxGamma = std::max(maxGamma, gamma);
     sliceCount++;
   }
-  
+
   std::cout << "DEBUG: Final maxGamma=" << maxGamma << " from " << names.size() << " slices" << std::endl;
   return slices;
 }
@@ -223,12 +223,11 @@ void InteractionElPhSVD::parseSVDKokkos(Context &context) {
     std::cout << "DEBUG: Starting parseSVDKokkos" << std::endl;
   }
 
-  // Head gathers from HDF5 and packs to flat buffers, then broadcasts.
-  // ---- buffers on host (std::complex for MPI) ----
+  // Head gathers from HDF5 and packs to flat buffers
   int RE=0, RP=0;
-  std::vector<std::complex<double>> SY_buf;   // size = L*RE*maxGamma (layout (l,re,g))
-  std::vector<std::complex<double>> Vt_buf;   // size = L*maxGamma*RP (layout (l,g,rp))
-  std::vector<int> gammaLens;                 // size = L
+  std::vector<std::complex<double>> SY_buf;
+  std::vector<std::complex<double>> Vt_buf;
+  std::vector<int> gammaLens;
 
   try {
     if (mpi->mpiHead()) {
@@ -237,14 +236,14 @@ void InteractionElPhSVD::parseSVDKokkos(Context &context) {
       std::cout << "DEBUG: Getting zSVD group" << std::endl;
       HighFive::Group svdGroup = file.getGroup("zSVD");
       std::cout << "DEBUG: Processing SVD groups" << std::endl;
-      
+
       int ni, nj, ne, mG;
       auto slices = processAllSVDGroups(svdGroup, ni, nj, ne, RE, RP, mG);
       std::cout << "DEBUG: Found " << slices.size() << " SVD groups" << std::endl;
       std::cout << "DEBUG: Geometry - numI=" << ni << ", numJ=" << nj << ", numEta=" << ne << ", RE=" << RE << ", RP=" << RP << std::endl;
       std::cout << "DEBUG: After processAllSVDGroups: maxGamma=" << mG << std::endl;
       numI=ni; numJ=nj; numPhBands=ne; maxGamma=mG;
-      
+
       std::cout << "DEBUG: Processing " << slices.size() << " slices" << std::endl;
 
       const int L = numI * numJ * numPhBands;
@@ -305,14 +304,14 @@ void InteractionElPhSVD::parseSVDKokkos(Context &context) {
     }
 
 
-    // ---- allocate device views (4D fused) ----
+    // ---- allocate device views----
     std::cout << "DEBUG: Allocating device views" << std::endl;
     Kokkos::realloc(SVD_SY_device, numI, numJ, numPhBands, RE*maxGamma);
     Kokkos::realloc(SVD_Vt_device, numI, numJ, numPhBands, maxGamma*RP);
     Kokkos::realloc(gammaLen_ijk,  numI, numJ, numPhBands);
 
 
-    // ---- fill host mirrors by converting std::complex -> Kokkos::complex ----
+    // ---- fill host mirrors by converting std::complex to Kokkos::complex ----
     std::cout << "DEBUG: Creating host mirrors" << std::endl;
     auto SY_h  = Kokkos::create_mirror_view(SVD_SY_device);
     auto Vt_h  = Kokkos::create_mirror_view(SVD_Vt_device);
@@ -408,13 +407,13 @@ void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
 
   Kokkos::Profiling::pushRegion("cacheElPh_SVD");
 
-  const int numGamma            = maxGamma;    // FIXME how is this set 
+  const int numGamma            = maxGamma;    // FIXME how is this set
   //const int numWannierOrbitals  = numI;           // i- (and j-) dimension
   //const int numWsR1Vectors_local= numWsR1Vectors; // R_e rows
 
   Kokkos::complex<double> complexI(0.0, 1.0);
 
-  // Get dimensions (your names)
+  // Get dimensions
   auto nb1 = int(eigvec1.cols()); // number of bands at this kpoint
   auto elPhCached_SVD_SY = this->elPhCached_SVD_SY; // final container of output from this function, stored in the class
   auto SVD_SY_device     = this->SVD_SY_device; // input data of the first part of the SVD
@@ -464,7 +463,7 @@ void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
     Kokkos::ViewAllocateWithoutInitializing("g1"),
     numGamma, numPhBands, numWannierOrbitals, numWannierOrbitals);
 
-  // perform fourier transform using precomputed phases 
+  // perform fourier transform using precomputed phases
   {
   // FIXME is layoutRight ok or wrong??
   // set up the empty container for output
@@ -523,17 +522,18 @@ void InteractionElPhSVD::cacheElPh(const Eigen::MatrixXcd &eigvec1,
   Kokkos::Profiling::popRegion(); // cacheElPh_SVD
 }
 
+// k1C is a dummy variable kept for legacy code consistency - not used in SVD implementation
 void InteractionElPhSVD::calcCouplingSquared(
     const Eigen::MatrixXcd &eigvec1,
     const std::vector<Eigen::MatrixXcd> &eigvecs2,
     const std::vector<Eigen::MatrixXcd> &eigvecs3,
-    const std::vector<Eigen::Vector3d> &q3Cs,
+    const std::vector<Eigen::Vector3d> &q3Cs, const Eigen::Vector3d &k1C,
     const std::vector<Eigen::VectorXcd> &polarData) {
 
   Kokkos::Profiling::pushRegion("calcCouplingSquared");
 
   //const int numWannierOrbitals = numI;
-  //const int numWannier         = numElBands; 
+  //const int numWannier         = numElBands;
   const int nb1                = int(eigvec1.cols());
   const int numK2              = int(eigvecs2.size());
 
@@ -544,8 +544,8 @@ void InteractionElPhSVD::calcCouplingSquared(
   const int numWsR2Vectors  = this->numWsR2Vectors;
 
   if (mpi->mpiHead()) {
-    std::cout << "DEBUG: calcCouplingSquared - maxGamma=" << maxGamma 
-              << ", nb1=" << nb1 << ", numK2=" << numK2 
+    std::cout << "DEBUG: calcCouplingSquared - maxGamma=" << maxGamma
+              << ", nb1=" << nb1 << ", numK2=" << numK2
               << ", numWsR2Vectors=" << numWsR2Vectors << std::endl;
     std::cout << "DEBUG: numPhBands=" << numPhBands << ", numWannierOrbitals=" << numWannierOrbitals << std::endl;
   }
@@ -563,7 +563,7 @@ void InteractionElPhSVD::calcCouplingSquared(
     if (nb2s_h(ik) > nb2max) nb2max = nb2s_h(ik);
   }
   Kokkos::deep_copy(nb2s_device, nb2s_h);
-  
+
   if (mpi->mpiHead()) {
     std::cout << "DEBUG: nb2max=" << nb2max << ", first few nb2s: ";
     for (int ik = 0; ik < std::min(3, numK2); ++ik) {
@@ -667,7 +667,7 @@ void InteractionElPhSVD::calcCouplingSquared(
         phases_device(ik, irP) = exp(complexI * arg) / wsR2VectorsDegeneracies_device(irP);
       });
   Kokkos::fence();
-  
+
   if (mpi->mpiHead()) {
     std::cout << "DEBUG: Phases computed for " << numK2 << " k-points and " << numWsR2Vectors << " R-vectors" << std::endl;
   }
@@ -684,25 +684,24 @@ void InteractionElPhSVD::calcCouplingSquared(
 
   Kokkos::View<Kokkos::complex<double> **, Kokkos::LayoutRight>
       coupling_2D(this->SVD_Vt_device.data(), numWsR2Vectors, flattened_size_vt);
-      
+
   if (mpi->mpiHead()) {
-    std::cout << "DEBUG: GEMM dimensions - phases_device: (" << phases_device.extent(0) << ", " << phases_device.extent(1) 
-              << "), coupling_2D: (" << coupling_2D.extent(0) << ", " << coupling_2D.extent(1) 
+    std::cout << "DEBUG: GEMM dimensions - phases_device: (" << phases_device.extent(0) << ", " << phases_device.extent(1)
+              << "), coupling_2D: (" << coupling_2D.extent(0) << ", " << coupling_2D.extent(1)
               << "), v_FT_output_2D: (" << v_FT_output_2D.extent(0) << ", " << v_FT_output_2D.extent(1) << ")" << std::endl;
     std::cout << "DEBUG: flattened_size_vt=" << flattened_size_vt << std::endl;
   }
-      
-  // Fixed: phases_device * coupling_2D = v_FT_output_2D
-  // (numK2, numWsR2Vectors) * (numWsR2Vectors, flattened_size_vt) = (numK2, flattened_size_vt)
+
+
   KokkosBlas::gemm("N", "N", Kokkos::complex<double>(1.0, 0.0),
         phases_device, coupling_2D, Kokkos::complex<double>(0.0, 0.0), v_FT_output_2D);
-        
+
   if (mpi->mpiHead()) {
     std::cout << "DEBUG: Fourier transform GEMM completed successfully" << std::endl;
   }
 
   // -------------------- Unitary rotation --------------------
-  ComplexView5D elPhCached_SVD_Vt(Kokkos::ViewAllocateWithoutInitializing("elPhCached_SVD_Vt"), 
+  ComplexView5D elPhCached_SVD_Vt(Kokkos::ViewAllocateWithoutInitializing("elPhCached_SVD_Vt"),
           numK2, numGamma, numPhBands, nb2max, numWannierOrbitals);
 
   Kokkos::parallel_for(
@@ -714,14 +713,14 @@ void InteractionElPhSVD::calcCouplingSquared(
         elPhCached_SVD_Vt(ik, g, eta, ib2, j) = v_FT_output(ik, g, eta, j) * eigvecs2Dagger_device(ik, j, ib2);
       });
   Kokkos::fence();
-  
+
   if (mpi->mpiHead()) {
-    std::cout << "DEBUG: Unitary rotation completed, elPhCached_SVD_Vt dimensions: (" 
-              << elPhCached_SVD_Vt.extent(0) << ", " << elPhCached_SVD_Vt.extent(1) << ", " 
-              << elPhCached_SVD_Vt.extent(2) << ", " << elPhCached_SVD_Vt.extent(3) << ", " 
+    std::cout << "DEBUG: Unitary rotation completed, elPhCached_SVD_Vt dimensions: ("
+              << elPhCached_SVD_Vt.extent(0) << ", " << elPhCached_SVD_Vt.extent(1) << ", "
+              << elPhCached_SVD_Vt.extent(2) << ", " << elPhCached_SVD_Vt.extent(3) << ", "
               << elPhCached_SVD_Vt.extent(4) << ")" << std::endl;
   }
-        
+
   // -------------------- Phonon rotation --------------------
   Kokkos::Profiling::pushRegion("phonon_rotation");
 
@@ -730,61 +729,61 @@ void InteractionElPhSVD::calcCouplingSquared(
       numK2, numGamma, numPhBands, numPhBands, nb2max, numWannierOrbitals);
 
   // IMPORTANT CHANGE, KEYNESH SHOULD READ THIS
-  // Before this was actually performing the matrix product. As before, we are here just merging things in, 
-  // we will sum later. 
+  // Before this was actually performing the matrix product. As before, we are here just merging things in,
+  // we will sum later.
    Kokkos::parallel_for(
       "phonon_rotation",
       Range6D({0, 0, 0, 0, 0, 0},
               {numK2, numGamma, numPhBands, numPhBands, nb2max, numWannierOrbitals}),
       KOKKOS_LAMBDA(const int iK2, const int iGamma, const int iEta, const int iPh, const int iBand2, const int iWannierJ) {
         elPhCached_SVD_Vt_ph(iK2, iGamma, iEta, iPh, iBand2, iWannierJ) = elPhCached_SVD_Vt(iK2, iGamma, iEta, iBand2, iWannierJ)
-                       * eigvecs3_device(iK2, iPh, iEta); // Fixed: match original indexing pattern
+                       * eigvecs3_device(iK2, iPh, iEta);
     });
-  Kokkos::fence(); 
-  
+  Kokkos::fence();
+
   if (mpi->mpiHead()) {
-    std::cout << "DEBUG: Phonon rotation completed, elPhCached_SVD_Vt_ph dimensions: (" 
-              << elPhCached_SVD_Vt_ph.extent(0) << ", " << elPhCached_SVD_Vt_ph.extent(1) << ", " 
-              << elPhCached_SVD_Vt_ph.extent(2) << ", " << elPhCached_SVD_Vt_ph.extent(3) << ", " 
+    std::cout << "DEBUG: Phonon rotation completed, elPhCached_SVD_Vt_ph dimensions: ("
+              << elPhCached_SVD_Vt_ph.extent(0) << ", " << elPhCached_SVD_Vt_ph.extent(1) << ", "
+              << elPhCached_SVD_Vt_ph.extent(2) << ", " << elPhCached_SVD_Vt_ph.extent(3) << ", "
               << elPhCached_SVD_Vt_ph.extent(4) << ", " << elPhCached_SVD_Vt_ph.extent(5) << ")" << std::endl;
   }
-  
-  Kokkos::Profiling::popRegion(); // phonon rotation 
+
+  Kokkos::Profiling::popRegion(); // phonon rotation
   // done with elPhCached_SVD_Vt, deallocate
   Kokkos::realloc(elPhCached_SVD_Vt, 0, 0, 0, 0, 0);
-  
-  // REFACTOR I think there is a possible alternative where we do these products and sum at the same time 
-  // basically, we take  [] Sum_{ij,eta,gamma} ( s_Y_ij,eta,gamma,m ) * ( Vt_ij,eta,gamma,n )) ] * u_ph 
-  // beause we don't really like allocating this giant 6D tensor ... 
-    
+
+  // REFACTOR I think there is a possible alternative where we do these products and sum at the same time
+  // basically, we take  [] Sum_{ij,eta,gamma} ( s_Y_ij,eta,gamma,m ) * ( Vt_ij,eta,gamma,n )) ] * u_ph
+  // beause we don't really like allocating this giant 6D tensor ...
+
   // -------------------- Sum over ij,eta,gamma --------------------
 
-  // here we need to loop over K2 (because we can't do a sum over this dimension, 
+  // here we need to loop over K2 (because we can't do a sum over this dimension,
   // so it doesn't really work to put it into a gemm)
-  
+
   Kokkos::Profiling::pushRegion("sum_g_ij_eta_gamma");
-  
-  const size_t flattened_size = // i * j * eta * gamma 
+
+  const size_t flattened_size = // i * j * eta * gamma
         size_t(numGamma) * size_t(numPhBands) * size_t(numWannierOrbitals) * size_t(numWannierOrbitals);
-  
-  // container for final output 
+
+  // container for final output
   ComplexView4D gFinal(Kokkos::ViewAllocateWithoutInitializing("gFinal"), numK2, nb1, nb2max, numPhBands);
-  // full views for data used in gemm below 
+  // full views for data used in gemm below
   ComplexView3D SVD_SY_3D(this->elPhCached_SVD_SY.data(), numK2, size_t(nb1), flattened_size);
   ComplexView3D SVD_Vt_3D(elPhCached_SVD_Vt_ph.data(), numK2, size_t(nb2max) * size_t(numPhBands), flattened_size);
   ComplexView3D gFinal_gemm_output_3D(gFinal.data(), numK2, size_t(nb1), size_t(nb2max) * size_t(numPhBands));
-  
+
   if (mpi->mpiHead()) {
     std::cout << "DEBUG: Starting GEMM loop for " << numK2 << " k2-points" << std::endl;
-    std::cout << "DEBUG: gFinal dimensions: (" << gFinal.extent(0) << ", " << gFinal.extent(1) 
+    std::cout << "DEBUG: gFinal dimensions: (" << gFinal.extent(0) << ", " << gFinal.extent(1)
               << ", " << gFinal.extent(2) << ", " << gFinal.extent(3) << ")" << std::endl;
     std::cout << "DEBUG: flattened_size=" << flattened_size << std::endl;
   }
-    
+
   // Feels like there must be a better way to do this!
   // NOTE : no OMP HERE because gemm will use threads!
-  for (long ik2 = 0; ik2 < numK2; ++ik2) {  
-            
+  for (long ik2 = 0; ik2 < numK2; ++ik2) {
+
     // subviews of the SVD pieces for each k2 point
     ComplexView2D SVD_SY_2D_k2 = Kokkos::subview(SVD_SY_3D, ik2, Kokkos::ALL, Kokkos::ALL);
     ComplexView2D SVD_Vt_2D_k2 = Kokkos::subview(SVD_Vt_3D, ik2, Kokkos::ALL, Kokkos::ALL);
@@ -792,20 +791,20 @@ void InteractionElPhSVD::calcCouplingSquared(
 
     // this is product of [ nBands, i * j * eta * gamma ] [ mBands, i * j * eta * gamma].transpose
     if (mpi->mpiHead() && ik2 < 3) {
-      std::cout << "DEBUG: GEMM for ik2=" << ik2 << " - SVD_SY_2D: (" << SVD_SY_2D_k2.extent(0) << ", " << SVD_SY_2D_k2.extent(1) 
+      std::cout << "DEBUG: GEMM for ik2=" << ik2 << " - SVD_SY_2D: (" << SVD_SY_2D_k2.extent(0) << ", " << SVD_SY_2D_k2.extent(1)
                 << "), SVD_Vt_2D: (" << SVD_Vt_2D_k2.extent(0) << ", " << SVD_Vt_2D_k2.extent(1) << ")" << std::endl;
     }
-    
+
     KokkosBlas::gemm("N","T", Kokkos::complex<double>(1.0, 0.0),
           SVD_SY_2D_k2, SVD_Vt_2D_k2, Kokkos::complex<double>(0.0, 0.0), gFinal_gemm_output_2d_k2);
   }
-  
+
   if (mpi->mpiHead()) {
     std::cout << "DEBUG: GEMM loop completed for all " << numK2 << " k2-points" << std::endl;
   }
   Kokkos::Profiling::popRegion(); // sum over g_ij eta gamma
   // now we are done with elPhCached_SVD_SY and elPhCached_SVD_Vt_ph
-  // so we deallocate them 
+  // so we deallocate them
   Kokkos::realloc(elPhCached_SVD_SY, 0, 0, 0, 0, 0);
   Kokkos::realloc(elPhCached_SVD_Vt_ph, 0, 0, 0, 0, 0, 0);
 
@@ -826,8 +825,8 @@ void InteractionElPhSVD::calcCouplingSquared(
       numK2, nb1, nb2max, numPhBands);
 
   if (mpi->mpiHead()) {
-    std::cout << "DEBUG: Computing |g|^2, coupling_device dimensions: (" 
-              << coupling_device.extent(0) << ", " << coupling_device.extent(1) << ", " 
+    std::cout << "DEBUG: Computing |g|^2, coupling_device dimensions: ("
+              << coupling_device.extent(0) << ", " << coupling_device.extent(1) << ", "
               << coupling_device.extent(2) << ", " << coupling_device.extent(3) << ")" << std::endl;
   }
 
@@ -841,11 +840,11 @@ void InteractionElPhSVD::calcCouplingSquared(
   Kokkos::realloc(gFinal, 0, 0, 0, 0);
 
   //now, copy back to CPU cacheCoupling
-  //cacheCoupling.resize(0); // seems like this should not be needed... 
+  //cacheCoupling.resize(0); // seems like this should not be needed...
   cacheCoupling.resize(numK2);
   auto coupling_host = Kokkos::create_mirror_view(coupling_device);
   Kokkos::deep_copy(coupling_host, coupling_device);
-  
+
   if (mpi->mpiHead()) {
     std::cout << "DEBUG: Copying results to CPU, cacheCoupling size=" << cacheCoupling.size() << std::endl;
   }
@@ -862,14 +861,14 @@ void InteractionElPhSVD::calcCouplingSquared(
     }
     cacheCoupling[ik] = coupling;
   }
-  
+
   if (mpi->mpiHead()) {
     std::cout << "DEBUG: calcCouplingSquared completed successfully" << std::endl;
-    std::cout << "DEBUG: Final cacheCoupling[0] dimensions: (" 
-              << cacheCoupling[0].dimension(0) << ", " << cacheCoupling[0].dimension(1) 
+    std::cout << "DEBUG: Final cacheCoupling[0] dimensions: ("
+              << cacheCoupling[0].dimension(0) << ", " << cacheCoupling[0].dimension(1)
               << ", " << cacheCoupling[0].dimension(2) << ")" << std::endl;
   }
-  
+
   Kokkos::Profiling::popRegion(); // calcCouplingSquared
 }
 
@@ -892,7 +891,7 @@ const Eigen::VectorXi InteractionElPhSVD::getCouplingDimensions() const {
   return elph_dims;
 }
 
-const double InteractionElPhSVD::getDeviceMemoryUsage() const {
+double InteractionElPhSVD::getDeviceMemoryUsage() const {
   double bytes = 0.;
   // if (ElPh_Matrix.data() != nullptr) {
   //   bytes += ElPh_Matrix.span() * sizeof(Kokkos::complex<double>);

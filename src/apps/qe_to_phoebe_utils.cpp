@@ -840,10 +840,10 @@ void writeElPhCouplingNoHDF5(
 #endif
 
 
-// Function to perform SVD on a single 2D matrix
-void performSVD(const Eigen::MatrixXd &matrix, Eigen::MatrixXd &U,
-                Eigen::VectorXd &S, Eigen::MatrixXd &V, double truncAmount) {
-    Eigen::JacobiSVD<Eigen::MatrixXd> svd(matrix, Eigen::ComputeThinU | Eigen::ComputeThinV);
+// Function to perform SVD on a complex matrix (handles both real and complex input)
+void performSVD(const Eigen::MatrixXcd &matrix, Eigen::MatrixXcd &U,
+                Eigen::VectorXd &S, Eigen::MatrixXcd &V, double truncAmount) {
+    Eigen::JacobiSVD<Eigen::MatrixXcd> svd(matrix, Eigen::ComputeThinU | Eigen::ComputeThinV);
     U = svd.matrixU();
     S = svd.singularValues();
     V = svd.matrixV();
@@ -862,8 +862,8 @@ void performSVD(const Eigen::MatrixXd &matrix, Eigen::MatrixXd &U,
 }
 
 // Save SVD results into the path: SVD/slice_dim3_dim4_dim5/
-void saveSVDToHDF5(HighFive::File &file, const Eigen::MatrixXd &U,
-                   const Eigen::VectorXd &S, const Eigen::MatrixXd &V,
+void saveSVDToHDF5(HighFive::File &file, const Eigen::MatrixXcd &U,
+                   const Eigen::VectorXd &S, const Eigen::MatrixXcd &V,
                    int dim3, int dim4, int dim5) {
 
     // Make sure top-level "SVD" group exists
@@ -880,7 +880,7 @@ void saveSVDToHDF5(HighFive::File &file, const Eigen::MatrixXd &U,
                           + "_" + std::to_string(dim5);
     HighFive::Group sliceGroup = svdTopGroup.createGroup(sliceName);
 
-    // Write U, S, V datasets into that slice group
+    // Write complex U, real S, complex V datasets into that slice group
     sliceGroup.createDataSet("U", U);
     sliceGroup.createDataSet("S", S);
     sliceGroup.createDataSet("V", V);
@@ -929,18 +929,18 @@ void writeSvdElPhCouplingHDF5(
             int dim4 = (sliceIndex / numModes) % numWannier;   // j index
             int dim3 = sliceIndex / (numWannier * numModes); // i index
 
-            Eigen::MatrixXd slice(numWannier, numWannier);
+            Eigen::MatrixXcd slice(numWannier, numWannier);
             for (size_t i = 0; i < numWannier; ++i) {
                 for (size_t j = 0; j < numWannier; ++j) {
-                    slice(i, j) = std::real(gWannier(static_cast<long>(dim3),
-                                                     static_cast<long>(dim4),
-                                                     static_cast<long>(dim5),
-                                                     static_cast<long>(i),
-                                                     static_cast<long>(j)));
+                    slice(i, j) = gWannier(static_cast<long>(dim3),
+                                          static_cast<long>(dim4),
+                                          static_cast<long>(dim5),
+                                          static_cast<long>(i),
+                                          static_cast<long>(j));
                 }
             }
 
-            Eigen::MatrixXd U, V;
+            Eigen::MatrixXcd U, V;
             Eigen::VectorXd S;
             performSVD(slice, U, S, V, 100);
 

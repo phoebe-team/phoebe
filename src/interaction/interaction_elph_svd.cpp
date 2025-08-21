@@ -123,12 +123,12 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
     mi=std::max(mi,size_t(i)); mj=std::max(mj,size_t(j)); me=std::max(me,size_t(eta));
 
     auto g = svdGroup.getGroup(name);
-    Eigen::MatrixXd Ur, Vr;
-    g.getDataSet("U").read(Ur);
-    g.getDataSet("V").read(Vr);
+    Eigen::MatrixXcd Uc, Vc;
+    g.getDataSet("U").read(Uc);
+    g.getDataSet("V").read(Vc);
 
-    RE = std::max(RE, (int)Ur.rows());
-    RP = std::max(RP, (int)Vr.rows());
+    RE = std::max(RE, (int)Uc.rows());
+    RP = std::max(RP, (int)Vc.rows());
   }
   num_i = int(mi+1); num_j = int(mj+1); num_eta = int(me+1);
 
@@ -138,15 +138,14 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
     auto [i,j,eta] = parseSliceName(name);
     auto g = svdGroup.getGroup(name);
 
-    Eigen::MatrixXd Ur, Vr;
+    Eigen::MatrixXcd Uc, Vc;
     Eigen::VectorXd Sr;
 
     try {
-      g.getDataSet("U").read(Ur);
-      g.getDataSet("V").read(Vr);
+      g.getDataSet("U").read(Uc);
+      g.getDataSet("V").read(Vc);
 
       // Handle S which might be stored as 2D matrix {n,1} or 1D vector {n}
-      // Also handle both real and complex formats
       Eigen::MatrixXd S_matrix;
       g.getDataSet("S").read(S_matrix);
 
@@ -168,8 +167,8 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
     }
 
     if (sliceCount < 5) {
-      std::cout << "DEBUG: Slice " << name << " - U: " << Ur.rows() << "x" << Ur.cols()
-                << ", S: " << Sr.size() << ", V: " << Vr.rows() << "x" << Vr.cols() << std::endl;
+      std::cout << "DEBUG: Slice " << name << " - U: " << Uc.rows() << "x" << Uc.cols()
+                << ", S: " << Sr.size() << ", V: " << Vc.rows() << "x" << Vc.cols() << std::endl;
 
       // Show first few singular values
       std::cout << "DEBUG: S values:";
@@ -179,10 +178,10 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
       std::cout << std::endl;
     }
 
-    // Convert real matrices to complex for internal use
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> Uc = Ur.cast<std::complex<double>>();
+    // Convert matrices to proper layout for internal use
+    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor> U_rowmajor = Uc;
     Eigen::Matrix<std::complex<double>, Eigen::Dynamic, 1> Sc = Sr.cast<std::complex<double>>();
-    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> Vc = Vr.cast<std::complex<double>>();
+    Eigen::Matrix<std::complex<double>, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> V_colmajor = Vc;
 
     const int gamma = int(Sc.size());
 
@@ -199,10 +198,10 @@ InteractionElPhSVD::processAllSVDGroups(const HighFive::Group &svdGroup,
 
     for (int g=0; g<gamma; ++g) {
       for (int re=0; re<RE; ++re) {
-        d.U[size_t(re)*size_t(gamma)+size_t(g)] = Uc(re,g);
+        d.U[size_t(re)*size_t(gamma)+size_t(g)] = U_rowmajor(re,g);
       }
       for (int rp=0; rp<RP; ++rp) {
-        d.V[size_t(rp)*size_t(gamma)+size_t(g)] = Vc(rp,g);
+        d.V[size_t(rp)*size_t(gamma)+size_t(g)] = V_colmajor(rp,g);
       }
       d.S[size_t(g)] = Sc(g);
     }

@@ -821,7 +821,7 @@ void InteractionElPhSVD::calcCouplingSquared(
   // -------------------- |g|^2 --------------------
   DoubleView4D coupling_device(
       Kokkos::ViewAllocateWithoutInitializing("gSq"),
-      numK2, nb1, nb2max, numPhBands);
+      numK2, numPhBands, nb2max, nb1);
 
   if (mpi->mpiHead()) {
     std::cout << "DEBUG: Computing |g|^2, coupling_device dimensions: ("
@@ -831,10 +831,10 @@ void InteractionElPhSVD::calcCouplingSquared(
 
   Kokkos::parallel_for(
       "Interaction elph: modulus coupling",
-      Range4D({0, 0, 0, 0}, {numK2, nb1, nb2max, numPhBands}),
-      KOKKOS_LAMBDA(const int ik, const int ib1_, const int ib2, const int nu) {
+      Range4D({0, 0, 0, 0}, {numK2, numPhBands, nb2max, nb1}),
+      KOKKOS_LAMBDA(const int ik, const int nu, const int ib2, const int ib1_) {
         const auto z = gFinal(ik, ib1_, ib2, nu);
-        coupling_device(ik, ib1_, ib2, nu) = z.real()*z.real() + z.imag()*z.imag();
+        coupling_device(ik, nu, ib2, ib1_) = z.real()*z.real() + z.imag()*z.imag();
       });
   Kokkos::realloc(gFinal, 0, 0, 0, 0);
 
@@ -854,7 +854,7 @@ void InteractionElPhSVD::calcCouplingSquared(
     for (int nu = 0; nu < numPhBands; ++nu) {
       for (int ib2 = 0; ib2 < nb2s_h(ik); ++ib2) {
         for (int ib1 = 0; ib1 < nb1; ++ib1) {
-          coupling(ib1, ib2, nu) = coupling_host(ik, ib1, ib2, nu);
+          coupling(ib1, ib2, nu) = coupling_host(ik, nu, ib2, ib1);
         }
       }
     }

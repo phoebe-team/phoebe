@@ -30,8 +30,8 @@ void ElPhCouplingPlotApp::run(Context &context) {
   // load the el-ph coupling
   // Note: this file contains the number of electrons
   // which is needed to understand where to place the fermi level
-  // auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
-  auto couplingElPh = InteractionElPhSVD(context, crystal, phononH0);
+  auto couplingElPh = InteractionElPhWan::parse(context, crystal, phononH0);
+  // auto couplingElPh = InteractionElPhSVD(context, crystal, phononH0);
 
   Eigen::Vector3i mesh;
   if (context.getG2PlotStyle() == "qFixed") {
@@ -289,11 +289,13 @@ void ElPhCouplingPlotApp::run(Context &context) {
            ib2++) {
         for (int ib3 = g2PlotPhBands.first; ib3 <= g2PlotPhBands.second;
              ib3++) {
+          std::cout << "DEBUG: ib1=" << ib1 << ", ib2=" << ib2 << ", ib3=" << ib3
+                   << ", couplingSq=" << couplingSq(ib1, ib2, ib3) << std::endl;
           allGs.push_back(couplingSq(ib1, ib2, ib3) * energyRyToEv *
                           energyRyToEv);
-          if (couplingSq(ib1, ib2, ib3) != 0) {
-              std::cout << "Value of" << couplingSq(ib1, ib2, ib3) << std::endl;
-          }
+          // if (couplingSq(ib1, ib2, ib3) != 0) {
+          //     std::cout << "Value of" << couplingSq(ib1, ib2, ib3) << std::endl;
+          // }
         }
       }
     }
@@ -311,7 +313,7 @@ void ElPhCouplingPlotApp::run(Context &context) {
     std::cout << "\nFinished calculating coupling, writing to file."
               << std::endl;
 
-  std::string outFileName = "coupling.SVD.elph.phoebe.hdf5";
+  std::string outFileName = "coupling.elph.phoebe.hdf5";
   std::remove(&outFileName[0]);
 
   // product of nbands1 * nbands2 * nmodes -- + 1 is because range is inclusive

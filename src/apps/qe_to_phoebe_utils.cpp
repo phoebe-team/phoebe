@@ -841,24 +841,66 @@ void writeElPhCouplingNoHDF5(
 
 
 // Function to perform SVD on a complex matrix (handles both real and complex input)
-void performSVD(const Eigen::MatrixXcd &matrix, Eigen::MatrixXcd &U,
-                Eigen::VectorXd &S, Eigen::MatrixXcd &V, double truncAmount) {
-    Eigen::JacobiSVD<Eigen::MatrixXcd> svd(matrix, Eigen::ComputeThinU | Eigen::ComputeThinV);
-    U = svd.matrixU();
-    S = svd.singularValues();
-    V = svd.matrixV();
+// void performSVD(const Eigen::MatrixXcd &matrix, Eigen::MatrixXcd &U,
+//                 Eigen::VectorXd &S, Eigen::MatrixXcd &V, double truncAmount) {
+//     Eigen::JacobiSVD<Eigen::MatrixXcd> svd(matrix, Eigen::ComputeThinU | Eigen::ComputeThinV);
+//     U = svd.matrixU();
+//     S = svd.singularValues();
+//     V = svd.matrixV();
 
-    // Calculate how many singular values to keep based on percentage
-    size_t totalSingularValues = S.size();
-    size_t indicesToKeep = static_cast<size_t>(std::ceil(truncAmount * 0.01 * totalSingularValues));
-    
-    // Clamp to valid range [1, totalSingularValues]
-    indicesToKeep = std::max(static_cast<size_t>(1), indicesToKeep);
-    indicesToKeep = std::min(indicesToKeep, totalSingularValues);
+//     // Calculate how many singular values to keep based on percentage
+//     size_t totalSingularValues = S.size();
+//     size_t indicesToKeep = static_cast<size_t>(std::ceil(truncAmount * 0.01 * totalSingularValues));
 
-    S = S.head(indicesToKeep);
-    U = U.leftCols(indicesToKeep);
-    V = V.leftCols(indicesToKeep);
+//     // Clamp to valid range [1, totalSingularValues]
+//     indicesToKeep = std::max(static_cast<size_t>(1), indicesToKeep);
+//     indicesToKeep = std::min(indicesToKeep, totalSingularValues);
+
+//     S = S.head(indicesToKeep);
+//     U = U.leftCols(indicesToKeep);
+//     V = V.leftCols(indicesToKeep);
+// }
+
+void performSVD(const Eigen::MatrixXcd &A, Eigen::MatrixXcd &U,
+                Eigen::VectorXd  &S, Eigen::MatrixXcd &Vh, double truncPercentage) {
+
+    const Eigen::Index m = A.rows();
+    const Eigen::Index n = A.cols();
+    if (m == 0 || n == 0) {
+        U.resize(m, 0);
+        S.resize(0);
+        Vh.resize(0, n);
+        return;
+    }
+    Eigen::JacobiSVD<Eigen::MatrixXcd> svd(
+        A, Eigen::ComputeThinU | Eigen::ComputeThinV);
+
+    const Eigen::MatrixXcd Ufull = svd.matrixU();
+    const Eigen::VectorXd  Sfull = svd.singularValues();
+    const Eigen::MatrixXcd Vfull = svd.matrixV();
+    const Eigen::Index r = Sfull.size();
+
+    if (r == 0) {
+        U.resize(m, 0);
+        S.resize(0);
+        Vh.resize(0, n);
+        return;
+    }
+
+    // truncation
+    const double pct = std::clamp(truncPercentage, 0.0, 100.0);
+    const double Smax = Sfull(0);
+    const double cutoff = (pct * 0.01) * Smax;
+
+    Eigen::Index k = 0;
+    for (; k < r; ++k) {
+        if (Sfull(k) < cutoff) break;
+    }
+    if (k == 0) k = 1;
+
+    U  = Ufull.leftCols(k);
+    S  = Sfull.head(k);
+    Vh = Vfull.leftCols(k).adjoint();
 }
 
 // Save SVD results into the path: SVD/slice_dim3_dim4_dim5/
@@ -868,7 +910,7 @@ void saveSVDToHDF5(HighFive::File &file, const Eigen::MatrixXcd &U,
 
     // Make sure top-level "SVD" group exists
     HighFive::Group svdTopGroup;
-    if (!file.exist("zSVD")) { // NOTE: we call it zSVD because the HDF5 file is sorted alphbetically. This way, we dont need to change the way files are being read in Phoebe.
+    if (!file.exist("zSVD")) {
         svdTopGroup = file.createGroup("zSVD");
     } else {
         svdTopGroup = file.getGroup("zSVD");
@@ -906,45 +948,56 @@ void writeSvdElPhCouplingHDF5(
             std::remove(outFileName.c_str());
         }
         mpi->barrier();
+        {
+            HighFive::FileAccessProps fapl;
+            fapl.add(HighFive::MPIOFileAccess{MPI_COMM_WORLD, MPI_INFO_NULL});
+            HighFive::File file(outFileName, HighFive::File::Truncate, fapl);
 
-        auto fapl = HighFive::FileAccessProps{};
-        fapl.add(HighFive::MPIOFileAccess(MPI_COMM_WORLD, MPI_INFO_NULL));
-        HighFive::File file(outFileName, HighFive::File::Truncate, fapl);
-        mpi->barrier();
+            if (mpi->mpiHead()) {
+                std::cout << "Rank 0 processing all slices..." << std::endl;
 
+                const int totalSlices = numModes * numWannier * numWannier;
+                const int RE = elBravaisVectors.cols();
+                const int RP = phBravaisVectors.cols();
 
+                for (int sliceIndex = 0; sliceIndex < totalSlices; ++sliceIndex) {
+                    if (sliceIndex % 100 == 0) {
+                        std::cout << "Processing slice " << sliceIndex << "/" << totalSlices << std::endl;
+                    }
+                    int dim5 = sliceIndex % numModes;                  // eta index
+                    int dim4 = (sliceIndex / numModes) % numWannier;   // j index
+                    int dim3 = sliceIndex / (numWannier * numModes); // i index
 
-        int totalSlices = numModes * numWannier * numWannier;
-        int slicesPerProc = totalSlices / mpi->getSize();
-        int extraSlices = totalSlices % mpi->getSize();
+                    Eigen::MatrixXcd slice(RE, RP);
+                    for (size_t i = 0; i < RE; ++i) {
+                        for (size_t j = 0; j < RP; ++j) {
+                            slice(i, j) = gWannier(static_cast<long>(dim3),
+                                                  static_cast<long>(dim4),
+                                                  static_cast<long>(dim5),
+                                                  static_cast<long>(i),
+                                                  static_cast<long>(j));
+                        }
+                    }
 
-        int startSlice = mpi->getRank() * slicesPerProc + std::min(mpi->getRank(), extraSlices);
-        int endSlice = startSlice + slicesPerProc;
-        if (mpi->getRank() < extraSlices) {
-            endSlice += 1;
-        }
+                    Eigen::MatrixXcd U, V;
+                    Eigen::VectorXd S;
+                    if (sliceIndex % 100 == 0) {
+                        std::cout << "Performing SVD for slice " << sliceIndex << std::endl;
+                    }
+                    performSVD(slice, U, S, V, 0);
 
-        for (int sliceIndex = startSlice; sliceIndex < endSlice; ++sliceIndex) {
-            int dim5 = sliceIndex % numModes;                  // eta index
-            int dim4 = (sliceIndex / numModes) % numWannier;   // j index
-            int dim3 = sliceIndex / (numWannier * numModes); // i index
+                    if (sliceIndex % 100 == 0) {
+                        std::cout << "Saving to HDF5 for slice " << sliceIndex << std::endl;
+                    }
+                    saveSVDToHDF5(file, U, S, V, dim3, dim4, dim5);
 
-            Eigen::MatrixXcd slice(numWannier, numWannier);
-            for (size_t i = 0; i < numWannier; ++i) {
-                for (size_t j = 0; j < numWannier; ++j) {
-                    slice(i, j) = gWannier(static_cast<long>(dim3),
-                                          static_cast<long>(dim4),
-                                          static_cast<long>(dim5),
-                                          static_cast<long>(i),
-                                          static_cast<long>(j));
+                    // Clear memory after each slice
+                    slice.resize(0, 0);
+                    U.resize(0, 0);
+                    V.resize(0, 0);
+                    S.resize(0);
                 }
             }
-
-            Eigen::MatrixXcd U, V;
-            Eigen::VectorXd S;
-            performSVD(slice, U, S, V, 100);
-
-            saveSVDToHDF5(file, U, S, V, dim3, dim4, dim5);
         }
 
         mpi->barrier();

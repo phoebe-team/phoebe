@@ -802,7 +802,6 @@ void InteractionElPhSVD::calcCouplingSquared(
   Kokkos::fence();
   Kokkos::fence();
 
-  // Temporarily disable OpenMP to avoid race conditions with small numK2
   #pragma omp parallel for default(none) shared(numK2, cacheCoupling, coupling_host, nb1, nb2s_h, numPhBands)
   for (int ik = 0; ik < numK2; ++ik) {
     Eigen::Tensor<double, 3> coupling(nb1, nb2s_h(ik), numPhBands);

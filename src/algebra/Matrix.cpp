@@ -72,7 +72,7 @@ std::tuple<std::vector<double>, Matrix<double>>
   Matrix<double> eigenvectors(*this);
 
   if(isDistributed) {
-    auto tup = pmat->diagonalize(numEigenvalues);
+    auto tup = pmat->diagonalize(numEigenvalues, checkNegativeEigenvalues);
     eigenvalues = std::get<0>(tup);
     eigenvectors.pmat = &(std::get<1>(tup)); // returns a pMat, need the pointer to it
   } else{

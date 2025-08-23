@@ -15,6 +15,7 @@ public:
  private:
   VectorBTE getPhononElectronLinewidth(Context& context, Crystal& crystalPh,
                                        ActiveBandStructure& phBandStructure,
+                                       StatisticsSweep& statisticsSweep,
                                        PhononH0& phononH0);
 };
 

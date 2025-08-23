@@ -59,7 +59,7 @@ Phoebe is written to allow a number of options for improved computational perfor
 	useSymmetries = true
 	windowPopulationLimit = 1e-10
 
-* While the :ref:`windowPopulationLimit` variable is by default set to 1e-10, which should be a very safe value, in principle you may find you can reduce calculation cost by increasing this value -- however, you should be careful to test convergence against this parameter if you choose to do so. 
+* While the :ref:`windowPopulationLimit` variable is by default set to 1e-10, which should be a very safe value, in principle you may find you can reduce calculation cost by increasing this value (to even as much as 1e-5) -- however, you should be careful to test convergence against this parameter if you choose to do so. 
 
 * However, there are two important caveats: 
 	* If you want to use the relaxons or variational solvers, you cannot use symmetries and this must be set to false. 

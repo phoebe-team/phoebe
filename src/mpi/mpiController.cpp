@@ -145,7 +145,8 @@ void MPIcontroller::errorReport(int errCode) const {
 
 void MPIcontroller::time() const {
 #ifdef MPI_AVAIL
-  fprintf(stdout, "Time for rank %3d : %3f\n", rank, MPI_Wtime() - startTime);
+  fprintf(stdout, "Current time : %3f\n", MPI_Wtime() - startTime);
+  //fprintf(stdout, "Time for rank %3d : %3f\n", rank, MPI_Wtime() - startTime);
 #else
   std::cout << "Time for rank 0 :"
             << std::chrono::duration_cast<std::chrono::seconds>(

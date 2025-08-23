@@ -60,7 +60,7 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
     }
   }
   if (usePolarCorrection && mpi->mpiHead()) {
-    std::cout << "Polar correction" << std::endl;
+    std::cout << "Including polar correction." << std::endl;
   }
 
   auto localElIndices = mpi->divideWorkIter(numElBravaisVectors);
@@ -84,10 +84,12 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
   Eigen::MatrixXcd phPhases;
   Eigen::Tensor<std::complex<double>, 5> gWannierTmp;
 
-  LoopPrint loopPrint("Wannier transform of coupling", "irreducible q-points",
-                      loopSize);
+  LoopPrint loopPrint("Wannier transform of coupling", "irreducible q-points", loopSize);
+
   // for (int iqIrr : mpi->divideWorkIter(numIrrQPoints)) {
+  // loop over irr Q points 
   for (int iLoop = 0; iLoop < loopSize; iLoop++) {
+
     loopPrint.update(false);
 
     int iqIrr = -1;
@@ -97,8 +99,7 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
 
     if (iqIrr >= 0) {
 
-      auto t = readChunkGFromQE(iqIrr, context, kPoints, numModes, numQEBands,
-                                ikMap);
+      auto t = readChunkGFromQE(iqIrr, context, kPoints, numModes, numQEBands, ikMap);
       auto &gStarTmp = std::get<0>(t);
       auto phononEigenvectorsStar = std::get<1>(t);
       auto qStar = std::get<3>(t);
@@ -138,6 +139,7 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
         auto bornCharges = phononH0.getBornCharges();
         auto atomicPositions = crystal.getAtomicPositions();
         auto qCoarseMesh = phononH0.getCoarseGrid();
+	auto dimensionality = crystal.getDimensionality();
 
         for (int iq = 0; iq < numQStar; iq++) {
           Eigen::Vector3d qCrystal = qStar.col(iq);
@@ -175,7 +177,7 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
 
               auto v = InteractionElPhWan::getPolarCorrectionStatic(
                   q, ev1, ev2, ev3, volume, reciprocalUnitCell,
-                  dielectricMatrix, bornCharges, atomicPositions, qCoarseMesh);
+                  dielectricMatrix, bornCharges, atomicPositions, qCoarseMesh, dimensionality);
               for (int nu = 0; nu < numModes; nu++) {
                 for (int j = 0; j < numBands; j++) {
                   for (int i = 0; i < numBands; i++) {
@@ -196,6 +198,7 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
       gFullTmp.setZero();
 
       for (int iq = 0; iq < numQStar; iq++) {
+
         Eigen::Vector3d qCrystal = qStar.col(iq);
         Eigen::Vector3d q = qPoints.crystalToCartesian(qCrystal);
         for (int ik = 0; ik < numKPoints; ik++) {
@@ -207,7 +210,7 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
           Eigen::Vector3d kqCrystal = kPoints.cartesianToCrystal(kq);
           int ikq = kPoints.getIndex(kqCrystal);
 
-          // First we transform from the Bloch to Wannier Gauge
+          // First we transform from the Bloch to Wannier Gauge -----------------
 
           // u has size (numBands, numWannier, numKPoints)
           Eigen::MatrixXcd uK(numBands, numWannier);
@@ -266,7 +269,7 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
       }   // iq
       gStar.reshape(zeros);
 
-      // Fourier transform on the electronic coordinates
+      // Fourier transform on the electronic coordinates -------------------
       Eigen::Tensor<std::complex<double>, 5> gMixed(
           numWannier, numWannier, numModes, numElBravaisVectors, numQStar);
       gMixed.setZero();
@@ -364,17 +367,22 @@ ElPhQeToPhoebeApp::BlochToWannierEfficient(
 
       phPhases.resize(numPhBravaisVectors, numQStar);
       phPhases.setZero();
+
+      // apply the qpoint phases --------------------------------------
 #pragma omp parallel for
       for (int iq = 0; iq < numQStar; iq++) {
         Eigen::Vector3d qCrystal = qStar.col(iq);
         Eigen::Vector3d q = qPoints.crystalToCartesian(qCrystal);
-        for (int irP = 0; irP < numPhBravaisVectors; irP++) {
-          double arg = q.dot(phBravaisVectors.col(irP));
-          phPhases(irP, iq) = exp(-complexI * arg) / double(numQPoints);
+        for (int iRp = 0; iRp < numPhBravaisVectors; iRp++) {
+          double arg = q.dot(phBravaisVectors.col(iRp));
+          phPhases(iRp, iq) = exp(-complexI * arg) / double(numQPoints);
         }
       }
 
     } // if iqIrr != -1
+
+    // Prepare elph matrix elements for thisk chunk of Re vectors to return them 
+    // -----------------------------------------------------------------
 
     // Create a vector with the indices from 0, 1, ..., numElBravaisVectors-1
     std::vector<int> v(numElBravaisVectors);
@@ -448,7 +456,7 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
     Points &kPoints, Points &qPoints, Crystal &crystal, PhononH0 &phononH0) {
 
   if (mpi->mpiHead()) {
-    std::cout << "Start Wannier-transform of g" << std::endl;
+    std::cout << "Starting transformation of el-ph matrix elements to the real-space Wannier basis." << std::endl;
   }
 
   int numBands = int(gFull.dimension(0)); // # of entangled bands
@@ -472,12 +480,13 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
 
   if (usePolarCorrection) {
     if (mpi->mpiHead()) {
-      std::cout << "Polar correction" << std::endl;
+      std::cout << "Applying the polar correction to the el-ph matrix elements." << std::endl;
     }
 
     // we need to subtract the polar correction
     // this contribution will be reinstated during the interpolation
     auto volume = crystal.getVolumeUnitCell();
+    auto dimensionality = crystal.getDimensionality();
     auto reciprocalUnitCell = crystal.getReciprocalUnitCell();
     auto bornCharges = phononH0.getBornCharges();
     auto atomicPositions = crystal.getAtomicPositions();
@@ -518,7 +527,7 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
 
           auto v = InteractionElPhWan::getPolarCorrectionStatic(
               q, ev1, ev2, ev3, volume, reciprocalUnitCell, dielectricMatrix,
-              bornCharges, atomicPositions, qCoarseMesh);
+              bornCharges, atomicPositions, qCoarseMesh, dimensionality);
           for (int nu = 0; nu < numModes; nu++) {
             for (int j = 0; j < numBands; j++) {
               for (int i = 0; i < numBands; i++) {
@@ -532,7 +541,7 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
   }
 
   if (mpi->mpiHead()) {
-    std::cout << "Wannier rotation" << std::endl;
+    std::cout << "Performing the transformation to real-space Wannier basis." << std::endl;
   }
 
   Eigen::Tensor<std::complex<double>, 5> gFullTmp(
@@ -571,6 +580,7 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
         Eigen::Tensor<std::complex<double>, 3> tmp(numWannier, numBands,
                                                    numModes);
         tmp.setZero();
+        // rotate to the Uk+q basis
 #pragma omp for nowait collapse(4)
         for (int nu = 0; nu < numModes; nu++) {
           for (int i = 0; i < numWannier; i++) {
@@ -583,9 +593,9 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
             }
           }
         }
-        Eigen::Tensor<std::complex<double>, 3> tmp2(numWannier, numWannier,
-                                                    numModes);
+        Eigen::Tensor<std::complex<double>, 3> tmp2(numWannier, numWannier, numModes);
         tmp2.setZero();
+        // rotate to the Uk basis
 #pragma omp for nowait collapse(4)
         for (int nu = 0; nu < numModes; nu++) {
           for (int i = 0; i < numWannier; i++) {
@@ -611,8 +621,9 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
   mpi->allReduceSum(&gFullTmp);
   gFull.reshape(zeros);
 
+  // Performing the electronic Fourier transform ---------------------------------------
   if (mpi->mpiHead()) {
-    std::cout << "Electronic Fourier Transform" << std::endl;
+    std::cout << "Performing the electronic Fourier transform." << std::endl;
   }
 
   // Fourier transform on the electronic coordinates
@@ -674,8 +685,9 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
   }
   gFullTmp.reshape(zeros);
 
+  // Performing the phonon rotation  -------------------------------------------------
   if (mpi->mpiHead()) {
-    std::cout << "Phonon rotation" << std::endl;
+    std::cout << "Performing the phonon rotation." << std::endl;
   }
 
   Eigen::Tensor<std::complex<double>, 5> gWannierTmp(
@@ -722,8 +734,9 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
   }
   gMixed.reshape(zeros);
 
+  // Performing the phonon Fourier transform -----------------------------------------
   if (mpi->mpiHead()) {
-    std::cout << "Phonon Fourier Transform" << std::endl;
+    std::cout << "Performing the phonon Fourier transform." << std::endl;
   }
 
   Eigen::Tensor<std::complex<double>, 5> gWannier(numWannier, numWannier,
@@ -785,7 +798,8 @@ Eigen::Tensor<std::complex<double>, 5> ElPhQeToPhoebeApp::blochToWannier(
   gWannierTmp.reshape(zeros);
 
   if (mpi->mpiHead()) {
-    std::cout << "Done Wannier-transform of g\n" << std::endl;
+    std::cout << "Finished transforming the el-ph matrix elements"
+      << " to the real-space Wannier basis.\n" << std::endl;
   }
   mpi->barrier();
 
@@ -936,7 +950,7 @@ int ElPhQeToPhoebeApp::computeOffset(const Eigen::MatrixXd &energies,
     double kx, ky, kz;
     infile >> kx >> ky >> kz;
     if (kx * kx + ky * ky + kz * kz > 1.0e-5) {
-      Error("Expecting first coarse grid k-point in Wannier90 to be gamma");
+      DeveloperError("Expecting first coarse grid k-point in Wannier90 to be gamma.");
     }
   }
 
@@ -989,7 +1003,7 @@ int ElPhQeToPhoebeApp::computeOffset(const Eigen::MatrixXd &energies,
   }
 
   if (offset == -1) {
-    Error("Bands offset not found");
+    DeveloperError("Bands offset not found");
   }
 
   return offset;
@@ -1001,8 +1015,9 @@ void ElPhQeToPhoebeApp::postProcessingWannier(
     int numElectrons, int numSpin, const Eigen::MatrixXd &energies,
     const Eigen::MatrixXd &kGridFull, const Eigen::Vector3i &kMesh,
     const Eigen::Vector3i &qMesh, bool runTests) {
+      
   if (mpi->mpiHead()) {
-    std::cout << "Starting Wannier post-processing\n" << std::endl;
+    std::cout << "Starting transform to the real-space Wannier basis.\n" << std::endl;
   }
 
   std::string wannierPrefix = context.getWannier90Prefix();
@@ -1027,18 +1042,18 @@ void ElPhQeToPhoebeApp::postProcessingWannier(
   // Note: Quantum-ESPRESSO defines numElectrons as the number of occupied
   // states in the valence manifold (it doesn't tell us about core electrons,
   // which we probably can only infer from the atomic numbers)
+  int spinFactor = 2;
   if (numSpin == 2) {
-    Error("Spin is not currently supported");
+    Error("Spin is not currently supported.");
+    spinFactor = 1;
   }
-  // the factor 2 is the spin degeneracy factor. Change if spin support added
-  int numFilledWannier = numElectrons - bandsOffset * 2;
+  int numFilledWannier = numElectrons - bandsOffset * spinFactor;
   // note how we only allow numFilledWannier to be an integer
   // it can be an even or odd number, so be careful if dividing it by 2
 
   //----------------------------------------------------------------------------
 
   // Find the lattice vectors for the Fourier transforms
-
   auto t3 = crystal.buildWignerSeitzVectors(kMesh);
   Eigen::MatrixXd elBravaisVectors = std::get<0>(t3);
   Eigen::VectorXd elDegeneracies = std::get<1>(t3);
@@ -1058,12 +1073,10 @@ void ElPhQeToPhoebeApp::postProcessingWannier(
     auto gFull = std::get<0>(t5);          // (nBands,nBands,nModes,numK,numQ)
     auto phEigenvectors = std::get<1>(t5); // (numModes,numModes,numQPoints)
     auto phEnergies = std::get<2>(t5);     // (numModes,numQPoints)
-    gWannier =
-        blochToWannier(elBravaisVectors, phBravaisVectors, gFull, uMatrices,
+    gWannier = blochToWannier(elBravaisVectors, phBravaisVectors, gFull, uMatrices,
                        phEigenvectors, kPoints, qPoints, crystal, phononH0);
   } else {
-    gWannier =
-        BlochToWannierEfficient(context, energies, kGridFull, numIrrQPoints,
+    gWannier = BlochToWannierEfficient(context, energies, kGridFull, numIrrQPoints,
                                 numQEBands, elBravaisVectors, phBravaisVectors,
                                 uMatrices, kPoints, qPoints, crystal, phononH0);
   }

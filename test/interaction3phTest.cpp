@@ -86,7 +86,7 @@ TEST(Interaction3Ph, Coupling3Ph000) {
   for (int i = 0; i < numBands; i++) {
     for (int j = 0; j < numBands; j++) {
       for (int k = 0; k < numBands; k++) {
-        ASSERT_EQ(couplingPlus(i, j, k), couplingMins(i, j, k));
+        ASSERT_NEAR(couplingPlus(i, j, k), couplingMins(i, j, k),1e-40);
       }
     }
   }

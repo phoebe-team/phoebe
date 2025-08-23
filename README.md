@@ -1,7 +1,7 @@
-![Build and Test](https://github.com/mir-group/phoebe/workflows/Build%20and%20Test/badge.svg)
+![Build and Test](https://github.com/phoebe-team/phoebe/actions/workflows/buildandtest_push.yaml/badge.svg)
 [![Documentation Status](https://readthedocs.org/projects/phoebe/badge/?version=develop)](https://phoebe.readthedocs.io/en/develop/?badge=develop)
 
-# Phoebe <img src="doc/sphinx/source/_static/icon.png" width="25"/>
+#  <img src="doc/sphinx/source/_static/icon.png" width="25"/> Phoebe
 
 ### A high-performance framework for solving phonon and electron Boltzmann transport equations
 
@@ -16,7 +16,7 @@ For more details, see:
   [DOI:10.1088/2515-7639/ac86f6](https://doi.org/10.1088/2515-7639/ac86f6).
 
 Tutorials, documentation of functionality and underlying theory can be found at:
-  * [Homepage](https://mir-group.github.io/phoebe/)
+  * [Homepage](https://phoebe-team.github.io/phoebe/)
   * [Tutorials/Documentation](https://phoebe.readthedocs.io/en/develop/introduction.html)
 
 For further questions and feature requests, please post on the discussions page for the git repo.
@@ -37,9 +37,10 @@ If you feel you've found a bug or seen some unexpected behavior, please let us k
      * Boundary, isotope, and phonon-electron scattering contributions
      * Lattice thermal conductivity calculations including both ph-ph and ph-el scattering 
 
-#### And more...
+#### And more:
 
    * BTE solutions by RTA, iterative, variational, and relaxon solvers
+   * Phonon drag effects via the coupled BTE
    * Calculation of electron and phonon linewidths or relaxation times on a path
    * Wigner transport equation correction for electrons and phonons 
    * Hydrodynamic transport properties (viscosity) for electrons and phonons

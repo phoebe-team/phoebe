@@ -1,0 +1,23 @@
+appName = "phononTransport"
+
+sumRuleFC2 = "simple"
+phFC2FileName = "../qe-phonons/silicon.fc"
+phFC3FileName = "../thirdorder.py-anharmonic/FORCE_CONSTANTS_3RD"
+
+electronH0Name = "../../Silicon-el/qe-elph/si_tb.dat",
+elphFileName = "../../Silicon-el/qe-elph/silicon.phoebe.elph.hdf5"
+
+kMesh = [35, 35, 35]
+qMesh = [5, 5, 5]
+temperatures = [200.]
+
+numOccupiedStates = 4
+dopings = [1.e21]
+
+smearingMethod = "gaussian"
+smearingWidth = 10. cmm1
+
+solverBTE = ["iterative", "variational","relaxons"]
+scatteringMatrixInMemory = true
+windowType = "population"
+windowPopulationLimit = 1e-3

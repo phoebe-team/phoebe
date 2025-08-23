@@ -3,7 +3,7 @@
 
 #include <string>
 #include "app.h"
-#include "el_scattering.h"
+#include "el_scattering_matrix.h"
 
 /** Main driver for the transport calculation
  */

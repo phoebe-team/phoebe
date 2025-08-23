@@ -4,7 +4,7 @@ As explained in the theory section about the electron-phonon coupling with Wanni
 
 @section fcode Fortran code
 
-The code is modified on a separate git repository available [at this link](https://github.com/mir-group/phoebe-quantum-espresso/).
+The code is modified on a separate git repository available [at this link](https://github.com/phoebe-team/phoebe-quantum-espresso/).
 This repository is a fork from the official QE repository.
 To develop a new patch or update it to the latest QE version, remember to pull from the remote quantum espresso repository.
 Currently we have patched QE versions 6.6, 6.7, 7.0 and 7.3 version, although we will continue to update this. These exist on separate branches of the above repo. 

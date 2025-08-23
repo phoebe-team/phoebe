@@ -32,15 +32,19 @@ public:
   static const int gaussian = 0;
   static const int adaptiveGaussian = 1;
   static const int tetrahedron = 2;
+  static const int symAdaptiveGaussian = 3;
 
   /** Method for obtaining a smearing value (approximating \delta).
    * @param energy: the energy difference of the dirac delta
-   * @param velocity optional: a vector of velocity (used for adaptive
-   * smearing schemes).
+   * @param velocity optional: a vector of velocity (used for adaptive smearing schemes).
+   * @param velocity optional: a vector of velocity (used for sym adaptive smearing scheme).
+   * @param velocity optional: a vector of velocity (used for sym adaptive smearing scheme).
    */
   virtual double
   getSmearing(const double &energy,
-              const Eigen::Vector3d &velocity = Eigen::Vector3d::Zero()) = 0;
+              const Eigen::Vector3d &velocity = Eigen::Vector3d::Zero(),
+              const Eigen::Vector3d &velocity2 = Eigen::Vector3d::Zero(),
+              const Eigen::Vector3d &velocity3 = Eigen::Vector3d::Zero()) = 0;
 
   /** Method for obtaining a smearing value (approximating \delta).
    * Overloads the previous one, and is used by the tetrahedron method.
@@ -67,16 +71,19 @@ public:
   /** Constructor of the gaussian smearing scheme.
    * @param context: object with user input.
    */
-  explicit GaussianDeltaFunction(Context &context); // context to get amplitude
+  explicit GaussianDeltaFunction(BaseBandStructure& bandStructure,Context &context); // context to get amplitude
 
   /** Method to obtain the value of smearing.
    * @param energy: the energy difference.
    * @param[optional] velocity: ignored parameter.
+   * @param[optional] velocity: ignored parameter.
+   * @param[optional] velocity: ignored parameter.
    * @return smearing: the approximation to the dirac-delta.
    */
-  double
-  getSmearing(const double &energy,
-              const Eigen::Vector3d &velocity = Eigen::Vector3d::Zero()) override;
+  double getSmearing(const double &energy,
+              const Eigen::Vector3d &velocity = Eigen::Vector3d::Zero(),
+              const Eigen::Vector3d &velocity2 = Eigen::Vector3d::Zero(),
+              const Eigen::Vector3d &velocity3 = Eigen::Vector3d::Zero()) override;
 
   /** phantom method that should not be used. Will throw an error.
    */
@@ -103,19 +110,23 @@ public:
    * @param bandStructure: mainly to see what mesh of points and crystal is
    * being used, and to prepare a suitable scaling of velocities.
    */
-  explicit AdaptiveGaussianDeltaFunction(BaseBandStructure &bandStructure,
+  explicit AdaptiveGaussianDeltaFunction(BaseBandStructure &bandStructure, Context& context,
                                          double broadeningCutoff_=0.0001 / energyRyToEv);
 
   /** Method to obtain the value of smearing.
    * @param energy: the energy difference.
    * @param velocity; the velocity (difference) of the quasi-particles.
+   * @param[optional] velocity: ignored parameter used by sym adaptive.
+   * @param[optional] velocity: ignored parameter used by sym adaptive.
    * @return smearing: the approximation to the dirac-delta
    */
   double
   getSmearing(const double &energy,
-              const Eigen::Vector3d &velocity = Eigen::Vector3d::Zero()) override;
+              const Eigen::Vector3d &velocity = Eigen::Vector3d::Zero(),
+              const Eigen::Vector3d &velocity2 = Eigen::Vector3d::Zero(),
+              const Eigen::Vector3d &velocity3 = Eigen::Vector3d::Zero()) override;
 
-  /** phantom method that should not be used. Will throw an error.
+  /** Phantom method that should not be used. Will throw an error.
    */
   double getSmearing(const double &energy, StateIndex &is)  override;
 
@@ -135,6 +146,15 @@ protected:
   // since we truncate the smearing above 2sigma, we use erf to correct
   // results
   const double erf2 = 0.9953222650189527;
+
+  // choose a = 2 (though this is overwritten if adaptivePrefactor is set in input)
+  // which seems to remove negative el relaxons eigenvalues at low T
+  // looking at eq 33 and 34 here,
+  // https://journals.aps.org/prb/pdf/10.1103/PhysRevB.75.195121
+  // Apparently expect good good results for 0.8 < a < 1.3
+  double adaptivePrefactor = sqrt(1. / 6.);
+  bool isPhonon;
+
 };
 
 /** Class for approximating the Delta function with the tetrahedron method
@@ -182,7 +202,9 @@ public:
    */
   double
   getSmearing(const double &energy,
-              const Eigen::Vector3d &velocity = Eigen::Vector3d::Zero()) override;
+              const Eigen::Vector3d &velocity = Eigen::Vector3d::Zero(),
+              const Eigen::Vector3d &velocity2 = Eigen::Vector3d::Zero(),
+              const Eigen::Vector3d &velocity3 = Eigen::Vector3d::Zero()) override;
 
 protected:
   BaseBandStructure &fullBandStructure;
@@ -190,6 +212,37 @@ protected:
   int id = DeltaFunction::tetrahedron;
   Eigen::MatrixXd subCellShift;
   Eigen::MatrixXi vertices;
+};
+
+/** Adaptive smearing scheme which should respect symmetry of the scattering matrix.
+ * Uses the state group velocities to adjust the width of a gaussian approx to the dirac-delta.
+ * See Ref doi: 10.1103/PhysRevB.75.195121 (for regular adaptive smearing)
+ * and 3.3.1 of Ref https://doi.org/10.1016/j.cpc.2022.108504 for this updated version
+ */
+class SymAdaptiveGaussianDeltaFunction : public AdaptiveGaussianDeltaFunction {
+public:
+  /** Constructor of the sym adaptive gaussian smearing scheme.
+   * @param bandStructure: mainly to see what mesh of points and crystal is
+   * being used, and to prepare a suitable scaling of velocities.
+   */
+  explicit SymAdaptiveGaussianDeltaFunction(BaseBandStructure &bandStructure, Context& context,
+                                         double broadeningCutoff_=0.0001 / energyRyToEv);
+
+  /** Method to obtain the value of smearing.
+   * @param energy: the energy difference.
+   * @param velocity; the velocity of quasiparticle state 1
+   * @param velocity; the velocity of quasiparticle state 2
+   * @param velocity; the velocity of quasiparticle state 3
+   * @return smearing: the approximation to the dirac-delta
+   */
+  double getSmearing(const double &energy,
+              const Eigen::Vector3d &velocity = Eigen::Vector3d::Zero(),
+              const Eigen::Vector3d &velocity2 = Eigen::Vector3d::Zero(),
+              const Eigen::Vector3d &velocity3 = Eigen::Vector3d::Zero()) override;
+
+protected:
+  // Most of this object is inherited from parent adaptive gaussian
+  // We set id in the constructor, as we cannot here override an inherited class member
 };
 
 #endif

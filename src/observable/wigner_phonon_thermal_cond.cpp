@@ -38,6 +38,10 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
                   temperature / 2.;
   }
 
+  // we use reciprocal here to avoid a div by zero in the case of a 
+  // zero linewidth -- reciprocal handles this nicely 
+  VectorBTE gamma = smaRelTimes.reciprocal(); 
+
   for (int iq : bandStructure.parallelIrrPointsIterator()) {
     WavevectorIndex iqIdx(iq);
 
@@ -55,7 +59,7 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
         // exclude acoustic phonons, cutoff at 0.1 cm^-1
         // setting this to zero here causes acoustic ph
         // contribution below to evaluate to zero
-        if (energies(ib1) < 0.1 / ryToCmm1) {
+        if (energies(ib1) < phEnergyCutoff) {
           bose(iCalc, ib1) = 0.0;
         }
       }
@@ -93,25 +97,28 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
           auto is2Idx = StateIndex(is2);
           int iBte1 = bandStructure.stateToBte(is1Idx).get();
           int iBte2 = bandStructure.stateToBte(is2Idx).get();
-
+                      
           for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+            
+            double gamma1 = gamma(iCalc, 0, iBte1); 
+            double gamma2 = gamma(iCalc, 0, iBte2);             
+            
             for (int ic1 = 0; ic1 < dimensionality; ic1++) {
               for (int ic2 = 0; ic2 < dimensionality; ic2++) {
-
+                               
                 double num =
                     energies(ib1) * bose(iCalc, ib1) * (bose(iCalc, ib1) + 1.) +
                     energies(ib2) * bose(iCalc, ib2) * (bose(iCalc, ib2) + 1.);
                 double vel =
                     (velRot(ib1, ib2, ic1) * velRot(ib2, ib1, ic2)).real();
+                    
                 double den = 4. * pow(energies(ib1) - energies(ib2), 2) +
-                             pow(1. / smaRelTimes(iCalc, 0, iBte1) +
-                                     1. / smaRelTimes(iCalc, 0, iBte2),
-                                 2);
+                             pow(gamma1 + gamma2, 2);
 
+                if(den < 1e-8) continue; // this will produce a nan
                 wignerCorrection(iCalc, ic1, ic2) +=
                     (energies(ib1) + energies(ib2)) * vel * num / den *
-                    (1. / smaRelTimes(iCalc, 0, iBte1) +
-                     1. / smaRelTimes(iCalc, 0, iBte2)) *
+                    (gamma1 + gamma2) *
                     norm(iCalc);
               }
             }
@@ -121,23 +128,6 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
     }
   }
   mpi->allReduceSum(&wignerCorrection);
-}
-
-// copy constructor
-WignerPhononThermalConductivity::WignerPhononThermalConductivity(
-    const WignerPhononThermalConductivity &that)
-    : PhononThermalConductivity(that), smaRelTimes(that.smaRelTimes),
-      wignerCorrection(that.wignerCorrection) {}
-
-// copy assignment
-WignerPhononThermalConductivity &WignerPhononThermalConductivity::operator=(
-    const WignerPhononThermalConductivity &that) {
-  PhononThermalConductivity::operator=(that);
-  if (this != &that) {
-    smaRelTimes = that.smaRelTimes;
-    wignerCorrection = that.wignerCorrection;
-  }
-  return *this;
 }
 
 void WignerPhononThermalConductivity::calcFromPopulation(VectorBTE &n) {

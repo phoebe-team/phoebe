@@ -19,8 +19,14 @@ TEST(IrrPointsTest, Symmetries) {
   Context context;
   context.setUseSymmetries(true);
 
+  // no born charges for the test
+  Eigen::Tensor<double, 3> bornCharges(2, 3, 3);
+  bornCharges.setZero();
+  Eigen::Matrix3d dielectricMatrix;
+  dielectricMatrix.setZero();
+
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses);
+                  speciesNames, speciesMasses, bornCharges, dielectricMatrix);
 
   ASSERT_EQ(crystal.getNumSymmetries(), 48);
 
@@ -113,11 +119,17 @@ TEST(IrrPointsTest, SymmetriesGaN) {
   speciesMasses(0) = 69.723;
   speciesMasses(1) = 14.0067;
 
+  // no born charges for the test
+  Eigen::Tensor<double, 3> bornCharges(4, 3, 3);
+  bornCharges.setZero();
+  Eigen::Matrix3d dielectricMatrix;
+  dielectricMatrix.setZero();
+
   Context context;
   context.setUseSymmetries(true);
 
   Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
-                  speciesNames, speciesMasses);
+                  speciesNames, speciesMasses, bornCharges, dielectricMatrix);
 
   ASSERT_EQ(crystal.getNumSymmetries(), 12);
 

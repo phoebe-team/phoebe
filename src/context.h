@@ -21,6 +21,7 @@ class Context {
 
   std::string electronH0Name;
   std::string wannier90Prefix;
+  std::string jdftxScfOutFile;
   std::string quantumEspressoPrefix;
   std::string elPhInterpolation;
 
@@ -28,6 +29,10 @@ class Context {
   std::string sumRuleFC2;
   int smearingMethod = -1;
   double smearingWidth = std::numeric_limits<double>::quiet_NaN();
+  double elSmearingWidth = std::numeric_limits<double>::quiet_NaN();
+  double phSmearingWidth = std::numeric_limits<double>::quiet_NaN();
+  //double dragSmearingWidth = std::numeric_limits<double>::quiet_NaN();
+  double adaptiveSmearingPrefactor = std::numeric_limits<double>::quiet_NaN();
   Eigen::VectorXd temperatures;
   std::vector<std::string> solverBTE;
   double convergenceThresholdBTE = 1e-2;
@@ -35,6 +40,7 @@ class Context {
 
   bool scatteringMatrixInMemory = true;
   bool useSymmetries = false;
+  bool symmetrizeBandStructure = false;
 
   std::string windowType = "nothing";
   Eigen::Vector2d windowEnergyLimit = Eigen::Vector2d::Zero();
@@ -50,6 +56,7 @@ class Context {
   double fermiLevel = std::numeric_limits<double>::quiet_NaN();
   double numOccupiedStates = std::numeric_limits<double>::quiet_NaN();
   bool hasSpinOrbit = false;
+  double spinDegeneracyFactor = 2.; 
 
   int dimensionality = 3;
   double thickness = 1.; // material thickness or cross area for lower dimensions
@@ -75,6 +82,10 @@ class Context {
   // for custom masses and custom isotope scattering
   Eigen::VectorXd customIsotopeCouplings;
   Eigen::VectorXd customMasses;
+
+  // the C coefficient as in the ee self energy for a Fermi liquid
+  // will be internally stored in 1/Ry
+  double eeFermiLiquidCoefficient = 0; 
 
   // add RTA boundary scattering in scattering matrix
   double boundaryLength = std::numeric_limits<double>::quiet_NaN();
@@ -118,16 +129,29 @@ class Context {
   // currently only support parallelization of the qe2Phoebe app
 
   // if true, enforce the symmetrization of the scattering matrix
-  bool symmetrizeMatrix = true;
+  bool symmetrizeMatrix = false;
+  // if true, and symmetrize matrix = false,
+  // only compute the upper triangle of the matrix
+  bool useUpperTriangle = false;
 
   // number of eigenvalues to use the in the relaxons solver
   int numRelaxonsEigenvalues = 0;
   // toggle the check for negative relaxons eigenvalues in few eigenvalues case
   bool checkNegativeRelaxons = true;
+  // toggle the enforcement of the matrix being positive semidefinite
+  bool enforcePositiveSemiDefinite = false;
+
+  // for coupled transport
+  bool useDragTerms = true;
+  bool reconstructLinewidths = false;
 
   int hdf5ElphFileFormat = 1;
   std::string wsVecFileName;
+
 public:
+
+  // Setter and getter for all the variables above ----------------
+
   // Methods for the apps of plotting the electron-phonon coupling
   std::string getG2PlotStyle();
   void setG2PlotStyle(const std::string &x);
@@ -146,8 +170,6 @@ public:
 
   std::pair<int,int> getG2PlotPhBands();
   void setG2PlotPhBands(const std::pair<int,int> &x);
-
-  //  Setter and getter for all the variables above
 
   /** gets the name of the file containing the lattice force constants.
    * For Quantum Espresso, this is the path to the file produced by q2r.
@@ -169,8 +191,13 @@ public:
 
   std::string getWannier90Prefix();
   void setWannier90Prefix(const std::string &x);
+
   std::string getQuantumEspressoPrefix();
   void setQuantumEspressoPrefix(const std::string &x);
+
+  std::string getJDFTxScfOutFile();
+  void setJDFTxScfOutFile(const std::string &x);
+
   std::string getElPhInterpolation();
 
   double getEpaSmearingEnergy() const;
@@ -213,6 +240,15 @@ public:
    * @return path: an array with 3 integers representing the k-point mesh.
    */
   Eigen::Vector3i getKMesh();
+
+  /** getter for the kMesh used to sample the fermi surface
+  * in phEl scattering calculation
+  * @return mesh: the Kmesh used in phEl scattering calculation */
+  Eigen::Vector3i getKMeshPhEl();
+  /** setter for the kMesh used to sample the fermi surface
+  * in phEl scattering calculation
+  * @param kmesh: the Kmesh used in phEl scattering calculation */
+  void setKMeshPhEl(Eigen::Vector3i newKMeshPhEl);
 
   /** gets the Window type to be used to filter out states that don't
    * contribute to transport.
@@ -305,10 +341,25 @@ public:
   bool getHasSpinOrbit() const;
   void setHasSpinOrbit(const bool &x);
 
+  double getSpinDegeneracyFactor() const;
+  void setSpinDegeneracyFactor(const double &x);
+
   int getSmearingMethod() const;
 
   double getSmearingWidth() const;
   void setSmearingWidth(const double &x);
+
+  double getElSmearingWidth() const;
+  void setElSmearingWidth(const double &x);
+
+  double getPhSmearingWidth() const;
+  void setPhSmearingWidth(const double &x);
+
+  //double getDragSmearingWidth() const;
+  //void setDragSmearingWidth(const double &x);
+
+  double getAdaptiveSmearingPrefactor() const;
+  void setAdaptiveSmearingPrefactor(const double &x);
 
   double getConstantRelaxationTime() const;
 
@@ -317,12 +368,15 @@ public:
 
   bool getUseSymmetries() const;
   void setUseSymmetries(const bool &x);
+  bool getSymmetrizeBandStructure() const;
+  void setSymmetrizeBandStructure(const bool &x);
 
   bool getWithIsotopeScattering() const;
 
   Eigen::VectorXd getMasses();
   Eigen::VectorXd getIsotopeCouplings();
 
+  double getEeFermiLiquidCoefficient() const; 
   double getBoundaryLength() const;
 
   // EPA:
@@ -348,7 +402,7 @@ public:
   void printInputSummary(const std::string &fileName);
 
   /** Sanity checks the input variables to make sure they agree.
-   * TODO: This function should be replaced with a better system in the future. 
+   * TODO: This function should be replaced with a better system in the future.
   */
   void inputSanityCheck();
 
@@ -358,19 +412,34 @@ public:
   bool getDistributedElPhCoupling() const;
   void setDistributedElPhCoupling(const bool &x);
 
-  bool getSymmetrizeMatrix() const;
-  void setSymmetrizeMatrix(const bool &x);
-
-  int getNumRelaxonsEigenvalues() const;
-  void setNumRelaxonsEigenvalues(const int &x);
-
-  bool getCheckNegativeRelaxons() const;
-
   int getHdf5ElPhFileFormat() const;
   void setHdf5ElPhFileFormat(const int &x);
 
   std::string getWsVecFileName() const;
   void setWsVecFileName(const std::string& x);
+
+  bool getUseDragTerms() const;
+  void setUseDragTerms(const bool &x);
+  bool getReconstructLinewidths() const;
+  void setReconstructLinewidths(const bool &x);
+
+  // relaxons variables
+
+  bool getSymmetrizeMatrix() const;
+  void setSymmetrizeMatrix(const bool &x);
+
+  bool getUseUpperTriangle() const;
+  void setUseUpperTriangle(const bool &x);
+
+  int getNumRelaxonsEigenvalues() const;
+  void setNumRelaxonsEigenvalues(const int &x);
+
+  bool getCheckNegativeRelaxons() const;
+  bool setCheckNegativeRelaxons() const;
+
+  bool getEnforcePositiveSemiDefinite() const;
+  void setEnforcePositiveSemiDefinite(const bool &x);
+
 };
 
 #endif

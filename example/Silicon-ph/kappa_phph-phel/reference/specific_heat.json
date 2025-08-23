@@ -1,0 +1,11 @@
+{
+   "particleType": "phonon",
+   "specificHeat": [
+      1324412.625550352
+   ],
+   "specificHeatUnit": "J / K / m^3",
+   "temperatureUnit": "K",
+   "temperatures": [
+      200.0
+   ]
+}

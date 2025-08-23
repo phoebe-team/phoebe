@@ -6,31 +6,37 @@
 #include <iomanip>
 
 HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
-                               BaseBandStructure &outerBandStructure_,
-                               StatisticsSweep &statisticsSweep_,
-                               const int &smearingType_, PhononH0 &h0_, InteractionElPhWan *coupling)
-    : innerBandStructure(innerBandStructure_),
-      outerBandStructure(outerBandStructure_),
-      statisticsSweep(statisticsSweep_),
-      smearingType(smearingType_),
-      h0(h0_), couplingElPhWan(coupling) {
-  // three conditions must be met to avoid recomputing q3
-  // 1 - q1 and q2 mesh must be the same
+                                      BaseBandStructure &outerBandStructure_,
+                                      StatisticsSweep &statisticsSweep_,
+                                      const int &smearingType_, PhononH0 &h0_, 
+                                      InteractionElPhWan &coupling)
+                    : innerBandStructure(innerBandStructure_),
+                      outerBandStructure(outerBandStructure_),
+                      statisticsSweep(statisticsSweep_),
+                      smearingType(smearingType_),
+                      h0(h0_), couplingElPhWan(coupling) {
+
+  // three conditions must be met to avoid recomputing k3
+  // 1 - k1 and k2 mesh must be the same
   // 2 - the mesh is gamma-centered
-  // 3 - the mesh is complete (if q1 and q2 are only around 0, q3 might be
-  //     at the border)
+  // 3 - the mesh is complete (if k1 and k2 are only around 0, k3 might be at the border)
 
   Kokkos::Profiling::pushRegion("HelperElScattering");
 
+  // this mesh is the kmesh
   auto t1 = outerBandStructure.getPoints().getMesh();
-//  auto mesh = std::get<0>(t1);
   auto offset = std::get<1>(t1);
   storedAllQ3 = false;
 
+  // we calculate a new phonon band structure with the same points mesh as the el one
   if (mpi->mpiHead()) {
-    std::cout << "Computing phonon band structure." << std::endl;
+    std::cout << "Computing intermediate state phonon band structure." << std::endl;
   }
 
+  // all initial and final kstates are the same (as in the matrix construction)
+  // and there's no filtering window, so the states are the same
+  // in this case, if we make a bandstructure, all qpoints connecting them
+  // will be stored in the new bandstructure object
   if ((&innerBandStructure == &outerBandStructure) && (offset.norm() == 0.) &&
       innerBandStructure.hasWindow() == 0) {
 
@@ -41,20 +47,18 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     auto mesh2 = std::get<0>(t2);
     auto offset2 = std::get<1>(t2);
 
-    fullPoints3 = std::make_unique<Points>(
-        innerBandStructure.getPoints().getCrystal(), mesh2, offset2);
-    if (mpi->mpiHead()) { // print info on memory
-      double x = h0.getNumBands() * fullPoints3->getNumPoints();
-      x *= sizeof(x) / pow(1024,3);
-      std::cout << std::setprecision(4);
-      std::cout << "Allocating " << x << " GB (per MPI process)." << std::endl;
-    }
-    bool withVelocities = true;
+    fullPoints3 = std::make_unique<Points>(innerBandStructure.getPoints().getCrystal(), mesh2, offset2);
+    bool withVelocities = (smearingType == DeltaFunction::symAdaptiveGaussian); // this is only used with sym adaptive
     bool withEigenvectors = true;
-    FullBandStructure bs = h0.populate(*fullPoints3, withVelocities,
-                                               withEigenvectors);
+    if(mpi->mpiHead()) {
+      std::cout << "Allocating the band structure of intermediate phonon states." << std::endl;
+    }
+    FullBandStructure bs = h0.populate(*fullPoints3, withVelocities, withEigenvectors);
     bandStructure3 = std::make_unique<FullBandStructure>(bs);
 
+  // final and initial state meshes are the same, as for matrix construction,
+  // but now we have a filtering window and it's not assured we will
+  // have every state on each mesh
   } else if ((&innerBandStructure == &outerBandStructure) &&
              (offset.norm() == 0.) && innerBandStructure.hasWindow() != 0) {
 
@@ -146,17 +150,13 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
     ap3.setActiveLayer(filter);
     activePoints3 = std::make_unique<Points>(ap3);
 
-    if (mpi->mpiHead()) {
-      double x = h0.getNumBands() * activePoints3->getNumPoints();
-      x *= sizeof(x) / pow(1024,3);
-      std::cout << std::setprecision(4);
-      std::cout << "Allocating " << x << " GB (per MPI process)." << std::endl;
-    }
-
     // build band structure
     bool withEigenvectors = true;
-    bool withVelocities = true;
+    bool withVelocities = (smearingType == DeltaFunction::symAdaptiveGaussian); // this is only used with sym adaptive
     // note: bandStructure3 stores a copy of ap3: can't pass unique_ptr
+    if(mpi->mpiHead()) {
+      std::cout << "Allocating the band structure of intermediate phonon states." << std::endl;
+    }
     bandStructure3 = std::make_unique<ActiveBandStructure>(
         ap3, &h0, withEigenvectors, withVelocities);
   }
@@ -180,7 +180,7 @@ HelperElScattering::HelperElScattering(BaseBandStructure &innerBandStructure_,
       WavevectorIndex iq3Index(iq3);
       Eigen::Vector3d q3 = bandStructure3->getWavevector(iq3Index);
       auto ev3 = bandStructure3->getEigenvectors(iq3Index);
-      polarData.col(iiq3) = couplingElPhWan->polarCorrectionPart1(q3, ev3);
+      polarData.col(iiq3) = couplingElPhWan.polarCorrectionPart1(q3, ev3);
     }
 
     // gather results from across the MPI processes
@@ -240,7 +240,7 @@ std::tuple<Eigen::Vector3d, Eigen::VectorXd, int, Eigen::MatrixXcd,
     // note: 3rdBandStructure might still be different from inner/outer bs.
     // so, we must use the points from 3rdBandStructure to get the values
 
-    int iq3;
+    size_t iq3;
     if (storedAllQ3Case == storedAllQ3Case1) {  // we use innerBandStructure
       Eigen::Vector3d crystalPoints = fullPoints3->cartesianToCrystal(q3);
       iq3 = fullPoints3->getIndex(crystalPoints);
@@ -253,7 +253,8 @@ std::tuple<Eigen::Vector3d, Eigen::VectorXd, int, Eigen::MatrixXcd,
     Eigen::VectorXd energies3 = bandStructure3->getEnergies(iq3Index);
     Eigen::MatrixXcd eigenVectors3 = bandStructure3->getEigenvectors(iq3Index);
     Eigen::MatrixXd v3s;
-    if (smearingType == DeltaFunction::adaptiveGaussian) {
+    // These later are used by the adaptive schemes
+    if (smearingType == DeltaFunction::symAdaptiveGaussian) {
       v3s = bandStructure3->getGroupVelocities(iq3Index);
     }
     int nb3 = int(energies3.size());
@@ -290,18 +291,24 @@ std::tuple<Eigen::Vector3d, Eigen::VectorXd, int, Eigen::MatrixXcd,
 void HelperElScattering::prepare(const Eigen::Vector3d &k1,
                                  const std::vector<int>& k2Indexes) {
   if (!storedAllQ3) {
+
     int numPoints = int(k2Indexes.size());
-    cacheEnergies.resize(numPoints);
-    cacheEigenVectors.resize(numPoints);
-    cacheBose.resize(numPoints);
-    cachePolarData.resize(numPoints);
-    cacheVelocity.resize(numPoints);
-    cacheOffset = k2Indexes[0];
+    try {
+      cacheEnergies.resize(numPoints);
+      cacheEigenVectors.resize(numPoints);
+      cacheBose.resize(numPoints);
+      cachePolarData.resize(numPoints);
+      cacheVelocity.resize(numPoints);
+      cacheOffset = k2Indexes[0];
+    } catch(std::bad_alloc& e) {
+      Error("Out of memory trying to allocate intermediate el state properties.");
+    }
 
     Particle particle = h0.getParticle();
 
     int ik2Counter = -1;
     for (int ik2 : k2Indexes) {
+
       ik2Counter++;
       auto ik2Idx = WavevectorIndex(ik2);
       Eigen::Vector3d k2 = innerBandStructure.getWavevector(ik2Idx);
@@ -326,7 +333,7 @@ void HelperElScattering::prepare(const Eigen::Vector3d &k1,
 
       Eigen::MatrixXd v3s(nb3, 3);
       v3s.setZero();
-      if (smearingType == DeltaFunction::adaptiveGaussian) {
+      if (smearingType == DeltaFunction::adaptiveGaussian || smearingType == DeltaFunction::symAdaptiveGaussian) {
         Eigen::Tensor<std::complex<double>, 3> v3sTmp =
             h0.diagonalizeVelocityFromCoordinates(q3);
 
@@ -339,7 +346,7 @@ void HelperElScattering::prepare(const Eigen::Vector3d &k1,
         }
       }
 
-      Eigen::VectorXcd polarData = couplingElPhWan->polarCorrectionPart1(q3, eigenVectors3);
+      Eigen::VectorXcd polarData = couplingElPhWan.polarCorrectionPart1(q3, eigenVectors3);
 
       cacheEnergies[ik2Counter] = energies3;
       cacheEigenVectors[ik2Counter] = eigenVectors3;

@@ -5,23 +5,23 @@ Electron BTE
 Introduction to the BTE
 -------------------------------
 
-Let :math:`f_{\lambda}` be the out-of-equilibrium electron occupation number, where :math:`\nu = (\boldsymbol{k},b)` labels both electronic wavevectors and band index (i.e. the single-particle Bloch numbers).
-First, we rewrite the occupation number as:
+Let :math:`f_{\lambda}` be the out-of-equilibrium electron occupation number, where :math:`\lambda = (\boldsymbol{k},b)` labels both electronic wavevectors and band index.
+To set up the electron BTE, we expand the electron occupations to first order,
 
 .. math::
    f_{\lambda} = \bar{f}_{\lambda} + \delta f_{\lambda}
 
-where :math:`\bar{f}_{\lambda}` is the Fermi--Dirac distribution function and we introduced :math:`\delta f_{\lambda}` as the canonical distribution function.
+where :math:`\bar{f}_{\lambda}` is the Fermi--Dirac distribution function and we introduced :math:`\delta f_{\lambda}` is a small out-of-equilibrium population of electrons due to the presence of a field.
 
-Following a process similar to what was done in phonon BTE section, the linearized electronic BTE for a system exposed to an applied electric field and thermal gradient can be written as,
+The linearized electronic BTE for a system exposed to an applied electric field and thermal gradient can then be written,
 
 .. math::
    e \boldsymbol{v}_{\lambda} \cdot \boldsymbol{E} \frac{\partial \bar{f}_{\lambda}}{\partial \epsilon} + \boldsymbol{v}_{\lambda} \cdot \boldsymbol{\nabla} T \frac{\partial \bar{f}_{\lambda}}{\partial T} =
      - \sum_{\lambda'} \Omega_{\lambda\lambda'} \delta f_{\lambda'}
 
-where the first term describes the diffusion due to an externally applied electric field :math:`\boldsymbol{E}`, the second  the diffusion due to a temperature gradient, and the third term is the linearized scattering operator.
+where the first term describes the diffusion due to an externally applied electric field :math:`\boldsymbol{E}`, the second the diffusion due to a temperature gradient, and the third term is the linearized scattering operator.
 
-The electron scattering matrix :math:`\Omega_{\lambda,\lambda'}` can be computed as
+The electron scattering matrix :math:`\Omega_{\lambda,\lambda'}` can be computed as,
 
 .. math::
    \Omega_{\boldsymbol{k}b,\boldsymbol{k}'b'} =&
@@ -54,21 +54,12 @@ with
    \bigg]
    \delta(\boldsymbol{k}-\boldsymbol{k}'+\boldsymbol{q}). 
    
-This scattering matrix requires us to know the phonon and electron energies, as well as the electron-phonon coupling on a fine (interpolated) mesh.
+where :math:`\bar{n}` is the Bose--Einstein distribution function for phonons with wavevector, mode index :math:`\boldsymbol{q}\nu` and energy :math:`\omega_{\boldsymbol{q}\nu}`.
+This scattering matrix requires us to know the phonon and electron energies, as well as the electron-phonon coupling, :math:`g(\boldsymbol{k},\boldsymbol{k+q})`, on a fine (interpolated) mesh, as discussed in :ref:`theoryElphWannier`.
 
-Please note that, for convenience, here we use a coupling defined as
+The Kronecker delta function on momentum is enforces exactly, while the Dirac delta for conservation of energy is instead approximated with methods as described in the section :ref:`delta_fns`.
 
-.. math::
-   g_{bb'\nu}(\boldsymbol{k},\boldsymbol{k}')
-   =
-   g_{b'b\nu}(\boldsymbol{k},\boldsymbol{q})
-
-where the latter can be interpolated as described above.
-
-The Dirac delta function conserving momentum is enforced exactly, since we are using points on a uniform grid centered at gamma.
-The Dirac delta conserving energy is instead with a Gaussian function, as described in the section :ref:`delta_fns`.
-
-Since the scattering matrix :math:`\Omega_{\lambda,\lambda'}` is not symmetric, we instead perform the transformation:
+Since the scattering matrix :math:`\Omega_{\lambda,\lambda'}` is not inherently symmetric, we perform the transformation, 
 
 .. math::
    \tilde{\Omega}_{\lambda \lambda'}
@@ -163,9 +154,9 @@ From this, the electrical conductivity :math:`\sigma`, the thermal conductivity 
    S = - L_{EE}^{-1} L_{ET}
 
 .. math::
-   \mu = \frac{\sigma}{d}
+   \mu = \frac{\sigma}{n}
 
-where :math:`d` is the carriers' doping concentration.
+where :math:`n` is the carrier concentration.
 
 
 Solutions of the electron BTE
@@ -173,20 +164,19 @@ Solutions of the electron BTE
 
 Largely, these solvers follow the equivalent section in the phonon BTE section, where they may be described in more detail. For further details and references on any specific solver, we suggest you visit the equivalent phonon sections, as well. Here, we again establish methods of finding the solution vector to the BTE, :math:`f`, but in this case, we have two: :math:`f^T` and :math:`f^E`, for each field. 
 
-
 RTA Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-At this simple level of theory, we define the electron lifetime as:
+The relaxation time approximation (RTA) approximates the scattering matrix to be diagonal, 
 
 .. math::
-   A_{ \boldsymbol{k}b,\boldsymbol{k}b } = \frac{1}{ \tau_{\boldsymbol{k}b} }
+   A_{ \boldsymbol{k}b,\boldsymbol{k}b } \approx \frac{1}{ \tau_{\boldsymbol{k}b} }
 
-Next, we approximate the scattering matrix as diagonal, so that the BTE becomes:
+which results in a trivial solution to the Boltzmann transport equation, 
 
 .. math::
    e \boldsymbol{v}_{\lambda} \cdot \boldsymbol{E} \frac{\partial \bar{f}_{\lambda}}{\partial \epsilon} + \boldsymbol{v}_{\lambda} \cdot \boldsymbol{\nabla} T \frac{\partial \bar{f}_{\lambda}}{\partial T} =
-     - \frac{1}{ \tau_{\lambda} } \delta f_{\lambda}
+     - \frac{1}{ \tau_{\lambda} } \delta f_{\lambda}.
 
 Solving separately for the response to the electric field and the thermal gradient, we find,
 
@@ -196,17 +186,37 @@ Solving separately for the response to the electric field and the thermal gradie
 .. math::
    \delta^i f^T_{\lambda} = - v^i_{\lambda} \frac{(\epsilon_{\lambda}-\mu)\bar{f}_{\lambda}(1-\bar{f}_{\lambda})}{k_B T^2} \tau_{\lambda}
 
+MRTA Solution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+Like the RTA, the momentum relaxation time approximation (MRTA) considers the scattering matrix to be diagonal. 
+However, in the case of the MRTA, we calculate the transport coefficients using only processes which degrade the electrical current. 
+This is accounted for using an additional term in the calculation of the relaxation times, for example, in the electron-phonon case, 
 
+.. math::
+   \frac{1}{\tau^{\mathrm{MRTA}}_{kb}} =&
+   \frac{2\pi}{N_k\hbar} \sum_{b'\boldsymbol{k}',\nu \boldsymbol{q}}
+   |g_{bb'\nu}(\boldsymbol{k},\boldsymbol{k}')|^2
+   \times
+   \bigg[
+   (1-\bar{f}_{\boldsymbol{k}'b'} + \bar{n}_{\boldsymbol{q}\nu})
+   \delta(\epsilon_{\boldsymbol{k}b} - \epsilon_{\boldsymbol{k}'b'} - \hbar \omega_{\boldsymbol{q}\nu}) \\ 
+   &+
+   (\bar{f}_{\boldsymbol{k}'b'} + \bar{n}_{\boldsymbol{q}\nu})
+   \delta(\epsilon_{\boldsymbol{k}b} - \epsilon_{\boldsymbol{k}'b'} + \hbar \omega_{\boldsymbol{q}\nu})
+   \bigg] \bigg(1 - \frac{v_{\boldsymbol{k}b}\cdot v_{\boldsymbol{k}'b'}}{|v_{\boldsymbol{k}b}||v_{\boldsymbol{k}'b'}|} \bigg)
+   \delta(\boldsymbol{k}-\boldsymbol{k}'+\boldsymbol{q}). 
 
-Iterative solution: Omini-Sparavigna method
+where the term :math:`1 - \frac{v_{\boldsymbol{k}b}\cdot v_{\boldsymbol{k}'b'}}{|v_{\boldsymbol{k}b}||v_{\boldsymbol{k}'b'}|}= 1 - cos\theta`, where theta is the scattering angle. 
+This solution therefore effectively only counts the contributions of electrons which undergo backscattering processes. 
+
+Iterative solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. note::
-   Generally, we recommend the variational method over this.
+   Generally, we recommend the variational method over this for numerical stability. However, the iterative solution allows us to use symmetries as in `Chaput, PRL (2013). <https://doi.org/10.1103/PhysRevLett.110.265506>`_, which can decrease cost.  
 
-This is an adaptation of the Omini-Sparavigna method to electrons. To better understand this method, please have a look first at the counterpart phonon section. 
-
+To better understand this method, please have a look first at the counterpart iterative solution in the phonon documentation. 
 In short, the electron BTE consists in two linear algebra problems:
 
 .. math::
@@ -237,9 +247,9 @@ and
 where :math:`K` is an iteration index, :math:`A^{in}` is the off-diagonal part of the scattering matrix, and :math:`A^{out}` is the diagonal part of the scattering matrix.
 In the code, the two problems are solved together, as we compute the action on the two different vectors at the same time.
 
-Note that, like any geometric series, this algorithm may not converge.
+Note that, like any geometric series, this algorithm may not converge. 
 
-Iterative solution: Variational method
+Iterative solution: Variational/Conjugate Gradient Method
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Again, this solver is very similar to the phonon case (and we recommend you read more there as well).
@@ -265,18 +275,14 @@ where
 .. math::
    \mathcal{E}(\delta f^E) = \frac{1}{2} \sum_{\lambda \lambda'} {\delta f^E_{\lambda}} \cdot{\boldsymbol A_{\lambda\lambda'}} {\delta f^E_{\lambda'}} - \sum_{\lambda} {\boldsymbol m_{\lambda}} \cdot {\delta f^E_{\lambda}}
 
-
 These two functionals are the minimization targets of a conjugate gradient method.
 Knowing this, the variational method is exactly the same as the phonon case, with the proper substitution of the vector `b` with either :math:`m` or :math:`n`.
 
-As in the case of the Omini-Sparavigna method, we solve the two equations (response to electric field and thermal gradient) at the same time, as it allows us to minimize the number of times the scattering matrix is evaluated (the most expensive step).
+As in the case of the simple iterative method, we solve the two equations (response to electric field and thermal gradient) at the same time, as it allows us to minimize the number of times the scattering matrix is evaluated (the most expensive step).
 
-
-
-Relaxons solution
+Relaxons Method (Direct Diagonalization) 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-As for the phonon case, in this scheme, we use an algebraic solution to the BTE, solving the equation in the eigenvector basis.
 We first diagonalize the scattering matrix,
 
 .. math::
@@ -304,8 +310,7 @@ Wigner correction to the electron BTE
 ---------------------------------------
 
 The theory developments for the Wigner corrections to the electron BTE are described in `Materials Today Physics 19, 100412 (2021). <10.1016/j.mtphys.2021.100412>`_
-
-The Wigner transport equation is
+The Wigner transport equation is, 
 
 .. math::
    \frac{\partial f_{bb'}(\boldsymbol{x},\boldsymbol{k},t)}{\partial t}

@@ -129,4 +129,11 @@ std::vector<Vector> splitVector(const Vector& v, unsigned chunkSize) {
 double findMaxRelativeDifference(const Eigen::Tensor<double,3> &x,
                                  const Eigen::Tensor<double,3> &xRef);
 
+/** Function to split a string into tokens 
+ * @param s : the string to be split
+ * @param delimiter: the character by which to split the string 
+ */
+std::vector<std::string> split(const std::string &s, char delimiter);
+
 #endif
+

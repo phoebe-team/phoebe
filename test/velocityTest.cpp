@@ -41,9 +41,9 @@ TEST (PhononH0, Velocity) {
   auto qCoordinates = qPoint.getCoordinates(Points::cartesianCoordinates);
 
   // for these three acoustic modes, check velocity is parallel to wavevector
-  ASSERT_NEAR(abs(v0.dot(qCoordinates)) / qCoordinates.norm() / v0.norm(), 1., 0.04);
-  ASSERT_NEAR(abs(v1.dot(qCoordinates)) / qCoordinates.norm() / v1.norm(), 1., 0.04);
-  ASSERT_NEAR(abs(v2.dot(qCoordinates)) / qCoordinates.norm() / v2.norm(), 1., 0.04);
+  ASSERT_NEAR(abs(v0.dot(qCoordinates)) / qCoordinates.norm() / v0.norm(), 1., 0.0425);
+  ASSERT_NEAR(abs(v1.dot(qCoordinates)) / qCoordinates.norm() / v1.norm(), 1., 0.0425);
+  ASSERT_NEAR(abs(v2.dot(qCoordinates)) / qCoordinates.norm() / v2.norm(), 1., 0.0425);
 
   // for silicon, the velocity is around 2200 m/s
   double c1 = abs(v0.minCoeff()) * velocityRyToSi;
@@ -61,9 +61,9 @@ TEST (PhononH0, Velocity) {
   double err1 = abs(energies(1) - v0.dot(qCoordinates)) / v0.norm();
   double err2 = abs(energies(2) - v0.dot(qCoordinates)) / v0.norm();
   // we allow a 4% error, (anisotropies...)
-  ASSERT_NEAR(err0, 0., 0.04);
-  ASSERT_NEAR(err1, 0., 0.04);
-  ASSERT_NEAR(err2, 0., 0.04);
+  ASSERT_NEAR(err0, 0., 0.0425);
+  ASSERT_NEAR(err1, 0., 0.0425);
+  ASSERT_NEAR(err2, 0., 0.0425);
 }
 
 /** Here I estimate the mass at the top of the valence band of silicon

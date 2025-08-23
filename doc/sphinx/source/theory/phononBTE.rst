@@ -120,9 +120,6 @@ where we introduced the isotopic scattering strength  :math:`g^s_2`:. See https:
 
 where :math:`\big< m_s \big>` is the average mass of an atom of species :math:`s`, :math:`m_{is}` is the mass of the isotope :math:`i` of atomic type :math:`s`, and :math:`f_{is}` is the isotopic abundance.
 
-
-
-
 .. raw:: html
 
   <h4>Phonon-boundary scattering</h4>
@@ -134,6 +131,18 @@ In a system of finite size, :math:`P_{q j}^{\mathrm{be}}` describes the reflecti
 
 where :math:`L` is the Casimir length of the sample.
 This boundary scattering is treated in the relaxation time approximation, and it results in a process in which a phonon from a specific state (:math:`\boldsymbol{q} j`) is reemitted from the surface, contributing only to the equilibrium distribution.
+
+.. raw:: html
+
+  <h4>Phonon-electron scattering</h4>
+
+To account for the scattering of phonons by electrons, we calculate the following scattering rate, 
+where :math:`|g_{bb'j}(\boldsymbol{k},\boldsymbol{k}')|^2` are the squared electron-phonon coupling matrix elements between bands :math:`b,b'` for electronic states at wavevectors :math:`k,k'`, and 
+:math:`\bar{f}(\epsilon_{\boldsymbol{k}b})` is a Fermi--Dirac distribution function.
+
+.. math::
+   P_{\boldsymbol{q} j}^{\mathrm{ph-el}} = \sum_{\boldsymbol{k},bb'} |g_{bb'j}(\boldsymbol{k},\boldsymbol{k}')|^2 \bigg[ f(\epsilon_{\boldsymbol{k}b}) - f(\epsilon_{\boldsymbol{k}'b'}) \bigg]  \delta( \epsilon_{\boldsymbol{k}'b'} - \epsilon_{\boldsymbol{k}b} - \hbar \omega_{\boldsymbol{q} j}) \delta(\boldsymbol{k}'-\boldsymbol{k}-\boldsymbol{q}). 
+
 
 Solutions of the phonon BTE
 --------------------------------------

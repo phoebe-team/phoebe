@@ -7,6 +7,7 @@
 #include "elph_qe_to_phoebe_app.h"
 #include "exceptions.h"
 #include "lifetimes_app.h"
+#include "coupled_bte_app.h"
 #include "phonon_transport_app.h"
 #include "transport_epa_app.h"
 #include "ph_el_lifetimes.h"
@@ -28,7 +29,8 @@ std::unique_ptr<App> App::loadApp(const std::string &choice) {
                                             "electronLifetimes",
                                             "phononLifetimes",
                                             "transportEpa",
-                                            "phononElectronLifetimes"};
+                                            "phononElectronLifetimes",
+                                            "coupledTransport"};
 
   // check if the app choice is valid, otherwise we stop.
   if (std::find(choices.begin(), choices.end(), choice) == choices.end()) {
@@ -63,6 +65,8 @@ std::unique_ptr<App> App::loadApp(const std::string &choice) {
     return std::unique_ptr<App>(new PhononLifetimesApp);
   } else if (choice == "phononElectronLifetimes") {
     return std::unique_ptr<App>(new PhElLifetimesApp);
+  } else if (choice == "coupledTransport") {
+    return std::unique_ptr<App>(new CoupledTransportApp);
   } else {
     return std::unique_ptr<App>(nullptr);
   }

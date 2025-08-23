@@ -53,7 +53,10 @@ TEST(InteractionIsotope, Wphisoiq4) {
   WRef.array() /= 32889.83;
 
   context.setSmearingWidth(0.01); // in rydberg
-  GaussianDeltaFunction smearing(context);
+  // create a throwaway bandstructure, just used 
+  // in the constructor of the DeltaFunction object
+  FullBandStructure fbs = phononH0.populate(points, false, false);
+  GaussianDeltaFunction smearing(fbs, context);
 
   // Eigenvector and angular frequencies at iq
   int iq = 4; // = (0.5, 0, 0) in crystal coordinates

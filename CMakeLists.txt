@@ -9,6 +9,11 @@ cmake_minimum_required(VERSION 3.18)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+cmake_policy(SET CMP0135 NEW) # removes a warning related to timestamps
+if(POLICY CMP0144)
+    cmake_policy(SET CMP0144 NEW) # allows case insensitive package variable check
+endif()
+
 project(Phoebe LANGUAGES C CXX Fortran VERSION 1.1.0)
 
 configure_file(src/main.h.in ../src/main.h)

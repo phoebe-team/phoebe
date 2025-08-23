@@ -76,8 +76,11 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
    * PointHelper too assumes that order of loop execution.
    */
   // outer loop over q2
-  for (auto [iq1Indexes,iq2] : qPairIterator) {
+  for ( auto qPair : qPairIterator) {
 
+    // NOTE we need to explicitly unpack this, because we cannot later use them in OMP regions otherwise 
+    auto iq1Indexes = std::get<0>(qPair);
+    auto iq2 = std::get<1>(qPair);
     WavevectorIndex iq2Index(iq2);
 
     Point q2Point = innerBandStructure.getPoint(iq2);
@@ -179,9 +182,11 @@ void addPhPhScattering(BasePhScatteringMatrix &matrix, Context &context,
       }
 
       // calculate batch of couplings
-      auto [couplingPlus_v, couplingMinus_v] = coupling3Ph.getCouplingsSquared(
-          q1_v, q2, ev1_v, ev2, ev3Plus_v, ev3Minus_v,
-          nb1_v, nb2, nb3Plus_v, nb3Minus_v);
+      auto couplings = coupling3Ph.getCouplingsSquared(
+        q1_v, q2, ev1_v, ev2, ev3Plus_v, ev3Minus_v,
+        nb1_v, nb2, nb3Plus_v, nb3Minus_v);
+      auto couplingPlus_v = std::get<0>(couplings);
+      auto  couplingMinus_v = std::get<1>(couplings);
 
 #pragma omp parallel for
       for (int iq1Batch = 0; iq1Batch < batch_size; iq1Batch++) {

@@ -6,13 +6,13 @@ Version 1.1.0
 
 Summary 
 ^^^^^^^^
-A long, long overdue versioning update. Going forward, we will regularly follow semantic versioning.
 Many changes have been made since the original release, which are detailed below and have been added over time. 
 
 **Major changes:**
   * Phonon-electron lifetime predictions (PR #182)
   * Thermal conductivity including a phonon-electron scattering contribution (PR #182)
-  * Major improvements to the cost and quality of relaxons BTE solutions.
+  * Major improvements to the cost and quality of relaxons BTE solutions. (PR #235)
+  * Coupled BTE (PR #235)
 
 **New features:**
   * It is now possible to run phonopy force constants and ShengBte for the anharmonic force constants. (PR #140)
@@ -45,21 +45,7 @@ Many changes have been made since the original release, which are detailed below
   * Viscosity outputs were previously incorrect due to two bugs. (PR #207)
   * Bugfix to isotope and boundary scattering terms. (PR #208)
   * Minor bugfix to scripts for plotting lifetimes, required due to a change in python. (PR #212)
-
-#### Bugfixes
-* Segfault fix in epaTransport app -- QE file parsing failed when used with DFT calculations using smearing (PR #151). 
-* Stability improvements to electronic exact BTE solvers by using the full scattering matrix with symmetrization (PR #152 and #153). 
-* Changes to the git urls used by CMake to download and set up dependencies for the JSON library (PR #159). 
-* Updated phono3py file parser to handle newer phono3py file formats (such as those from the python interface) (PR #162).
-* The cutoff for determining which vectors are in the WS cell (in the wsWeight function of the phononH0 class) was sometimes too strict, and gave zero weight to vectors which were actually in the WS cell. Fixed in (PR #165).
-* Comments behind the # symbol were not always properly ignored (PR #171).
-* Fixed a minor bug in the printing of the band path to JSON -- sometimes earlier, high symmetry points were duplicated in output (PR #171).
-* A bugfix due to the use of non-blocking MPI collective which caused segfaults related to MPI_Ireduce calls in interaction_elph. (PR #194) 
-* When using the trio of inputs deltaChemicalPotential, minChemicalPotential, maxChemicalPotential, the electron Wannier transport app was mistakenly throwing an error saying that the chemical potential had not been set. (PR #197)
-* Switch to a stable branch of the Eigen repository (PR #203).
-* Viscosity outputs were previously incorrect due to two bugs. (PR #207)
-* Bugfix to isotope and boundary scattering terms. (PR #208)
-* Minor bugfix (making an energy cutoff 10x stricter) to account for possible divergence in the phononLifetimes app for generate states. 
+  * Minor bugfix (making an energy cutoff 10x stricter) to account for possible divergence in the phononLifetimes app for generate states. (PR #222)
 
 **Interface changes:**
   * The requirement to use disp_phono3py.yaml with phono3py calculations is deprecated (supplying this file does nothing.) Now, only the ``phonopy_disp.yaml`` and ``fc*.hdf5`` files are required. (PR #140)
@@ -71,16 +57,20 @@ Many changes have been made since the original release, which are detailed below
   * Documentation for building Phoebe on Perlmutter at NERSC. (PR #196)
   * Documentation for building on SLURM based compute clusters. (PR #196)
   * Updated to RTD v2 (PR #209) 
+  * Add CBTE theory docs (PR #235)
 
 **Miscelaneous changes**
-  * c++ std is now set to 17 (PR #196)
+  * C++ std is now set to 17 (PR #196)
   * Kokkos-kernels is now a submodule. (PR #199)
   * In general, there was also added OMP parallelism, loop refactoring, further commenting of functions, typo fixes additional citations, and minor additions to the documentation. 
+  * Migrate to HighFive v3 (PR #233, #234)
+  * C++ std now set to 20 (PR #235)
 
 **Contributors:** 
   * Jenny Coulter (@jcoulter12)
   * Anders Johansson (@anjohan)
   * Andrea Cepellotti (@cepelotti)
+  * Bogdan Rajkov (@BogdanRajkov)
   * Michele Simoncelli (@MSimoncelli)
   * Yu Xie (@YuuuXie)
   * Changpeng Lin (@cplin)

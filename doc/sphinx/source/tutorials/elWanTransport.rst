@@ -25,7 +25,7 @@ From an installation folder of your choice, type::
     git clone https://github.com/phoebe-team/phoebe-quantum-espresso.git
     cd phoebe-quantum-espresso
     # install it
-    git checkout phoebe-qe-7.3
+    git checkout phoebe-qe-7.0
     ./configure MPIF90=mpif90 --with-scalapack=yes
     make pw pp ph w90
 

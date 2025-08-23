@@ -239,7 +239,7 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
         // do prep work for all values of q in the current batch
         // TODO OMP is nasty when we are pushing back... can we figure out how to use this still?
         // TODO perhaps a critical block around the push back?
-        #pragma omp parallel for default(none) shared(iQIndexes, batchSize,revisedBatchSize, kCartesian, start, isKpMinus, phononBandStructure,filteredQIndices, polarDataQMinus, polarDataQPlus, electronBandStructure, allKpCartesian, allPolarData, allStateEnergiesKp, allVKps, allEigenVectorsKp, allQCartesian, allStateEnergiesQ, allVQs, allEigenVectorsQ)
+        #pragma omp parallel for default(none) shared(iQIndexes, batchSize,revisedBatchSize, kCartesian, start, isKpMinus, phononBandStructure,filteredQIndices, polarDataQMinus, polarDataQPlus, electronBandStructure, allKpCartesian, allPolarData, allStateEnergiesKp, allVKps, allEigenVectorsKp, allQCartesian, allStateEnergiesQ, allVQs, allEigenVectorsQ, Eigen::Dynamic)
         for (size_t iQBatch = 0; iQBatch < batchSize; iQBatch++) {
 
           // Set phonon state quantities from band structure ----------------------------------------------------

@@ -194,8 +194,11 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
   // In this loop, k1 is fixed at the top, and we compute
   // it's electronic properties in the outer loop.
   // q3 is the list of iq3Indices, and k2 is determined using k1 and q3
-  for (auto [ik1, iq3Indexes] : kqPairIterator) {
+  for (auto kqPair : kqPairIterator) {
 
+    // NOTE we need to explicitly unpack this, because we cannot later use them in OMP regions otherwise 
+    auto ik1 = std::get<0>(kqPair);
+    auto iq3Indexes = std::get<1>(kqPair);
     loopPrint.update();
     WavevectorIndex ik1Idx(ik1);
 
@@ -319,7 +322,9 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
         
         // rotation such that qIrr = R * qRed -- TODO used in matVecProd only? 
         Eigen::Vector3d q3 = phBandStructure.getWavevector(iq3Idx);
-        auto [iq3Irr, rotation] = phBandStructure.getRotationToIrreducible(q3, Points::cartesianCoordinates);
+        auto q3Sym = phBandStructure.getRotationToIrreducible(q3, Points::cartesianCoordinates);
+        auto iq3Irr = std::get<0>(q3Sym);
+        auto rotation = std::get<1>(q3Sym);
         WavevectorIndex iq3IrrIdx(iq3Irr);
         
         // NOTE: these loops are already set up to be applicable to gpus

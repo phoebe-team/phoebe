@@ -16,7 +16,7 @@ The installation requires the following packages are available:
 
 * CMake (a recent version)
 
-* A C++ compiler with C++17 support, whether GCC, Intel, or Clang
+* A C++ compiler with C++20 support, whether GCC, Intel, or Clang
 
 * MPI (although the code can compile without)
 
@@ -31,7 +31,7 @@ The installation requires the following packages are available:
 * An internet connection, to download external libraries
 
 
-Cmake build
+CMake build
 -----------
 
 Basic build
@@ -55,6 +55,9 @@ CMake will inspect the paths found in the environmental variable ``LD_LIBRARY_PA
 .. note::
    Phoebe often uses OMP through Kokkos. For best performance, you may want to follow the advice from Kokkos regarding OMP env variables:
    "In general, for best performance with OpenMP 4.0 or better set ``OMP_PROC_BIND=spread`` and ``OMP_PLACES=threads``. For best performance with OpenMP 3.1 set OMP_PROC_BIND=true". However, you should check for yourself that this improves performance as it's system dependent.  
+
+.. note:: 
+   You must deactivate any conda env before building, as this is a frequent source of build issues!
 
 HDF5 build
 ^^^^^^^^^^
@@ -173,7 +176,8 @@ MacOS
 To install Phoebe on a machine running a MacOS:: 
   
   # if you don't have these already, use homebrew to install: 
-  
+
+  conda deactivate  # in some cases the base conda env, often activated, can cause issues
   brew install cmake
   brew install gcc
   brew install llvm
@@ -192,7 +196,6 @@ To install Phoebe on a machine running a MacOS::
   export LDFLAGS="-L/opt/homebrew/opt/llvm/lib/c++ -Wl,-no_compact_unwind,-rpath,/opt/homebrew/opt/llvm/lib/c++"
   export CXXFLAGS="-I/opt/homebrew/opt/llvm/include -I/opt/homebrew/opt/libomp/include -fopenmp"
   export CFLAGS="-I/usr/local/opt/libomp/include -I/opt/homebrew/opt/llvm/include"
-  export LIBRARY_PATH=$LIBRARY_PATH:/opt/homebrew/Cellar/gcc/13.2.0/lib/gcc/13/
   export SDKROOT=$(xcrun --show-sdk-path)
   
   mkdir build

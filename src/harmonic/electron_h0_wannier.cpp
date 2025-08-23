@@ -39,8 +39,8 @@ ElectronH0Wannier::ElectronH0Wannier(
     }
   }
   // TODO if we want to use shifted vectors, we should here apply equation 22 of
-  // the WannierBerri manuscript to H(R). This is a smarter way to do this. 
-  
+  // the WannierBerri manuscript to H(R). This is a smarter way to do this.
+
   numWannier = int(h0R.dimension(1));
   numVectors = int(vectorsDegeneracies.size());
 
@@ -848,7 +848,7 @@ StridedComplexView3D ElectronH0Wannier::kokkosBatchedBuildBlochHamiltonian(
                 arg += cartesianCoordinates(iK, i) * vectorsShifts_d(i, iDeg, iw1, iw2, iR);
               }
               Kokkos::complex<double> phase = exp(complexI * arg)
-                  / ( vectorsDegeneracies_d(iR) * degeneracyShifts_d(iw1, iw2, iR) );
+                  / (vectorsDegeneracies_d(iR) * degeneracyShifts_d(iw1, iw2, iR));
               tmp += h0R_d(iw1, iw2, iR) * phase;
             }
           }

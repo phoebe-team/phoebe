@@ -1,0 +1,22 @@
+appName = "elPhCouplingPlot"
+phFC2FileName = "silicon.fc"
+sumRuleFC2 = "crystal"
+electronH0Name = "si_tb.dat",
+elphFileName = "silicon.phoebe.elph.hdf5"
+
+useSymmetries = false
+kMesh = [6, 6, 6]
+qMesh = [6, 6, 6]
+
+# select the style of the calculation 
+#couplingPlotStyle = "qFixed"     # options are kFixed, qFixed, or allToAll (default)
+# if the above is set to q or k fixed, then we must also indicate the fixed point
+#couplingFixedPoint = [0,0,0]
+couplingMeshStyle = "pointsMesh"  # default behavior
+
+# select the band ranges for each species
+# if all bands are desired, do not set this
+# These are indexed from zero
+couplingPlotBandEl1 = [1,5]
+couplingPlotBandEl2 = [1,5]
+couplingPlotBandPh = [0,2] 

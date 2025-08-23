@@ -14,21 +14,6 @@ Particle::Particle(int kind_) {
   }
 }
 
-// copy constructor
-Particle::Particle(const Particle &obj) {
-  statistics = obj.statistics;
-  kind = obj.kind;
-}
-
-// copy assignment operator
-Particle &Particle::operator=(const Particle &obj) {
-  if (this != &obj) {
-    statistics = obj.statistics;
-    kind = obj.kind;
-  }
-  return *this;
-}
-
 bool Particle::isFermi() const {
   if (statistics == fermi) {
     return true;
@@ -95,9 +80,14 @@ double Particle::getPopulation(const double &energy, const double &temperature,
   return population;
 }
 
+// NOTE from Jenny: this is off by a factor of kB!
+// dn/dT  = n(n+/-1) * energy / kB T^2
+//   Here, we are returning something which is (kB * T)^2, as here T = kBT
+//   I am afraid to change this now because it's used in several other places...
 double Particle::getDndt(const double &energy, const double &temperature,
                          const double &chemicalPotential,
                          const bool &symmetrize) const {
+
   double x = getPopPopPm1(energy, temperature, chemicalPotential);
   if (symmetrize) x = sqrt(x);
   double y = energy - chemicalPotential;

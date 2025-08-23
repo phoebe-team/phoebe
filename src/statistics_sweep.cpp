@@ -19,6 +19,8 @@ StatisticsSweep::StatisticsSweep(Context &context,
 
   Kokkos::Profiling::pushRegion("StatisticsSweep constructor");
 
+  dimensionality = context.getDimensionality();
+
   Eigen::VectorXd temperatures = context.getTemperatures();
   nTemp = int(temperatures.size());
   if (nTemp == 0) {
@@ -75,7 +77,7 @@ StatisticsSweep::StatisticsSweep(Context &context,
     // [0,numLocalStates]. getStateIndices provides a list of global state
     // indices which belong to this process.
     std::vector<std::tuple<WavevectorIndex, BandIndex>> stateList =
-        fullBandStructure->getStateIndices();
+        fullBandStructure->getLocalEnergyStateIndices();
     #pragma omp parallel for
     for (int is = 0; is < fullBandStructure->getNumStates(); is++) {
       auto isk = std::get<0>(stateList[is]);
@@ -89,7 +91,9 @@ StatisticsSweep::StatisticsSweep(Context &context,
     // determine ground state properties
     // i.e. we define the number of filled bands and the fermi energy
     occupiedStates = context.getNumOccupiedStates();
-    if (std::isnan(occupiedStates)) {
+
+    // fermi level is set, but not occupied states 
+    if (std::isnan(occupiedStates)) { // || !std::isnan(fermiLevel)) {
       // in this case we try to compute it from the Fermi-level
       fermiLevel = context.getFermiLevel();
       if (std::isnan(fermiLevel)) {
@@ -118,7 +122,11 @@ StatisticsSweep::StatisticsSweep(Context &context,
         mpi->allReduceSum(&occupiedStates);
       }
     } else {
+
+      // TODO we would need to change this for a spin pol calculation !
       occupiedStates /= spinFactor;
+
+      //if(mpi->mpiHead()) std::cout << "number of occupied states " << occupiedStates << std::endl;
 
       // initial guess for chemical potential will be Ef
       // if distributed, all processes need this guess
@@ -143,6 +151,7 @@ StatisticsSweep::StatisticsSweep(Context &context,
     // if chemical potentials and dopings are not supplied,
     // check for a min/max mu and dmu energy spacing in the input file
     if ((nDop == 0) && (nChemPot == 0)) {
+
       double minChemicalPotential = context.getMinChemicalPotential();
       double maxChemicalPotential = context.getMaxChemicalPotential();
       double deltaChemicalPotential = context.getDeltaChemicalPotential();
@@ -439,3 +448,59 @@ void StatisticsSweep::printInfo() {
   }
   std::cout << std::endl;
 }
+
+void StatisticsSweep::calcNumFreeCarriers(BaseBandStructure* bandStructure) {
+
+  // this doesn't make sense for phonons
+  if(particle.isPhonon()) { return; }
+  if(bandStructure->getIsDistributed()) {
+    DeveloperError("Cannot calc nFreeCarriers for a distributed band structure.");
+  }
+
+  if(mpi->mpiHead()) std::cout << "Number of free carriers which contribute to conduction:\n" << std::endl;
+
+  // Parallelize over states -- this is a quick calculation, so for
+  // now, not worried about rotating velocities to use symmetries
+  std::vector<size_t> states = bandStructure->parallelStateIterator();
+  double Nk = bandStructure->getPoints().getNumPoints();
+
+  for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+
+    double kBT = infoCalculations(iCalc, 0);
+    double chemPot = infoCalculations(iCalc, 1);
+    Eigen::Matrix3d nFreeCarriers;
+    nFreeCarriers.setZero();
+
+    //#pragma omp parallel shared(kBT, chemPot, nFreeCarriers)
+    for (int is = 0; is < int(states.size()); is++) {
+
+      // is is the index of the local state in the states list
+      StateIndex sIdx(states[is]);
+      Eigen::Vector3d vel = bandStructure->getGroupVelocity(sIdx);
+      double en = bandStructure->getEnergy(sIdx);
+      double ffm1 = particle.getPopPopPm1(en, kBT, chemPot);
+
+      for (int i = 0; i < dimensionality; i++) {
+        for (int j = 0; j < dimensionality; j++) {
+          nFreeCarriers(i,j) += ffm1 * vel(i) * vel(j);
+        }
+      }
+    }
+    mpi->allReduceSum(&nFreeCarriers);
+
+    // normalize properly
+    // n = g m_e/V Nk kBT sum_states f(f-1) v_a v_b
+    nFreeCarriers *= spinFactor / (volume * Nk * kBT);
+
+    // convert to SI and print, as this is not used otherwise
+    nFreeCarriers *= 1./( std::pow(distanceBohrToCm, dimensionality)) * electronMassSi * velocityRyToSi * velocityRyToSi /  (energyRyToEv*electronVoltSi);
+
+    if(mpi->mpiHead()) {
+      std::cout << std::fixed << std::setprecision(6);
+      std::cout << "iCalc = " << iCalc << ", T = " << kBT * temperatureAuToSi << " (K)\n";
+      std::cout << std::scientific << std::setprecision(6);
+      std::cout << nFreeCarriers << "\n" << std::endl;
+    }
+  }
+}
+

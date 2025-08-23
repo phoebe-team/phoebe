@@ -77,6 +77,7 @@ void ElPhQeToPhoebeApp::epaPostProcessing(
     ikMap(ikOld) = ikNew;
   }
 
+  // TODO may want to standardize this 
   double phononCutoff = 5. / ryToCmm1; // used to discard small phonon energies
 
   Eigen::MatrixXd normalization(numEpaEnergies, numEpaEnergies);

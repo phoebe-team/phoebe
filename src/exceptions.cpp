@@ -15,6 +15,10 @@ Error::Error(const std::string &errMessage, const int &errCode) {
   }
 }
 
+DeveloperError::DeveloperError(const std::string &errMessage, const int &errCode) :
+  Error("Developer Error: " + errMessage, errCode) {
+}
+
 Warning::Warning(const std::string &errMessage) {
   if (!mpi->mpiHead())
     return;

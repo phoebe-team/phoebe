@@ -117,3 +117,21 @@ std::vector<std::string> tokenize(const std::string str) {
   return tokenized;
 }
 
+std::vector<std::string> split(const std::string &s, char delimiter) {
+  std::vector<std::string> tokens;
+  std::string token;
+  std::istringstream tokenStream(s);
+
+  if (delimiter == ' ') {
+    for (std::string s2; tokenStream >> s2;) {
+      tokens.push_back(s2);
+    }
+  } else {
+    while (std::getline(tokenStream, token, delimiter)) {
+      token.erase(std::remove_if(token.begin(), token.end(), ::isspace),
+                  token.end());
+      tokens.push_back(token);
+    }
+  }
+  return tokens;
+}

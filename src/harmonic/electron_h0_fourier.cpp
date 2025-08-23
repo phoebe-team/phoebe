@@ -47,7 +47,7 @@ ElectronH0Fourier::ElectronH0Fourier(Crystal &crystal_, const Points& coarsePoin
                                      double cutoff_)
     : crystal(crystal_), coarseBandStructure(coarseBandStructure_),
       coarsePoints(coarsePoints_), particle(Particle::electron) {
-        
+
   numBands = coarseBandStructure.getNumBands();
   cutoff = cutoff_;
   numDataPoints = coarseBandStructure.getNumPoints();
@@ -129,14 +129,14 @@ FullBandStructure ElectronH0Fourier::populate(Points &fullPoints,
                                       withEigenvectors, fullPoints,
                                       isDistributed);
 
-  LoopPrint loopPrint("populating electronic band structure", "states", 
+  LoopPrint loopPrint("populating electronic band structure", "states",
                               fullBandStructure.getNumStates());
 
   // this is mpi parallel in wavevector indices
-  std::vector<int> kIndices = fullBandStructure.getWavevectorIndices(); 
+  std::vector<int> kIndices = fullBandStructure.getLocalWavevectorIndices();
   for (size_t i = 0; i<kIndices.size(); i++) {
 
-    loopPrint.update(); 
+    loopPrint.update();
 
     int ik = kIndices[i];
     Point point = fullBandStructure.getPoint(ik);
@@ -439,7 +439,7 @@ ElectronH0Fourier::kokkosBatchedDiagonalizeWithVelocities(
 
 std::tuple<DoubleView2D, StridedComplexView3D>
 ElectronH0Fourier::kokkosBatchedDiagonalizeFromCoordinates(
-          [[maybe_unused]] const DoubleView2D &cartesianCoordinates, 
+          [[maybe_unused]] const DoubleView2D &cartesianCoordinates,
           [[maybe_unused]] const bool withMassScaling) {
   Error("Kokkos not implemented in ElectronH0Fourier");
   std::tuple<DoubleView2D, StridedComplexView3D> temp;

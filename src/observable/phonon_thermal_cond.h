@@ -2,7 +2,7 @@
 #define PHONON_CONDUCTIVITY_H
 
 #include "observable.h"
-#include "ph_scattering.h"
+#include "ph_scattering_matrix.h"
 #include "specific_heat.h"
 
 /** Class to compute the phonon thermal conductivity
@@ -98,8 +98,8 @@ protected:
   int whichType() override;
   BaseBandStructure &bandStructure;
   // unit information for writing to files
-  std::string thCondUnits; 
-  double thCondConversion; 
+  std::string thCondUnits;
+  double thCondConversion;
 
 };
 

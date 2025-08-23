@@ -25,21 +25,17 @@ class WignerElCoefficients : public OnsagerCoefficients {
                        Context &context_,
                        VectorBTE &relaxationTimes);
 
-  /** Copy constructor
-   *
-   */
-  WignerElCoefficients(const WignerElCoefficients &that);
-
-  /** Copy assignment operator
-   *
-   */
-  WignerElCoefficients &operator=(const WignerElCoefficients &that);
-
   /** Compute the thermal conductivity from the phonon populations
    * @param n: the phonon population out-of-equilibrium. Note that this
    * method uses the absolute value of phonon populations n.
    */
   void calcFromPopulation(VectorBTE &nE, VectorBTE &nT) override;
+
+  /** Output contributions to wigner transport at each state
+   * into a JSON file. For now only written for electrical conductivity, LET. 
+   * Currently not used. 
+  */
+  void outputContributionsToJSON(const std::string &outFileName);
 
   /** Prints to screen the thermal conductivity at various temperatures
    * in a a nicely formatted way.
@@ -48,8 +44,9 @@ class WignerElCoefficients : public OnsagerCoefficients {
 
  protected:
   VectorBTE &smaRelTimes;
-  Eigen::Tensor<double, 3> correctionLEE, correctionLTE, correctionLET,
-      correctionLTT;
+  Eigen::Tensor<double, 3> correctionLEE, correctionLTE, correctionLET, correctionLTT;
+  Eigen::Tensor<double, 4>  contributionLEE, contributionLET;
 };
 
 #endif
+

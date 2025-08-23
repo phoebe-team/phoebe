@@ -1,6 +1,6 @@
 #ifndef VISCOSITY_IO_H
 #define VISCOSITY_IO_H
-#include "scattering.h"
+#include "scattering_matrix.h"
 
   /** Prints the viscosity tensor to std out
    * @param viscosityName: string which is used to print the name of the viscosity tensor
@@ -42,18 +42,12 @@
   /** Helper function to print information about the scalar products with the
    * special eigenvectors.
    * @param eigenvectors: eigenvectors of the scattering matrix
-   * @param numRelaxons: the number of relaxons which have been calculated
-   * @param particle: particle type, ph or el
-   * @param theta0: energy conservation eigenvector
-   * @param thetae: charge conservation eigenvector
-   * @param alpha0: eigenvalue index of theta0 eigenvector
-   * @param alphae: eigenvalue index of thetae eigenvector
+   * @param specialEigenvector: the special eigenvector we are checking the overlap with
+   * @param eigenvectorName: the name of the special eigenvector we are printing 
    */
-  void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                                int& numRelaxons, Particle& particle,
-                                Eigen::VectorXd& theta0,
-                                Eigen::VectorXd& theta_e,
-                                int& alpha0, int& alpha_e);
+   int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors, 
+                                          const Eigen::VectorXd& specialEigenvector, 
+                                          std::string eigenvectorName); 
 
   /** Helper function to pre-calculate the special eigenvectors theta0,
    * theta_e, phi as well as A, C
@@ -66,12 +60,20 @@
    * @param C: specific heat
    * @param A: specific momentum
    */
-   void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
+   void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
                               StatisticsSweep& statisticsSweep,
                               double& spinFactor,
                               Eigen::VectorXd& theta0,
                               Eigen::VectorXd& theta_e,
                               Eigen::MatrixXd& phi,
                               double& C, Eigen::Vector3d& A);
+
+  // TODO comment 
+  void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors, 
+                              const Eigen::VectorXd& eigenvalues, 
+                              std::vector<BaseBandStructure*>& bandStructures, 
+                              const Eigen::VectorXd& theta0,
+                              const Eigen::VectorXd& theta_e,
+                              const Eigen::MatrixXd& phi);
 
 #endif

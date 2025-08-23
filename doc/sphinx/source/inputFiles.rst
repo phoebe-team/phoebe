@@ -76,7 +76,7 @@ This postprocesses the data for  Wannier interpolation or EPA calculations in Ph
   electronFourierCutoff = 4.
   epaMinEnergy = -4. eV
   epaMaxEnergy = 10. eV
-  epaNumBins = 10
+  epaNumBins = 40
   epaSmearingEnergy = 0.05 eV
 
 
@@ -152,6 +152,8 @@ Phonon BTE Solver
 * :ref:`numRelaxonsEigenvalues`
 
 * :ref:`checkNegativeRelaxons`
+
+* :ref:`enforcePositiveSemiDefinite`
 
 .. raw:: html
 
@@ -254,6 +256,7 @@ Electron BTE Solver
 
 * :ref:`checkNegativeRelaxons`
 
+* :ref:`enforcePositiveSemiDefinite`
 
 .. raw:: html
 
@@ -997,6 +1000,7 @@ numRelaxonsEigenvalues
 ^^^^^^^^^^^^^^^^^^^^^^
 
 * **Description:** Compute the relaxons solver using only the ``numRelaxonsEigenvalues`` largest eigenvalues + corresponding eigenvectors. This can dramatically reduce the cost of the calculation, as the largest eigenvalues comprise most of the result. However, you have to be careful to converge the calculation with respect to this parameter as well if you use it. It's great for testing your calculation, perhaps using ~25% of the eigenvalues, with your final production result using a full calculation.
+
 Additionally, note that this leads to a second ScaLAPACK call to check for negative eigenvalues, which reduces the benefit of partial eigenvalue calculation. If you want to turn this off for additional cost reduction (though it's good to check this to ensure the quality of the scattering matrix) you can do so with :ref:`checkNegativeRelaxons` = false.
 
 * **Format:** *integer*
@@ -1016,8 +1020,24 @@ checkNegativeRelaxons
 
 * **Required:** no
 
+* **Requires:** :ref:`scatteringMatrixInMemory` = true, :ref:`solverBTE` = "relaxons","variational",or "iterative"
+
 * **Default:** `true`
 
+.. _enforcePositiveSemiDefinite:
+
+enforcePositiveSemiDefinite
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+* **Description:** When `enforcePositiveSemiDefinite` is true, we apply a diagonal perturbation to the scattering matrix to make it positive definite. Note that that this is a bit of a band-aid -- you should check that your matrix is not too far from correct before applying this (that it has just a few small negative eigenvalues at most!).
+
+* **Format:** *bool*
+
+* **Required:** no
+
+* **Requires:** :ref:`scatteringMatrixInMemory` = true
+
+* **Default:** `false`
 
 .. _distributedElPhCoupling:
 

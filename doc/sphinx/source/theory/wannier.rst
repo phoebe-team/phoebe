@@ -50,9 +50,7 @@ The velocity operator is computed with the Hellmann-Feynman theorem, e.g. along 
 
 Whenever we find a set of degenerate bands at a given k point, we diagonalize the velocity operator in the degenerate subset, in order to uniquely define the velocity operator.
 
-
-
-
+.. _theoryElphWannier:
 
 Wannier interpolation of electron-phonon coupling
 -------------------------------------------------

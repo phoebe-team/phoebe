@@ -4,6 +4,9 @@
 #include "observable.h"
 
 /** Class for computing and storing the specific heat of a crystal.
+ * for either electrons or phonons, it returns:
+ * C = 1/(V*N) * sum(states) * dn/dT * energy
+ *   = 1/(V*N) * sum(states) * n(n+/-1) * energy^2 / kB T^2
  */
 class SpecificHeat : public Observable {
 public:
@@ -47,8 +50,11 @@ public:
   const double &get(const int &iCalc);
 
 protected:
+
   int whichType() override;
+  int spinFactor;
   BaseBandStructure &bandStructure;
+
 };
 
 #endif

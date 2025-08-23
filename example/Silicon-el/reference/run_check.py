@@ -9,6 +9,10 @@ import numpy
 if __name__ == "__main__":
 
     listOfJsons = glob.glob("*.json")
+    # tests that produce duplicate files will be overwritten if
+    # not in separate directories
+    listOfJsons.extend(glob.glob("path_lifetimes/*.json"))
+    listOfJsons.extend(glob.glob("sym_transport/*.json"))
     tol = 1e-5
 
     for filename in listOfJsons:
@@ -92,12 +96,12 @@ if __name__ == "__main__":
                 print(filename)
                 sys.exit(1)
 
-        if "path_" in filename and "_relaxation_times" in filename:
+        if "path_lifetimes" in filename and "_relaxation_times" in filename:
             k1 = numpy.array(data1["linewidths"])
             k2 = numpy.array(data2["linewidths"])
             diff = ((k1 - k2)/numpy.max(k1)).sum()
             if abs(diff) > 0.00001:
-                print(diff)
+                print("linewidths:",diff)
                 print(filename)
                 sys.exit(1)
             diff2 = (numpy.max(k1) - numpy.max(k2))/numpy.max(k1)
@@ -112,14 +116,14 @@ if __name__ == "__main__":
             k2 = numpy.array(data2['energies'])
             diff = ((k1 - k2)/numpy.max(k1)).sum()
             if abs(diff) > tol:
-                print(diff)
+                print("energies:",diff)
                 print(filename)
                 sys.exit(1)
             k1 = numpy.array(data1['velocities'])
             k2 = numpy.array(data2['velocities'])
             diff = ((k1 - k2)/numpy.max(k1)).sum()
             if abs(diff) > tol:
-                print(diff)
+                print("velocities:",diff)
                 print(filename)
                 sys.exit(1)
             k1 = numpy.array(data1['relaxationTimes'])
@@ -128,7 +132,7 @@ if __name__ == "__main__":
             k2[numpy.where(k2 == None)] = 0
             diff = ((k1 - k2)/numpy.max(k1)).sum()
             if abs(diff) > tol:
-                print(diff)
+                print("relaxationTimes",diff)
                 print(filename)
                 sys.exit(1)
 

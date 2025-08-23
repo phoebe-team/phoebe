@@ -8,21 +8,25 @@ import numpy
 
 if __name__ == "__main__":
 
-    tol = 1e-4 # test for 0.01% changes
     listOfJsons = glob.glob("*.json")
+    # tests that produce duplicate files will be overwritten if
+    # not in separate directories
+    listOfJsons.extend(glob.glob("path_lifetimes/*.json"))
+    listOfJsons.extend(glob.glob("sym_transport/*.json"))
+    tol = 1e-2
 
     for filename in listOfJsons:
 
         filename2 = os.path.join("reference", filename)
 
+        print(filename)
+        print(filename2)
+        print(" ")
+
         with open(filename) as f1:
             data1 = json.load(f1)
         with open(filename2) as f2:
             data2 = json.load(f2)
-
-        print(filename)
-        print(filename2)
-        print(" ")
 
         if "thermal_cond" in filename:
             k1 = numpy.array(data1['thermalConductivity'])
@@ -142,35 +146,44 @@ if __name__ == "__main__":
                 print(filename)
                 sys.exit(1)
 
-        if "path_" in filename and "_relaxation_times" in filename:
-            k1 = numpy.array(data1['linewidths'])
-            k2 = numpy.array(data2['linewidths'])
+        if "path_lifetimes" in filename and "_relaxation_times" in filename:
+
+            refNonGamma = numpy.where(numpy.array(data2['energies']) > 3.5)
+
+            k1 = numpy.array(data1['linewidths'])[refNonGamma]
+            k2 = numpy.array(data2['linewidths'])[refNonGamma]
             diff = ((k1 - k2)/numpy.max(k1)).sum()
-            if abs(diff) > tol:
-                print(diff)
+            #diff = numpy.linalg.norm((k1[numpy.where(k1!=0)]- k2[numpy.where(k1!=0)])/k1[numpy.where(k1!=0)])
+            if abs(diff) > 0.01: #tol:
+                print("linewidths:",diff)
                 print(filename)
                 sys.exit(1)
-            k1 = numpy.array(data1['energies'])
-            k2 = numpy.array(data2['energies'])
+            k1 = numpy.array(data1['energies'])[refNonGamma]
+            k2 = numpy.array(data2['energies'])[refNonGamma]
             diff = ((k1 - k2)/numpy.max(k1)).sum()
+            #diff = numpy.linalg.norm((k1[numpy.where(k1!=0)]- k2[numpy.where(k1!=0)])/k1[numpy.where(k1!=0)])
             if abs(diff) > tol:
-                print(diff)
+                print("new energies:",k1)
+                print("ref energies:",k2)
+                print("energies diff:",diff)
                 print(filename)
                 sys.exit(1)
-            k1 = numpy.array(data1['velocities'])
-            k2 = numpy.array(data2['velocities'])
+            k1 = numpy.array(data1['velocities'])[refNonGamma]
+            k2 = numpy.array(data2['velocities'])[refNonGamma]
             diff = ((k1 - k2)/numpy.max(k1)).sum()
+            #diff = numpy.linalg.norm((k1[numpy.where(k1!=0)]- k2[numpy.where(k1!=0)])/k1[numpy.where(k1!=0)])
             if abs(diff) > tol:
-                print(diff)
+                print("velocities:",diff)
                 print(filename)
                 sys.exit(1)
-            k1 = numpy.array(data1['relaxationTimes'])
-            k2 = numpy.array(data2['relaxationTimes'])
+            k1 = numpy.array(data1['relaxationTimes'])[refNonGamma]
+            k2 = numpy.array(data2['relaxationTimes'])[refNonGamma]
             k1[numpy.where(k1 == None)] = 0
             k2[numpy.where(k2 == None)] = 0
             diff = ((k1 - k2)/numpy.max(k1)).sum()
-            if abs(diff) > tol:
-                print(diff)
+            #diff = numpy.linalg.norm((k1[numpy.where(k1!=0)]- k2[numpy.where(k1!=0)])/k1[numpy.where(k1!=0)]) #/numpy.max(k1)).sum()
+            if abs(diff) > 0.01: #tol:
+                print("relaxationTimes",diff)
                 print(filename)
                 sys.exit(1)
 

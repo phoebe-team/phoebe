@@ -7,6 +7,11 @@
 #include "exceptions.h"
 #include "constants.h"
 #include "mpiHelper.h"
+#include "io.h"
+
+#ifdef HDF5_AVAIL
+#include <highfive/H5Easy.hpp>
+#endif
 
 #include "SMatrix.h"
 
@@ -39,22 +44,28 @@ class ParallelMatrix {
  private:
 
   /// Class variables
-  int numRows_, numCols_;
-  int numLocalRows_, numLocalCols_;
-  int numLocalElements_;
+  int numRows_ = 0;
+  int numCols_ = 0;
+  int numLocalRows_ = 0;
+  int numLocalCols_ = 0;
+  size_t numLocalElements_ = 0;
 
   // BLACS variables
   // numBlocksRows/Cols -- the number of units we divide nrows/ncols into
-  int numBlocksRows_, numBlocksCols_;
+  int numBlocksRows_ = 0;
+  int numBlocksCols_ = 0;
   // blockSizeRows/Cols -- the size of each unit we divide nrows/ncols into
-  int blockSizeRows_, blockSizeCols_;
+  int blockSizeRows_ = 0;
+  int blockSizeCols_ = 0;
   // numBlasRows/Cols - the number of rows/cols in the process grid
-  int numBlasRows_, numBlasCols_;
+  int numBlasRows_ = 0;
+  int numBlasCols_ = 0;
   // myBlasRow/Col - this process's row/col in the process grid
-  int myBlasRow_, myBlasCol_;
+  int myBlasRow_ = 0;
+  int myBlasCol_ = 0;
   int descMat_[9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
-  int blasRank_;
-  int blacsContext_;
+  int blasRank_ = 0;
+  int blacsContext_ = 0;
   char blacsLayout_ = 'R';  // block cyclic, row major processor mapping
 
   // dummy values to return when accessing elements not available locally
@@ -155,7 +166,7 @@ class ParallelMatrix {
   int localCols() const;
   /** Find global number of matrix elements
    */
-  int size() const;
+  size_t size() const;
 
   /** Get and set operator.
    * Returns the stored value if the matrix element (row,col) is stored in
@@ -217,6 +228,21 @@ class ParallelMatrix {
   std::tuple<std::vector<double>, ParallelMatrix<T>> diagonalize(int numEigenvalues,
                                                 bool checkNegativeEigenvalues = true);
 
+  /** Write contents of the matrix to file. Note, this is for testing because
+   * it's very slow and in a production case could make an unreasonably large file.
+   * @param outFileName: string naming the output file
+   * @param dataSetName: keyname for data in the output file
+   */
+  void outputToHDF5(const std::string &outFileName,
+                                   const std::string &dataSetName);
+
+  /** Functions which actually diagonalize the matrix, which one is
+   * called is determined by the main diagonalize call, and if ELPA_AVAIL
+   * is defined.
+   */
+  std::tuple<std::vector<double>, ParallelMatrix<T>> elpaDiagonalize();
+  std::tuple<std::vector<double>, ParallelMatrix<T>> scalapackDiagonalize();
+
   /** Computes the squared Frobenius norm of the matrix
    * (or Euclidean norm, or L2 norm of the matrix)
    */
@@ -240,6 +266,10 @@ class ParallelMatrix {
   /** Symmetrize the matrix with pdtran for transpose, (A + A^T)/2
   */
   void symmetrize();
+
+  /** A function to fix up a matrix with a bit of noise to be positive semi-definite
+  */
+  void enforcePositiveSemiDefinite();
 
 };
 
@@ -290,6 +320,11 @@ ParallelMatrix<T>::ParallelMatrix(const int& numRows, const int& numCols,
   numLocalCols_ = numroc_(&numCols_, &blockSizeCols_, &myBlasCol_, &iZero, &numBlasCols_);
   numLocalElements_ = numLocalRows_ * numLocalCols_;
 
+  //if(numLocalElements_ < 0) { // probably overflowed
+  //  Error("The number of matrix elements local to this process overflows int\n"
+  //		    "increase the number of MPI processes.");
+  //} 
+
   // allocate the matrix
   mat = new T[numLocalElements_];
 
@@ -297,7 +332,7 @@ ParallelMatrix<T>::ParallelMatrix(const int& numRows, const int& numCols,
   assert(mat != nullptr);
 
   // fill the matrix with zeroes
-  for (int i = 0; i < numLocalElements_; ++i) *(mat + i) = 0.;
+  for (size_t i = 0; i < numLocalElements_; ++i) *(mat + i) = 0.;
 
   // Create descriptor for block cyclic distribution of matrix
   int info;  // error code
@@ -308,27 +343,13 @@ ParallelMatrix<T>::ParallelMatrix(const int& numRows, const int& numCols,
             &iZero, &iZero, &blacsContext_, &lddA, &info);
 
   if (info != 0) {
-    Error("Something wrong calling descinit", info);
+    DeveloperError("Something wrong calling descinit", info);
   }
 }
 
 template <typename T>
 ParallelMatrix<T>::ParallelMatrix()  {
-  numRows_ = 0;
-  numCols_ = 0;
-  numLocalRows_ = 0;
-  numLocalCols_ = 0;
-  numLocalElements_ = 0;
-  numBlocksRows_ = 0;
-  numBlocksCols_ = 0;
-  blockSizeRows_ = 0;
-  blockSizeCols_ = 0;
-  numBlasRows_ = 0;
-  numBlasCols_ = 0;
-  myBlasRow_ = 0;
-  myBlasCol_ = 0;
-  blasRank_ = 0;
-  blacsContext_ = 0;
+
 }
 
 template <typename T>
@@ -359,7 +380,7 @@ ParallelMatrix<T>::ParallelMatrix(const ParallelMatrix<T>& that) {
   mat = new T[numLocalElements_];
   // Memory could not be allocated, end program
   assert(mat != nullptr);
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     mat[i] = that.mat[i];
   }
 }
@@ -393,7 +414,7 @@ ParallelMatrix<T>& ParallelMatrix<T>::operator=(const ParallelMatrix<T>& that) {
     mat = new T[numLocalElements_];
     // Memory could not be allocated, end program
     assert(mat != nullptr);
-    for (int i = 0; i < numLocalElements_; i++) {
+    for (size_t i = 0; i < numLocalElements_; i++) {
       mat[i] = that.mat[i];
     }
   }
@@ -493,14 +514,15 @@ int ParallelMatrix<T>::localCols() const {
 }
 
 template <typename T>
-int ParallelMatrix<T>::size() const {
-  return cols() * rows();
+size_t ParallelMatrix<T>::size() const {
+  size_t size = size_t(cols()) * size_t(rows());
+  return size;
 }
 
 // Get/set element
-
 template <typename T>
 T& ParallelMatrix<T>::operator()(const int &row, const int &col) {
+  if(row > numRows_ || col > numCols_) DeveloperError("Tried to fill a PMatrix state out of bounds: " + std::to_string(row) + " " + std::to_string(col));
   int localIndex = global2Local(row, col);
   if (localIndex == -1) {
     dummyZero = 0.;
@@ -598,7 +620,7 @@ int ParallelMatrix<T>::global2Local(const int& row, const int& col) const {
 template <typename T>
 std::vector<std::tuple<int, int>> ParallelMatrix<T>::getAllLocalStates() {
   std::vector<std::tuple<int, int>> x;
-  for (int k = 0; k < numLocalElements_; k++) {
+  for (size_t k = 0; k < numLocalElements_; k++) {
     std::tuple<int, int> t = local2Global(k);  // bloch indices
     x.push_back(t);
   }
@@ -629,7 +651,7 @@ std::vector<int> ParallelMatrix<T>::getAllLocalCols() {
 
 template <typename T>
 ParallelMatrix<T>& ParallelMatrix<T>::operator*=(const T& that) {
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(mat + i) *= that;
   }
   return *this;
@@ -637,7 +659,7 @@ ParallelMatrix<T>& ParallelMatrix<T>::operator*=(const T& that) {
 
 template <typename T>
 ParallelMatrix<T>& ParallelMatrix<T>::operator/=(const T& that) {
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(mat + i) /= that;
   }
   return *this;
@@ -648,7 +670,7 @@ ParallelMatrix<T>& ParallelMatrix<T>::operator+=(const ParallelMatrix<T>& that) 
   if(numRows_ != that.rows() || numCols_ != that.cols()) {
     Error("Cannot adds matrices of different sizes.");
   }
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(mat + i) += *(that.mat + i);
   }
   return *this;
@@ -659,7 +681,7 @@ ParallelMatrix<T>& ParallelMatrix<T>::operator-=(const ParallelMatrix<T>& that) 
   if(numRows_ != that.rows() || numCols_ != that.cols()) {
     Error("Cannot subtract matrices of different sizes.");
   }
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(mat + i) -= *(that.mat + i);
   }
   return *this;
@@ -670,7 +692,7 @@ void ParallelMatrix<T>::eye() {
   if (numRows_ != numCols_) {
     Error("Cannot build an identity matrix with non-square matrix");
   }
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(mat + i) = 0.;
   }
   for (int i = 0; i < numRows_; i++) {
@@ -680,7 +702,7 @@ void ParallelMatrix<T>::eye() {
 
 template <typename T>
 void ParallelMatrix<T>::zeros() {
-  for (int i = 0; i < numLocalElements_; ++i) *(mat + i) = 0.;
+  for (size_t i = 0; i < numLocalElements_; ++i) *(mat + i) = 0.;
 }
 
 template <typename T>
@@ -697,7 +719,7 @@ template <typename T>
 T ParallelMatrix<T>::dot(const ParallelMatrix<T>& that) {
   T scalar = dummyConstZero;
   T scalarOut = dummyConstZero;
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     scalar += (*(mat + i)) * (*(that.mat + i));
   }
   mpi->allReduceSum(&scalar, &scalarOut);
@@ -707,7 +729,7 @@ T ParallelMatrix<T>::dot(const ParallelMatrix<T>& that) {
 template <typename T>
 ParallelMatrix<T> ParallelMatrix<T>::operator-() const {
   ParallelMatrix<T> result = *this;
-  for (int i = 0; i < numLocalElements_; i++) {
+  for (size_t i = 0; i < numLocalElements_; i++) {
     *(result.mat + i) = -*(result.mat + i);
   }
   return result;
@@ -716,6 +738,147 @@ ParallelMatrix<T> ParallelMatrix<T>::operator-() const {
 template <typename T>
 void ParallelMatrix<T>::setBlacsContext(int blacsContext) {
   blacsContext_ = blacsContext;
+}
+
+template <typename T>
+void ParallelMatrix<T>::outputToHDF5(const std::string &outFileName,
+                                   const std::string &dataSetName) {
+
+  // output the matrix elements owned by this process to file.
+  // The only tricky part here is that we need to sort them
+  // Appropriately in the file without all reducing. This is nearly
+  // impossible to do efficiently because of how HighFive is written,
+  // wherein it expects chunks of data -- which we cannot expect to have
+  // in a block-cyclic distribution of the matrix. Therefore, we do something
+  // terrible and we write single elements at a time.
+
+  #ifndef HDF5_AVAIL
+    Error("Need Phoebe compiled with parallel HDF5 to write parallel matrix to file.");
+  #elif HDF5_SERIAL
+    Error("Need Phoebe compiled with parallel HDF5 to write parallel matrix to file.");
+  #else
+
+   try {
+
+      // Create the file to write to, first removing if it exists already
+      std::remove(&outFileName[0]);
+      HighFive::FileAccessProps fapl;
+      fapl.add(HighFive::MPIOFileAccess(mpi->getComm(), MPI_INFO_NULL));
+      HighFive::File file(outFileName, HighFive::File::Overwrite, fapl);
+      
+      // setup the dataset
+      unsigned int globalSize = size();
+
+      // Create the data-space to write the elements to
+      std::vector<size_t> dims(2);
+      dims[0] = 1;
+      dims[1] = size_t(globalSize);
+      HighFive::DataSet dsMatrix= file.createDataSet<double>(
+                dataSetName, HighFive::DataSpace(dims));
+
+      LoopPrint loopPrint("writing the " + dataSetName + " to HDF5",
+             "matrix elements", getAllLocalStates().size());
+
+      // now we loop over the matrix elements and write them to file
+      for(auto matEl : getAllLocalStates()) {
+
+        loopPrint.update();
+
+        // get matrix row and col indices
+        size_t iMat1 = std::get<0>(matEl);
+        size_t iMat2 = std::get<1>(matEl);
+        // convert to 1d index, used on the underlying dataset
+        size_t iGlobal = iMat1*cols() + iMat2;
+        // get the actual value of the matrix element
+        double value = this->operator()(iMat1,iMat2);
+
+        // write the single element to the dataset
+        // here, the offset is the global index, and the count is of course 1
+        dsMatrix.select({0, iGlobal}, {1, 1}).write(value);
+      }
+
+      loopPrint.close();
+
+      // ensure everything has been written
+      file.flush();
+
+    } catch (std::exception &error) {
+      // catch and print any HDF5 error
+      std::cerr << error.what() << std::endl;
+      Error("An HDF5 error occurred while trying to write a distributed matrix to HDF5.");
+    }
+  #endif
+}
+
+
+/* generic function to enforce positive semi def */
+
+template <typename T>
+void ParallelMatrix<T>::enforcePositiveSemiDefinite() { 
+
+  if(rows() != cols()) {
+    DeveloperError("Can only enforce PSD on a square matrix."); 
+  }
+
+  // first, we need to grab the inverse sqrt of the diagonal of the matrix
+  // we could do this by passing in the diagonal, which in the case of 
+  // the scattering matrix is already stored in the linewidths vector
+  std::vector<T> invSqrtDiagonal(numRows_); 
+  std::vector<T> diagonal(numRows_); 
+  for(auto matEl : getAllLocalStates()) {
+
+    // get matrix row and col indices
+    size_t iMat1 = std::get<0>(matEl);
+    size_t iMat2 = std::get<1>(matEl);   
+    if(iMat1 != iMat2) continue; 
+
+    if(this->operator()(iMat1,iMat2) <= 1.e-16) continue; // avoid divide 1/~0
+    invSqrtDiagonal[iMat1] = sqrt(1./this->operator()(iMat1,iMat2));
+    diagonal[iMat1] = this->operator()(iMat1,iMat2);
+
+  }
+
+  // Now we make a container for a new matrix, G, with the same size as this one
+  ParallelMatrix<T> G(numRows_, numCols_, 0, 0,
+                              numBlocksRows_, numBlocksCols_, blacsContext_);
+
+  // we construct G by performing D^-1/2 * C * D^-1/2 (where D are matrices)
+  // with the diagonal elements set to sqrt(diagonal) of this matrix
+  for(auto matEl : getAllLocalStates()) {
+
+    // get matrix row and col indices
+    size_t iMat1 = std::get<0>(matEl);
+    size_t iMat2 = std::get<1>(matEl);   
+
+    G(iMat1,iMat2) = invSqrtDiagonal[iMat1] * this->operator()(iMat1,iMat2) * invSqrtDiagonal[iMat2];
+
+  }
+
+  // Diagonalize G and store it's most negative eigenvalue 
+  auto diagResult = G.diagonalize(); 
+  T lowestEigenvalue = std::get<0>(diagResult)[0]; // zeroth element is the most negative
+
+  if(lowestEigenvalue >= 0) return; // all eigenvalues are positive, no need to correct 
+
+  if(mpi->mpiHead()) {
+    std::cout << "Correcting scattering matrix for loweset eigenvalue " 
+    << lowestEigenvalue << std::endl;
+  }
+
+  // we need the abs of this below, no sense in repeating it in the loop
+  lowestEigenvalue = abs(lowestEigenvalue); // unsure if this would work on a complex matrix 
+
+  // finally use this result to correct the real matrix 
+  for(auto matEl : getAllLocalStates()) {
+
+    // get matrix row and col indices
+    size_t iMat1 = std::get<0>(matEl);
+    size_t iMat2 = std::get<1>(matEl);  
+    if(iMat1 != iMat2) continue; // we only fix the diagonal 
+
+    this->operator()(iMat1,iMat2) = this->operator()(iMat1,iMat2) + 1.05*lowestEigenvalue * diagonal[iMat1]; 
+
+  }
 }
 
 #endif  // include safeguard

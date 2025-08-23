@@ -24,31 +24,35 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
                  Eigen::MatrixXd &atomicPositions_,
                  Eigen::VectorXi &atomicSpecies_,
                  std::vector<std::string> &speciesNames_,
-                 Eigen::VectorXd &speciesMasses_) {
+                 Eigen::VectorXd &speciesMasses_,
+                 Eigen::Tensor<double, 3>& bornCharges_,
+                 Eigen::Matrix3d& dielectricMatrix_) {
 
   setDirectUnitCell(directUnitCell_); // sets both direct and reciprocal
   volumeUnitCell = calcVolume(directUnitCell);
 
   if (volumeUnitCell <= 0.) {
-    Error("Unexpected non positive volume");
+    Error("Crystal somehow has a zero or negative unit cell volume.");
   }
 
   dimensionality = context.getDimensionality();
 
   if (atomicSpecies_.size() != atomicPositions_.rows()) {
-    Error("atomic species and positions are not aligned");
+    Error("Atomic species and positions are not aligned.");
   }
   if (atomicPositions_.cols() != 3) {
-    Error("atomic positions need three coordinates");
+    Error("Atomic positions need three coordinates.");
   }
   if ((int)speciesMasses_.size() != (int)speciesNames_.size()) {
-    Error("species masses and names are not aligned");
+    Error("Species masses and names are not aligned.");
   }
 
   atomicSpecies = atomicSpecies_;
   atomicPositions = atomicPositions_;
   speciesMasses = speciesMasses_;
   speciesNames = speciesNames_;
+  bornCharges = bornCharges_;
+  dielectricMatrix = dielectricMatrix_;
 
   numAtoms = int(atomicPositions.rows());
   numSpecies = int(speciesNames.size());
@@ -114,8 +118,14 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
     atomicNames[i] = speciesNames[atomicSpecies(i)];
     atomicIsotopeCouplings(i) = speciesIsotopeCouplings(atomicSpecies(i));
   }
+  // call the function to set up crystal symmetries
+  generateSymmetryInformation(context);
+  if (mpi->mpiHead()) {  // we only really want to print this on construction 
+    std::cout << "Found " << numSymmetries << " symmetries\n";
+  }
+}
 
-  //-----------------------------------------------------------------
+void Crystal::generateSymmetryInformation(Context &context) {
 
   int maxSize = 192;
   int rotations[maxSize][3][3];
@@ -168,10 +178,6 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
       Error("SPGlib failed at recognizing symmetries");
     }
 
-    if (mpi->mpiHead()) {
-      std::cout << "Found " << numSymmetries << " symmetries\n";
-    }
-
   } else { // if we disable symmetries, and just use the identity
 
     numSymmetries = 1;
@@ -193,7 +199,6 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
 
   // store the symmetries inside the class
   // note: spglib returns rotation and translation in fractional coordinates
-
   for (int iSymmetry = 0; iSymmetry < numSymmetries; iSymmetry++) {
     Eigen::Vector3d thisTranslation;
     thisTranslation(0) = translations[iSymmetry][0];
@@ -237,6 +242,8 @@ Crystal::Crystal(const Crystal &obj) {
   speciesMasses = obj.speciesMasses;
   symmetryOperations = obj.symmetryOperations;
   numSymmetries = obj.numSymmetries;
+  bornCharges = obj.bornCharges; 
+  dielectricMatrix = obj.dielectricMatrix; 
 }
 
 // assignment operator
@@ -258,11 +265,13 @@ Crystal &Crystal::operator=(const Crystal &obj) {
     speciesMasses = obj.speciesMasses;
     symmetryOperations = obj.symmetryOperations;
     numSymmetries = obj.numSymmetries;
+    bornCharges = obj.bornCharges; 
+    dielectricMatrix = obj.dielectricMatrix; 
   }
   return *this;
 }
 
-void Crystal::print() {
+void Crystal::print() const {
   if(!mpi->mpiHead()) return;
   // print the lattice vectors
   std::cout << "\nDirect lattice vectors (ang)" << std::endl;
@@ -298,16 +307,15 @@ void Crystal::setDirectUnitCell(const Eigen::Matrix3d &directUnitCell_) {
 }
 
 const Eigen::Matrix3d &Crystal::getDirectUnitCell() { return directUnitCell; }
-
 const Eigen::Matrix3d &Crystal::getReciprocalUnitCell() {
   // note: reciprocalUnitCell is  in units of twoPi
   // i.e. must be multiplied by twoPi
   return reciprocalUnitCell;
 }
 
-const int &Crystal::getNumAtoms() const { return numAtoms; }
-
-double Crystal::getVolumeUnitCell(int dimensionality_) {
+const int &Crystal::getNumAtoms() { return numAtoms; }
+const Eigen::Tensor<double, 3> Crystal::getBornEffectiveCharges() { return bornCharges; }
+double Crystal::getVolumeUnitCell(int dimensionality_) const {
   double volume;
   if (dimensionality_ == 3) {
     volume = volumeUnitCell;
@@ -321,33 +329,23 @@ double Crystal::getVolumeUnitCell(int dimensionality_) {
 }
 
 const Eigen::MatrixXd &Crystal::getAtomicPositions() { return atomicPositions; }
-
 const Eigen::VectorXi &Crystal::getAtomicSpecies() { return atomicSpecies; }
-
 const std::vector<std::string> &Crystal::getAtomicNames() {
   return atomicNames;
 }
-
 const Eigen::VectorXd &Crystal::getAtomicMasses() { return atomicMasses; }
-
 const Eigen::VectorXd &Crystal::getAtomicIsotopeCouplings() {
   return atomicIsotopeCouplings;
 }
-
 const std::vector<std::string> &Crystal::getSpeciesNames() {
   return speciesNames;
 }
-
 const Eigen::VectorXd &Crystal::getSpeciesMasses() { return speciesMasses; }
-
 const std::vector<SymmetryOperation> &Crystal::getSymmetryOperations() {
   return symmetryOperations;
 }
-
-const int &Crystal::getNumSymmetries() const { return numSymmetries; }
-
+int Crystal::getNumSymmetries() const { return numSymmetries; }
 int Crystal::getDimensionality() const { return dimensionality; }
-
 int Crystal::getNumSpecies() const { return numSpecies; }
 
 std::tuple<Eigen::MatrixXd, Eigen::VectorXd>

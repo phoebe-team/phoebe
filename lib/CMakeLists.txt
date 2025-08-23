@@ -6,20 +6,14 @@ include(FetchContent)
 
 FetchContent_Declare(googletest
   GIT_REPOSITORY https://github.com/google/googletest.git
-  GIT_TAG "release-1.11.0"
+  GIT_TAG "v1.17.0"
   SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/googletest
   UPDATE_COMMAND ""
 )
 FetchContent_MakeAvailable(googletest)
 
-# grabs a copy of nlohmann/json from a lighter repository
-# which tracks the original, minus the large test data set.
-# This is recommended by the readme of nlohmann/json
-FetchContent_Declare(json
-    GIT_REPOSITORY https://github.com/nlohmann/json.git
-    SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/json_src
-    UPDATE_COMMAND ""
-)
+# json library by nlohmann
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
 FetchContent_MakeAvailable(json)
 
 FetchContent_Declare(
@@ -62,23 +56,23 @@ if(HDF5_AVAIL)
   endif()
   ExternalProject_Add(highfive_dep
       SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/highfive_src
-      GIT_REPOSITORY https://github.com/anjohan/HighFive# https://github.com/BlueBrain/HighFive.git
+      GIT_REPOSITORY https://github.com/highfive-devs/highfive.git
+      GIT_TAG v3.0.0-beta2
       UPDATE_COMMAND ""
       CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=${CMAKE_CURRENT_BINARY_DIR}/highfive_src
           -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/highfive_src
           -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
           -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
           -DHIGHFIVE_BUILD_DOCS=OFF
           -DHIGHFIVE_EXAMPLES=OFF
           -DHIGHFIVE_UNIT_TESTS=OFF
-          -DHIGHFIVE_USE_BOOST=OFF
-          -DHIGHFIVE_USE_EIGEN=ON
-          -DHIGHFIVE_PARALLEL_HDF5=${PARALLEL_HDF5}
-          -DHIGHFIVE_USE_OPENCV=OFF
-          -DHIGHFIVE_USE_XTENSOR=OFF
-          -DEIGEN3_INCLUDE_DIRS=${CMAKE_CURRENT_BINARY_DIR}/eigen_src
-          -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+          -DHIGHFIVE_TEST_BOOST=OFF
+          -DHIGHFIVE_TEST_EIGEN=OFF
+          -DHDF5_IS_PARALLEL=${PARALLEL_HDF5}
+          -DHIGHFIVE_TEST_OPENCV=OFF
+          -DHIGHFIVE_TEST_XTENSOR=OFF
 )
 endif()
 

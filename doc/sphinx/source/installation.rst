@@ -6,7 +6,7 @@ Installing Phoebe
 Download
 --------
 
-The code is available (free of charge with an open-source MIT license) at its `github page <https://github.com/mir-group/phoebe>`__.
+The code is available (free of charge with an open-source MIT license) at its `github page <https://github.com/phoebe-team/phoebe>`__.
 When checking out from the GitHub repository, make sure to use the master branch. The other branches may be functional, but are not guaranteed to work and should be used with caution.
 
 Prerequisites
@@ -40,7 +40,7 @@ Basic build
 To install Phoebe, type::
 
   # clone the git repository, including the Kokkos submodule
-  git clone --recurse-submodules https://github.com/mir-group/phoebe.git
+  git clone --recurse-submodules https://github.com/phoebe-team/phoebe.git
   cd phoebe
   # build the code
   mkdir build

@@ -46,6 +46,8 @@ protected:
   std::vector<std::string> atomicNames;    // size (numAtoms)
   Eigen::VectorXd atomicMasses;            // size (numAtoms)
   Eigen::VectorXd atomicIsotopeCouplings;  // size (numAtoms)
+  Eigen::Tensor<double, 3> bornCharges;    // size (numAtoms,3,3)
+  Eigen::Matrix3d dielectricMatrix;        // size (3,3)
 
   // vectors running over the number of species
   std::vector<std::string> speciesNames;   // size (numSpecies)
@@ -74,7 +76,8 @@ public:
   Crystal(Context &context, Eigen::Matrix3d &directUnitCell_, Eigen::MatrixXd &atomicPositions_,
           Eigen::VectorXi &atomicSpecies_,
           std::vector<std::string> &speciesNames_,
-          Eigen::VectorXd &speciesMasses_);
+          Eigen::VectorXd &speciesMasses_, Eigen::Tensor<double, 3>& bornCharges_,
+          Eigen::Matrix3d &dielectricMatrix);
 
   /** Empty constructor.
    */
@@ -89,7 +92,7 @@ public:
   Crystal &operator=(const Crystal &obj);
 
   /** Print the crystal information */
-  void print();
+  void print() const;
 
   //  Setter and getter for all the variables above
 
@@ -107,14 +110,24 @@ public:
   /** get the number of atoms in the unit cell
    *
    */
-  const int &getNumAtoms() const;
+  const int &getNumAtoms();
+
+  /** Return the born effective charges for the crystal object. 
+   * 
+  */
+  const Eigen::Tensor<double, 3> getBornEffectiveCharges();
+
+  /** Return the dielectric matrix for the crystal object. 
+   * @return dielectricMatrix: crystal structure's dielectric matrix. Zero if non-polar
+  */
+  const inline Eigen::Matrix3d getDielectricMatrix() { return dielectricMatrix; }
 
   /** get the volume of the crystal unit cell in Bohr^3
    * @param dimensionality: returns the volume of the unit cell on a reduced
    * dimensionality. If 2D, it is ASSUMED that the z-direction is the non
    * periodic direction. If 1D, it's assumed that z is the periodic direction
    */
-  double getVolumeUnitCell(int dimensionality_ = 3);
+  double getVolumeUnitCell(int dimensionality_ = 3) const;
 
   /** get the symmetry operations of the crystal, in cartesian coordinates.
    * Returns a vector of SymmetryOperation. A SymmetryOperation is a
@@ -128,7 +141,7 @@ public:
    * For the time being, we only retain symmetry operations that don't use a
    * translation.
    */
-  const int &getNumSymmetries() const;
+  int getNumSymmetries() const;
 
   /** get the atomic positions, in cartesian coordinates
    * we return an array of size (numAtoms,3)
@@ -226,6 +239,12 @@ public:
   buildWignerSeitzVectorsWithShift(const Eigen::Vector3i &grid,
                                    const Eigen::MatrixXd &shift,
                                    const int &superCellFactor = 2);
+
+  /** A function to set up the symmetry rotation matrices for a crystal, 
+   * which are then stored in this object. */
+  void generateSymmetryInformation(Context &context);
+
+
 };
 
 #endif

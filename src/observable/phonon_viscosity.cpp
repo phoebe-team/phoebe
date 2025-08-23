@@ -44,7 +44,7 @@ void PhononViscosity::calcRTA(VectorBTE &tau) {
     }
 
     auto en = bandStructure.getEnergy(isIdx);
-    if (en < 0.001 / ryToCmm1) { return; }
+    if (en < phEnergyCutoff) { return; }
     auto velIrr = bandStructure.getGroupVelocity(isIdx);
     auto qIrr = bandStructure.getWavevector(isIdx);
 
@@ -77,6 +77,10 @@ void PhononViscosity::calcRTA(VectorBTE &tau) {
   });
   Kokkos::Experimental::contribute(tensordxdxdxd_k, scatter_tensordxdxdxd);
   mpi->allReduceSum(&tensordxdxdxd);
+
+  // TODO for ALEX: call a function from viscosity_io.h here, to output
+  // the ballistic viscosity. 
+
 }
 
 void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
@@ -85,16 +89,25 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
   // to simplify, here I do everything considering there is a single
   // temperature (due to memory constraints)
   if (numCalculations > 1) {
-    Error("Developer error: Viscosity for relaxons only for 1 temperature.");
+    DeveloperError("Viscosity for relaxons only for 1 temperature.");
   }
 
   int numStates = bandStructure.getNumStates();
   int numRelaxons = eigenvalues.size();
   int iCalc = 0; // zero index, because we only run one for relaxons
 
-  // search for the indices of the special eigenvectors and print info about them
-  relaxonEigenvectorsCheck(eigenvectors, numRelaxons);
-
+  // print info about the special eigenvectors ------------------------------
+  // and save the indices that need to be skipped
+  alpha0 = relaxonEigenvectorOverlap(eigenvectors, theta0, "theta0");
+  
+  // drift eigenvector overlaps ----------
+  // for now, we don't save these drift eigenvector indices
+  {
+    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::all), "phi_x");
+    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::all), "phi_y");
+    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
+  }
+  
   // Code by Andrea, annotation by Jenny
   // Here we are calculating Eq. 9 from the PRX Simoncelli 2020
   //    mu_ijkl = (eta_ijkl + eta_ilkj)/2
@@ -211,132 +224,9 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
 // calculate special eigenvectors
 void PhononViscosity::calcSpecialEigenvectors() {
 
-  genericCalcSpecialEigenvectors(bandStructure, statisticsSweep,
+  genericCalcSpecialEigenvectors(context, bandStructure, statisticsSweep,
                           spinFactor, theta0, theta_e, phi, C, A);
 
-/*
-  double volume = crystal.getVolumeUnitCell(dimensionality);
-  auto particle = bandStructure.getParticle();
-  double Nq = context.getQMesh().prod();
-  int numStates = bandStructure.getNumStates();
-
-  int iCalc = 0; // set to zero because of relaxons
-  auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
-  double kBT = calcStat.temperature;
-  double T = calcStat.temperature / kBoltzmannRy;
-  double chemPot = 0;
-
-  // Precalculate theta_e, theta0, phi  ----------------------------------
-
-  // theta^0 - energy conservation eigenvector
-  //   electronic states = ds * g-1 * (hE - mu) * 1/(kbT^2 * V * Nkq * Ctot)
-  //   phonon states = ds * g-1 * h*omega * 1/(kbT^2 * V * Nkq * Ctot)
-  theta0 = Eigen::VectorXd::Zero(numStates);
-
-  // phi -- the three momentum conservation eigenvectors
-  //     phi = sqrt(1/(kbT*volume*Nkq*M)) * g-1 * ds * hbar * wavevector;
-  phi = Eigen::MatrixXd::Zero(3, numStates);
-
-  // calculate the special eigenvectors' product with eigenvectors ----------------
-  // to report it's index and overlap + remove it from the calculation
-  for (int is : bandStructure.parallelStateIterator()) {
-
-    auto isIdx = StateIndex(is);
-    auto en = bandStructure.getEnergy(isIdx);
-    double popM1 = particle.getPopPopPm1(en, kBT, chemPot);
-
-    theta0(is) = sqrt(popM1) * (en - chemPot);
-    C += popM1 * (en - chemPot) * (en - chemPot);
-  }
-  mpi->allReduceSum(&theta0);
-  mpi->allReduceSum(&C);
-  // apply normalizations
-  C *= 1. / (volume * Nq * kBT * T);
-  theta0 *= 1./sqrt(kBT * T * volume * Nq * C);
-
-  // calculate A_i ----------------------------------------
-
-  // normalization coeff A ("phonon specific momentum")
-  // A = 1/(V*Nq) * (1/kT) sum_qs (hbar*q)^2 * N(1+N)
-  A = Eigen::Vector3d::Zero();
-
-  for (int is : bandStructure.parallelStateIterator()) {
-    auto isIdx = StateIndex(is);
-    auto en = bandStructure.getEnergy(isIdx);
-
-    if (en < 0.001 / ryToCmm1) { continue; }
-    double boseP1 = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
-    auto q = bandStructure.getWavevector(isIdx);
-    q = bandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
-    for (int iDim = 0; iDim < dimensionality; iDim++) {
-      A(iDim) += boseP1 * q(iDim) * q(iDim);
-    }
-  }
-  A /= kBT * Nq * volume;
-  mpi->allReduceSum(&A);
-
-  // then calculate the drift eigenvectors, phi (eq A12 of PRX Simoncelli)
-  // -----------------------------------------------------------------
-  for (int is : bandStructure.parallelStateIterator()) {
-
-    auto isIdx = StateIndex(is);
-    auto en = bandStructure.getEnergy(isIdx);
-    if (en < 0.001 / ryToCmm1) { continue; }
-    double boseP1 = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
-    auto q = bandStructure.getWavevector(isIdx);
-    q = bandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
-    for (auto i : {0, 1, 2}) {
-      if (A(i) != 0.) {
-        phi(i, is) = q(i) * sqrt(boseP1 / (kBT * A(i)));
-      }
-    }
-  }
-  mpi->allReduceSum(&phi);
-*/
-}
-
-void PhononViscosity::relaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                                                        int& numRelaxons) {
-
-  // sets alpha0 and alpha_e, the indices
-  // of the special eigenvectors in the eigenvector list,
-  // to be excluded in later calculations
-  Particle particle = bandStructure.getParticle();
-  genericRelaxonEigenvectorsCheck(eigenvectors, numRelaxons, particle,
-                                 theta0, theta_e, alpha0, alpha_e);
-
-  // goal is to print and save the indices and scalar products of the special eigenvectors
-/*
-  // calculate the overlaps with special eigenvectors
-  Eigen::VectorXd prodTheta0(numRelaxons); prodTheta0.setZero();
-  for (auto tup : eigenvectors.getAllLocalStates()) {
-
-    auto is = std::get<0>(tup);
-    auto gamma = std::get<1>(tup);
-    prodTheta0(gamma) += eigenvectors(is,gamma) * theta0(is);
-
-  }
-  mpi->allReduceSum(&prodTheta0);
-
-  // find the element with the maximum product
-  prodTheta0 = prodTheta0.cwiseAbs();
-  Eigen::Index maxCol0, idxAlpha0;
-  float maxTheta0 = prodTheta0.maxCoeff(&idxAlpha0, &maxCol0);
-
-  if(mpi->mpiHead()) {
-    std::cout << std::fixed;
-    std::cout << std::setprecision(4);
-    std::cout << "Maximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
-    std::cout << "First ten products with theta_0:";
-    for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodTheta0(gamma); }
-    std::cout << std::endl;
-  }
-
-  // save these indices to the class objects
-  // if they weren't really found, we leave these indices
-  // as -1 so that no relaxons are skipped
-  if(maxTheta0 >= 0.75) alpha0 = idxAlpha0;
-*/
 }
 
 void PhononViscosity::print() {

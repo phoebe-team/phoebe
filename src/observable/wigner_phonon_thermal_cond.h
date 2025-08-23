@@ -25,17 +25,6 @@ public:
                                   BaseBandStructure &bandStructure_,
                                   VectorBTE &relaxationTimes);
 
-  /** Copy constructor
-   *
-   */
-  WignerPhononThermalConductivity(const WignerPhononThermalConductivity &that);
-
-  /** Copy assignment operator
-   *
-   */
-  WignerPhononThermalConductivity &
-  operator=(const WignerPhononThermalConductivity &that);
-
   /** Compute the thermal conductivity from the phonon populations
    * @param n: the phonon population out-of-equilibrium. Note that this
    * method uses the absolute value of phonon populations n.

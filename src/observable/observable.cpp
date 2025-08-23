@@ -138,3 +138,49 @@ Eigen::VectorXd Observable::getNorm() {
   }
   return norm;
 }
+
+void Observable::symmetrize(Eigen::Tensor<double, 3>& allTransportCoeffs) { 
+
+  // get symmetry rotations of the crystal in cartesian coords
+  // in case there's no symmetries, we need to trick Phoebe into
+  // generating a crystal which uses them.
+  bool useSyms = context.getUseSymmetries();
+  context.setUseSymmetries(true);
+  Crystal symCrystal(crystal);
+  symCrystal.generateSymmetryInformation(context);
+  auto symOps = symCrystal.getSymmetryOperations();
+  context.setUseSymmetries(useSyms);
+
+  auto invLVs = crystal.getDirectUnitCell().inverse();
+  auto LVs = crystal.getDirectUnitCell();
+
+  for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+
+    Eigen::Matrix3d transportCoeffs; 
+
+    // copy the 3x3 matrix of a single calculation 
+    for (int j : {0, 1, 2}) { 
+      for (int i : {0, 1, 2}) {
+        transportCoeffs(i,j) = allTransportCoeffs(iCalc,i,j);
+      }
+    }
+    // to hold the symmetrized coeffs
+    Eigen::Matrix3d symCoeffs;
+    symCoeffs.setZero();
+      
+    for(SymmetryOperation symOp: symOps) {
+      Eigen::Matrix3d rotation = symOp.rotation;
+      rotation = LVs * rotation * invLVs; //convert to Cartesian
+      Eigen::Matrix3d rotationTranspose = rotation.transpose();
+      symCoeffs += rotationTranspose * transportCoeffs * rotation;
+    }
+    transportCoeffs = symCoeffs * (1. / symOps.size());
+
+    // place them back into the full tensor
+    for (int j : {0, 1, 2}) {
+      for (int i : {0, 1, 2}) {
+        allTransportCoeffs(iCalc,i,j) = transportCoeffs(i,j);
+      }
+    }
+  }
+}

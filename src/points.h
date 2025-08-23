@@ -5,6 +5,7 @@
 #include "eigen.h"
 #include "exceptions.h"
 
+// TODO this should be an enum 
 const int crystalCoordinates_ = 0;
 const int cartesianCoordinates_ = 1;
 
@@ -39,7 +40,7 @@ public:
    * @return coordinates: a 3d vector of coordinates
    */
   Eigen::Vector3d getCoordinates(const int &basis = crystalCoordinates_,
-                                 const bool &inWignerSeitz = false);
+                                 const bool &inWignerSeitz = false) const;
 
   /** Sum of two wavevectors (this + b)
    * The vector is folded in the Wigner Seitz zone with an Umklapp vector.
@@ -291,8 +292,15 @@ public:
    */
   std::vector<int> getReducibleStarFromIrreducible(const int &ik);
 
+  /** Change the crystal object for a different one. Used as a helper by the
+  * symmetrize function in the bandstructure class.
+  * @param crystal: the new crystal to swap in
+  */
+  //void swapCrystal(Crystal &newCrystal);
+
 protected:
   void setMesh(const Eigen::Vector3i &mesh_, const Eigen::Vector3d &offset_);
+
   Crystal &crystalObj;
   Eigen::Vector3i mesh;
   Eigen::Vector3d offset;

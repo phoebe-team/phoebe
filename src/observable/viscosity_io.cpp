@@ -2,64 +2,49 @@
 #include <fstream>
 #include <iomanip>
 #include <nlohmann/json.hpp>
-
-// TODO potentially this should be a viscosity parent object...
-
-// here alpha0 and alpha e are set through passing by reference
-void genericRelaxonEigenvectorsCheck(ParallelMatrix<double>& eigenvectors,
-                                    int& numRelaxons, Particle& particle,
-                                    Eigen::VectorXd& theta0,
-                                    Eigen::VectorXd& theta_e,
-                                    int& alpha0, int& alpha_e) {
+ 
+// returns the index of largest overlap with a special eigenvector
+int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
+                              const Eigen::VectorXd& specialEigenvector, 
+                              std::string eigenvectorName) {
 
   // calculate the overlaps with special eigenvectors
-  Eigen::VectorXd prodTheta0(numRelaxons); prodTheta0.setZero();
-  Eigen::VectorXd prodThetae(numRelaxons); prodThetae.setZero();
+  int numRelaxons = specialEigenvector.size(); 
+  Eigen::VectorXd overlaps(numRelaxons); overlaps.setZero();
+                                
+  // TODO need to update this for useUpperTriangle and case of less numRelaxons
   for (auto tup : eigenvectors.getAllLocalStates()) {
-
     auto is = std::get<0>(tup);
     auto gamma = std::get<1>(tup);
-    //if(std::isnan(eigenvectors(is,gamma)) || std::isnan(theta0(is))) std::cout << is << " " << gamma << " " << eigenvectors(is,gamma) << " " << theta0(is) << std::endl; 
-    prodTheta0(gamma) += eigenvectors(is,gamma) * theta0(is);
-    prodThetae(gamma) += eigenvectors(is,gamma) * theta_e(is);
-
+    overlaps(gamma) += eigenvectors(is,gamma) * specialEigenvector(is);
   }
-  mpi->allReduceSum(&prodThetae); mpi->allReduceSum(&prodTheta0);
+  mpi->allReduceSum(&overlaps);
 
   // find the element with the maximum product
-  prodTheta0 = prodTheta0.cwiseAbs();
-  prodThetae = prodThetae.cwiseAbs();
-  Eigen::Index maxCol0, idxAlpha0;
-  Eigen::Index maxCol_e, idxAlpha_e;
-  float maxTheta0 = prodTheta0.maxCoeff(&idxAlpha0, &maxCol0);
-  float maxThetae = prodThetae.maxCoeff(&idxAlpha_e, &maxCol_e);
+  overlaps = overlaps.cwiseAbs();
+  Eigen::Index maxCol, idxMaxOverlap;
+  float maxOverlap = overlaps.maxCoeff(&idxMaxOverlap, &maxCol);
 
   if(mpi->mpiHead()) {
+
+    // avoid a segfault in an edge case of few states
+    int maxPrint = 10; 
+    if(numRelaxons < 10) { maxPrint = numRelaxons; } 
+    
     std::cout << std::fixed;
     std::cout << std::setprecision(4);
-    std::cout << "Maximum scalar product theta_0.theta_alpha = " << maxTheta0 << " at index " << idxAlpha0 << "." << std::endl;
-    std::cout << "First ten products with theta_0:";
-    for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodTheta0(gamma); }
-    if(particle.isElectron()) {
-      std::cout << "\n\nMaximum scalar product theta_e.theta_alpha = " << maxThetae << " at index " << idxAlpha_e << "." << std::endl;
-      std::cout << "First ten products with theta_e:";
-      for(int gamma = 0; gamma < 10; gamma++) { std::cout << " " << prodThetae(gamma); }
-    }
-    std::cout << "\n" << std::endl;
-    //std::cout << "Eigenvector norm check: " << theta0.dot(theta0) << " " << theta_e.dot(theta_e);
-
+    std::cout << "\nMaximum scalar product " << eigenvectorName << ".theta_alpha = " << maxOverlap << " at alpha = " << idxMaxOverlap << "." << std::endl;
+    std::cout << "First ten products with " << eigenvectorName << ":";
+    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << overlaps(gamma); }
   }
 
-  // save these indices to the class objects
-  // if they weren't really found, we leave these indices
-  // as -1 so that no relaxons are skipped
-  if(maxTheta0 >= 0.75) alpha0 = idxAlpha0;
-  if(maxThetae >= 0.75) alpha_e = idxAlpha_e;
-
+  // If the best overlap isn't very good, we return -1 so nothing is skipped 
+  if(maxOverlap >= 0.75) return idxMaxOverlap;
+  else { return -1; }
 }
-
+ 
 // calculate special eigenvectors
-void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
+void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
                                     StatisticsSweep& statisticsSweep,
                                     double& spinFactor,
                                     Eigen::VectorXd& theta0,
@@ -79,7 +64,10 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
   double chemPot = 0; // has to be zero for phonons,
                       // don't use the stat sweep one which may have
                       // finite values if phel scattering is used
-  double Npts = bandStructure.getPoints().getNumPoints();
+  //double Npts = bandStructure.getPoints().getNumPoints();
+  double Npts; 
+  if(particle.isPhonon()) Npts = context.getQMesh().prod(); 
+  else { Npts = context.getKMesh().prod(); }
 
   // set particle specific quantities
   if(particle.isElectron()) {
@@ -99,7 +87,7 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
   theta_e = Eigen::VectorXd::Zero(numStates);
 
   // phi -- the three momentum conservation eigenvectors
-  //     phi = sqrt(1/(kbT*volume*Nkq*M)) * g-1 * ds * hbar * wavevector;
+  //     phi = sqrt(1/(kbT*volume*Npts*M)) * g-1 * ds * hbar * wavevector;
   phi = Eigen::MatrixXd::Zero(3, numStates);
 
   // spin degen vector
@@ -109,7 +97,7 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
   double U = 0;
 
   // specific heat
-  C = 0.; 
+  C = 0.;
 
   // calculate the special eigenvectors ----------------
   for (int is : bandStructure.parallelStateIterator()) {
@@ -117,7 +105,7 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
     ds(is) = sqrt(spinFactor);
     auto isIdx = StateIndex(is);
     double en = bandStructure.getEnergy(isIdx);
-    if(particle.isPhonon() && en < 0.001 / ryToCmm1) { continue; }
+    if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
     double pop = particle.getPopPopPm1(en, kBT, chemPot);
 
     theta0(is) = sqrt(pop) * (en - chemPot) * ds(is);
@@ -125,7 +113,7 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
       theta_e(is) = sqrt(pop) * ds(is);
       U += pop;
     }
-    auto popCont = pop * (en - chemPot) * (en - chemPot);
+    // auto popCont = pop * (en - chemPot) * (en - chemPot);
     C += pop * (en - chemPot) * (en - chemPot);
   }
   mpi->allReduceSum(&theta0);
@@ -139,7 +127,7 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
   U *= spinFactor / (volume * Npts * kBT);
   if(particle.isPhonon()) U = 1.; // avoid making theta_e nan instead of zero
   theta_e *= 1./sqrt(kBT * U * Npts * volume);
-  
+
   // calculate A_i ----------------------------------------
 
   // normalization coeff A ("phonon specific momentum")
@@ -150,12 +138,16 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
     auto isIdx = StateIndex(is);
     auto en = bandStructure.getEnergy(isIdx);
 
-    if(particle.isPhonon() && en < 0.001 / ryToCmm1) { continue; }
+    if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
+
     double pop = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
     auto q = bandStructure.getWavevector(isIdx);
     q = bandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
+
+    Eigen::Vector3d contrib; contrib.setZero();
     for (int iDim = 0; iDim < dimensionality; iDim++) {
       A(iDim) += pop * q(iDim) * q(iDim);
+      contrib(iDim) += pop * q(iDim) * q(iDim);
     }
   }
   mpi->allReduceSum(&A);
@@ -167,7 +159,7 @@ void genericCalcSpecialEigenvectors(BaseBandStructure& bandStructure,
 
     auto isIdx = StateIndex(is);
     auto en = bandStructure.getEnergy(isIdx);
-    if(particle.isPhonon() && en < 0.001 / ryToCmm1) { continue; }
+    if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
 
     double pop = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
     auto q = bandStructure.getWavevector(isIdx);
@@ -200,22 +192,30 @@ void printViscosity(std::string& viscosityName, Eigen::Tensor<double, 5>& viscos
 
   if (!mpi->mpiHead()) return;
 
-  // TODO Very important, do we have to multiply this by height / thickness? 
-  std::string units, printHeader;
-  if (dimensionality == 1)      { 
-    units = "Pa s / m^2"; 
-    printHeader = "i, eta[i,0]\n";   
-  } // 1d
-  else if (dimensionality == 2) { 
-    units = "Pa s / m";   
-    printHeader = "i, j, eta[i,j,0], eta[i,j,1]\n"; 
-  } // 2d
-  else { 
-    units = "Pa s";
-    printHeader = "i, j, k, eta[i,j,k,0], eta[i,j,k,1], eta[i,j,k,2]\n";   
-  } // 3d
-
   int numCalculations = statisticsSweep.getNumCalculations();
+
+  if(numCalculations > 20) {
+    std::cout << "\nBecause there are more than 20 calculations in this run,\n"
+            << "the transport tensors will not be printed to output, but can\n"
+            << "still be found in the corresponding output json file.\n"
+            << std::endl;
+    return;
+  }
+
+  // TODO Very important, do we have to multiply this by height / thickness?
+  std::string units, printHeader;
+  if (dimensionality == 1)      {
+    units = "Pa s / m^2";
+    printHeader = "i, eta[i,0]\n";
+  } // 1d
+  else if (dimensionality == 2) {
+    units = "Pa s / m";
+    printHeader = "i, j, eta[i,j,0], eta[i,j,1]\n";
+  } // 2d
+  else {
+    units = "Pa s";
+    printHeader = "i, j, k, eta[i,j,k,0], eta[i,j,k,1], eta[i,j,k,2]\n";
+  } // 3d
 
   std::cout << "\n";
   std::cout << viscosityName << " viscosity (" << units << ")\n";
@@ -250,8 +250,9 @@ void printViscosity(std::string& viscosityName, Eigen::Tensor<double, 5>& viscos
 }
 
 void outputViscosityToJSON(const std::string& outFileName, const std::string& viscosityName,
-                Eigen::Tensor<double, 5>& viscosityTensor, const bool& append,
-                StatisticsSweep& statisticsSweep, int& dimensionality) {
+                                Eigen::Tensor<double, 5>& viscosityTensor,
+                                const bool& append,
+                                StatisticsSweep& statisticsSweep, int& dimensionality) {
 
   if (!mpi->mpiHead()) return;
 
@@ -308,7 +309,6 @@ void outputViscosityToJSON(const std::string& outFileName, const std::string& vi
   o.close();
 }
 
-
 // TODO we need to fix the dimensionality to work for
 // low dim materials in all the coefficients!
 void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
@@ -343,15 +343,15 @@ void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
     auto is2 = std::get<1>(tup);
     for (int i = 0; i < dimensionality; i++) {
       for (int j = 0; j < dimensionality; j++) {
-      /*  if(context.getUseUpperTriangle()) {
+        if(context.getUseUpperTriangle()) {
           if( i == j ) {
             Du(i,j) += phi(i,is1) * scatteringMatrix(is1,is2) * phi(j,is2);
           } else {
             Du(i,j) += 2. * phi(i,is1) * scatteringMatrix(is1,is2) * phi(j,is2);
           }
-        } else { */
+        } else {
           Du(i,j) += phi(i,is1) * scatteringMatrix(is1,is2) * phi(j,is2);
-       // }
+        }
       }
     }
   }
@@ -361,7 +361,7 @@ void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
     auto isIdx = StateIndex(is);
     double en = bandStructure.getEnergy(isIdx);
     // discard acoustic phonon modes
-    if (isPhonon && en < 0.001 / ryToCmm1) { continue; }
+    if (isPhonon && en < phEnergyCutoff) { continue; }
     auto v = bandStructure.getGroupVelocity(isIdx);
     for (int i = 0; i < dimensionality; i++) {
       for (int j = 0; j < dimensionality; j++) {
@@ -450,3 +450,113 @@ void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
   }
 }
 
+
+// TODO use requires on the bandstructures to be el first and ph second, do this more elegantly
+void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors, 
+                          const Eigen::VectorXd& eigenvalues, 
+                          std::vector<BaseBandStructure*>& bandStructures, 
+                          const Eigen::VectorXd& theta0,
+                          const Eigen::VectorXd& theta_e,
+                          const Eigen::MatrixXd& phi) {
+
+  int numRelaxonsToOutput = 40; 
+
+  // TODO improve this this
+
+ // make a lambda to handle indexing if it's coupled -- return phonon state index 
+  std::function<int(int)> shiftedStateIdx; 
+
+  //if(bandStructures.size() == 2) { 
+  //  if(!(bandStructures[0]->getParticle().isElectron() && bandStructures[1]->getParticle().isPhonon()))
+  //    DeveloperError("First bandstructure must be electron, second must be phonon, when outputing relaxons to HDF5.");
+    int numElStates = int(bandStructures[0]->irrStateIterator().size());
+    shiftedStateIdx = [numElStates](int stateIndex) {  
+      if(stateIndex < numElStates) { return stateIndex; } 
+      else { return stateIndex-numElStates; }
+    };
+ // } else {
+ //   shiftedStateIdx = [](int stateIndex) {  return stateIndex; };
+ // }
+
+  for (auto bandStructure : bandStructures) {
+
+    size_t numPoints = bandStructure->getPoints().getNumPoints();
+    int numBands = bandStructure->getFullNumBands();
+    Particle particle = bandStructure->getParticle();
+    // convertion for time units 
+    double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 : energyRyToFs;
+
+    // cannot use vector<vector> as this is not contiguous
+    Eigen::Tensor<double,3> relaxon(numPoints, numBands, numRelaxonsToOutput);
+    relaxon.setZero();
+    for (auto [iBte,iRelaxon] : eigenvectors.getAllLocalStates()) {
+
+      // get the band state associated with this state
+      BteIndex BTEidx(shiftedStateIdx(iBte));
+      auto is = bandStructure->bteToState(BTEidx);
+      auto [ik,ib] = bandStructure->getIndex(is); 
+
+      if(iRelaxon >= numRelaxonsToOutput) continue; 
+      relaxon(ik.get(),ib.get(), iRelaxon) = eigenvectors(iBte,iRelaxon); 
+    }
+    mpi->allReduceSum(&relaxon);
+
+    // write the analytical special eigenvectors ---------------------------
+    Eigen::MatrixXd theta_e_kn(numPoints, numBands), theta0_kn(numPoints, numBands);
+    Eigen::MatrixXd phi_kn1(numPoints, numBands), phi_kn2(numPoints, numBands), phi_kn3(numPoints, numBands);
+    theta_e_kn.setZero();  theta0_kn.setZero();  
+    phi_kn1.setZero(); phi_kn2.setZero(); phi_kn3.setZero();
+
+    for (int is : bandStructure->parallelStateIterator()) {
+      auto [ik,ib] = bandStructure->getIndex(is); 
+      theta_e_kn(ik.get(), ib.get()) = theta_e(is);
+      theta0_kn(ik.get(), ib.get()) = theta0(is);
+      phi_kn1(ik.get(), ib.get()) = phi(0,is);
+      phi_kn2(ik.get(), ib.get()) = phi(1,is);
+      phi_kn3(ik.get(), ib.get()) = phi(2,is);
+    }
+    mpi->allReduceSum(&theta_e_kn); mpi->allReduceSum(&theta0_kn);
+    mpi->allReduceSum(&phi_kn1); mpi->allReduceSum(&phi_kn2); mpi->allReduceSum(&phi_kn3);
+
+    // output crystal coords mesh 
+    Eigen::MatrixXd wavevectors(numPoints,3); wavevectors.setZero();
+    for (int ik : bandStructure->parallelIrrPointsIterator()) {
+      WavevectorIndex ikIdx(ik);
+      Eigen::Vector3d k = bandStructure->getWavevector(ikIdx);
+      wavevectors(ik,Eigen::all) = bandStructure->getPoints().cartesianToCrystal(k);
+    }
+    mpi->allReduceSum(&wavevectors);
+
+    // head process writes to file --------------------------
+    if(mpi->mpiHead()) { 
+
+      // let's try a simple write to hdf5  
+      std::string filename = particle.isPhonon() ? "ph_relaxons_eigenvectors.hdf5" : "el_relaxons_eigenvectors.hdf5";
+      H5Easy::File file(filename, H5Easy::File::Overwrite);
+
+      std::vector<double> tau; 
+      for(int alpha = 0; alpha < numRelaxonsToOutput; alpha++) { 
+        tau.push_back(1./eigenvalues(alpha) * energyToTime);
+        // write to an eigen matrix so I can save to hdf5
+        Eigen::MatrixXd relaxonCopy(numPoints,numBands);
+        for (size_t ik = 0; ik < numPoints; ik++) {
+          std::vector<double> tmp;
+          for ( int ib = 0; ib < numBands; ib++) {
+            relaxonCopy(ik,ib) = relaxon(ik,ib,alpha);
+          }
+        }
+        H5Easy::dump(file, "/relaxonEigenvectors_"+std::to_string(alpha), relaxonCopy);
+      }
+      H5Easy::dump(file, "/relaxonRelaxationTimes", tau);
+      H5Easy::dump(file, "/theta_e", theta_e_kn);
+      H5Easy::dump(file, "/theta0", theta0_kn);
+      H5Easy::dump(file, "/phi1", phi_kn1);
+      H5Easy::dump(file, "/phi2", phi_kn2);
+      H5Easy::dump(file, "/phi3", phi_kn3);
+      H5Easy::dump(file, "wavevectorCoordinates", wavevectors);
+      // H5Easy::dump(file, "/relaxationTimeUnit","fs"); // cannot write fixed length string...
+      H5Easy::dump(file, "/numPoints", numPoints);
+      H5Easy::dump(file, "/numRelaxons", numRelaxonsToOutput);
+    }
+  }
+}

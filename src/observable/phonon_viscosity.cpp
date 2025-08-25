@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <Kokkos_Core.hpp>
 #include <Kokkos_ScatterView.hpp>
+#include "relaxons.h"
 
 PhononViscosity::PhononViscosity(Context &context_, StatisticsSweep &statisticsSweep_,
                                  Crystal &crystal_, BaseBandStructure &bandStructure_)
@@ -99,6 +100,9 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
   // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
   alpha0 = relaxonEigenvectorOverlap(eigenvectors, theta0, "theta0");
+  
+  std::vector<BaseBandStructure*> bs = {&bandStructure}; 
+  outputRelaxonsToHDF5(eigenvectors, eigenvalues, bs, theta0, theta_e, phi);
   
   // drift eigenvector overlaps ----------
   // for now, we don't save these drift eigenvector indices
@@ -226,7 +230,6 @@ void PhononViscosity::calcSpecialEigenvectors() {
 
   genericCalcSpecialEigenvectors(context, bandStructure, statisticsSweep,
                           spinFactor, theta0, theta_e, phi, C, A);
-
 }
 
 void PhononViscosity::print() {

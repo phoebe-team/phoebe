@@ -18,7 +18,7 @@ PhononH0::PhononH0(Crystal &crystal,
                    Eigen::Tensor<double, 5> &forceConstants_,
                    Eigen::Vector3i& qCoarseGrid_,
                    const Eigen::MatrixXd& bravaisVectors_, const Eigen::VectorXd& weights_, const int fcRangeType)
-    : crystal(crystal), particle(Particle::phonon), fcRangeType(fcRangeType) {
+    : particle(Particle::phonon), crystal(crystal), fcRangeType(fcRangeType) {
 
   // in this section, we save as class properties a few variables
   // that are needed for the diagonalization of phonon frequencies
@@ -254,7 +254,6 @@ PhononH0::PhononH0(Crystal &crystal,
 PhononH0::PhononH0(const PhononH0 &that)
     : particle(that.particle), crystal(that.crystal), hasDielectric(that.hasDielectric),
       numAtoms(that.numAtoms), numBands(that.numBands),
-      alpha(that.alpha), alat(that.alat),
       volumeUnitCell(that.volumeUnitCell), atomicSpecies(that.atomicSpecies),
       speciesMasses(that.speciesMasses), atomicPositions(that.atomicPositions),
       dielectricMatrix(that.dielectricMatrix), bornCharges(that.bornCharges),
@@ -262,6 +261,7 @@ PhononH0::PhononH0(const PhononH0 &that)
       directUnitCell(that.directUnitCell),
       dimensionality(that.dimensionality),
       fcRangeType(that.fcRangeType),
+      alpha(that.alpha), alat(that.alat), 
       numBravaisVectors(that.numBravaisVectors),
       bravaisVectors(that.bravaisVectors), weights(that.weights),
       mat2R(that.mat2R), gVectors(that.gVectors),

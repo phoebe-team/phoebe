@@ -71,7 +71,8 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
       phi_kn2(ik.get(), ib.get()) = phi(1,is);
       phi_kn3(ik.get(), ib.get()) = phi(2,is);
     }
-    mpi->allReduceSum(&theta_e_kn); mpi->allReduceSum(&theta0_kn);
+    mpi->allReduceSum(&theta_e_kn); 
+    mpi->allReduceSum(&theta0_kn);
     mpi->allReduceSum(&phi_kn1); mpi->allReduceSum(&phi_kn2); mpi->allReduceSum(&phi_kn3);
 
     // output crystal coords mesh
@@ -104,7 +105,7 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
         H5Easy::dump(file, "/relaxonEigenvectors_"+std::to_string(alpha), relaxonCopy);
       }
       H5Easy::dump(file, "/relaxonRelaxationTimes", tau);
-      H5Easy::dump(file, "/theta_e", theta_e_kn);
+      if(bandStructure->getParticle().isElectron()) H5Easy::dump(file, "/theta_e", theta_e_kn);
       H5Easy::dump(file, "/theta0", theta0_kn);
       H5Easy::dump(file, "/phi_x", phi_kn1);
       H5Easy::dump(file, "/phi_y", phi_kn2);

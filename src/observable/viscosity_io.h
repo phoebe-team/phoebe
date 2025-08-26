@@ -68,12 +68,4 @@
                               Eigen::MatrixXd& phi,
                               double& C, Eigen::Vector3d& A);
 
-  // TODO comment 
-  void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors, 
-                              const Eigen::VectorXd& eigenvalues, 
-                              std::vector<BaseBandStructure*>& bandStructures, 
-                              const Eigen::VectorXd& theta0,
-                              const Eigen::VectorXd& theta_e,
-                              const Eigen::MatrixXd& phi);
-
 #endif

@@ -184,8 +184,8 @@ protected:
     // TODO -- when long range correction for dim=2 has been really well checked,
   // uncomment this to activate it
   bool longRange2d = false;
-  double alat;
   double alpha;
+  double alat;
 
   // the R vectors on the WS cell used in the Fourier transform
   int numBravaisVectors = 0;

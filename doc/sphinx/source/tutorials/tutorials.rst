@@ -13,6 +13,7 @@ We assume a basic familiarity with Quantum ESPRESSO (see tutorials on phonons on
    elWanTransport
    phononTransport
    shengBTE
+   relaxons
    mlPhononTransport
    thermalCondOfMetals
    lifetimes

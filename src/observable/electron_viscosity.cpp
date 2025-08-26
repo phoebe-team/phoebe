@@ -5,6 +5,7 @@
 #include <iomanip>
 #include <Kokkos_Core.hpp>
 #include <Kokkos_ScatterView.hpp>
+#include "relaxons.h"
 
 ElectronViscosity::ElectronViscosity(Context &context_, StatisticsSweep &statisticsSweep_,
                                  Crystal &crystal_, BaseBandStructure &bandStructure_)
@@ -126,6 +127,10 @@ void ElectronViscosity::calcFromRelaxons([[maybe_unused]] Eigen::VectorXd &eigen
     relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::all), "phi_y");
     relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
   }
+  if(mpi->mpiHead()) std::cout << std::endl;
+  
+  std::vector<BaseBandStructure*> bs = {&bandStructure}; 
+  outputRelaxonsToHDF5(eigenvectors, eigenvalues, bs, theta0, theta_e, phi);
 
   //size_t states = eigenvectors.size();
   //LoopPrint loopPrint("Transforming relaxon populations","relaxons", eigenvectors.getAllLocalStates().size());
@@ -212,7 +217,6 @@ void ElectronViscosity::calcFromRelaxons([[maybe_unused]] Eigen::VectorXd &eigen
     }
   }
   mpi->allReduceSum(&tensordxdxdxd);
-
 */
   Kokkos::Profiling::popRegion();
 }

@@ -14,6 +14,7 @@ We assume a basic familiarity with Quantum ESPRESSO (see tutorials on phonons on
    phononTransport
    shengBTE
    relaxons
+   coupledBTE
    mlPhononTransport
    thermalCondOfMetals
    lifetimes

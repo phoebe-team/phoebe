@@ -31,7 +31,7 @@ After running the :ref:`elWanTransport` or :ref:`phononTransport` transport calc
   useSymmetries = false
   scatteringMatrixInMemory=true
   symmetrizeMatrix = true
-  reinforceLinewidths = true
+  enforceDetailedBalance = true
   numRelaxonsEigenvalues = 0
   solverBTE = ["relaxons"]
 
@@ -120,7 +120,7 @@ Beyond what is printed out by Phoebe about the special eigenvectors, we can also
 The top 50 eigenvectors will be output by Phoebe into the file ``el_relaxons_eigenvectors.hdf5`` or ``ph_relaxons_eigenvectors.hdf5``.
 These files also include the analytical special eigenvectors as mentioned above. 
 
-Using the script provided in ``phoebe/plotScripts/relaxons_eigenvectors.py``, we can visualize these. For electrons, they take the form of deformations of the Fermi surface of non-eq. populations -- this is proportional to the contribution to the total :math:`\delta f` from each relaxon, :math:`\delta f^{\theta_alpha}_{\nu}` (proportional only, because the eigenvectors are normalized to one during the diagonalization). 
+Using the script provided in ``phoebe/plotScripts/relaxons_eigenvectors.py``, we can visualize these. For electrons, they take the form of deformations of the Fermi surface of non-eq. populations -- this is proportional to the contribution to the total :math:`\delta f` from each relaxon, :math:`\delta f^{\theta_\alpha}_{\nu}` (proportional only, because the eigenvectors are normalized to one during the diagonalization). 
 Below, we have for the above silicon calculation, plotted in the Wigner-Seitz cell, eigenvectors :math:`\theta_e`, :math:`\theta_0`, :math:`\phi_x` and the relaxon with the third longest relaxation time, :math:`\theta^{\alpha=3}_\nu`. 
 
 .. raw:: latex

@@ -153,7 +153,7 @@ Phonon BTE Solver
 
 * :ref:`checkNegativeRelaxons`
 
-* :ref:`enforcePositiveSemiDefinite`
+* :ref:`enforceDetailedBalance`
 
 .. raw:: html
 
@@ -256,7 +256,7 @@ Electron BTE Solver
 
 * :ref:`checkNegativeRelaxons`
 
-* :ref:`enforcePositiveSemiDefinite`
+* :ref:`enforceDetailedBalance`
 
 .. raw:: html
 
@@ -1024,12 +1024,12 @@ checkNegativeRelaxons
 
 * **Default:** `true`
 
-.. _enforcePositiveSemiDefinite:
+.. _enforceDetailedBalance:
 
-enforcePositiveSemiDefinite
+enforceDetailedBalance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* **Description:** When `enforcePositiveSemiDefinite` is true, we apply a diagonal perturbation to the scattering matrix to make it positive definite. Note that that this is a bit of a band-aid -- you should check that your matrix is not too far from correct before applying this (that it has just a few small negative eigenvalues at most!).
+* **Description:** When `enforceDetailedBalance` is set to true, we recompute the diagonal elements of the scattering matrix by summing up the rows of the matrix (enforcing detailed balance). This is especially relevant to the relaxons solution to the BTE, in order to avoid issues with negative eigenvalues arising from numerical noise. 
 
 * **Format:** *bool*
 

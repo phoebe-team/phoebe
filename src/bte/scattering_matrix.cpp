@@ -1400,7 +1400,7 @@ std::tuple<BaseBandStructure*,BaseBandStructure*> ScatteringMatrix::getStateBand
   // rather than iState
   // for now we block symmetries and assume the indices are iState = iBte
   if(context.getUseSymmetries()) {
-    Error("Cannot reinforce linewidths of the scattering matrix when using symmetries.");
+    Error("Cannot reconstruct diagonal of the scattering matrix when using symmetries.");
   }
 
   size_t is1 = iBte1.get();
@@ -1429,17 +1429,17 @@ std::tuple<BaseBandStructure*,BaseBandStructure*> ScatteringMatrix::getStateBand
 
 // this could be simplified by the existence of a "coupled band structure"
 // containing an el and ph bandstructure
-void ScatteringMatrix::reinforceLinewidths() {
+void ScatteringMatrix::enforceDetailedBalance() {
 
   // kill the function if it's used inappropriately
   if(!isMatrixOmega) { // If this matrix has not been symmetrized, this function won't work
-    DeveloperError("Reinforce linewidths should not be called on an unsymmetrized matrix.");
+    DeveloperError("enforceDetailedBalance should not be called on a matrix without symmetrization factors.");
   }
   if(!highMemory) return;  // must be high mem, we explicitly use iCalc=1 here
   if(context.getUseSymmetries()) return; // this is not designed for BTE syms, would need to
                                          // change the way we are indexing this
   if(context.getUseUpperTriangle()) {    // TODO this can be implemented without too much difficulty
-    Warning("Cannot run reinforce linewidths with only upper triangle for now.");
+    Warning("Cannot run enforceDetailedBalance with only upper triangle for now.");
     return;
   };
 
@@ -1450,7 +1450,7 @@ void ScatteringMatrix::reinforceLinewidths() {
   double kBT = calcStat.temperature;
   double chemicalPotential = calcStat.chemicalPotential;
 
-  if(mpi->mpiHead()) std::cout << "\nReinforcing linewidths to match off-diagonals." << std::endl;
+  if(mpi->mpiHead()) std::cout << "\nEnforcing detailed balance, summing off-diagonals to compute diagonal." << std::endl;
 
   // this only happens when we have one iCalc, and no symmetries -- VectorBTE = an array,
   // which we use here because of some trouble with coupledVectorBTE object
@@ -1465,7 +1465,7 @@ void ScatteringMatrix::reinforceLinewidths() {
 
   // rebuild the diagonal ---------------------------------
 
-  LoopPrint loopPrint("Reinforcing the linewidths","matrix elements",getAllLocalStates().size());
+  LoopPrint loopPrint("Recalculating the diagonal","matrix elements",getAllLocalStates().size());
 
   // NOTE: if later we want to use symmetries here,
   // these would actually be iBTE instead of iState, and we would convert

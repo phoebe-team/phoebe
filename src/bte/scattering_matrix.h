@@ -385,7 +385,7 @@ public:
   /** A function to fix the linewidths to agree with the off diagonal elements, to enforce finding the
    * special eigenvectors. 
    */
-  void reinforceLinewidths();
+  void enforceDetailedBalance();
 
   /** Replace the linewidths of the scatterng matrix with the supplied VectorBTE values.
    **/

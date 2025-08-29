@@ -158,7 +158,7 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // recalculate the phonon linewidths from the off diagonals
   // we should do this if phel is not involved, otherwise it wipes out phel
-  //reinforceLinewidths();
+  //enforceDetailedBalance();
 
   // some phonons like acoustic modes at the gamma, with omega = 0,
   // might have zero frequencies, and infinite populations. We set those

@@ -348,8 +348,8 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // use the off diagonals to calculate the linewidths,
   // to ensure the special eigenvectors can be found/preserve conservation of momentum
   // that might be ruined by the delta functions
-  if(context.getReconstructLinewidths()) {
-    reinforceLinewidths();
+  if(context.getEnforceDetailedBalance()) {
+    enforceDetailedBalance();
   }
 
   // TODO debug the "replaceLinewidths" function and use it instead

@@ -1,15 +1,19 @@
-
 .. _relaxons:
 
 Relaxons Tutorial
 =========================
 
-As detailed in the theory section, one solution to the BTE within Phoebe is the relaxons solver. As with the other solvers, the relaxons solver can be used for both electrons and phonons, but also can be used to construct and solve the coupled BTE, as shown in the :ref:`theoryCBTE` section. 
+Overview
+--------
 
-We note that the :ref:`elWanTransport` and :ref:`phononTransport` do demonstrate how to run the relaxons solver. Here, we first comment on some of the specific input file options related to it, and then we aim to provide additional information about analyzing data from the solver, and several considerations one should keep in mind when using it. 
+As detailed in the theory section, one solution to the BTE within Phoebe is the relaxons solver. As with the other solvers, the relaxons solver can be used for both electrons and phonons, but also can be used to construct and solve the coupled BTE, as shown in the :ref:`tutorialCBTE` section. 
+This solver has the unique capability to access a spectral analysis of the scattering matrix in addition to providing bulk transport properties, and we will demonstrate this analysis in the tutorial below. 
 
-Using the relaxons solver 
--------------------------
+We note that the :ref:`elWanTransport` and :ref:`phononTransport` also demonstrate how to run the relaxons solver, but that here we offer more details.
+Here, we first comment on some of the specific input file options related to it, and then we aim to provide additional information about analyzing data from the solver, and several considerations one should keep in mind when using it. 
+
+Step 1: Running the Relaxons Solver
+-------------------------------------------
 
 After running the :ref:`elWanTransport` or :ref:`phononTransport` transport calculation to generate the necessary input files, one can run a relaxons BTE calculation using Phoebe (for an example below of the electronWannierTransport application)::
 
@@ -49,8 +53,10 @@ where here we note the transport calculation is a demo, and therefore will be un
 .. note::
   See here that we use an odd number of wavevectors. This is necessary to correctly capture the parity of the relaxons coming out of the BTE solution (where relaxon parity is discussed in Ref. [4]). 
 
-A note about parallelism
-~~~~~~~~~~~~~~~~~~~~~~~~
+.. _relaxonsParallelism:
+
+Parallelism for the relaxons solver 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 The relaxons solver requires the calculation of the scattering matrix, which can be quite intense because it involves storing something rather large in memory, and also requires that we calculate all the scattering rates contributing to the scattering matrix. 
 
 **This is alleviated by:**
@@ -58,9 +64,11 @@ The relaxons solver requires the calculation of the scattering matrix, which can
   * the scattering rate calculations are hybrid OpenMP/MPI hybrid parallel, and you should see a performance optimum with a combination of both. 
   * the diagonalization of the scattering matrix is done using MPI only (as this is what ScaLAPACK can use).
 
-Analyzing relaxons output 
+Step 2: Analyzing the relaxons solution
 --------------------------------------------------------
 We start by reminding the user that the relaxons solution to the BTE corresponds to setting up a properly symmetrized scattering matrix, :math:`\tilde{\Omega}_{\nu,\nu'}`, and diagonalizing it, to calculate its eigenvalues, :math:`\tau_\alpha` and eigenvectors, :math:`\theta^\alpha_\nu`. 
+
+.. _negativeEigenvalues:
 
 Negative eigenvalues
 ~~~~~~~~~~~~~~~~~~~~
@@ -114,10 +122,20 @@ Information about these special eigenvectors is written at the end of the Phoebe
 .. math::  
    \phi^i_{\nu}  \propto \sqrt{f_{\nu} (f_{\nu}-1)}\ \hbar k_i
 
-Post-processing 
-~~~~~~~~~~~~~~~
+Output and Post-Processing 
+--------------------------
+
+As anticipated, we will find several output files related to bulk transport coefficients, which are in the format:
+  
+  * ``relaxons_*_viscosity.json``
+  * ``relaxons_onsager_coefficients.json`` (for electrons) or ``relaxons_phonon_thermal_conductivity.json`` (for phonons)
+  * ``relaxons_*_real_space_coefficients.json``
+  * ``relaxons_*_relaxation_times.json``
+  
+Where ``*`` here can be either ``el`` or ``ph`` depending on what kind of calculation is run.
+
 Beyond what is printed out by Phoebe about the special eigenvectors, we can also inspect the eigenvectors which make the largest contribution to the scattering matrix, which are output by Phoebe. 
-The top 50 eigenvectors will be output by Phoebe into the file ``el_relaxons_eigenvectors.hdf5`` or ``ph_relaxons_eigenvectors.hdf5``.
+The top 50 eigenvectors will be output by Phoebe into the file ``relaxons_el_eigenvectors.hdf5`` or ``relaxons_ph_eigenvectors.hdf5``.
 These files also include the analytical special eigenvectors as mentioned above. 
 
 Using the script provided in ``phoebe/plotScripts/relaxons_eigenvectors.py``, we can visualize these. For electrons, they take the form of deformations of the Fermi surface of non-eq. populations -- this is proportional to the contribution to the total :math:`\delta f` from each relaxon, :math:`\delta f^{\theta_\alpha}_{\nu}` (proportional only, because the eigenvectors are normalized to one during the diagonalization). 
@@ -148,7 +166,7 @@ Below, we have for the above silicon calculation, plotted in the Wigner-Seitz ce
    \newpage
 
 References 
-~~~~~~~~~~
+-----------
 | [1] R. Hardy. "Phonon Boltzmann Equation and Second Sound in Solids." `Physical Review B, 2, 1193 (1970). <https://doi.org/10.1103/PhysRevB.2.1193>`_  
 | [2] G. Fugallo, M. Lazzeri, L. Paulatto, & F. Mauri. "Ab initio variational approach for evaluating lattice thermal conductivity." (2013). `Physical Review B 88(4), 045430. <https://doi.org/10.1103/PhysRevB.88.045430>`_  
 | [3] A. Cepellotti and N. Marzari. "Thermal transport in crystals as a kinetic theory of relaxons." (2016). `Physical Review X_ 6.4, 041013 <https://doi.org/10.1103/PhysRevX.6.041013>`_  

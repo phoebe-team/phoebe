@@ -3,7 +3,7 @@
 Phonon Transport Tutorial
 =========================
 
-Synopsis
+Overview
 --------
 
 In this tutorial, we will use Phoebe to compute the lattice thermal conductivity of silicon. Here, we use Quantum ESPRESSO for the calculation of interatomic force constants. However, in practice, `any DFT package that works with Phono3py <https://phonopy.github.io/phono3py/interfaces.html>`__ could be used.
@@ -203,8 +203,8 @@ With this input, we can compute the phonon contribution to thermal conductivity 
    In several studies you may want to include boundary scattering. To include it, use the parameter :ref:`boundaryLength`.
 
 
-Output
-------
+Output and Post-Processing 
+---------------------------
 
 As usual, there are two kinds of output: the standard output file (in the line above, it's ``phTransport.out``) and the JSON files containing more extensive transport and lifetime values.
 
@@ -255,7 +255,7 @@ You can learn more about how to post-process these files at :ref:`postprocessing
 
 * ``specific_heat.json``: contains the phonon specific heat.
 
-* ``rta_phonon_viscosity.json``: contains the phonon viscosity at RTA level.
+* ``rta_ph_viscosity.json``: contains the phonon viscosity at RTA level.
 
 * ``rta_phonon_thermal_cond.json``: contains the phonon thermal conductivity at the RTA level.
 
@@ -265,7 +265,7 @@ You can learn more about how to post-process these files at :ref:`postprocessing
 
 **As well as a few which are output for specific solvers:**
 
-* ``solver_phonon_viscosity.json``: contains the electronic viscosity. This can be output by the RTA solver, and for cases where Phoebe was run with ``useSymmetries = false``, for the relaxons solver as well.
+* ``solver_ph_viscosity.json``: contains the electronic viscosity. This can be output by the RTA solver, and for cases where Phoebe was run with ``useSymmetries = false``, for the relaxons solver as well.
 
 * ``solver_phonon_thermal_cond.json``: contains the phonon thermal conductivity output by a specific solver.
 
@@ -295,9 +295,7 @@ In this tutorial we show a demo calculation, which is unconverged for the sake o
 Parallelization and performance
 -------------------------------
 
-As mentioned above, for the ``qeToPhoebe`` calculation, the primary method of parallelization is over OMP threads, as this calculation can be memory intensive, and OMP helps to alleviate this. For this reason, we've written the code to be sped up when using more OMP threads.
-
-For the transport Phoebe calculation, the bottleneck is typically the construction of the scattering matrix (or the evaluation of a scattering matrix-vector product). If you are not familiar with parallelization techniques, you should read up on `OpenMP <https://en.wikipedia.org/wiki/OpenMP>`__ and `MPI <https://en.wikipedia.org/wiki/Message_Passing_Interface>`__.
+For a transport calculation, the bottleneck is typically the construction of the scattering matrix (or the evaluation of a scattering matrix-vector product). If you are not familiar with parallelization techniques, you should read up on `OpenMP <https://en.wikipedia.org/wiki/OpenMP>`__ and `MPI <https://en.wikipedia.org/wiki/Message_Passing_Interface>`__.
 
 Phoebe takes advantage of three different parallelization schemes for the phonon transport calculation.
 

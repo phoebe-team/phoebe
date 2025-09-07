@@ -412,7 +412,7 @@ void CoupledCoefficients::calcFromRelaxons(
     output["electronParticipationRatio"] = ePR;
     output["phononParticipationRatio"] = pPR;
 
-    std::ofstream o("coupled_relaxons_participation_ratios.json");
+    std::ofstream o("relaxons_coupled_participation_ratios.json");
     o << std::setw(3) << output << std::endl;
     o.close();
   }
@@ -432,12 +432,12 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 
   // output the viscosities using the helper function in viscosity_io.h
   bool append = false;
-  outputViscosityToJSON("coupled_relaxons_viscosity.json", "phononViscosity",
+  outputViscosityToJSON("relaxons_coupled_viscosity.json", "phononViscosity",
                         phViscosity, append, statisticsSweep, dimensionality);
   append = true;
-  outputViscosityToJSON("coupled_relaxons_viscosity.json", "electronViscosity",
+  outputViscosityToJSON("relaxons_coupled_viscosity.json", "electronViscosity",
                         elViscosity, append, statisticsSweep, dimensionality);
-  outputViscosityToJSON("coupled_relaxons_viscosity.json", "dragViscosity",
+  outputViscosityToJSON("relaxons_coupled_viscosity.json", "dragViscosity",
                         dragViscosity, append, statisticsSweep, dimensionality);
 
   // output the transport coefficients
@@ -581,7 +581,7 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
   output["iiiiElViscosityContribution"] = iiiiContrib[1];
   output["iiiiDragViscosityContribution"] = iiiiContrib[2];
 
-  std::ofstream o("coupled_relaxons_transport_contributions.json");
+  std::ofstream o("relaxons_coupled_transport_contributions.json");
   o << std::setw(3) << output << std::endl;
   o.close();
 }
@@ -1006,8 +1006,8 @@ void CoupledCoefficients::outputDuToJSON(
 
   if (mpi->mpiHead()) {
     // output to json
-    std::string outFileName = "coupled_relaxons_real_space_coefficients.json";
-    if(isSymmetrized)  outFileName = "sym_coupled_relaxons_real_space_coefficients.json";
+    std::string outFileName = "relaxons_coupled_real_space_coefficients.json";
+    if(isSymmetrized)  outFileName = "sym_relaxons_coupled_real_space_coefficients.json";
     nlohmann::json output;
     output["temperature"] = kBT * temperatureAuToSi;
     output["Wji0"] = vecWji0;
@@ -1066,7 +1066,7 @@ void CoupledCoefficients::symmetrize3x3Tensors() {
   symmetrize(alphaPh);
   symmetrize(alpha);
 
-  outputToJSON("sym_coupled_relaxons_transport_coefficients.json");
+  outputToJSON("sym_relaxons_coupled_transport_coefficients.json");
 }
 
 // TODO this should be a function of observable rather than of onsager,

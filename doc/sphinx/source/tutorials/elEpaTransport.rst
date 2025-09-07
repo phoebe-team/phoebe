@@ -1,7 +1,7 @@
 Electron-Phonon Averaged (EPA) Transport Tutorial
 =================================================
 
-Synopsis
+Overview
 --------
 
 In this tutorial, we will compute the electrical conductivity and other electronic transport properties of silicon using the electron-phonon averaged approximation (EPA).
@@ -322,8 +322,8 @@ To run the code, we can simply do::
 Note that the most time-consuming step of this calculation typically is the calculation of the density of states.
 However, this is still dramatically faster than a Wannier-based transport technique.
 
-Output
-------
+Output and Post-Processing 
+--------------------------
 
 As usual, there are two kinds of output: the standard output file (in the line above, it's ``epaTransport.out``) and the JSON files containing more extensive transport and lifetime values.
 

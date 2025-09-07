@@ -88,7 +88,7 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     // for now, the head process writes to file --------------------------
     if(mpi->mpiHead()) {
 
-      std::string filename = particle.isPhonon() ? "ph_relaxons_eigenvectors.hdf5" : "el_relaxons_eigenvectors.hdf5";
+      std::string filename = particle.isPhonon() ? "relaxons_ph_eigenvectors.hdf5" : "relaxons_el_eigenvectors.hdf5";
       H5Easy::File file(filename, H5Easy::File::Overwrite);
 
       std::vector<double> tau;

@@ -144,13 +144,13 @@ void CoupledTransportApp::run(Context &context) {
     // note this must come before the transport calculation below, as
     // we will
     // TODO also write the relaxons visulation function?
-    scatteringMatrix.relaxonsToJSON("coupled_relaxons_relaxation_times.json", eigenvalues);
+    scatteringMatrix.relaxonsToJSON("relaxons_coupled_relaxation_times.json", eigenvalues);
 
     // calculate the transport properties and viscosity
     coupledCoeffs.calcFromRelaxons(scatteringMatrix, eigenvalues, eigenvectors);
     coupledCoeffs.print();
     // note: viscosities are output by default internally in calcFromRelaxons
-    coupledCoeffs.outputToJSON("coupled_relaxons_transport_coefficients.json");
+    coupledCoeffs.outputToJSON("relaxons_coupled_transport_coefficients.json");
     //coupledCoeffs.symmetrize3x3Tensors();
 
     if (mpi->mpiHead()) {

@@ -6,7 +6,7 @@ Coupled BTE Tutorial
 Overview
 --------
 
-In order to predict thermoelectric transport properties, accounting also for the phonon drag effect, we have to construct the coupled electron-phonon Boltzmann Transport Equation (epBTE). We do this using a full scattering matrix approach, so that the coupled scattering matrix consists of the standard electron and phonon scattering matrices, along with off diagonal drag terms, which couple the previously independent electron and phonon subspaces. Then, we solve the CBTE using the relaxons solution. 
+In order to predict thermoelectric transport properties including the phonon drag effect, we have to construct the coupled electron-phonon Boltzmann Transport Equation (epBTE). We do this using a full scattering matrix approach, so that the coupled scattering matrix consists of the standard electron and phonon scattering matrices, along with off diagonal drag terms, which couple the previously independent electron and phonon subspaces. Then, we solve the CBTE using the relaxons solution. 
 
 Before proceeding to the CBTE tutorial, we strongly recommend you first read the :ref:`theoryCBTE` section of the theory documentation, and should also review the :ref:`relaxons` to see how the standard electron and phonon relaxons calculations are used. 
 
@@ -68,12 +68,13 @@ We can set up a coupled BTE calculation using the following example input file, 
   scatteringMatrixInMemory = true
   solverBTE = ["relaxons"]
   
-Most parameters used here are applicable to all relaxon calculations and are described in the relaxons tutorial. Here we address a few points specific to the coupled BTE calculation:
+| Most parameters used here are applicable to all relaxon calculations and are described in the relaxons tutorial. 
+| **Here we address a few points specific to the coupled BTE calculation:**
 
   - The population window limit and k/q-grids here are *very* coarse. One should increase them and the grids used in the calculation until it is converged. 
   - We have chosen a ``qMesh`` which is commensurate with our ``kMesh``. This is required in the coupled BTE calculation so that the same electron and phonon states are used in the electron-phonon, phonon-electron, and drag contributions to the scattering matrix. 
   - As with all relaxons calculations, we here choose Gaussian smearing. However now, we have ``elSmearingWidth`` and ``phSmearingWidth`` listed separately. This is required because electron and phonon energy scales are dramatically different, resulting in different requirements for mesh samplings and as a result differences in smearing values. ``phSmearingWidth`` will apply to phonon-phonon and phonon-isotope scattering, and the ``elSmearingWidth`` applies to electron-phonon, phonon-electron, and drag terms. 
-  - Because the coupled BTE calculation is very sensitive to interpolation error with respect to the quality of the electron-phonon matrix elements, it's very likely that we will need to apply ``enforceDetailedBalance = true`` to enforce detailed balance for the matrix.
+  - Because the coupled BTE calculation is very sensitive to interpolation error with respect to the quality of the electron-phonon matrix elements, it's very likely that we will need to apply ``enforceDetailedBalance = true`` to enforce that the diagonal of the scattering matrix can be reconstructed from the off-diagonal scattering rates (detailed balance).
   - Note, as with earlier electron and phonon only relaxons solutions, here the use of symmetries is still a research problem, so we have to have ``useSymmetries = false``.
 
 This should be run just as in the other tutorial::

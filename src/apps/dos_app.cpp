@@ -215,9 +215,11 @@ void ElectronWannierDosApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getDosMaxEnergy(), "dosMaxEnergy");
   throwErrorIfUnset(context.getDosDeltaEnergy(), "dosDeltaEnergy");
   std::string crystalMsg = "crystal structure";
-  throwErrorIfUnset(context.getInputAtomicPositions(), crystalMsg);
-  throwErrorIfUnset(context.getInputSpeciesNames(), crystalMsg);
-  throwErrorIfUnset(context.getInputAtomicSpecies(), crystalMsg);
+  if(context.getJDFTxScfOutFile().empty()) { // Wannier90 doesn't give us this, user must set it
+    throwErrorIfUnset(context.getInputAtomicPositions(), crystalMsg);
+    throwErrorIfUnset(context.getInputSpeciesNames(), crystalMsg);
+    throwErrorIfUnset(context.getInputAtomicSpecies(), crystalMsg);
+  }
 }
 
 void ElectronFourierDosApp::checkRequirements(Context &context) {

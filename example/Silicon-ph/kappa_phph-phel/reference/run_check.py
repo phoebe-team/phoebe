@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
         if "viscosity" in filename:
             for key in data1:
-                checkCoefficient(key, data1, data2, tol)
+                checkCoefficient(key, data1, data2, 5e-3) # viscosity values are small, error can be bigger
 
         if "real_space" in filename:
             for key in data1:

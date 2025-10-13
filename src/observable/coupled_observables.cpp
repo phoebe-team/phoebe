@@ -460,12 +460,6 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
     appendTransportTensorForOutput(seebeckDrag, dimensionality, convSeebeck, iCalc, seebeckDragOut);
     appendTransportTensorForOutput(seebeckSelf, dimensionality, convSeebeck, iCalc, seebeckSelfOut);
     appendTransportTensorForOutput(seebeckTotal, dimensionality, convSeebeck, iCalc, seebeckTotalOut);
-
-    // convert momentum contributions
-    appendTransportTensorForOutput(sigmaMom, dimensionality, convSigma, iCalc, sigmaMomOut);
-    appendTransportTensorForOutput(kappaElMom, dimensionality, convKappa, iCalc, kappaElMomOut);
-    appendTransportTensorForOutput(kappaPhMom, dimensionality, convKappa, iCalc, kappaPhMomOut);
-    appendTransportTensorForOutput(seebeckMom, dimensionality, convSeebeck, iCalc, seebeckMomOut);
   }
 
   { // so that the output json goes out of scope and it can be reused below
@@ -495,12 +489,7 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
     output["selfElSeebeckCoefficient"] = seebeckSelfOut;
     output["totalSeebeckCoefficient"] = seebeckTotalOut;
     output["seebeckCoefficientUnit"] = unitsSeebeck;
-
-    output["momentumElectricalConductivity"] = sigmaMomOut;
-    output["momentumSeebeck"] = seebeckMomOut;
-    output["momentumElectronThermalConductivity"] = kappaElMomOut;
-    output["momentumPhononThermalConductivity"] = kappaPhMomOut;
-
+    
     std::ofstream o(outFileName);
     o << std::setw(3) << output << std::endl;
     o.close();
@@ -753,7 +742,6 @@ void CoupledCoefficients::outputDuToJSON(
   int numElStates = int(elBandStructure->irrStateIterator().size());
   auto calcStat =
       statisticsSweep.getCalcStatistics(0); // only one calc for relaxons
-  double kBT = calcStat.temperature;
   double T = calcStat.temperature / kBoltzmannRy;
 
   // write D to file before diagonalizing, as the scattering matrix
@@ -914,15 +902,40 @@ void CoupledCoefficients::outputDuToJSON(
     }
   }
 
+  // output the transport coefficients
+  int numCalculations = statisticsSweep.getNumCalculations();
+
+  auto [unitsSigma, unitsKappa, unitsViscosity, unitsSeebeck, unitsMobility,
+    convSigma, convKappa, convViscosity, convSeebeck, convMobility] = getTransportUnitsWithDimensions(dimensionality);
+
+  std::vector<double> temps, dopings, chemPots;
+  std::vector<std::vector<std::vector<double>>> sigmaMomOut, seebeckMomOut, kappaElMomOut, kappaPhMomOut;
+
+  for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
+
+    // store temperatures
+    auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
+    double temp = calcStat.temperature;
+    temps.push_back(temp * temperatureAuToSi);
+    double doping = calcStat.doping;
+    dopings.push_back(doping); // output in (cm^-3)
+    double chemPot = calcStat.chemicalPotential;
+    chemPots.push_back(chemPot * energyRyToEv); // output in eV
+    
+    // convert momentum contributions
+    appendTransportTensorForOutput(sigmaMom, dimensionality, convSigma, iCalc, sigmaMomOut);
+    appendTransportTensorForOutput(kappaElMom, dimensionality, convKappa, iCalc, kappaElMomOut);
+    appendTransportTensorForOutput(kappaPhMom, dimensionality, convKappa, iCalc, kappaPhMomOut);
+    appendTransportTensorForOutput(seebeckMom, dimensionality, convSeebeck, iCalc, seebeckMomOut);
+    
+  }
+    
   // NOTE we cannot use nested vectors from the start, as
   // vector<vector> is not necessarily contiguous and MPI
   // cannot all reduce on it
   std::vector<std::vector<double>> vecDu, vecDuEl, vecDuPh, vecDuDragPh, vecDuDragEl;
   std::vector<std::vector<double>> vecWji0, vecWji0_el, vecWji0_ph, vecWjie;
-
-  //auto [unitsSigma, unitsKappa, unitsViscosity, unitsSeebeck, unitsMobility,
-  //  convSigma, convKappa, convViscosity, convSeebeck, convMobility] = getTransportUnitsWithDimensions(dimensionality);
-
+  
   for (auto i : {0, 1, 2}) {
     std::vector<double> t1, t2, t3, t4, t5, t6, t7, t8, t9;
     for (auto j : {0, 1, 2}) {
@@ -983,7 +996,6 @@ void CoupledCoefficients::outputDuToJSON(
     std::string outFileName = "relaxons_coupled_real_space_coefficients.json";
     //if(isSymmetrized)  outFileName = "sym_relaxons_coupled_real_space_coefficients.json";
     nlohmann::json output;
-    output["temperature"] = kBT * temperatureAuToSi;
     output["Wji0"] = vecWji0;
     output["phononWji0"] = vecWji0_ph;
     output["electronWji0"] = vecWji0_el;
@@ -993,7 +1005,6 @@ void CoupledCoefficients::outputDuToJSON(
     output["phononDu"] = vecDuPh;
     output["crossDuPh"] = vecDuDragPh;
     output["crossDuEl"] = vecDuDragEl;
-    output["temperatureUnit"] = "K";
     output["wUnit"] = "m/s";
     output["DuUnit"] = "fs^{-1}";
     output["phononSpecificHeat"] = Cph * specificHeatConversion;
@@ -1011,6 +1022,25 @@ void CoupledCoefficients::outputDuToJSON(
     output["GiUnit"] = AiUnits;
     output["Ai"] = Atemp;
     output["AiUnit"] = AiUnits;
+    
+    // momentum contribution to transport coefficients
+    output["temperatures"] = temps;
+    output["temperatureUnit"] = "K";
+    output["dopingConcentrations"] = dopings;
+    output["dopingConcentrationUnit"] = "cm$^{-" + std::to_string(dimensionality) + "}$";
+    output["chemicalPotentials"] = chemPots;
+    output["chemicalPotentialUnit"] = "eV";
+    
+    output["electricalConductivityUnit"] = unitsSigma;
+    output["mobilityUnit"] = unitsMobility;
+    output["seebeckCoefficientUnit"] = unitsSeebeck;
+    output["thermalConductivityUnit"] = unitsKappa;
+    
+    output["momentumElectricalConductivity"] = sigmaMomOut;
+    output["momentumSeebeck"] = seebeckMomOut;
+    output["momentumElectronThermalConductivity"] = kappaElMomOut;
+    output["momentumPhononThermalConductivity"] = kappaPhMomOut;
+    
     std::ofstream o(outFileName);
     o << std::setw(3) << output << std::endl;
     o.close();

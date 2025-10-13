@@ -46,6 +46,8 @@ class PhScatteringMatrix : virtual public BasePhScatteringMatrix {
                std::vector<VectorBTE> &inPopulations,
                std::vector<VectorBTE> &outPopulations) override;
 
+  void enforceDetailedBalance(); 
+
  // friend functions for adding scattering rates,
  // these live in ph_scattering.cpp
  // TODO write docstrings for these

@@ -11,7 +11,7 @@
 #include <map>
 /* 
 enum DragType {
-  elph,
+  elph, 
   phel
 };
  */
@@ -191,12 +191,12 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   if (!std::isnan(context.getBoundaryLength())) {
     if (context.getBoundaryLength() > 0.) {
       // phonon boundary scattering
-      //addBoundaryScattering(*this, context, inPopulations, outPopulations,
-      //                      innerBandStructure, linewidth);
-      //std::cout << std::endl;
+      addBoundaryScattering(*this, context, inPopulations, outPopulations,
+                            innerBandStructure, linewidth);
+      std::cout << std::endl;
       // electron boundary scattering
-      //addBoundaryScattering(*this, context, inPopulations, outPopulations,
-      //                      outerBandStructure, linewidth);
+      addBoundaryScattering(*this, context, inPopulations, outPopulations,
+                            outerBandStructure, linewidth);
     }
   }
 
@@ -620,7 +620,7 @@ std::vector<std::vector<std::tuple<std::vector<int>, int>>>
 }
 
 // reweight the matrix quadrants
-void CoupledScatteringMatrix::reweightQuadrants() {
+/* void CoupledScatteringMatrix::reweightQuadrants() {
 
   // TODO if we use linewidths also apply 2 to them
 
@@ -668,7 +668,7 @@ void CoupledScatteringMatrix::reweightQuadrants() {
     }
   }
 }
-
+ */
 BaseBandStructure* CoupledScatteringMatrix::getPhBandStructure() { return &innerBandStructure; }
 BaseBandStructure* CoupledScatteringMatrix::getElBandStructure() { return &outerBandStructure; }
 

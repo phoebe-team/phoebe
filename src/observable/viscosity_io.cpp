@@ -36,6 +36,7 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
     std::cout << "\nMaximum scalar product " << eigenvectorName << ".theta_alpha = " << maxOverlap << " at alpha = " << idxMaxOverlap << "." << std::endl;
     std::cout << "First ten products with " << eigenvectorName << ":";
     for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << overlaps(gamma); }
+    std::cout << std::endl;
   }
 
   // If the best overlap isn't very good, we return -1 so nothing is skipped 

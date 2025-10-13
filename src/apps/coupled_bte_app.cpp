@@ -169,7 +169,9 @@ void CoupledTransportApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getTemperatures(), "temperatures");
   throwErrorIfUnset(context.getSmearingMethod(), "smearingMethod");
   if (context.getSmearingMethod() == DeltaFunction::gaussian) {
-    throwErrorIfUnset(context.getSmearingWidth(), "smearingWidth");
+    if (std::isnan(context.getElSmearingWidth()) || !std::isnan(context.getPhSmearingWidth())) {
+      throwErrorIfUnset(context.getSmearingWidth(), "smearingWidth");
+    }
   }
   if (!context.getElphFileName().empty()) {
     throwErrorIfUnset(context.getElectronH0Name(), "electronH0Name");

@@ -104,7 +104,7 @@ class CoupledScatteringMatrix : virtual public BaseElScatteringMatrix,
 
   /** Function to reweight the different quadrants of the matrix
    * coupled matrix to account for spin dengeneracy */
-  void reweightQuadrants();
+  //void reweightQuadrants();
 
   // friend functions for adding scattering rates
   // see respective header files for more details

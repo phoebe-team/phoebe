@@ -49,9 +49,8 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                  getIteratorWavevectorPairs(rowMajor);
 
   // add scattering contributions ---------------------------------------
+  
   // add elph scattering
-  // TODO are we sure this should get two Fermi's and not have one of them be a Bose?
-
   { // let the interaction elph go out of scope after this, it takes a lot of memory
 
   // load the elph coupling
@@ -61,6 +60,7 @@ void ElScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   InteractionElPhWan couplingElPh =
       InteractionElPhWan::parse(context, crystal, phononH0);
 
+  if(mpi->mpiHead()) std::cout << std::endl;
   addElPhScattering(*this, context, inPopulations, outPopulations, 
                                   kPairIterator, innerFermi, //outerFermi,
                                   innerBandStructure, outerBandStructure, phononH0,

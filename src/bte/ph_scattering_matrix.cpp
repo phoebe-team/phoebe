@@ -51,6 +51,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   Crystal crystal = innerBandStructure.getPoints().getCrystal();
 
+  bool usePhElScattering = !context.getElphFileName().empty(); 
+
   // here we call the function to add ph-ph scattering
   if(!context.getPhFC3FileName().empty()) {
     // read this in and let it go out of scope afterwards
@@ -158,7 +160,14 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // recalculate the phonon linewidths from the off diagonals
   // we should do this if phel is not involved, otherwise it wipes out phel
-  //enforceDetailedBalance();
+  if(context.getEnforceDetailedBalance()) {
+    if(usePhElScattering) {
+      Warning("Ignoring request to enforce detailed balance on the scattering matrix,"
+        "as this will erase the ph-el contribution along the diagonal!"); 
+    } else {
+      enforceDetailedBalance();
+    }
+  }
 
   // some phonons like acoustic modes at the gamma, with omega = 0,
   // might have zero frequencies, and infinite populations. We set those
@@ -246,5 +255,102 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   }
 }
 
+void PhScatteringMatrix::enforceDetailedBalance() {
+
+  // kill the function if it's used inappropriately
+  if(isMatrixOmega) { // If this matrix has not been symmetrized, this function won't work
+    DeveloperError("enforceDetailedBalance should not be called on a matrix without symmetrization factors in the ph only case.");
+  }
+  if(!highMemory) return;  // must be high mem, we explicitly use iCalc=1 here
+  if(context.getUseSymmetries()) return; // this is not designed for BTE syms, would need to
+                                         // change the way we are indexing this
+  if(context.getUseUpperTriangle()) {    // TODO this can be implemented without too much difficulty
+    Warning("Cannot run enforceDetailedBalance with only upper triangle for now.");
+    return;
+  };
+
+  if(mpi->mpiHead()) std::cout << "\nEnforcing detailed balance, summing off-diagonals to compute diagonal." << std::endl;
+
+  // this only happens when we have one iCalc, and no symmetries -- VectorBTE = an array,
+  // which we use here because of some trouble with coupledVectorBTE object
+  Eigen::MatrixXd newLinewidths(1,numStates); // copy matrix which is the same as internal diag
+  newLinewidths.setZero();
+
+  // rebuild the diagonal ---------------------------------
+
+  LoopPrint loopPrint("Recalculating the diagonal","matrix elements",getAllLocalStates().size());
+
+  // NOTE: if later we want to use symmetries here,
+  // these would actually be iBTE instead of iState, and we would convert
+  // sum over the v' states owned by this process
+  // TODO may want to add OMP here as well as MPI 
+  for (auto [ibte1, ibte2] : getAllLocalStates()) {
+
+    loopPrint.update();
+
+    // throw out lower triangle states
+    // FIXME DOESNT WORK!
+    if(context.getUseUpperTriangle() && ibte1 > ibte2) continue;
+
+    // we are computing the diagonal using the off diagonal,
+    // so these elements won't matter
+    if(ibte1 == ibte2) continue;
+
+    // NOTE state and bte indices are here the same, as we are blocking the use of symmetries
+    //BteIndex bteIdx1(ibte1);
+    //BteIndex bteIdx2(ibte2);
+    StateIndex is1(ibte1);
+    StateIndex is2(ibte2);
+
+    double initialEn = innerBandStructure.getEnergy(is1);
+    double finalEn = outerBandStructure.getEnergy(is2);
+
+    // remove accoustic phonons
+    if(initialEn < 1e-9 || finalEn < 1e-9) continue;
+
+    // calculate the new linewidths
+    newLinewidths(0,ibte1) -= theMatrix(ibte1,ibte2) * finalEn / initialEn;
+  }
+  loopPrint.close();
+
+  // sum the element contributions from all processes
+  mpi->allReduceSum(&newLinewidths);
+
+  if(mpi->mpiHead()) {
+    std::cout << "\nChecking the quality of recalculated ph diagonal elements." << std::endl;
+
+    for (int i = 0; i<numStates; i++) {
+
+      // don't print zeros
+      if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue;
+
+      if(newLinewidths(0,i) < 0 || std::isnan(newLinewidths(0,i))) {
+        StateIndex sIdx(i);
+        std::cout << std::setprecision(4) << "Found a negative ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << internalDiagonal->data(0,i) << " " << newLinewidths(0,i) << std::endl;
+        // replace with the standard one to avoid definite issues
+        newLinewidths(0,i) = internalDiagonal->data(0, i);
+      }
+      // flag bad linewidth ratios
+      else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.25 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.75) {
+        StateIndex sIdx(i);
+        std::cout << std::setprecision(4) << "Found a bad ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << newLinewidths(0,i) << " " << internalDiagonal->data(0,i)  << " " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;
+        newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
+      }
+    }
+  }
+
+  // reinsert the linewidths in the scattering matrix
+  internalDiagonal->data = newLinewidths;
+
+  // TODO figure out why this function doesn't work right now
+  //replaceMatrixLinewidths();
+
+  // replace the linewidths on the scattering matrix diagonal
+  int iCalc = 0;
+  for (int iMat = 0; iMat < numStates; iMat++) {
+    // zero the diagonal of the matrix
+    if(theMatrix.indicesAreLocal(iMat,iMat)) theMatrix(iMat, iMat) = newLinewidths(iCalc, iMat);
+  }
+}
 
 

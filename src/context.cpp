@@ -1022,7 +1022,6 @@ void Context::printInputSummary(const std::string &fileName) {
     // specific to coupled scattering matrix app
     if (appName.find("oupled") != std::string::npos) {
       std::cout << "useDragTerms = " << useDragTerms << std::endl;
-      std::cout << "enforceDetailedBalance = " << enforceDetailedBalance << std::endl;
     }
 
     if (!std::isnan(constantRelaxationTime))
@@ -1079,7 +1078,8 @@ void Context::printInputSummary(const std::string &fileName) {
         if(numRelaxonsEigenvalues != 0) std::cout << "checkNegativeRelaxons = " << checkNegativeRelaxons << std::endl;
       }
       if(scatteringMatrixInMemory) {
-        std::cout << "enforcePositiveSemiDefinite = " << enforcePositiveSemiDefinite << std::endl;
+        std::cout << "enforceDetailedBalance = " << enforceDetailedBalance << std::endl;
+      //  std::cout << "enforcePositiveSemiDefinite = " << enforcePositiveSemiDefinite << std::endl;
       }
     }
 

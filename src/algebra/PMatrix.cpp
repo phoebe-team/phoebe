@@ -174,12 +174,10 @@ ParallelMatrix<double>::elpaDiagonalize() {
   if( eigenvalues[0] < 0 ) { // negative modes were found
     if(mpi->mpiHead()) {
       Warning("Relaxons diagonalization found negative eigenvalues."
-                "\n\tThis can happen when there's a bit of numerical noise on the scattering matrix,"
-                "\n\tand finding them may indicate the calculation is unconverged."
+                "\n\tThis can happen when there's a numerical issue with the scattering matrix."
                 "\n\tWhile we simply do not include these when computing transport, "
-                "\n\tand likely if they are small the calculation will be unaffected, "
-                "\n\tyou may want to consider using with more wavevectors or an improved DFT calculation."
-                "\n\tAdditionally, setting symmetrizeMatrix = true in your input file will help.");
+                "\n\tand likely if they are very small the calculation will be unaffected, "
+                "\n\tplease view the relaxons tutorial for advice about resolving this.");
       std::cout << "These eigenvalues are (in atomic units):" << std::endl;
       for (int i = 0; eigenvalues[i] <= 0; i++) {
         std::cout << i << " " << eigenvalues[i] << std::endl;
@@ -292,11 +290,10 @@ ParallelMatrix<double>::scalapackDiagonalize() {
   if( eigenvalues[0] < 0 ) { // negative modes were found
     if(mpi->mpiHead()) {
       Warning("Relaxons diagonalization found negative eigenvalues."
-                "\n\tThis can happen when there's a bit of numerical noise on the scattering matrix,"
-                "\n\tand finding them may indicate the calculation is unconverged."
+                "\n\tThis can happen when there's a numerical issue with the scattering matrix."
                 "\n\tWhile we simply do not include these when computing transport, "
-                "\n\tyou may want to consider using with more wavevectors or an improved DFT calculation."
-                "\n\tAdditionally, setting symmetrizeMatrix = true in your input file will help.");
+                "\n\tand likely if they are very small the calculation will be unaffected, "
+                "\n\tplease view the relaxons tutorial for advice about resolving this.");
       std::cout << "These eigenvalues are (in atomic units):" << std::endl;
       for (int i = 0; eigenvalues[i] <= 0; i++) {
         std::cout << i << " " << eigenvalues[i] << std::endl;
@@ -486,11 +483,10 @@ std::tuple<std::vector<double>, ParallelMatrix<double>>
       if(mpi->mpiHead()) {
         Warning("Relaxons diagonalization found " + std::to_string(m) +
                " in the range -1 < eigenvalues <= 0."
-                  "\n\tThis can happen when there's a bit of numerical noise on the scattering matrix,"
-                  "\n\tand finding them may indicate the calculation is unconverged."
-                  "\n\tWhile we simply do not include these when computing transport, "
-                  "\n\tyou may want to consider using with more wavevectors or an improved DFT calculation."
-                  "\n\tAdditionally, setting symmetrizeMatrix = true in your input file will help.");
+                "\n\tThis can happen when there's a numerical issue with the scattering matrix."
+                "\n\tWhile we simply do not include these when computing transport, "
+                "\n\tand likely if they are very small the calculation will be unaffected, "
+                "\n\tplease view the relaxons tutorial for advice about resolving this.");
         std::cout << "These eigenvalues are (in atomic units):" << std::endl;
 
         for (int i = 0; i < m; i++) {

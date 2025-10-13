@@ -1470,6 +1470,7 @@ void ScatteringMatrix::enforceDetailedBalance() {
   // NOTE: if later we want to use symmetries here,
   // these would actually be iBTE instead of iState, and we would convert
   // sum over the v' states owned by this process
+  // TODO may want to add OMP here as well as MPI 
   for (auto [ibte1, ibte2] : getAllLocalStates()) {
 
     loopPrint.update();
@@ -1501,10 +1502,6 @@ void ScatteringMatrix::enforceDetailedBalance() {
     Particle initialParticle = initialBandStructure->getParticle();
     Particle finalParticle = finalBandStructure->getParticle();
 
-    // this removes the drag term contributions, for test reasons
-    //if(initialParticle.isPhonon() && finalParticle.isElectron()) continue;
-    //if(initialParticle.isElectron() && finalParticle.isPhonon()) continue;
-
     // shift the indices back to the ones used in bandstructures
     // these indices are for the full matrix, if the matrix is coupled,
     // we need to fold them back into the relevants quadrants in order
@@ -1531,7 +1528,7 @@ void ScatteringMatrix::enforceDetailedBalance() {
     double initialFFm1 = initialParticle.getPopPopPm1(initialEn, kBT, initialChemicalPotential);
     double finalFFm1 = finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
 
-    // spin degeneracy info -- TODO may need to put spin factors here
+    // spin degeneracy info -- TODO may need to put spin factors here?
     double initialD = 1;
     double finalD = 1;
 
@@ -1607,7 +1604,7 @@ void ScatteringMatrix::enforceDetailedBalance() {
       }
     }
   }
-
+/* 
   if(mpi->mpiHead()) {
 
     std::cout << "compare first 50 el states, new vs. old " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl;
@@ -1637,7 +1634,7 @@ void ScatteringMatrix::enforceDetailedBalance() {
 
     }
     std::cout << std::scientific << std::setprecision(4) << std::endl;
-  }
+  } */
   // reinsert the linewidths in the scattering matrix
   internalDiagonal->data = newLinewidths;
 

@@ -59,7 +59,19 @@ if __name__ == "__main__":
         print(filename," against ", filename2)
         print(" ")
 
+        if "viscosity" in filename:
+            for key in data1:
+                checkCoefficient(key, data1, data2, tol)
+
+        if "real_space" in filename:
+            for key in data1:
+                checkCoefficient(key, data1, data2, tol)
+
         if "thermal_cond" in filename:
+            for key in data1:
+                checkCoefficient(key, data1, data2, tol)
+
+        if "specific" in filename:
             for key in data1:
                 checkCoefficient(key, data1, data2, tol)
 

@@ -56,7 +56,7 @@ if __name__ == "__main__":
                 print(filename)
                 sys.exit(1)
             diff2 = (numpy.max(k1) - numpy.max(k2))/numpy.max(k1)
-            if abs(diff2) > tol: # viscosities are small
+            if abs(diff2) > tol:
                 print("failed max element check",diff2)
                 print("max element, run vs. ref ", numpy.max(k1), numpy.max(k2))
                 print("max element difference", numpy.max(k1-k2))

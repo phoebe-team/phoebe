@@ -3,8 +3,6 @@
 #include "io.h"
 #include "mpiHelper.h"
 #include <cmath>
-#include "coupled_vector_bte.h"
-#include "phel_scattering.h"
 #include "ifc3_parser.h"
 #include "interaction_elph.h"
 #include "scattering_matrix.h"
@@ -186,17 +184,18 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // TODO check boundary scattering addition
   // Add boundary scattering ----------------------
+  
   // Call this twice for each section of the diagonal,
   // in one case handing it the phonon bands, in the other the electron bands.
   if (!std::isnan(context.getBoundaryLength())) {
     if (context.getBoundaryLength() > 0.) {
       // phonon boundary scattering
-      addBoundaryScattering(*this, context, inPopulations, outPopulations,
-                            innerBandStructure, linewidth);
-      std::cout << std::endl;
+      //addBoundaryScattering(*this, context, inPopulations, outPopulations,
+      //                      innerBandStructure, linewidth);
+      //std::cout << std::endl;
       // electron boundary scattering
-      addBoundaryScattering(*this, context, inPopulations, outPopulations,
-                            outerBandStructure, linewidth);
+      //addBoundaryScattering(*this, context, inPopulations, outPopulations,
+      //                      outerBandStructure, linewidth);
     }
   }
 

@@ -285,7 +285,7 @@ public:
   int dimensionality_;
 
   // number of states for shifting to the coupled matrix
-  int numElStates; // this will never be used unless it's a coupled matrix
+  int numElStates = 0; // this will never be used unless it's a coupled matrix
   // however, it still needs to be here because the coupled
   // shift incides function unfortunately also has to be here. For the case of the
   // ph matrix, we call phScattering using the BasePh object -- even if the

@@ -1432,9 +1432,6 @@ std::tuple<BaseBandStructure*,BaseBandStructure*> ScatteringMatrix::getStateBand
 void ScatteringMatrix::enforceDetailedBalance() {
 
   // kill the function if it's used inappropriately
-  if(!isMatrixOmega) { // If this matrix has not been symmetrized, this function won't work
-    DeveloperError("enforceDetailedBalance should not be called on a matrix without symmetrization factors.");
-  }
   if(!highMemory) return;  // must be high mem, we explicitly use iCalc=1 here
   if(context.getUseSymmetries()) return; // this is not designed for BTE syms, would need to
                                          // change the way we are indexing this
@@ -1457,8 +1454,12 @@ void ScatteringMatrix::enforceDetailedBalance() {
   Eigen::MatrixXd newLinewidths(1,numStates); // copy matrix which is the same as internal diag
   newLinewidths.setZero();
 
-  double Nk = double(context.getKMesh().prod());
-  double Nq = double(context.getQMesh().prod());
+  double Nk = 1;
+  double Nq = 1; 
+  if(isCoupled) {
+    Nk = double(context.getKMesh().prod());
+    Nq = double(context.getQMesh().prod());
+  }
 
   double spinFactor = 2.; // nonspin pol = 2
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
@@ -1523,10 +1524,11 @@ void ScatteringMatrix::enforceDetailedBalance() {
     if((initialParticle.isPhonon() && initialEn < 1e-9)) continue;
     if((finalParticle.isPhonon() && finalEn < 1e-9)) continue;
 
+    // if this is a matrix which is not symmetrized, we don't need these. 
     // calculate f(1-f) or n(n+1)
     // do not shift E by mu because we use this below in the getPop function which assumes it's unshifted
-    double initialFFm1 = initialParticle.getPopPopPm1(initialEn, kBT, initialChemicalPotential);
-    double finalFFm1 = finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
+    double initialFFm1 = (!isMatrixOmega) ? 1 : initialParticle.getPopPopPm1(initialEn, kBT, initialChemicalPotential);
+    double finalFFm1 = (!isMatrixOmega) ? 1 : finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
 
     // spin degeneracy info -- TODO may need to put spin factors here?
     double initialD = 1;
@@ -1568,7 +1570,7 @@ void ScatteringMatrix::enforceDetailedBalance() {
   mpi->allReduceSum(&newLinewidths);
 
   if(mpi->mpiHead()) {
-    std::cout << "Checking the quality of ph states:" << innerBandStructure.getPoints().getCrystal().getVolumeUnitCell() << std::endl;
+    std::cout << "Checking the quality of recalculated diagonal elements." << std::endl;
 
     for (int i = numElStates; i<numStates; i++) {
 
@@ -1577,26 +1579,25 @@ void ScatteringMatrix::enforceDetailedBalance() {
 
       if(newLinewidths(0,i) < 0 || std::isnan(newLinewidths(0,i))) {
         StateIndex sIdx(i-numElStates);
-        std::cout << std::setprecision(4) << "Found a negative ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << internalDiagonal->data(0,i) << " " << newLinewidths(0,i) << std::endl;
+        std::cout << std::setprecision(4) << "Found a negative ph linewidth for state: " << i << std::endl;
         // replace with the standard one to avoid definite issues
         newLinewidths(0,i) = internalDiagonal->data(0, i);
       }
       // flag bad linewidth ratios
       else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.25 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.75) {
         StateIndex sIdx(i-numElStates);
-        std::cout << std::setprecision(4) << "Found a bad ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << newLinewidths(0,i) << " " << internalDiagonal->data(0,i)  << " " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;
-        newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
+        if(mpi->mpiHead()) std::cout << "Found a bad ph linewidth ratio: state, new, old, new/old " << i << " " << newLinewidths(0,i) << " / " << internalDiagonal->data(0,i) << " = " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;
+        //newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
       }
     }
 
-    std::cout << "Checking quality of el states: " << std::endl;
     for (int i = 0; i<numElStates; i++) {
 
       if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue;
 
       if(newLinewidths(0,i) < 0 || std::isnan(newLinewidths(0,i))) {
         StateIndex sIdx(i);
-        if(mpi->mpiHead()) std::cout << "Replacing a negative el linewidth for state: " << i << " " << outerBandStructure.getEnergy(sIdx) << " " << outerBandStructure.getPoints().cartesianToCrystal(outerBandStructure.getWavevector(sIdx)).transpose() << " old v. new " << internalDiagonal->data(0,i) << " " << newLinewidths(0,i) << std::endl;
+        if(mpi->mpiHead()) std::cout << "Replacing a negative el linewidth for state: " << i << std::endl;
         newLinewidths(0,i) = internalDiagonal->data(0, i);
       }
       else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.25 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.75) {

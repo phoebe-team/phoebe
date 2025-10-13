@@ -77,6 +77,10 @@ We can set up a coupled BTE calculation using the following example input file, 
   - Because the coupled BTE calculation is very sensitive to interpolation error with respect to the quality of the electron-phonon matrix elements, it's very likely that we will need to apply ``enforceDetailedBalance = true`` to enforce that the diagonal of the scattering matrix can be reconstructed from the off-diagonal scattering rates (detailed balance).
   - Note, as with earlier electron and phonon only relaxons solutions, here the use of symmetries is still a research problem, so we have to have ``useSymmetries = false``.
 
+.. note::
+  A very important part of this calculation is that it's extremely easy to come up with negative eigenvalues. 
+  Please check carefully the appendix section of the relevant paper by Coulter et al. for discussion about the positive semi-definite nature of the coupled scattering matrix.
+
 This should be run just as in the other tutorial::
 
   export OMP_NUM_THREADS=4

@@ -261,7 +261,7 @@ You can learn more about how to post-process these files at :ref:`postprocessing
 
 * ``rta_ph_relaxation_times.json``: contains the RTA phonon lifetimes on the :ref:`qMesh` specified in the input file.
 
-* ``rta_wigner_coefficients.json``: contains the RTA transport coefficients + the Wigner transport correction.
+* ``wigner_phonon_thermal_cond.json``: contains the RTA transport coefficients + the Wigner transport correction.
 
 **As well as a few which are output for specific solvers:**
 

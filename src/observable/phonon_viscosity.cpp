@@ -87,6 +87,12 @@ void PhononViscosity::calcRTA(VectorBTE &tau) {
 void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
                                        ParallelMatrix<double> &eigenvectors) {
 
+  if(!context.getEnforceDetailedBalance()) {
+    Warning("Viscosity calculated without the enforcing detailed balance condition of the scattering matrix"
+      "\ncan have major issues -- if the energy eigenvector is not well found (better than 75% overlap),"
+      " it may make a large, spurious contribution to viscosity!");
+  }                                   
+                                        
   // to simplify, here I do everything considering there is a single
   // temperature (due to memory constraints)
   if (numCalculations > 1) {

@@ -48,6 +48,12 @@ void CoupledCoefficients::calcFromRelaxons(
   // TODO add OMP and MPI parallelism here
   // TODO maybe block the use of symmetries
 
+  if(!context.getEnforceDetailedBalance()) {
+    Warning("Viscosity calculated without the enforcing detailed balance condition of the scattering matrix"
+      "\ncan have major issues -- if the charge and energy eigenvectors are not well found (better than 75% overlap),"
+      " they may make a large, spurious contribution to viscosity!");
+  }      
+  
   BaseBandStructure *phBandStructure = scatteringMatrix.getPhBandStructure();
   BaseBandStructure *elBandStructure = scatteringMatrix.getElBandStructure();
   std::vector<BaseBandStructure*> bands = {elBandStructure, phBandStructure};
@@ -405,7 +411,7 @@ void CoupledCoefficients::print() {
 void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 
   if (!mpi->mpiHead())
-    return;
+    return; 
 
   // output the viscosities using the helper function in viscosity_io.h
   bool append = false;

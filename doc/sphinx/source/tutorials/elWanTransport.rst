@@ -128,7 +128,7 @@ Now, we use the ``ph.x`` executable from our patched QE to run a phonon calculat
 	  electron_phonon = "epa"
 	/
 
-The values of ``nqX`` select the Monkhorst-Pack grid of q-points centered at Gamma, for which we will compute the phonon properties.
+The values of ``nqX`` select the Monkhorst-Pack grid of q-points centered at Gamma, for which we will compute the phonon properties. This grid needs to be commensurate (divide evenly) the grid of the SCF calculation. 
 Also, it's important that ``prefix`` and ``outdir`` are the same as those used in the ``pw.x`` calculation from step 2.
 Use a good value of ``tr2_ph`` (smaller is better, but harder to converge), which (indirectly) checks the convergence of phonon frequencies.
 
@@ -152,7 +152,7 @@ These files contain the electron-phonon coupling matrix elements to be used by P
 
 * There are restrictions to the choice of k and q points.
   The ``K_POINTS`` in ``pw.x`` must be ``automatic``. The ``K_POINTS`` must be gamma centered.
-  And the q-point mesh must be the same as the k-point mesh.
+  The q-point mesh must be commensurate with the k-point mesh.
 
 * In the current release, we don't support spin-polarized calculations or spin-orbit calculations. Support for this will come in a later release (as we need to implement spin-related symmetries).
 
@@ -184,7 +184,7 @@ Step 5: Non-self-consistent run
 -------------------------------
 
 We now start the process of Wannierizing the electronic band structure.
-Before running Wannier90, we need to compute the electronic band structure on the full grid of k-points as a starting point for the Wannier calculation.
+Before running Wannier90, we need to compute the electronic band structure on the full grid of k-points as a starting point for the Wannier calculation. This k-grid must be the same as the original SCF mesh. 
 You can check that the ``bands.in`` file is essentially identical to the `scf.in` file, except that we:
 
 * Modified the calculation parameter to ``calculation = "bands"``, which indicates to QE that we will use the charge density computed in Step 2 to recompute the wavefunctions. Don't set this parameter to ``"nscf"``, as this has a slightly different output.

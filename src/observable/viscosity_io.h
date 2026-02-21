@@ -39,33 +39,4 @@
                                 double& C, Eigen::Vector3d& A,
                                 Context& context);
 
-  /** Helper function to print information about the scalar products with the
-   * special eigenvectors.
-   * @param eigenvectors: eigenvectors of the scattering matrix
-   * @param specialEigenvector: the special eigenvector we are checking the overlap with
-   * @param eigenvectorName: the name of the special eigenvector we are printing 
-   */
-   int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors, 
-                                          const Eigen::VectorXd& specialEigenvector, 
-                                          std::string eigenvectorName); 
-
-  /** Helper function to pre-calculate the special eigenvectors theta0,
-   * theta_e, phi as well as A, C
-   * @param bandStructure: bandstructure for either phonons or electrons
-   * @param spinFactor: to account for band degeneracy
-   * @param statisticsSweep: object with temperatures, chemical potentials, etc
-   * @param theta0: energy conservation eigenvector
-   * @param thetae: charge conservation eigenvector
-   * @param phi: momentum conservation eigenvectors
-   * @param C: specific heat
-   * @param A: specific momentum
-   */
-   void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
-                              StatisticsSweep& statisticsSweep,
-                              double& spinFactor,
-                              Eigen::VectorXd& theta0,
-                              Eigen::VectorXd& theta_e,
-                              Eigen::MatrixXd& phi,
-                              double& C, Eigen::Vector3d& A);
-
 #endif

@@ -118,3 +118,176 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     }
   }
 }
+
+// returns the index of largest overlap with a special eigenvector
+int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
+                              const Eigen::VectorXd& specialEigenvector, 
+                              std::string eigenvectorName) {
+
+  // calculate the overlaps with special eigenvectors
+  int numRelaxons = specialEigenvector.size(); 
+  Eigen::VectorXd overlaps(numRelaxons); overlaps.setZero();
+                                
+  // TODO need to update this for useUpperTriangle and case of less numRelaxons
+  for (auto tup : eigenvectors.getAllLocalStates()) {
+    auto is = std::get<0>(tup);
+    auto gamma = std::get<1>(tup);
+    overlaps(gamma) += eigenvectors(is,gamma) * specialEigenvector(is);
+  }
+  mpi->allReduceSum(&overlaps);
+
+  // find the element with the maximum product
+  overlaps = overlaps.cwiseAbs();
+  Eigen::Index maxCol, idxMaxOverlap;
+  float maxOverlap = overlaps.maxCoeff(&idxMaxOverlap, &maxCol);
+
+  if(mpi->mpiHead()) {
+
+    // avoid a segfault in an edge case of few states
+    int maxPrint = 10; 
+    if(numRelaxons < 10) { maxPrint = numRelaxons; } 
+    
+    std::cout << std::fixed;
+    std::cout << std::setprecision(4);
+    std::cout << "\nMaximum scalar product " << eigenvectorName << ".theta_alpha = " << maxOverlap << " at alpha = " << idxMaxOverlap << "." << std::endl;
+    std::cout << "First ten products with " << eigenvectorName << ":";
+    for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << overlaps(gamma); }
+  }
+
+  // If the best overlap isn't very good, we return -1 so nothing is skipped 
+  if(maxOverlap >= 0.75) return idxMaxOverlap;
+  else { return -1; }
+}
+
+ 
+// calculate special eigenvectors
+void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
+                                    StatisticsSweep& statisticsSweep,
+                                    double& spinFactor,
+                                    Eigen::VectorXd& theta0,
+                                    Eigen::VectorXd& theta_e,
+                                    Eigen::MatrixXd& phi,
+                                    double& C, Eigen::Vector3d& A) {
+
+  int dimensionality = bandStructure.getPoints().getCrystal().getDimensionality();
+  double volume = bandStructure.getPoints().getCrystal().getVolumeUnitCell(dimensionality);
+  auto particle = bandStructure.getParticle();
+  int numStates = bandStructure.getNumStates();
+
+  int iCalc = 0; // set to zero because of relaxons
+  auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
+  double kBT = calcStat.temperature;
+  double T = calcStat.temperature / kBoltzmannRy;
+  double chemPot = 0; // has to be zero for phonons,
+                      // don't use the stat sweep one which may have
+                      // finite values if phel scattering is used
+  //double Npts = bandStructure.getPoints().getNumPoints();
+  double Npts; 
+  if(particle.isPhonon()) Npts = context.getQMesh().prod(); 
+  else { Npts = context.getKMesh().prod(); }
+
+  // set particle specific quantities
+  if(particle.isElectron()) {
+    chemPot = calcStat.chemicalPotential;
+  }
+
+  // Precalculate theta_e, theta0, phi  ----------------------------------
+
+  // theta^0 - energy conservation eigenvector
+  //   electronic states = ds * g-1 * (hE - mu) * 1/(kbT^2 * V * Nkq * Ctot)
+  //   phonon states = ds * g-1 * h*omega * 1/(kbT^2 * V * Nkq * Ctot)
+  theta0 = Eigen::VectorXd::Zero(numStates);
+
+  // theta^e -- the charge conservation eigenvector
+  //   electronic states = ds * g-1 * 1/(kbT * U)
+  // for the phonons, this is unused
+  theta_e = Eigen::VectorXd::Zero(numStates);
+
+  // phi -- the three momentum conservation eigenvectors
+  //     phi = sqrt(1/(kbT*volume*Npts*M)) * g-1 * ds * hbar * wavevector;
+  phi = Eigen::MatrixXd::Zero(3, numStates);
+
+  // spin degen vector
+  Eigen::VectorXd ds = Eigen::VectorXd::Zero(numStates);
+
+  // normalization for theta_e
+  double U = 0;
+
+  // specific heat
+  C = 0.;
+
+  // calculate the special eigenvectors ----------------
+  for (int is : bandStructure.parallelStateIterator()) {
+
+    ds(is) = sqrt(spinFactor);
+    auto isIdx = StateIndex(is);
+    double en = bandStructure.getEnergy(isIdx);
+    if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
+    double pop = particle.getPopPopPm1(en, kBT, chemPot);
+
+    theta0(is) = sqrt(pop) * (en - chemPot) * ds(is);
+    if(particle.isElectron()) {
+      theta_e(is) = sqrt(pop) * ds(is);
+      U += pop;
+    }
+    // auto popCont = pop * (en - chemPot) * (en - chemPot);
+    C += pop * (en - chemPot) * (en - chemPot);
+  }
+  mpi->allReduceSum(&theta0);
+  mpi->allReduceSum(&theta_e);
+  mpi->allReduceSum(&C);
+  mpi->allReduceSum(&U);
+
+  // apply normalizations
+  C *= spinFactor / (volume * size_t(Npts) * kBT * T);
+  theta0 *= 1./sqrt(kBT * T * volume * size_t(Npts) * C);
+  U *= spinFactor / (volume * Npts * kBT);
+  if(particle.isPhonon()) U = 1.; // avoid making theta_e nan instead of zero
+  theta_e *= 1./sqrt(kBT * U * Npts * volume);
+
+  // calculate A_i ----------------------------------------
+
+  // normalization coeff A ("phonon specific momentum")
+  // A = 1/(V*N) * (1/kT) sum_qs (hbar*q)^2 * N(1+N)
+  A = Eigen::Vector3d::Zero();
+
+  for (int is : bandStructure.parallelStateIterator()) {
+    auto isIdx = StateIndex(is);
+    auto en = bandStructure.getEnergy(isIdx);
+
+    if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
+
+    double pop = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
+    auto q = bandStructure.getWavevector(isIdx);
+    q = bandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
+
+    Eigen::Vector3d contrib; contrib.setZero();
+    for (int iDim = 0; iDim < dimensionality; iDim++) {
+      A(iDim) += pop * q(iDim) * q(iDim);
+      contrib(iDim) += pop * q(iDim) * q(iDim);
+    }
+  }
+  mpi->allReduceSum(&A);
+  A *= spinFactor / (kBT * Npts * volume);
+
+  // then calculate the drift eigenvectors, phi (eq A12 of PRX Simoncelli)
+  // -----------------------------------------------------------------
+  for (int is : bandStructure.parallelStateIterator()) {
+
+    auto isIdx = StateIndex(is);
+    auto en = bandStructure.getEnergy(isIdx);
+    if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
+
+    double pop = particle.getPopPopPm1(en, kBT, chemPot); // = n(n+1)
+    auto q = bandStructure.getWavevector(isIdx);
+    q = bandStructure.getPoints().bzToWs(q,Points::cartesianCoordinates);
+    for (int i = 0; i < dimensionality; i++) {
+      phi(i, is) = q(i) * sqrt(pop) * ds(is);
+    }
+  }
+  mpi->allReduceSum(&phi);
+  // apply normalization to phi
+  for(int is = 0; is < numStates; is++) {
+    for (int i = 0; i < dimensionality; i++) phi(i,is) *= 1./sqrt(kBT * volume * Npts * A(i));
+  }
+}

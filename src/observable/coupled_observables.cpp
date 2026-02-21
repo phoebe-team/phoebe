@@ -2,7 +2,7 @@
 #include "io.h"
 #include "onsager_utilities.h"
 #include "viscosity_io.h"
-#include <functional>
+#include "relaxons.h"
 #include <nlohmann/json.hpp>
 
 CoupledCoefficients::CoupledCoefficients(StatisticsSweep &statisticsSweep_,
@@ -29,14 +29,11 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep &statisticsSweep_,
   }
 
   // intialize viscosities
-  phViscosity = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
-  elViscosity = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
-  dragViscosity = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
-  //totalViscosity = Eigen::Tensor<double, 5>(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
-  phViscosity.setZero();
-  elViscosity.setZero();
-  dragViscosity.setZero();
-  // totalViscosity.setZero();
+  for (auto visc : {&phViscosity, &elViscosity, &dragViscosity}) {
+    visc->resize(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
+    visc->setZero();
+  }
+
 }
 
 /* Calc coupled relaxons transport coefficients */
@@ -72,8 +69,6 @@ void CoupledCoefficients::calcFromRelaxons(
   double T = calcStat.temperature / kBoltzmannRy;
 
   // electron and phonon participation ratios, summed over later
-  // std::vector<double> phPR(numRelaxons);
-  // std::vector<double> elPR(numRelaxons);
   Eigen::Tensor<double, 3> phPR(numRelaxons, 3, 3);
   phPR.setZero();
   Eigen::Tensor<double, 3> elPR(numRelaxons, 3, 3);
@@ -144,12 +139,8 @@ void CoupledCoefficients::calcFromRelaxons(
   //if(!std::isnan(context.getBoundaryLength())) suppressionLength = context.getBoundaryLength() / sqrt(3.);
   if(context.getBoundaryLength() <= 0) Error("Boundary length should not be zero or less!");
 
+  // TODO remove this entirely, replace with just v!
   auto v_sqrtTau = [&](double vj, [[maybe_unused]] double tau) { return vj; };
-  /*auto v_sqrtTau = [&] (double vj, double tau) {
-    double vSqrt = std::copysign(1.0, vj) * sqrt(twoPi* abs(vj));
-    double lambdaSqrt=sqrt( 1.0/ (1.0/(abs(twoPi*vj) * tau) + (1./ (twoPi*suppressionLength))) );
-    return lambdaSqrt * vSqrt/twoPi;
-  };*/
 
   // sum over the alpha and v states that this process owns
   for (auto [is, gamma] : eigenvectors.getAllLocalStates()) {
@@ -181,8 +172,6 @@ void CoupledCoefficients::calcFromRelaxons(
         if(gamma != alpha0 && gamma != alpha_e) {
           for(auto i : {0, 1, 2}) {
             elVphi(gamma, i, j) += eigenvectors(is,gamma) * v_sqrtTau(v(j),tau) * phi(i, is);
-            //theta0_phi(i,j) += theta0(is) * lambdaSqrt * vSqrt * phi(i,is);
-            //theta_e_phi(i,j) += theta_e(is) * lambdaSqrt * vSqrt * phi(i,is);
           }
         }
       }
@@ -312,9 +301,6 @@ void CoupledCoefficients::calcFromRelaxons(
             phViscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * phVphi(gamma,i,j) * phVphi(gamma,l,k) * tau;
             elViscosity(0,i,j,k,l) += sqrt(G(i) * G(k)) * elVphi(gamma,i,j) * elVphi(gamma,l,k) * tau;
             dragViscosity(0,i,j,k,l) += sqrt(A(i) * G(k)) * phVphi(gamma,i,j) * elVphi(gamma,l,k) * tau;
-                                                                //(elVphi(gamma,i,j) * phVphi(gamma,l,k)
-                                                                // + phVphi(gamma,i,j) * elVphi(gamma,l,k)) * 1./eigenvalues(gamma);
-            //totalViscosity(0,i,j,k,l) += sqrt(M(i) * M(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * 1./eigenvalues(gamma);
           }
         }
       }
@@ -352,26 +338,6 @@ void CoupledCoefficients::calcFromRelaxons(
   alpha = alphaPh + alphaEl;
   kappa = kappaPh + kappaEl + kappaDrag;
   seebeck = seebeckSelf + seebeckDrag;
-
-  // throw warnings if different results come out from parts vs total
-  // calculation
-  /*bool sigmaFail = false;
-  bool seebeckFail = false;
-  bool kappaFail = false;
-  for (int i = 0; i < dimensionality; i++) {
-    for(auto j = 0; j < dimensionality; j++) {
-      if(sigma(0,i,j) != sigmaTotal(0,i,j))     { sigmaFail = true; }
-      if(seebeck(0,i,j) != seebeckTotal(0,i,j)) { seebeckFail = true; }
-      if(kappa(0,i,j) != kappaTotal(0,i,j))     { kappaFail = true; }
-    }
-  }
-   if(seebeckFail) Warning("Developer warning: Seebeck cross + self does not
-  equal Seebeck total."); if(sigmaFail) Warning("Developer warning: Sigma el
-  does not equal sigma total."); if(kappaFail) Warning("Developer warning: Kappa
-  cross + selfEl + selfPh does not equal kappa total.");
- */
-  // dump the participation ratios to file here,
-  // TODO this should be a designated function
 
   if (mpi->mpiHead()) {
 

@@ -79,7 +79,7 @@ protected:
   Eigen::Tensor<double, 3> alphaEl, alphaPh, alpha;
   Eigen::Tensor<double, 3> kappaEl, kappaPh, kappaDrag, kappa, kappaTotal;
   // viscosity tensors
-  Eigen::Tensor<double, 5> phViscosity, elViscosity, dragViscosity, totalViscosity;
+  Eigen::Tensor<double, 5> phViscosity, elViscosity, dragViscosity; //, totalViscosity;
   // momentum transport coeff contributions
   Eigen::Tensor<double, 3> sigmaMom, seebeckMom, kappaMom;
 

@@ -322,7 +322,7 @@ void TransportCoefficients::outputRelaxonContributionsToJSON(StatisticsSweep& st
 
   output["iiiiViscosityContribution"] = iiiiContrib;
 
-  std::ofstream o( (particle.isElectron()) ? "el_relaxons_transport_contributions.json" : "ph_relaxons_transport_contributions.json");
+  std::ofstream o( (particle.isElectron()) ? "relaxons_el_transport_contributions.json" : "relaxons_ph_transport_contributions.json");
   o << std::setw(3) << output << std::endl;
   o.close();
 

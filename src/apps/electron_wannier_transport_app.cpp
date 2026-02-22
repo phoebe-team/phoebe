@@ -119,7 +119,7 @@ void ElectronWannierTransportApp::run(Context &context) {
   ElectronViscosity elViscosity(context, statisticsSweep, crystal, bandStructure);
   elViscosity.calcRTA(relaxationTimes);
   elViscosity.print();
-  elViscosity.outputToJSON("rta_electron_viscosity.json");
+  elViscosity.outputToJSON("rta_el_viscosity.json");
 
   // compute the specific heat
   SpecificHeat specificHeat(context, statisticsSweep, crystal, bandStructure);

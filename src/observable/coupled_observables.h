@@ -78,7 +78,7 @@ protected:
   // viscosity tensors
   Eigen::Tensor<double, 5> phViscosity, elViscosity, dragViscosity; //, totalViscosity;
   // momentum transport coeff contributions
-  Eigen::Tensor<double, 3> sigmaMom, seebeckMom, kappaMom;
+  Eigen::Tensor<double, 3> sigmaMom, seebeckMom, kappaElMom, kappaPhMom;
 
   // theta^0 - energy conservation eigenvector
   //   electronic states = ds * g-1 * (hE - mu) * 1/(kbT^2 * V * Nkq * Ctot)

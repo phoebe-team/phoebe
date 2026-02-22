@@ -11,7 +11,7 @@ Coupled BTE
 | *Coupled electron-phonon hydrodynamics and viscous thermoelectric equations.*
 | `arXiv:2503.07560 <https://arxiv.org/abs/2503.07560>`_
 
-| Here, we outline the high-level perspective of the theory behind this development, but encourage you to study the manuscript before using it. This represents a major development in preparation of the second release of Phoebe.
+| Here, we outline the high-level perspective of the theory behind this development, but encourage you to study the manuscript before using it.
 
 Introduction
 -------------------------------
@@ -19,7 +19,7 @@ When we consider the response of electron or phonon populations to a small elect
 However, in some cases, the scattering between electrons and phonon means that if the el or ph population goes out-of-equilibrium, it can cause a shift in the other's distribution as well.
 Essentially, this is the **electron-phonon drag effect**, the phenomenon in which out-of-equilibrium electrons induce out-of-equilibrium phonons via electron-phonon scattering, and vice-versa.
 
-In order to predict the phonon drag effect on transport, we have to construct the coupled electron-phonon Boltzmann Transport Equation (epBTE). In Phoebe, we implement the epBTE using a full scattering matrix approach, so that the coupled scattering matrix consists of
+In order to predict the phonon drag effect on transport, we have to construct the coupled electron-phonon Boltzmann Transport Equation (CBTE). In Phoebe, we implement the epBTE using a full scattering matrix approach, so that the coupled scattering matrix consists of
 the standard electron and phonon scattering matrixes, along with off diagonal drag terms, which couple the independent electron and phonon subspaces. Written out,
 
 .. math::

@@ -31,10 +31,11 @@ void printHelper(StatisticsSweep& statisticsSweep, int dimensionality,
                                 const Eigen::Tensor<double, 3>& kappa,
                                 const Eigen::Tensor<double, 3>& sigma);
                                 
-  /** Return tuple of strings and units for sigma, kappa, nu (which all depend on dimension)
-   */
-  std::tuple<std::string, std::string, std::string, double, double, double> 
-        getTransportUnitsWithDimensions(int dimensionality);     
+  /** Provides a tuple of strings and unit conversion from AU->SI for sigma, kappa, nu, seebeck and mu, adjusted for dimension.
+    * @return units: tuple of unit names and conversions in order sigma, kappa, nu, seebeck and mobility.
+    */
+   std::tuple<std::string, std::string, std::string, std::string, std::string, double, double, double, double, double>
+        getTransportUnitsWithDimensions(const int dimensionality);
         
   /** Helper function to simplify outputing 3x3 transport tensors to json
   * @param tensor: transport tensor to output

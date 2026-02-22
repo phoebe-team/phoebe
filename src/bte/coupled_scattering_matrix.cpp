@@ -3,15 +3,13 @@
 #include "io.h"
 #include "mpiHelper.h"
 #include <cmath>
-#include "coupled_vector_bte.h"
-#include "phel_scattering.h"
 #include "ifc3_parser.h"
 #include "interaction_elph.h"
 #include "scattering_matrix.h"
 #include <map>
 /* 
 enum DragType {
-  elph,
+  elph, 
   phel
 };
  */
@@ -186,6 +184,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // TODO check boundary scattering addition
   // Add boundary scattering ----------------------
+  
   // Call this twice for each section of the diagonal,
   // in one case handing it the phonon bands, in the other the electron bands.
   if (!std::isnan(context.getBoundaryLength())) {
@@ -348,8 +347,8 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   // use the off diagonals to calculate the linewidths,
   // to ensure the special eigenvectors can be found/preserve conservation of momentum
   // that might be ruined by the delta functions
-  if(context.getReconstructLinewidths()) {
-    reinforceLinewidths();
+  if(context.getEnforceDetailedBalance()) {
+    enforceDetailedBalance();
   }
 
   // TODO debug the "replaceLinewidths" function and use it instead
@@ -620,7 +619,7 @@ std::vector<std::vector<std::tuple<std::vector<int>, int>>>
 }
 
 // reweight the matrix quadrants
-void CoupledScatteringMatrix::reweightQuadrants() {
+/* void CoupledScatteringMatrix::reweightQuadrants() {
 
   // TODO if we use linewidths also apply 2 to them
 
@@ -668,7 +667,7 @@ void CoupledScatteringMatrix::reweightQuadrants() {
     }
   }
 }
-
+ */
 BaseBandStructure* CoupledScatteringMatrix::getPhBandStructure() { return &innerBandStructure; }
 BaseBandStructure* CoupledScatteringMatrix::getElBandStructure() { return &outerBandStructure; }
 

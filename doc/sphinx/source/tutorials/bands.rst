@@ -3,7 +3,7 @@
 Basic Band Structure and DoS
 ==============================
 
-Synopsis
+Overview
 --------
 
 In addition to transport and lifetime calculations, Phoebe can also perform basic band structure and density of states calculations. These can be useful when debugging a calculation or checking the quality of a Wannier or Fourier interpolation. The quality of interpolation is often dependent on the number of k or q points used in DFT, so sometimes it can be helpful to run this calculation to ensure that your DFT calculation used a dense enough mesh.

@@ -50,9 +50,9 @@ void TransportCoefficients::outputToJSON() {
   // output the viscosity 
   bool append = false; // it's a new file to write to
   std::string viscosityName = (particle.isPhonon()) ? "phononViscosity" : "electronViscosity" ;
-  std::string outFileName = (particle.isPhonon()) ? "relaxons_phonon_viscosity.json" : "relaxons_electron_viscosity.json";
+  std::string outFileName = (particle.isPhonon()) ? "relaxons_ph_viscosity.json" : "relaxons_el_viscosity.json";
   outputViscosityToJSON(outFileName, viscosityName, viscosity, append, statisticsSweep, dimensionality);
-                
+
   // output the conductivities 
   if(particle.isPhonon()) {
     outputPhononThermalCondToJSON("relaxons_phonon_thermal_cond.json", statisticsSweep, dimensionality, kappa);
@@ -84,6 +84,15 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   // needed before this function to calculate phi, and then to use phi with D
 
   // TODO add OMP and MPI parallelism here
+  
+  if(!context.getEnforceDetailedBalance()) {
+    Warning("Viscosity calculated without the enforcing detailed balance condition of the scattering matrix"
+      "\ncan have major issues -- if the charge and energy eigenvectors are not well found (better than 75% overlap),"
+      " they may make a large, spurious contribution to viscosity!");
+  }        
+  if (numCalculations > 1) {
+    DeveloperError("Relaxons electron viscosity cannot be calculated for more than one T or mu value.");
+  }
   
   //int numStates = bandStructure.getNumStates();
   int numRelaxons = eigenvalues.size();
@@ -253,15 +262,8 @@ void TransportCoefficients::outputRelaxonContributionsToJSON(StatisticsSweep& st
   int numCalculations = statisticsSweep.getNumCalculations();
   if(numCalculations > 1) DeveloperError("Relaxons cannot be run with more than one temperature!");
 
-  auto [unitsSigma, unitsKappa, unitsViscosity, convSigma, convKappa,
-        convViscosity] = getTransportUnitsWithDimensions(dimensionality);
-
-  // TODO should this use dimensionality instead??
-  //double convMobility = mobilityAuToSi * pow(100., 2); // from m^2/Vs to cm^2/Vs
-  //std::string unitsMobility = "cm^2 / V / s";
-
-  double convSeebeck = thermopowerAuToSi * 1.0e6;
-  std::string unitsSeebeck = "muV / K";
+  auto [unitsSigma, unitsKappa, unitsViscosity, unitsSeebeck, unitsMobility,
+    convSigma, convKappa, convViscosity, convSeebeck, convMobility] = getTransportUnitsWithDimensions(dimensionality);
 
   std::vector<double> temps, dopings, chemPots;
 

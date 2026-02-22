@@ -21,7 +21,10 @@ The linearized electronic BTE for a system exposed to an applied electric field 
 
 where the first term describes the diffusion due to an externally applied electric field :math:`\boldsymbol{E}`, the second the diffusion due to a temperature gradient, and the third term is the linearized scattering operator.
 
-The electron scattering matrix :math:`\Omega_{\lambda,\lambda'}` can be computed as,
+Electron scattering rates
+-----------------------------
+
+The electron scattering matrix :math:`\Omega_{\lambda,\lambda'}` can be computed using electron-phonon scattering as,
 
 .. math::
    \Omega_{\boldsymbol{k}b,\boldsymbol{k}'b'} =&
@@ -59,7 +62,10 @@ This scattering matrix requires us to know the phonon and electron energies, as 
 
 The Kronecker delta function on momentum is enforces exactly, while the Dirac delta for conservation of energy is instead approximated with methods as described in the section :ref:`delta_fns`.
 
-Since the scattering matrix :math:`\Omega_{\lambda,\lambda'}` is not inherently symmetric, we perform the transformation, 
+Symmetrization of the scattering matrix
+----------------------------------------
+
+Since the scattering matrix :math:`\Omega_{\lambda,\lambda'}` is not inherently symmetric (which we will need if we want to have a real symmetric matrix, as in the realxons solution), we perform the transformation, 
 
 .. math::
    \tilde{\Omega}_{\lambda \lambda'}

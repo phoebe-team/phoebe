@@ -72,11 +72,11 @@ What we need to interpolate instead is:
 First, recall the relation between the wavefunctions in Wannier and Bloch representations,
 
 .. math::
-   \big|m\boldsymbol{R}_e\big> = \sum_{b\boldsymbol{k}} e^{-i\boldsymbol{k}\cdot\boldsymbol{R}_e} U_{mb,\boldsymbol{k}} \big|b\boldsymbol{k}\big>
+   \big|m\boldsymbol{R}_e\big> = \frac{1}{N_k} \sum_{b\boldsymbol{k}} e^{-i\boldsymbol{k}\cdot\boldsymbol{R}_e} U_{mb,\boldsymbol{k}} \big|b\boldsymbol{k}\big>
 
 
 .. math::
-   \big|b\boldsymbol{k}\big> = \frac{1}{N_e} \sum_{m\boldsymbol{R}_e} e^{i\boldsymbol{k}\cdot\boldsymbol{R}_e} U_{bm,\boldsymbol{k}}^\dagger \big|m\boldsymbol{R}_e\big>
+   \big|b\boldsymbol{k}\big> = \sum_{m\boldsymbol{R}_e} e^{i\boldsymbol{k}\cdot\boldsymbol{R}_e} U_{bm,\boldsymbol{k}}^\dagger \big|m\boldsymbol{R}_e\big>
 
 where :math:`N_e` is the number of supercells.
 
@@ -92,8 +92,6 @@ To transform the potential from the reciprocal to the real space representation,
    =
    \frac{1}{N_q}
    \sum_{\boldsymbol{q}\nu} e^{-i\boldsymbol{q}\cdot\boldsymbol{R}_p} [u_{\boldsymbol{q}\kappa}^{\nu}]^{-1} \partial_{\boldsymbol{q}\nu} V(\boldsymbol{r})
-
-
 
 So, we first transform to Wannier space by:
 

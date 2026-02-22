@@ -3,7 +3,7 @@
 Electron Wannier Transport Tutorial
 ===================================
 
-Synopsis
+Overview
 --------
 
 In this tutorial, we will compute the electrical conductivity and other electronic transport properties of silicon using the Wannier interpolation method.
@@ -421,8 +421,8 @@ To run the code, we can simply do::
 
   If you are interested in the Wigner contribution to the transport properties, you need to set a large energy window or set window to "none". As described in `Materials Today Physics 19, 100412 (2021). <10.1016/j.mtphys.2021.100412>`_, Fig 4., WTE contributions can come from states far away from the chemical potential. If we set a narrow window, these states will be discarded (as is appropriate for semiclassical BTE transport).
 
-Output
-------
+Output and Post-Processing 
+------------------------------------------------
 
 There are two kinds of output: the standard output file (in the line above, it's ``ewt.out``) and the JSON files containing more extensive transport and lifetime values.
 
@@ -464,7 +464,7 @@ You can learn more about how to post-process these files at :ref:`postprocessing
 
 * ``solver_onsager_coefficients.json``: contains the transport coefficients at each temperature and doping point specified in the Phoebe input file.
 
-* ``solver_electron_viscosity.json``: contains the electronic viscosity. This can be output by the RTA solver, and for cases where Phoebe was run with ``useSymmetries = false``, for the relaxons solver as well.
+* ``solver_el_viscosity.json``: contains the electronic viscosity. This can be output by the RTA or relaxons solver.
 
 * ``solver_el_relaxation_times.json``: contains the relaxation times on the :ref:`kMesh` specified in the ``electronWannierTransport`` input file. It is only output for solvers "rta" and "relaxons", as the lifetime is not well defined for the iterative solvers.
 

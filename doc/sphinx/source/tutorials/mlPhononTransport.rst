@@ -1,9 +1,9 @@
 .. _mlPhononTransport:
 
-Accelerated Lattice Thermal Conductivity Calculations using Machine Learning Force Fields
+Lattice Thermal Conductivity using MLIPs
 ===========================================================================================
 
-Synopsis
+Overview
 --------
 
 In this tutorial, we will use Phoebe to compute the lattice thermal conductivity of silicon carbide (SiC) with a machine learning force field from `FLARE <https://github.com/mir-group/flare>`_.

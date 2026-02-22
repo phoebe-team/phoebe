@@ -78,17 +78,12 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
     DeveloperError("Drag term calculation is not implemented with symmetry.");
   }
 
-  // TODO this should be the correct norm, but worth double checking
-  double norm = 0.;
   double spinFactor = 2.; // nonspin pol = 2
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
 
-  //if (dragTermType == Del) { norm = sqrt(spinFactor) / (sqrt( double(context.getKMesh().prod()) ) * sqrt(double(context.getQMesh().prod()))); }
-  //else { norm = sqrt(spinFactor) / (sqrt(double(context.getQMesh().prod())) * sqrt(double(context.getKMesh().prod()))); }
-  //norm = spinFactor/(double(context.getKMesh().prod()));
   double Nk = double(context.getKMesh().prod());
   double Nq = double(context.getQMesh().prod());
-  norm = sqrt(spinFactor) / (sqrt( Nk * Nq));
+  double norm = sqrt(spinFactor) / (sqrt( Nk * Nq));
 
   // TODO change this to the same in phel scattering as well
   // precompute the q-dependent part of the polar correction
@@ -337,22 +332,16 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
           // returns |g(m,m',nu)|^2
           Eigen::Tensor<double, 3>& couplingSq = couplingElPhWan.getCouplingSquared(iQBatch);
 
-          //Eigen::Vector3d qCartesian = allQCartesian[iQBatch];
           WavevectorIndex iQIdx(iQ);
 
           // pull out the energies, etc, for this batch of points
           Eigen::VectorXd stateEnergiesQ = allStateEnergiesQ[iQBatch];
           Eigen::VectorXd stateEnergiesKp = allStateEnergiesKp[iQBatch];
           Eigen::MatrixXd vKp = allVKps[iQBatch];
-          //auto kpCartesian = allKpCartesian[iQBatch]; // TODO remove this it's a test statement
 
 	        // number of bands
           int nbQ = int(stateEnergiesQ.size());
           int nbKp = int(stateEnergiesKp.size());
-
-          //Eigen::Vector3d kCrys = electronBandStructure.getPoints().cartesianToCrystal(kCartesian);
-          //Eigen::Vector3d kpCrys = electronBandStructure.getPoints().cartesianToCrystal(kpCartesian);
-          //Eigen::Vector3d qCrys = phononBandStructure.getPoints().cartesianToCrystal(qCartesian);
 
           // Calculate the scattering rate  -------------------------------------------
           // Loop over state bands
@@ -438,10 +427,12 @@ void addDragTerm(CoupledScatteringMatrix &matrix, Context &context,
                   double dragRate = 0;
 
                   double normTemp = norm;
-                  //if( (enQ < 0.007 / energyRyToEv)) { // && (qCrys.norm() < 1e-1)) {
-                  //  normTemp = sqrt(spinFactor) / ( Nk );
+                  // if phonon energy is less than the value of smearing, we can have an issue leading to negative eigenvalues 
+                  // this corrects for that issue 
+                  if( (enQ < context.getPhSmearingWidth() / energyRyToEv)) { 
+                    normTemp = sqrt(spinFactor) / Nk;
                   //  //std::cout << " imode omega q " << ibQ << " " << enQ << " " << qCrys.transpose() << std::endl;
-                  //}
+                  }
 
                   if(!isKpMinus) { // g+ part
 

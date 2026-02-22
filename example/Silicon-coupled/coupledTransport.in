@@ -18,7 +18,7 @@ windowType = "population"
 windowPopulationLimit = 1e-3
 numOccupiedStates = 4
 
-#reconstructLinewidths = true # typically, this should be set to true for drag calculations
+enforceDetailedBalance = false # not needed here, but if negative eigenvalues emerge, might help
 symmetrizeMatrix = true
 scatteringMatrixInMemory=true
 solverBTE = ["relaxons"]

@@ -6,12 +6,15 @@ Frequently asked questions
 
 **Why does my iterative or variational BTE solution not converge, or my relaxons solution have negative eigenvalues?** 
 
-If the iterative solver, or especially the variational solver, does not converge, this could be a sign that your scattering matrix is poorly conditioned. You can check this by running the relaxons solver and noting if there are negative eigenvalues (which indicate the matrix is not positive semi-definite as it should be). This could indicate a number of problems:
+If the iterative solver, or especially the variational solver, does not converge, this could be a sign that your scattering matrix is poorly conditioned. You can check this by running the relaxons solver and noting if there are negative eigenvalues (which indicate the matrix is not positive semi-definite as it should be). 
+
+This could indicate a number of problems:
 
 	* For electron and phonon calcultions, you may have chosen a smearing value which violates the conservation of energy too strongly
 	* For an el-ph calculation, your Wannierization may not be very good, producing noisy el-ph matrix elements, energies, etc. For phonon only calculations, you might have poor force constants. 
 	* Symmetrizing the scattering matrix might help - but if you have many negative eigenvalues, likely this is just going to partially cover up a potentially serious problem. 
 
+For more discussion on this topic, see the :ref:`negativeEigenvalues` section of the relaxons tutorial.
 
 **Can I use the rotationally invariant ASR?**
 
@@ -19,7 +22,7 @@ If the iterative solver, or especially the variational solver, does not converge
 	https://www.quantum-espresso.org/Doc/INPUT_MATDYN.html#idm17
 
 
-** I have encountered the error `Error in routine phoebe (1): atom mapping failed`` when running the `phoebe-quantum-espresso` version of `ph.x`. 
+**I have encountered the error `Error in routine phoebe (1): atom mapping failed`` when running the `phoebe-quantum-espresso` version of `ph.x`.**
 
 This is a somewhat rare issue that emerges either because of a general issue with the crystal structure or because of a difference in how symmetries are used in the pw.x and ph.x calculations (often, it seems to appear when fractional translations are found in the sym ops list).
 Typically this can be resolved by a standardized representation of your crystal structure -- generated for example by running `AFLOW <http://www.aflowlib.org/aflow-online/>`_ on your structure, using the button for "structure conversion" and "standard primitive" (or any other equivalent utility.)

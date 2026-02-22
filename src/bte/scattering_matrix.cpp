@@ -1400,7 +1400,7 @@ std::tuple<BaseBandStructure*,BaseBandStructure*> ScatteringMatrix::getStateBand
   // rather than iState
   // for now we block symmetries and assume the indices are iState = iBte
   if(context.getUseSymmetries()) {
-    Error("Cannot reinforce linewidths of the scattering matrix when using symmetries.");
+    Error("Cannot reconstruct diagonal of the scattering matrix when using symmetries.");
   }
 
   size_t is1 = iBte1.get();
@@ -1429,17 +1429,14 @@ std::tuple<BaseBandStructure*,BaseBandStructure*> ScatteringMatrix::getStateBand
 
 // this could be simplified by the existence of a "coupled band structure"
 // containing an el and ph bandstructure
-void ScatteringMatrix::reinforceLinewidths() {
+void ScatteringMatrix::enforceDetailedBalance() {
 
   // kill the function if it's used inappropriately
-  if(!isMatrixOmega) { // If this matrix has not been symmetrized, this function won't work
-    DeveloperError("Reinforce linewidths should not be called on an unsymmetrized matrix.");
-  }
   if(!highMemory) return;  // must be high mem, we explicitly use iCalc=1 here
   if(context.getUseSymmetries()) return; // this is not designed for BTE syms, would need to
                                          // change the way we are indexing this
   if(context.getUseUpperTriangle()) {    // TODO this can be implemented without too much difficulty
-    Warning("Cannot run reinforce linewidths with only upper triangle for now.");
+    Warning("Cannot run enforceDetailedBalance with only upper triangle for now.");
     return;
   };
 
@@ -1450,26 +1447,31 @@ void ScatteringMatrix::reinforceLinewidths() {
   double kBT = calcStat.temperature;
   double chemicalPotential = calcStat.chemicalPotential;
 
-  if(mpi->mpiHead()) std::cout << "\nReinforcing linewidths to match off-diagonals." << std::endl;
+  if(mpi->mpiHead()) std::cout << "\nEnforcing detailed balance, summing off-diagonals to compute diagonal." << std::endl;
 
   // this only happens when we have one iCalc, and no symmetries -- VectorBTE = an array,
   // which we use here because of some trouble with coupledVectorBTE object
   Eigen::MatrixXd newLinewidths(1,numStates); // copy matrix which is the same as internal diag
   newLinewidths.setZero();
 
-  double Nk = double(context.getKMesh().prod());
-  double Nq = double(context.getQMesh().prod());
+  double Nk = 1;
+  double Nq = 1; 
+  if(isCoupled) {
+    Nk = double(context.getKMesh().prod());
+    Nq = double(context.getQMesh().prod());
+  }
 
   double spinFactor = 2.; // nonspin pol = 2
   if (context.getHasSpinOrbit()) { spinFactor = 1.; }
 
   // rebuild the diagonal ---------------------------------
 
-  LoopPrint loopPrint("Reinforcing the linewidths","matrix elements",getAllLocalStates().size());
+  LoopPrint loopPrint("Recalculating the diagonal","matrix elements",getAllLocalStates().size());
 
   // NOTE: if later we want to use symmetries here,
   // these would actually be iBTE instead of iState, and we would convert
   // sum over the v' states owned by this process
+  // TODO may want to add OMP here as well as MPI 
   for (auto [ibte1, ibte2] : getAllLocalStates()) {
 
     loopPrint.update();
@@ -1501,10 +1503,6 @@ void ScatteringMatrix::reinforceLinewidths() {
     Particle initialParticle = initialBandStructure->getParticle();
     Particle finalParticle = finalBandStructure->getParticle();
 
-    // this removes the drag term contributions, for test reasons
-    //if(initialParticle.isPhonon() && finalParticle.isElectron()) continue;
-    //if(initialParticle.isElectron() && finalParticle.isPhonon()) continue;
-
     // shift the indices back to the ones used in bandstructures
     // these indices are for the full matrix, if the matrix is coupled,
     // we need to fold them back into the relevants quadrants in order
@@ -1526,12 +1524,13 @@ void ScatteringMatrix::reinforceLinewidths() {
     if((initialParticle.isPhonon() && initialEn < 1e-9)) continue;
     if((finalParticle.isPhonon() && finalEn < 1e-9)) continue;
 
+    // if this is a matrix which is not symmetrized, we don't need these. 
     // calculate f(1-f) or n(n+1)
     // do not shift E by mu because we use this below in the getPop function which assumes it's unshifted
-    double initialFFm1 = initialParticle.getPopPopPm1(initialEn, kBT, initialChemicalPotential);
-    double finalFFm1 = finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
+    double initialFFm1 = (!isMatrixOmega) ? 1 : initialParticle.getPopPopPm1(initialEn, kBT, initialChemicalPotential);
+    double finalFFm1 = (!isMatrixOmega) ? 1 : finalParticle.getPopPopPm1(finalEn, kBT, finalChemicalPotential);
 
-    // spin degeneracy info -- TODO may need to put spin factors here
+    // spin degeneracy info -- TODO may need to put spin factors here?
     double initialD = 1;
     double finalD = 1;
 
@@ -1571,7 +1570,7 @@ void ScatteringMatrix::reinforceLinewidths() {
   mpi->allReduceSum(&newLinewidths);
 
   if(mpi->mpiHead()) {
-    std::cout << "Checking the quality of ph states:" << innerBandStructure.getPoints().getCrystal().getVolumeUnitCell() << std::endl;
+    std::cout << "Checking the quality of recalculated diagonal elements." << std::endl;
 
     for (int i = numElStates; i<numStates; i++) {
 
@@ -1580,26 +1579,25 @@ void ScatteringMatrix::reinforceLinewidths() {
 
       if(newLinewidths(0,i) < 0 || std::isnan(newLinewidths(0,i))) {
         StateIndex sIdx(i-numElStates);
-        std::cout << std::setprecision(4) << "Found a negative ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << internalDiagonal->data(0,i) << " " << newLinewidths(0,i) << std::endl;
+        std::cout << std::setprecision(4) << "Found a negative ph linewidth for state: " << i << std::endl;
         // replace with the standard one to avoid definite issues
         newLinewidths(0,i) = internalDiagonal->data(0, i);
       }
       // flag bad linewidth ratios
       else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.25 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.75) {
         StateIndex sIdx(i-numElStates);
-        std::cout << std::setprecision(4) << "Found a bad ph linewidth for state: " << i << " " << innerBandStructure.getEnergy(sIdx) << " " << innerBandStructure.getPoints().cartesianToCrystal(innerBandStructure.getWavevector(sIdx)).transpose() << " " << newLinewidths(0,i) << " " << internalDiagonal->data(0,i)  << " " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;
-        newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
+        if(mpi->mpiHead()) std::cout << "Found a bad ph linewidth ratio: state, new, old, new/old " << i << " " << newLinewidths(0,i) << " / " << internalDiagonal->data(0,i) << " = " << newLinewidths(0,i)/internalDiagonal->data(0,i) << std::endl;
+        //newLinewidths(0,i) = std::max(newLinewidths(0,i),internalDiagonal->data(0,i));
       }
     }
 
-    std::cout << "Checking quality of el states: " << std::endl;
     for (int i = 0; i<numElStates; i++) {
 
       if(newLinewidths(0,i) < 1e-15 && internalDiagonal->data(0,i) < 1e-15) continue;
 
       if(newLinewidths(0,i) < 0 || std::isnan(newLinewidths(0,i))) {
         StateIndex sIdx(i);
-        if(mpi->mpiHead()) std::cout << "Replacing a negative el linewidth for state: " << i << " " << outerBandStructure.getEnergy(sIdx) << " " << outerBandStructure.getPoints().cartesianToCrystal(outerBandStructure.getWavevector(sIdx)).transpose() << " old v. new " << internalDiagonal->data(0,i) << " " << newLinewidths(0,i) << std::endl;
+        if(mpi->mpiHead()) std::cout << "Replacing a negative el linewidth for state: " << i << std::endl;
         newLinewidths(0,i) = internalDiagonal->data(0, i);
       }
       else if(newLinewidths(0,i)/internalDiagonal->data(0,i) < 0.25 || newLinewidths(0,i)/internalDiagonal->data(0,i) > 1.75) {
@@ -1607,7 +1605,7 @@ void ScatteringMatrix::reinforceLinewidths() {
       }
     }
   }
-
+/* 
   if(mpi->mpiHead()) {
 
     std::cout << "compare first 50 el states, new vs. old " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl;
@@ -1637,7 +1635,7 @@ void ScatteringMatrix::reinforceLinewidths() {
 
     }
     std::cout << std::scientific << std::setprecision(4) << std::endl;
-  }
+  } */
   // reinsert the linewidths in the scattering matrix
   internalDiagonal->data = newLinewidths;
 

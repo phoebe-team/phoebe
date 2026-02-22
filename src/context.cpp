@@ -637,7 +637,7 @@ void Context::setupFromInput(const std::string &fileName) {
         symmetrizeMatrix = parseBool(val);
       }
       if (parameterName == "useUpperTriangle") {
-        useUpperTriangle = parseBool(val);
+        useUpperTriangle = false; //parseBool(val); // FIXME for now we block this, just in case
       }
       if (parameterName == "numRelaxonsEigenvalues") {
         numRelaxonsEigenvalues = parseInt(val);
@@ -651,8 +651,8 @@ void Context::setupFromInput(const std::string &fileName) {
       if (parameterName == "useDragTerms") {
         useDragTerms = parseBool(val);
       }
-      if (parameterName == "reconstructLinewidths") {
-        reconstructLinewidths = parseBool(val);
+      if (parameterName == "enforceDetailedBalance") {
+        enforceDetailedBalance = parseBool(val);
       }
       if (parameterName == "useSymmetries") {
         useSymmetries = parseBool(val);
@@ -1022,7 +1022,6 @@ void Context::printInputSummary(const std::string &fileName) {
     // specific to coupled scattering matrix app
     if (appName.find("oupled") != std::string::npos) {
       std::cout << "useDragTerms = " << useDragTerms << std::endl;
-      std::cout << "reconstructLinewidths = " << reconstructLinewidths << std::endl;
     }
 
     if (!std::isnan(constantRelaxationTime))
@@ -1073,13 +1072,14 @@ void Context::printInputSummary(const std::string &fileName) {
         std::cout << "maxIterationsBTE = " << maxIterationsBTE << std::endl;
       }
       if(doRelaxons) {
-        std::cout << "useUpperTriangle = " << useUpperTriangle << std::endl;
+        //std::cout << "useUpperTriangle = " << useUpperTriangle << std::endl;
         std::cout << "symmetrizeMatrix = " << symmetrizeMatrix << std::endl;
         std::cout << "numRelaxonsEigenvalues = " << numRelaxonsEigenvalues << std::endl;
         if(numRelaxonsEigenvalues != 0) std::cout << "checkNegativeRelaxons = " << checkNegativeRelaxons << std::endl;
       }
       if(scatteringMatrixInMemory) {
-        std::cout << "enforcePositiveSemiDefinite = " << enforcePositiveSemiDefinite << std::endl;
+        std::cout << "enforceDetailedBalance = " << enforceDetailedBalance << std::endl;
+      //  std::cout << "enforcePositiveSemiDefinite = " << enforcePositiveSemiDefinite << std::endl;
       }
     }
 
@@ -1439,11 +1439,11 @@ void Context::setUseDragTerms(const bool &x) {
   useDragTerms = x;
 }
 
-bool Context::getReconstructLinewidths() const {
-  return reconstructLinewidths;
+bool Context::getEnforceDetailedBalance() const {
+  return enforceDetailedBalance;
 }
-void Context::setReconstructLinewidths(const bool &x) {
-  reconstructLinewidths = x;
+void Context::setEnforceDetailedBalance(const bool &x) {
+  enforceDetailedBalance = x;
 }
 
 int Context::getNumRelaxonsEigenvalues() const {

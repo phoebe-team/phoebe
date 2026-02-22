@@ -153,7 +153,7 @@ Phonon BTE Solver
 
 * :ref:`checkNegativeRelaxons`
 
-* :ref:`enforcePositiveSemiDefinite`
+* :ref:`enforceDetailedBalance`
 
 .. raw:: html
 
@@ -256,7 +256,7 @@ Electron BTE Solver
 
 * :ref:`checkNegativeRelaxons`
 
-* :ref:`enforcePositiveSemiDefinite`
+* :ref:`enforceDetailedBalance`
 
 .. raw:: html
 
@@ -331,6 +331,112 @@ EPA Transport
   kMesh = [10,10,10]
   temperatures = [300.]
   dopings = [1.0e21]
+
+-------------------------------------
+
+Coupled Electron-Phonon BTE Solver
+-----------------------------------
+
+**Functionality:** Build and solve the coupled Boltzmann Transport Equation (BTE). Use and outputs are described in :ref:`tutorialCBTE`.
+
+.. raw:: html
+
+  <h3>Input variables</h3>
+
+
+:ref:`appName` = "coupledTransport"
+
+* :ref:`phFC2FileName`
+
+* :ref:`phFC3FileName`
+
+* :ref:`phonopyDispFileName`
+
+* :ref:`phonopyBORNFileName`
+
+* :ref:`sumRuleFC2`
+
+* :ref:`electronH0Name`
+
+* :ref:`wsVecFileName`
+
+* :ref:`elphFileName`
+
+* :ref:`kMesh`
+
+* :ref:`qMesh`
+
+* :ref:`temperatures`
+
+* :ref:`dopings`
+
+* :ref:`chemicalPotentials`
+
+* :ref:`smearingMethod`
+
+* :ref:`smearingWidth`
+
+* :ref:`phSmearingWidth`
+
+* :ref:`elSmearingWidth`
+
+* :ref:`dimensionality`
+
+* :ref:`thickness`
+
+* :ref:`windowType`
+
+* :ref:`windowEnergyLimit`
+
+* :ref:`windowPopulationLimit`
+
+* :ref:`solverBTE`
+
+* :ref:`scatteringMatrixInMemory`
+
+* :ref:`symmetrizeMatrix`
+
+* :ref:`fermiLevel`
+
+* :ref:`numOccupiedStates`
+
+* :ref:`numRelaxonsEigenvalues`
+
+* :ref:`checkNegativeRelaxons`
+
+* :ref:`enforceDetailedBalance`
+
+.. raw:: html
+
+  <h3>Sample input file</h3>
+
+::
+
+  appName = "coupledTransport"
+  
+  sumRuleFC2 = "crystal"
+  phFC2FileName = "silicon.fc"
+  electronH0Name = "si_tb.dat"
+  elphFileName = "silicon.phoebe.elph.hdf5"
+  phFC3FileName = "FORCE_CONSTANTS_3RD"
+
+  kMesh = [25, 25, 25]
+  qMesh = [5, 5, 5]
+  temperatures = [200.]
+  dopings = [1.e21]
+
+  smearingMethod = "gaussian"
+  elSmearingWidth = 0.005 eV
+  phSmearingWidth = 0.002 eV  
+  windowType = "population"
+  windowPopulationLimit = 1e-3
+  numOccupiedStates = 4
+
+  useSymmetries = false
+  enforceDetailedBalance = true 
+  symmetrizeMatrix = true
+  scatteringMatrixInMemory = true
+  solverBTE = ["relaxons"]
 
 -----------------------------------
 
@@ -953,6 +1059,29 @@ smearingWidth
 * **Required:** yes (when :ref:`smearingMethod` = "gaussian")
 
 
+.. _elSmearingWidth:
+
+elSmearingWidth
+^^^^^^^^^^^^^
+
+* **Description:** This parameter allows different smearing values to be used if :ref:`smearingMethod` = "gaussian" and one is using both el and ph scattering types, as in the coupled BTE, where this parameter represents the full-width half-maximum of the Gaussian used to approximate the Dirac-delta conserving energy. Example: elSmearingWidth = 0.5 eV
+
+* **Format:** *double+units*
+
+* **Required:** no
+
+
+.. _phSmearingWidth:
+
+phSmearingWidth
+^^^^^^^^^^^^^
+
+* **Description:** This parameter allows different smearing values to be used if :ref:`smearingMethod` = "gaussian" and one is using both el and ph scattering types, as in the coupled BTE, where this parameter represents the full-width half-maximum of the Gaussian used to approximate the Dirac-delta conserving energy. Example: phSmearingWidth = 0.5 eV
+
+* **Format:** *double+units*
+
+* **Required:** no 
+
 .. _solverBTE:
 
 solverBTE
@@ -1024,12 +1153,12 @@ checkNegativeRelaxons
 
 * **Default:** `true`
 
-.. _enforcePositiveSemiDefinite:
+.. _enforceDetailedBalance:
 
-enforcePositiveSemiDefinite
+enforceDetailedBalance
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-* **Description:** When `enforcePositiveSemiDefinite` is true, we apply a diagonal perturbation to the scattering matrix to make it positive definite. Note that that this is a bit of a band-aid -- you should check that your matrix is not too far from correct before applying this (that it has just a few small negative eigenvalues at most!).
+* **Description:** When `enforceDetailedBalance` is set to true, we recompute the diagonal elements of the scattering matrix by summing up the rows of the matrix (enforcing detailed balance). This is especially relevant to the relaxons solution to the BTE, in order to avoid issues with negative eigenvalues arising from numerical noise. 
 
 * **Format:** *bool*
 

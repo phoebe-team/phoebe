@@ -51,6 +51,8 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   Crystal crystal = innerBandStructure.getPoints().getCrystal();
 
+  bool usePhElScattering = !context.getElphFileName().empty(); 
+
   // here we call the function to add ph-ph scattering
   if(!context.getPhFC3FileName().empty()) {
     // read this in and let it go out of scope afterwards
@@ -158,7 +160,14 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // recalculate the phonon linewidths from the off diagonals
   // we should do this if phel is not involved, otherwise it wipes out phel
-  //reinforceLinewidths();
+  if(context.getEnforceDetailedBalance()) {
+    if(usePhElScattering) {
+      Warning("Ignoring request to enforce detailed balance on the scattering matrix,"
+        "as this will erase the ph-el contribution along the diagonal!"); 
+    } else {
+      enforceDetailedBalance();
+    }
+  }
 
   // some phonons like acoustic modes at the gamma, with omega = 0,
   // might have zero frequencies, and infinite populations. We set those
@@ -245,6 +254,3 @@ void PhScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     }
   }
 }
-
-
-

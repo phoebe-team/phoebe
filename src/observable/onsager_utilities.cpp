@@ -5,11 +5,12 @@
 #include "mpiHelper.h"
 #include <nlohmann/json.hpp>
 
-std::tuple<std::string, std::string, std::string, double, double, double> 
+// replace this with a "transportCoeff" struct that contains data, string, and conversion from au->SI
+std::tuple<std::string, std::string, std::string, std::string, std::string, double, double, double, double, double>
         getTransportUnitsWithDimensions(const double dimensionality) {
 
-  std::string unitsSigma, unitsKappa, unitsViscosity;
-  double convSigma, convKappa, convViscosity;
+  std::string unitsSigma, unitsKappa, unitsViscosity, unitsSeebeck;
+  double convSigma, convKappa, convViscosity, convSeebeck;
   // TODO check the kappa units, I think it's missing a kb
   if (dimensionality == 1) {
     unitsSigma = "S m";
@@ -33,7 +34,15 @@ std::tuple<std::string, std::string, std::string, double, double, double>
     convKappa = thConductivityAuToSi;
     convViscosity = viscosityAuToSi;
   }
-  return std::make_tuple(unitsSigma, unitsKappa, unitsViscosity, convSigma, convKappa, convViscosity);
+  // seebeck units are not dimension dept
+  convSeebeck = thermopowerAuToSi * 1.0e6;
+  unitsSeebeck = "muV / K";
+
+  // TODO should this use dimensionality instead??
+  double convMobility = mobilityAuToSi * pow(100., 2); // from m^2/Vs to cm^2/Vs
+  std::string unitsMobility = "cm^2 / V / s";
+
+  return std::make_tuple(unitsSigma, unitsKappa, unitsViscosity, unitsSeebeck, unitsMobility, convSigma, convKappa, convViscosity, convSeebeck, convMobility);
 }
 
 void onsagerToTransportCoeffs(StatisticsSweep& statisticsSweep, int& dimensionality,
@@ -111,22 +120,16 @@ void printHelper(StatisticsSweep& statisticsSweep, int& dimensionality,
 
   int numCalculations = statisticsSweep.getNumCalculations();
 
-  if(numCalculations > 50) { 
+  if(numCalculations > 50) {
     std::cout << "\nBecause there are more than 50 calculations in this run,\n"
 	    << "the transport tensors will not be printed to output, but can\n"
-	    << "still be found in the corresponding output json file.\n" 
+	    << "still be found in the corresponding output json file.\n"
 	    << std::endl;
-    return; 
+    return;
   }
 
-  [[maybe_unused]] auto [unitsSigma, unitsKappa, unitsViscosity, 
-      convSigma, convKappa, convViscosity] = getTransportUnitsWithDimensions(dimensionality); 
-
-  double convMobility = mobilityAuToSi * 100 * 100; // from m^2/Vs to cm^2/Vs
-  std::string unitsMobility = "cm^2 / V / s";
-
-  double convSeebeck = thermopowerAuToSi * 1e6;
-  std::string unitsSeebeck = "muV / K";
+  auto [unitsSigma, unitsKappa, unitsViscosity, unitsSeebeck, unitsMobility,
+    convSigma, convKappa, convViscosity, convSeebeck, convMobility] = getTransportUnitsWithDimensions(dimensionality);
 
   std::cout << "\n";
   for (int iCalc = 0; iCalc < numCalculations; iCalc++) {
@@ -260,14 +263,8 @@ void outputCoeffsToJSON(const std::string &outFileName,
 
   int numCalculations = statisticsSweep.getNumCalculations();
 
-  [[maybe_unused]] auto [unitsSigma, unitsKappa, unitsViscosity, 
-      convSigma, convKappa, convViscosity] = getTransportUnitsWithDimensions(dimensionality); 
-
-  double convMobility = mobilityAuToSi * pow(100., 2); // from m^2/Vs to cm^2/Vs
-  std::string unitsMobility = "cm^2 / V / s";
-
-  double convSeebeck = thermopowerAuToSi * 1.0e6;
-  std::string unitsSeebeck = "muV / K";
+  auto [unitsSigma, unitsKappa, unitsViscosity, unitsSeebeck, unitsMobility,
+    convSigma, convKappa, convViscosity, convSeebeck, convMobility] = getTransportUnitsWithDimensions(dimensionality);
 
   std::vector<double> temps, dopings, chemPots;
   std::vector<std::vector<std::vector<double>>> sigmaOut, mobilityOut, kappaOut, seebeckOut;

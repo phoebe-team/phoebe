@@ -118,7 +118,7 @@ void ElectronWannierTransportApp::run(Context &context) {
   ElectronViscosity elViscosity(context, statisticsSweep, crystal, bandStructure);
   elViscosity.calcRTA(relaxationTimes);
   elViscosity.print();
-  elViscosity.outputToJSON("rta_electron_viscosity.json");
+  elViscosity.outputToJSON("rta_el_viscosity.json");
 
   // compute the specific heat
   SpecificHeat specificHeat(context, statisticsSweep, crystal, bandStructure);
@@ -232,12 +232,12 @@ void ElectronWannierTransportApp::run(Context &context) {
                                            scatteringMatrix);
     transportCoefficients.print();
     transportCoefficients.outputToJSON("relaxons_onsager_coefficients.json");
-    scatteringMatrix.relaxonsToJSON("el_relaxons_relaxation_times.json", eigenvalues);
+    scatteringMatrix.relaxonsToJSON("relaxons_el_relaxation_times.json", eigenvalues);
 
     if (!context.getUseSymmetries()) {
       elViscosity.calcFromRelaxons(eigenvalues, eigenvectors);
       elViscosity.print();
-      elViscosity.outputToJSON("relaxons_electron_viscosity.json");
+      elViscosity.outputToJSON("relaxons_el_viscosity.json");
     }
 
     if (mpi->mpiHead()) {

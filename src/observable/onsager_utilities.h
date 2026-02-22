@@ -33,10 +33,11 @@
 
 
   /** Outputs the quantity to a json file.
-    * return tuple of strings and units for sigma, kappa, nu (which all depend on dimension)
-   */
-   std::tuple<std::string, std::string, std::string, double, double, double> 
-        getTransportUnitsWithDimensions(const double dimensionality); 
+    * return tuple of strings and unit conversion from AU->SI for sigma, kappa, nu, seebeck and mu, adjusted for dimension.
+    * @return units: tuple of unit names and conversions in order sigma, kappa, nu, seebeck and mobility.
+    */
+   std::tuple<std::string, std::string, std::string, std::string, std::string, double, double, double, double, double>
+        getTransportUnitsWithDimensions(const double dimensionality);
 
   /** After the Onsager coefficients L_EE, L_TT, L_ET, L_TE have been computed
    * this function evaluates the transport coefficients such as electrical

@@ -294,7 +294,7 @@ void addPhElScattering(BasePhScatteringMatrix &matrix, Context &context,
           WavevectorIndex ik2Idx = WavevectorIndex(ik2);
           allK2Cartesian.push_back(k2Cartesian);                                 // kP wavevector  // TODO might be able to remove this
           allPolarData.push_back(polarData.row(iq3));                            // long range polar data
-          allEigenVectors2.push_back(elBandStructure.getEigenvectors(ik2Idx));  // el Kp eigenvectors
+          allEigenVectors2.push_back(elBandStructure.getEigenvectors(ik2Idx));   // el Kp eigenvectors
 
           allQ3Cartesian.push_back(phBandStructure.getWavevector(iq3Idx));            // ph wavevector in cartesian
           allEigenVectors3.push_back(phBandStructure.getEigenvectors(iq3Idx));        // ph eigenvectors

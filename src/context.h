@@ -143,7 +143,7 @@ class Context {
 
   // for coupled transport
   bool useDragTerms = true;
-  bool reconstructLinewidths = false;
+  bool enforceDetailedBalance = false;
 
   int hdf5ElphFileFormat = 1;
   std::string wsVecFileName;
@@ -420,8 +420,8 @@ public:
 
   bool getUseDragTerms() const;
   void setUseDragTerms(const bool &x);
-  bool getReconstructLinewidths() const;
-  void setReconstructLinewidths(const bool &x);
+  bool getEnforceDetailedBalance() const;
+  void setEnforceDetailedBalance(const bool &x);
 
   // relaxons variables
 

@@ -3,8 +3,10 @@
 Anharmonic Force Constants with thirdorder.py
 ==============================================
 
-As an alternative to phono3py, we also support anharmonic force constants generated from ShengBTE's thirdorder.py script (specifically, when used with QE as the force calculator). These constants can also be used with the phonon transport app from Phoebe.
+Overview
+--------
 
+As an alternative to phono3py, we also support anharmonic force constants generated from ShengBTE's thirdorder.py script (specifically, when used with QE as the force calculator). These constants can also be used with the phonon transport app from Phoebe.
 
 Step 1: Run pw.x
 --------------------------------------
@@ -119,7 +121,6 @@ In the working folder ``./example/Silicon-ph/qe-phonons`` run the command::
     ./path/to/qe/bin/q2r.x -in q2r.in > q2r.out
 
 If the code run successfully, you should see a new file ``silicon.fc``.
-
 
 
 Step 4: Calculate Anharmonic Force Constants

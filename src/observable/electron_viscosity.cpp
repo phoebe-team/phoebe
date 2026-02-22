@@ -85,6 +85,12 @@ void ElectronViscosity::calcRTA(VectorBTE &tau) {
 
 void ElectronViscosity::calcFromRelaxons([[maybe_unused]] Eigen::VectorXd &eigenvalues, ParallelMatrix<double> &eigenvectors) {
 
+  if(!context.getEnforceDetailedBalance()) {
+    Warning("Viscosity calculated without the enforcing detailed balance condition of the scattering matrix"
+      "\ncan have major issues -- if the charge and energy eigenvectors are not well found (better than 75% overlap),"
+      " they may make a large, spurious contribution to viscosity!");
+  }       
+  
   Kokkos::Profiling::pushRegion("calcViscosityFromRelaxons");
 
   if (numCalculations > 1) {

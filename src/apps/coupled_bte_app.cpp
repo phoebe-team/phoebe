@@ -144,13 +144,13 @@ void CoupledTransportApp::run(Context &context) {
     // note this must come before the transport calculation below, as
     // we will
     // TODO also write the relaxons visulation function?
-    scatteringMatrix.relaxonsToJSON("coupled_relaxons_relaxation_times.json", eigenvalues);
+    scatteringMatrix.relaxonsToJSON("relaxons_coupled_relaxation_times.json", eigenvalues);
 
     // calculate the transport properties and viscosity
     coupledCoeffs.calcFromRelaxons(scatteringMatrix, eigenvalues, eigenvectors);
     coupledCoeffs.print();
     // note: viscosities are output by default internally in calcFromRelaxons
-    coupledCoeffs.outputToJSON("coupled_relaxons_transport_coefficients.json");
+    coupledCoeffs.outputToJSON("relaxons_coupled_transport_coefficients.json");
     //coupledCoeffs.symmetrize3x3Tensors();
 
     if (mpi->mpiHead()) {
@@ -169,7 +169,9 @@ void CoupledTransportApp::checkRequirements(Context &context) {
   throwErrorIfUnset(context.getTemperatures(), "temperatures");
   throwErrorIfUnset(context.getSmearingMethod(), "smearingMethod");
   if (context.getSmearingMethod() == DeltaFunction::gaussian) {
-    throwErrorIfUnset(context.getSmearingWidth(), "smearingWidth");
+    if (std::isnan(context.getElSmearingWidth()) || !std::isnan(context.getPhSmearingWidth())) {
+      throwErrorIfUnset(context.getSmearingWidth(), "smearingWidth");
+    }
   }
   if (!context.getElphFileName().empty()) {
     throwErrorIfUnset(context.getElectronH0Name(), "electronH0Name");

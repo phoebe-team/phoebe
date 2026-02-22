@@ -3,7 +3,7 @@
 Linewidths Along a Band Path
 =====================================
 
-Synopsis
+Overview
 --------
 
 In this brief tutorial, we will compute the electron and phonon lifetimes along high symmetry paths through the Brillioun zone, to be plotted on the related electron/phonon band structures.

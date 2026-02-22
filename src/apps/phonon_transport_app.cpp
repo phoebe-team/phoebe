@@ -75,7 +75,7 @@ void PhononTransportApp::run(Context &context) {
   PhononViscosity phViscosity(context, statisticsSweep, crystal, bandStructure);
   phViscosity.calcRTA(phononRelTimes);
   phViscosity.print();
-  phViscosity.outputToJSON("rta_phonon_viscosity.json");
+  phViscosity.outputToJSON("rta_ph_viscosity.json");
 
   // compute the specific heat
   SpecificHeat specificHeat(context, statisticsSweep, crystal, bandStructure);
@@ -354,12 +354,12 @@ void PhononTransportApp::run(Context &context) {
     phTCond.outputToJSON("relaxons_phonon_thermal_cond.json");
 
     // output relaxation times
-    scatteringMatrix.relaxonsToJSON("ph_relaxons_relaxation_times.json", eigenvalues);
+    scatteringMatrix.relaxonsToJSON("relaxons_ph_relaxation_times.json", eigenvalues);
 
     if (!context.getUseSymmetries()) {
       phViscosity.calcFromRelaxons(eigenvalues, eigenvectors);
       phViscosity.print();
-      phViscosity.outputToJSON("relaxons_phonon_viscosity.json");
+      phViscosity.outputToJSON("relaxons_ph_viscosity.json");
     }
 
     if (mpi->mpiHead()) {

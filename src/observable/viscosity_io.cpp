@@ -36,6 +36,7 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
     std::cout << "\nMaximum scalar product " << eigenvectorName << ".theta_alpha = " << maxOverlap << " at alpha = " << idxMaxOverlap << "." << std::endl;
     std::cout << "First ten products with " << eigenvectorName << ":";
     for(int gamma = 0; gamma < maxPrint; gamma++) { std::cout << " " << overlaps(gamma); }
+    std::cout << std::endl;
   }
 
   // If the best overlap isn't very good, we return -1 so nothing is skipped 
@@ -425,8 +426,8 @@ void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
 
   if(mpi->mpiHead()) {
     // output to json
-    std::string outFileName = "el_relaxons_real_space_coeffs.json";
-    if(isPhonon) outFileName = "ph_relaxons_real_space_coeffs.json";
+    std::string outFileName = "relaxons_el_real_space_coefficients.json";
+    if(isPhonon) outFileName = "relaxons_ph_real_space_coefficients.json";
     nlohmann::json output;
     output["temperature"] = kBT * temperatureAuToSi;
     output["Wji0"] = vecWji0;
@@ -531,7 +532,7 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     if(mpi->mpiHead()) { 
 
       // let's try a simple write to hdf5  
-      std::string filename = particle.isPhonon() ? "ph_relaxons_eigenvectors.hdf5" : "el_relaxons_eigenvectors.hdf5";
+      std::string filename = particle.isPhonon() ? "relaxons_ph_eigenvectors.hdf5" : "relaxons_el_eigenvectors.hdf5";
       H5Easy::File file(filename, H5Easy::File::Overwrite);
 
       std::vector<double> tau; 

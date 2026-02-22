@@ -70,10 +70,10 @@ public:
    * @param relaxationTimes: the reciprocal of the scattering matrix
    * eigenvalues (from eq.7), i.e. the relaxation times of the system.
    */
-  virtual void calcFromRelaxons(Context &context, StatisticsSweep &statisticsSweep,
+/*   virtual void calcFromRelaxons(Context &context, StatisticsSweep &statisticsSweep,
                         ParallelMatrix<double> &eigenvectors,
                         PhScatteringMatrix &scatteringMatrix,
-                        const Eigen::VectorXd &eigenvalues);
+                        const Eigen::VectorXd &eigenvalues); */
 
   /** Prints to screen the thermal conductivity at various temperatures
    * in a a nicely formatted way.

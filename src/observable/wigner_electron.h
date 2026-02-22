@@ -35,7 +35,7 @@ class WignerElCoefficients : public OnsagerCoefficients {
    * into a JSON file. For now only written for electrical conductivity, LET. 
    * Currently not used. 
   */
-  void outputContributionsToJSON(const std::string &outFileName);
+  //void outputContributionsToJSON(const std::string &outFileName);
 
   /** Prints to screen the thermal conductivity at various temperatures
    * in a a nicely formatted way.

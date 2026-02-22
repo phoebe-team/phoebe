@@ -142,7 +142,7 @@ void WignerPhononThermalConductivity::calcVariational(VectorBTE &af,
   tensordxd += wignerCorrection;
 }
 
-void WignerPhononThermalConductivity::calcFromRelaxons(
+/* void WignerPhononThermalConductivity::calcFromRelaxons(
     Context &context, StatisticsSweep &statisticsSweep,
     ParallelMatrix<double> &eigenvectors,
     PhScatteringMatrix &scatteringMatrix, const Eigen::VectorXd &eigenvalues) {
@@ -150,7 +150,7 @@ void WignerPhononThermalConductivity::calcFromRelaxons(
                                               eigenvectors,
                                               scatteringMatrix, eigenvalues);
   tensordxd += wignerCorrection;
-}
+} */
 
 void WignerPhononThermalConductivity::print() {
 

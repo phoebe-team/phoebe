@@ -15,20 +15,15 @@ WignerElCoefficients::WignerElCoefficients(StatisticsSweep &statisticsSweep_,
   contributionLEE.resize(numCalculations, bandStructure_.getNumStates(), dimensionality, dimensionality);
   contributionLET.resize(numCalculations, bandStructure_.getNumStates(), dimensionality, dimensionality);
   //contributionLTT.resize(numCalculations, bandStructure_.getNumStates(), dimensionality, dimensionality);
-
-  correctionLEE.resize(numCalculations, dimensionality, dimensionality);
-  correctionLTE.resize(numCalculations, dimensionality, dimensionality);
-  correctionLET.resize(numCalculations, dimensionality, dimensionality);
-  correctionLTT.resize(numCalculations, dimensionality, dimensionality);
-
   contributionLEE.setZero();
   contributionLET.setZero();
   //contributionLTT.setZero();
 
-  correctionLEE.setZero();
-  correctionLTE.setZero();
-  correctionLET.setZero();
-  correctionLTT.setZero();
+  // allocate correction tensors 
+  for(auto correctionLXX : {correctionLEE, correctionLTE, correctionLET, correctionLTT}) {
+    correctionLXX.resize(numCalculations, dimensionality, dimensionality);
+    correctionLXX.setZero();
+  }
 
   auto particle = bandStructure.getParticle();
 
@@ -191,7 +186,7 @@ void WignerElCoefficients::print() {
   OnsagerCoefficients::print();
 }
 
-
+/* 
 void WignerElCoefficients::outputContributionsToJSON(const std::string &outFileName) {
 
   // TODO for now we are not writing kappa to output
@@ -309,3 +304,4 @@ void WignerElCoefficients::outputContributionsToJSON(const std::string &outFileN
   o << std::setw(3) << output << std::endl;
   o.close();
 }
+ */

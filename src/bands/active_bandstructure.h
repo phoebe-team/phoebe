@@ -42,7 +42,7 @@ public:
    * @return particle: a Particle object, describing e.g. whether this
    * is a phonon or electron bandStructure
    */
-  Particle getParticle() override;
+  Particle getParticle() const override;
 
   /** Returns the wavevectors on which the band structure is computed.
    * @return Points: the object representing the Brillouin zone wavevectors.

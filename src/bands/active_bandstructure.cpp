@@ -192,7 +192,7 @@ ActiveBandStructure::ActiveBandStructure(const Points &points_,
 
 }
 
-Particle ActiveBandStructure::getParticle() { return particle; }
+Particle ActiveBandStructure::getParticle() const { return particle; }
 
 Points ActiveBandStructure::getPoints() { return points; }
 

@@ -22,7 +22,7 @@ class BaseBandStructure {
    * @return particle: a Particle object, describing e.g. whether this
    * is a phonon or electron bandStructure
    */
-  virtual Particle getParticle() = 0;
+  virtual Particle getParticle() const = 0;
 
   /** Returns the wavevectors on which the band structure is computed.
    * @return Points: the object representing the Brillouin zone wavevectors.
@@ -353,7 +353,7 @@ class FullBandStructure : public BaseBandStructure {
    * @return particle: a Particle object, describing e.g. whether this
    * is a phonon or electron bandStructure
    */
-  Particle getParticle() override;
+  Particle getParticle() const override;
 
   /** Returns the wavevectors on which the band structure is computed.
    * @return Points: the object representing the Brillouin zone wavevectors.

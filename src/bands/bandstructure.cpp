@@ -273,7 +273,7 @@ FullBandStructure::FullBandStructure(int numBands_, Particle &particle_,
   }
 }
 
-Particle FullBandStructure::getParticle() { return particle; }
+Particle FullBandStructure::getParticle() const { return particle; }
 
 Points FullBandStructure::getPoints() { return points; }
 

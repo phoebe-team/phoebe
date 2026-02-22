@@ -3,11 +3,14 @@
 #include "io.h"
 #include "mpiHelper.h"
 #include "onsager_utilities.h"
+#include "transport_io.h"
 #include "particle.h"
 #include <fstream>
 #include <iomanip>
 #include <Kokkos_Core.hpp>
 #include <Kokkos_ScatterView.hpp>
+
+// TODO maybe move the last piece of onsager_utilites here? 
 
 OnsagerCoefficients::OnsagerCoefficients(StatisticsSweep &statisticsSweep_,
                                          Crystal &crystal_,
@@ -23,22 +26,11 @@ OnsagerCoefficients::OnsagerCoefficients(StatisticsSweep &statisticsSweep_,
   dimensionality = crystal.getDimensionality();
   numCalculations = statisticsSweep.getNumCalculations();
 
-  sigma.resize(numCalculations, dimensionality, dimensionality);
-  seebeck.resize(numCalculations, dimensionality, dimensionality);
-  kappa.resize(numCalculations, dimensionality, dimensionality);
-  mobility.resize(numCalculations, dimensionality, dimensionality);
-  sigma.setZero();
-  seebeck.setZero();
-  kappa.setZero();
-  mobility.setZero();
-  LEE.resize(numCalculations, dimensionality, dimensionality);
-  LTE.resize(numCalculations, dimensionality, dimensionality);
-  LET.resize(numCalculations, dimensionality, dimensionality);
-  LTT.resize(numCalculations, dimensionality, dimensionality);
-  LEE.setZero();
-  LTE.setZero();
-  LET.setZero();
-  LTT.setZero();
+  // allocate and zero transport coefficients
+  for (auto coeff : {sigma, seebeck, kappa, mobility, LEE, LTE, LET, LTT}) {
+    coeff.resize(numCalculations, dimensionality, dimensionality);
+    coeff.setZero(); 
+  }
 }
 
 void OnsagerCoefficients::calcFromEPA(
@@ -261,7 +253,7 @@ void OnsagerCoefficients::writeIntegralContributions() {
     o.close();
   }
 }
-
+/* 
 void OnsagerCoefficients::calcFromRelaxons(
     Eigen::VectorXd &eigenvalues, ParallelMatrix<double> &eigenvectors,
     ElScatteringMatrix &scatteringMatrix) {
@@ -378,7 +370,7 @@ void OnsagerCoefficients::calcFromRelaxons(
   }
   Kokkos::Profiling::popRegion();
   calcFromSymmetricPopulation(nE, nT);
-}
+} */
 
 // quick print for iterative solver
 void OnsagerCoefficients::print(const int &iter) {
@@ -395,7 +387,7 @@ void OnsagerCoefficients::print() {
 
 void OnsagerCoefficients::outputToJSON(const std::string &outFileName) {
 
-  outputCoeffsToJSON(outFileName, statisticsSweep, dimensionality,
+  outputElectronicCoeffsToJSON(outFileName, statisticsSweep, dimensionality,
                         kappa, sigma, mobility, seebeck);
 }
 

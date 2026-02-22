@@ -10,6 +10,7 @@
 #include "onsager.h"
 #include "parser.h"
 #include "wigner_electron.h"
+#include "transport_coefficients.h"
 
 void ElectronWannierTransportApp::run(Context &context) {
 
@@ -214,31 +215,22 @@ void ElectronWannierTransportApp::run(Context &context) {
     // as it could contains factors like 1/0
     // Currently the matrix is already calculated as "omega" for electrons
 
-    // output real space coeffs related to SMatrix before
-    // we destroy the matrix in diagonalization
-    // special eigenvectors are used in this calculation, and
-    // they are saved internally to the viscosity class for later computations
-    elViscosity.calcSpecialEigenvectors();
-    // create the real space solver transport coefficients
-    elViscosity.outputRealSpaceToJSON(scatteringMatrix);
-
+    TransportCoefficients relaxonsCoeffs(context, statisticsSweep, crystal, bandStructure);
+    
+    // Calculate Du(i,j) before we diagonalize the matrix and ruin it
+    // to calculate D we need the phi vectors, so we here calculate ahead of time
+    // here -- they are saved internally to the class
+    // also, create the real space solver transport coefficients
+    relaxonsCoeffs.prepareRelaxons(scatteringMatrix);
+    
     //diagonalize and get eigenvalues and eigenvectors
-    auto tup = scatteringMatrix.diagonalize(context.getNumRelaxonsEigenvalues());
     // EV such that Omega = V D V^-1
-    Eigen::VectorXd eigenvalues = std::get<0>(tup);
-    ParallelMatrix<double> eigenvectors = std::get<1>(tup);
+    auto [eigenvalues, eigenvectors] = scatteringMatrix.diagonalize(context.getNumRelaxonsEigenvalues());
 
-    transportCoefficients.calcFromRelaxons(eigenvalues, eigenvectors,
-                                           scatteringMatrix);
-    transportCoefficients.print();
-    transportCoefficients.outputToJSON("relaxons_onsager_coefficients.json");
+    relaxonsCoeffs.calcFromRelaxons(eigenvalues, eigenvectors);
+    relaxonsCoeffs.print();
+    relaxonsCoeffs.outputToJSON();
     scatteringMatrix.relaxonsToJSON("el_relaxons_relaxation_times.json", eigenvalues);
-
-    if (!context.getUseSymmetries()) {
-      elViscosity.calcFromRelaxons(eigenvalues, eigenvectors);
-      elViscosity.print();
-      elViscosity.outputToJSON("relaxons_electron_viscosity.json");
-    }
 
     if (mpi->mpiHead()) {
       std::cout << "Finished relaxons BTE solver\n\n";

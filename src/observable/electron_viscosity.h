@@ -34,50 +34,11 @@ public:
    */
   void outputToJSON(const std::string& outFileName);
 
-  /** Outputs the quantities needed for a real space solution
-   *  in hydrodynamic materials.
-   */
-  void outputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix);
-
-  /** Computes the viscosity from the scattering matrix eigenvectors.
-   * Stores it internally.
-   * @param relTimes: the VectorBTE object with relaxon relaxation times.
-   * @param eigenvectors: the eigenvectors of the scattering matrix above.
-   */
-  void calcFromRelaxons(Eigen::VectorXd &eigenvalues,
-                        ParallelMatrix<double> &eigenvectors);
-
-  /** Helper function to pre-calculate the special eigenvectors theta0 + phi,
-   * as well as A, C
-   */
-  void calcSpecialEigenvectors();
-
 protected:
 
   int whichType() override;
   BaseBandStructure& bandStructure;
   double spinFactor = 2;
-  int alpha0 = -1; // the index of the energy eigenvector, to skip it
-  int alpha_e = -1; // the index of the charge eigenvector, to skip it
-
-  // theta^0 - energy conservation eigenvector
-  //   electronic states = ds * g-1 * (hE - mu) * 1/(kbT^2 * V * Nkq * Ctot)
-  //   phonon states = ds * g-1 * h*omega * 1/(kbT^2 * V * Nkq * Ctot)
-  Eigen::VectorXd theta0;
-
-  // theta^e -- the charge conservation eigenvector
-  //   electronic states = ds * g-1 * 1/(kbT * U)
-  Eigen::VectorXd theta_e;
-
-  // phi -- the three momentum conservation eigenvectors
-  //     phi = sqrt(1/(kbT*volume*Nkq*M)) * g-1 * ds * hbar * wavevector;
-  Eigen::MatrixXd phi;
-
-  // normalization coeff A ("phonon specific momentum")
-  // A = 1/(V*Nq) * (1/kT) sum_qs (hbar*q)^2 * N(1+N)
-  Eigen::Vector3d A;
-
-  double C; // electron specific heat
 
 };
 

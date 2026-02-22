@@ -1,18 +1,15 @@
 #ifndef COUPLED_COEFFS_H
 #define COUPLED_COEFFS_H
 
-#include "bandstructure.h"
-#include "context.h"
 #include "coupled_scattering_matrix.h"
-#include "statistics_sweep.h"
-#include "specific_heat.h"
+//#include "specific_heat.h"
 #include <eigen.h>
 
 /** Calc transport coefficients from coupled scattering matrix  */
 class CoupledCoefficients {
 public:
 
-  /** Constructor method
+  /** Constructor 
    */
   CoupledCoefficients(StatisticsSweep &statisticsSweep_,
                       Crystal &crystal_, Context &context_);
@@ -20,7 +17,7 @@ public:
   /** Prints to screen the transport properties at various temperatures
    * in a a nicely formatted way.
    */
-  virtual void print();
+  void print();
 
   /** Outputs the quantity to a json file.
    * @param outFileName: string representing the name of the json file
@@ -111,9 +108,7 @@ protected:
   double Cph, Cel; // phonon and electron specific heats
 
   // containers to calculate the specific contributions to the transport tensors
-  Eigen::Tensor<double, 3> kappaContrib;
-  Eigen::Tensor<double, 3> sigmaContrib;
-  Eigen::Tensor<double, 3> sigmaSContrib;
+  Eigen::Tensor<double, 3> kappaContrib, sigmaContrib, sigmaSContrib;
   std::vector<std::vector<double>> iiiiContrib;
 
   /** Functions to symmetrize the transport tensors. CURRENTLY PROBLEMATIC!

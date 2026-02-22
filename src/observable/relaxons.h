@@ -49,9 +49,28 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
   */
   void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
                             StatisticsSweep& statisticsSweep,
-                            double& spinFactor,
+                            double spinFactor,
                             Eigen::VectorXd& theta0,
                             Eigen::VectorXd& theta_e,
                             Eigen::MatrixXd& phi,
-                            double& C, Eigen::Vector3d& A);                                          
+                            double C, Eigen::Vector3d& A);         
+                            
+  /** Outputs the viscosity to a json file.
+   * @param outFileName: string representing the name of the json file
+   * @param bandStructure: bandstructure for either phonons or electrons
+   * @param statisticsSweep: object with temperatures, chemical potentials, etc
+   * @param theta0: energy conservation eigenvector
+   * @param thetae: charge conservation eigenvector
+   * @param phi: momentum conservation eigenvectors
+   * @param C: specific heat
+   * @param A: specific momentum
+   */
+   void genericOutputRealSpaceToJSON(Context& context, ScatteringMatrix& scatteringMatrix,
+                                BaseBandStructure& bandStructure,
+                                StatisticsSweep& statisticsSweep,
+                                Eigen::VectorXd& theta0,
+                                Eigen::VectorXd& theta_e,
+                                Eigen::MatrixXd& phi,
+                                double C, Eigen::Vector3d& A);
+
 #endif 

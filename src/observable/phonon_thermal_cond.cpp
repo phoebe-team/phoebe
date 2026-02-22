@@ -3,11 +3,9 @@
 #include "constants.h"
 #include "mpiHelper.h"
 #include <ctime>
-#include <fstream>
-#include <iomanip>
-#include <nlohmann/json.hpp>
 #include <Kokkos_Core.hpp>
 #include <Kokkos_ScatterView.hpp>
+#include "transport_io.h"
 
 PhononThermalConductivity::PhononThermalConductivity(
     Context &context_, StatisticsSweep &statisticsSweep_, Crystal &crystal_, BaseBandStructure &bandStructure_)
@@ -413,96 +411,29 @@ void PhononThermalConductivity::calcFromRelaxons(
 // IO related functions =====================================================
 
 void PhononThermalConductivity::print() {
-
-  if (!mpi->mpiHead()) return;
-
-  std::cout << "\n";
-  std::cout << "Thermal Conductivity (" << thCondUnits << ")\n";
-
-  for (int iCalc = 0; iCalc < statisticsSweep.getNumCalculations(); iCalc++) {
-    auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
-    double temp = calcStat.temperature;
-
-    std::cout << std::fixed;
-    std::cout.precision(2);
-    std::cout << "Temperature: " << temp * temperatureAuToSi << " (K)\n";
-    std::cout.precision(5);
-    for (int i = 0; i < dimensionality; i++) {
-      std::cout << "  " << std::scientific;
-      for (int j = 0; j < dimensionality; j++) {
-        std::cout << " " << std::setw(13) << std::right;
-        std::cout << tensordxd(iCalc, i, j) * thCondConversion;
-      }
-      std::cout << "\n";
-    }
-    std::cout << std::endl;
-  }
+  
+  // In the phonon only case, sigma, mu, S, are not printed 
+  // so using kappa multiple times is fine as a dummy variable. 
+  printHelper(statisticsSweep, dimensionality, tensordxd, tensordxd, tensordxd, tensordxd); 
+ 
 }
 
 void PhononThermalConductivity::outputToJSON(const std::string &outFileName) {
 
   if (!mpi->mpiHead()) return;
-
-  std::vector<double> temps;
-  std::vector<std::vector<std::vector<double>>> conductivities;
-  for (int iCalc = 0; iCalc < statisticsSweep.getNumCalculations(); iCalc++) {
-
-    // store temperatures
-    auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
-    double temp = calcStat.temperature;
-    temps.push_back(temp * temperatureAuToSi);
-
-    // store conductivity
-    std::vector<std::vector<double>> rows;
-    for (int i = 0; i < dimensionality; i++) {
-      std::vector<double> cols;
-      for (int j = 0; j < dimensionality; j++) {
-        cols.push_back(tensordxd(iCalc, i, j) * thCondConversion);
-      }
-      rows.push_back(cols);
-    }
-    conductivities.push_back(rows);
-  }
-
-  // output to json
-  nlohmann::json output;
-  output["temperatures"] = temps;
-  output["thermalConductivity"] = conductivities;
-  output["temperatureUnit"] = "K";
-  output["thermalConductivityUnit"] = thCondUnits;
-  output["particleType"] = "phonon";
-  std::ofstream o(outFileName);
-  o << std::setw(3) << output << std::endl;
-  o.close();
+  
+  outputPhononThermalCondToJSON(outFileName, statisticsSweep, 
+                              dimensionality, tensordxd); 
 }
 
+// TODO move me to transport_io 
 void PhononThermalConductivity::print(const int &iter) {
-
-  if (!mpi->mpiHead()) return;
-
-  // get the time
-  time_t currentTime;
-  currentTime = time(nullptr);
-  // and format the time nicely
-  char s[200];
-  struct tm *p = localtime(&currentTime);
-  strftime(s, 200, "%F, %T", p);
-
-  std::cout << "Iteration: " << iter << " | " << s << "\n";
-  for (int iCalc = 0; iCalc < statisticsSweep.getNumCalculations(); iCalc++) {
-    auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
-    double temp = calcStat.temperature;
-    std::cout << std::fixed;
-    std::cout.precision(2);
-    std::cout << "T = " << temp * temperatureAuToSi << ", k = ";
-    std::cout.precision(5);
-    for (int i = 0; i < dimensionality; i++) {
-      std::cout << std::scientific;
-      std::cout << tensordxd(iCalc, i, i) * thCondConversion << " ";
-    }
-    std::cout << "\n";
-  }
-  std::cout << std::endl;
+  
+  // slightly lazy trick, pass kappa twice, the second arg is meant to be sigma
+  // or an empty container. It is not printed in the phonon only case, however, 
+  // so this doesn't matter. 
+  printHelper(iter, statisticsSweep, dimensionality, tensordxd, tensordxd); 
+  
 }
 
 int PhononThermalConductivity::whichType() { return is2Tensor; }

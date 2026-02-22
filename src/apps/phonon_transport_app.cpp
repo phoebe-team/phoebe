@@ -12,6 +12,7 @@
 #include "points.h"
 #include "specific_heat.h"
 #include "wigner_phonon_thermal_cond.h"
+#include "transport_coefficients.h"
 #include <iomanip>
 
 void PhononTransportApp::run(Context &context) {
@@ -328,19 +329,22 @@ void PhononTransportApp::run(Context &context) {
   }
 
   if (doRelaxons) {
+    
     if (mpi->mpiHead()) {
       std::cout << "Starting relaxons BTE solver" << std::endl;
     }
     scatteringMatrix.a2Omega();
     //scatteringMatrix.outputToHDF5("ph.scatteringMatrix.hdf5");
 
+    // transport coefficients object to use with relaxons 
+    TransportCoefficients relaxonsCoeffs(context, statisticsSweep, crystal, bandStructure);
+    
     // Calculate Du(i,j) before we diagonalize the matrix and ruin it
     // to calculate D we need the phi vectors, so we here calculate ahead of time
     // here -- they are saved internally to the class
-    phViscosity.calcSpecialEigenvectors();
-    // create the real space solver transport coefficients
-    phViscosity.outputRealSpaceToJSON(scatteringMatrix);
-
+    // also, create the real space solver transport coefficients
+    relaxonsCoeffs.prepareRelaxons(scatteringMatrix);
+    
     // NOTE: scattering matrix is destroyed in this process, do not use it afterwards!
     auto tup2 = scatteringMatrix.diagonalize(context.getNumRelaxonsEigenvalues());
     auto eigenvalues = std::get<0>(tup2);
@@ -348,19 +352,18 @@ void PhononTransportApp::run(Context &context) {
     // EV such that Omega = V D V^-1
     // eigenvectors(phonon index, eigenvalue index)
 
-    phTCond.calcFromRelaxons(context, statisticsSweep, eigenvectors,
-                             scatteringMatrix, eigenvalues);
-    phTCond.print();
-    phTCond.outputToJSON("relaxons_phonon_thermal_cond.json");
+    relaxonsCoeffs.calcFromRelaxons(eigenvalues, eigenvectors);
+    relaxonsCoeffs.print();
+    relaxonsCoeffs.outputToJSON();
 
     // output relaxation times
     scatteringMatrix.relaxonsToJSON("ph_relaxons_relaxation_times.json", eigenvalues);
 
-    if (!context.getUseSymmetries()) {
-      phViscosity.calcFromRelaxons(eigenvalues, eigenvectors);
-      phViscosity.print();
-      phViscosity.outputToJSON("relaxons_phonon_viscosity.json");
-    }
+    //if (!context.getUseSymmetries()) {
+    //  //phViscosity.calcFromRelaxons(eigenvalues, eigenvectors);
+    //  phViscosity.print();
+    //  phViscosity.outputToJSON("relaxons_phonon_viscosity.json");
+    //}
 
     if (mpi->mpiHead()) {
       std::cout << "Finished relaxons BTE solver\n\n";

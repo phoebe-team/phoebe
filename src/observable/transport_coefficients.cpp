@@ -1,5 +1,4 @@
 #include "transport_coefficients.h"
-//#include "io.h"
 #include "transport_io.h"
 #include "viscosity_io.h"
 #include "relaxons.h"
@@ -9,14 +8,19 @@ TransportCoefficients::TransportCoefficients(Context &context, StatisticsSweep &
     : context(context), statisticsSweep(statisticsSweep), crystal(crystal), bandStructure(bandStructure), particle(bandStructure.getParticle()) {
 
   // TODO : change this to use the context getSpinDegeneracyFactor
-  if (context.getHasSpinOrbit()) { spinFactor = 1.;
-  } else {  spinFactor = 2.; }
+  if (context.getHasSpinOrbit() || particle.isPhonon()) { 
+    spinFactor = 1.;
+  } else {  
+    spinFactor = 2.; 
+  }
 
   // matrix had to be in memory for this calculation.
   // therefore, we can only ever have one numCalc
-  numCalculations = 1;
+  numCalculations = statisticsSweep.getNumCalculations();
   dimensionality = crystal.getDimensionality();
-
+  
+  specificHeat.resize(numCalculations); 
+  
   // set up and zero all the containers for transport coefficients
   for (auto coeff : {&sigma, &seebeck, &kappa, &mobility}) {
     coeff->resize(numCalculations, dimensionality, dimensionality);
@@ -26,7 +30,6 @@ TransportCoefficients::TransportCoefficients(Context &context, StatisticsSweep &
   // intialize viscosity
   viscosity.resize(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
   viscosity.setZero();
-  
 }
 
 // standard print
@@ -42,15 +45,13 @@ void TransportCoefficients::print() {
 
 void TransportCoefficients::outputToJSON() {
 
-  if (!mpi->mpiHead())
-    return;
+  if (!mpi->mpiHead()) return;
   
   // output the viscosity 
   bool append = false; // it's a new file to write to
   std::string viscosityName = (particle.isPhonon()) ? "phononViscosity" : "electronViscosity" ;
   std::string outFileName = (particle.isPhonon()) ? "relaxons_phonon_viscosity.json" : "relaxons_electron_viscosity.json";
-  outputViscosityToJSON(outFileName, viscosityName,
-                viscosity, append, statisticsSweep, dimensionality);
+  outputViscosityToJSON(outFileName, viscosityName, viscosity, append, statisticsSweep, dimensionality);
                 
   // output the conductivities 
   if(particle.isPhonon()) {
@@ -69,14 +70,12 @@ void TransportCoefficients::prepareRelaxons(ScatteringMatrix& scatteringMatrix) 
   // we need a dummy variable for theta_e, as it doesn't matter for phonons
   //Eigen::VectorXd theta_e(bandStructure.getNumStates());
   genericCalcSpecialEigenvectors(context, bandStructure, statisticsSweep,
-                          spinFactor, theta0, theta_e, phi, specificHeat(0), A);
+                          spinFactor, theta0, theta_e, phi, specificHeat(0), U, A);
                           
   // output the real space information 
   genericOutputRealSpaceToJSON(context, scatteringMatrix, bandStructure, statisticsSweep,
                                 theta0, theta_e, phi, specificHeat(0), A);
-  
 }
-
 
 /* Calc relaxons transport coefficients for electron or phonon only case */
 void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues, ParallelMatrix<double> &eigenvectors) {
@@ -167,7 +166,7 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   
   // containers to calculate the specific contributions to the transport tensors
   Eigen::Tensor<double, 3> kappaContrib(numRelaxons, 3, 3), sigmaContrib(numRelaxons, 3, 3), sigmaSContrib(numRelaxons, 3, 3);
-  std::vector<double> iiiiContrib;
+  std::vector<double> iiiiContrib(numRelaxons);
   kappaContrib.setZero();
   sigmaContrib.setZero();
   sigmaSContrib.setZero();

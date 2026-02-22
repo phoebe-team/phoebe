@@ -206,7 +206,7 @@ LoopPrint::LoopPrint(const std::string &task_, const std::string &step_,
   step = step_;
   numSteps = numSteps_;
 
-  int numRep = 10; // number of intermediate reports
+  size_t numRep = 10; // number of intermediate reports
   if (numSteps < numRep) {
     reportEvery = 1;
   } else {

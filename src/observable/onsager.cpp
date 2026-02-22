@@ -27,9 +27,9 @@ OnsagerCoefficients::OnsagerCoefficients(StatisticsSweep &statisticsSweep_,
   numCalculations = statisticsSweep.getNumCalculations();
 
   // allocate and zero transport coefficients
-  for (auto coeff : {sigma, seebeck, kappa, mobility, LEE, LTE, LET, LTT}) {
-    coeff.resize(numCalculations, dimensionality, dimensionality);
-    coeff.setZero(); 
+  for (auto coeff : {&sigma, &seebeck, &kappa, &mobility, &LEE, &LTE, &LET, &LTT}) {
+    coeff->resize(numCalculations, dimensionality, dimensionality);
+    coeff->setZero(); 
   }
 }
 

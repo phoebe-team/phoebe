@@ -77,7 +77,7 @@ protected:
 
   // normalization coeff U 
   // U = D/(V*Nk) * (1/kT) sum_km F(1-F)
-  double U = 0;
+  double U = 0.;
 
   // normalization coeff A ("specific momentum")
   // A = 1/(V*Nq) * (1/kT) sum_qs (hbar*q)^2 * N(1+N)

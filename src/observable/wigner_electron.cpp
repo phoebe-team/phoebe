@@ -12,6 +12,7 @@ WignerElCoefficients::WignerElCoefficients(StatisticsSweep &statisticsSweep_,
       smaRelTimes(relaxationTimes) {
 
   // TODO is this the wrong size if we use symmetry?
+  // For now these are unused
   contributionLEE.resize(numCalculations, bandStructure_.getNumStates(), dimensionality, dimensionality);
   contributionLET.resize(numCalculations, bandStructure_.getNumStates(), dimensionality, dimensionality);
   //contributionLTT.resize(numCalculations, bandStructure_.getNumStates(), dimensionality, dimensionality);
@@ -20,9 +21,9 @@ WignerElCoefficients::WignerElCoefficients(StatisticsSweep &statisticsSweep_,
   //contributionLTT.setZero();
 
   // allocate correction tensors 
-  for(auto correctionLXX : {correctionLEE, correctionLTE, correctionLET, correctionLTT}) {
-    correctionLXX.resize(numCalculations, dimensionality, dimensionality);
-    correctionLXX.setZero();
+  for(auto correctionLXX : {&correctionLEE, &correctionLTE, &correctionLET, &correctionLTT}) {
+    correctionLXX->resize(numCalculations, dimensionality, dimensionality);
+    correctionLXX->setZero();
   }
 
   auto particle = bandStructure.getParticle();

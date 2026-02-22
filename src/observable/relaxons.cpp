@@ -42,6 +42,7 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
   else { return -1; }
 }
  
+// TODO change this maybe so it directly takes the transportCoeffs object? 
 // calculate special eigenvectors
 void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
                             StatisticsSweep& statisticsSweep,
@@ -49,7 +50,7 @@ void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStr
                             Eigen::VectorXd& theta0,
                             Eigen::VectorXd& theta_e,
                             Eigen::MatrixXd& phi,
-                            double C, Eigen::Vector3d& A){
+                            double& C, double& U, Eigen::Vector3d& A){ // note C is by ref because it needs to be filled in!
 
   int dimensionality = bandStructure.getPoints().getCrystal().getDimensionality();
   double volume = bandStructure.getPoints().getCrystal().getVolumeUnitCell(dimensionality);
@@ -92,11 +93,9 @@ void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStr
   // spin degen vector
   Eigen::VectorXd ds = Eigen::VectorXd::Zero(numStates);
 
-  // normalization for theta_e
-  double U = 0;
-
-  // specific heat
-  C = 0.;
+  // zero normalization for theta_e, specific heat
+  U = 0; 
+  C = 0;
 
   // calculate the special eigenvectors ----------------
   for (int is : bandStructure.parallelStateIterator()) {

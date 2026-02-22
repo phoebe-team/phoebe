@@ -283,8 +283,7 @@ void ElPhQeToPhoebeApp::testPhononTransform(
     }
 
     // diagonalize it, using the matrices from phononH0
-    auto dq = u.adjoint() * hWK * u;
-    //(void) dq;
+   [[maybe_unused]] auto dq = u.adjoint() * hWK * u; // used but for some reason this throws a warning... strange
     // check I found again the same eigenvalues
     for (int ib = 0; ib < numPhBands; ib++) {
       assert(abs(std::sqrt(dq(ib, ib).real()) - phEnergies(ib, iq)) < 1.0e-6);

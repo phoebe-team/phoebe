@@ -45,6 +45,7 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
   * @param thetae: charge conservation eigenvector
   * @param phi: momentum conservation eigenvectors
   * @param C: specific heat
+  * @param U: 
   * @param A: specific momentum
   */
   void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
@@ -53,7 +54,7 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
                             Eigen::VectorXd& theta0,
                             Eigen::VectorXd& theta_e,
                             Eigen::MatrixXd& phi,
-                            double C, Eigen::Vector3d& A);         
+                            double& C, double& U, Eigen::Vector3d& A);         
                             
   /** Outputs the viscosity to a json file.
    * @param outFileName: string representing the name of the json file

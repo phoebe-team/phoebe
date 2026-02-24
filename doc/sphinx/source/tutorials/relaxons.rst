@@ -171,4 +171,4 @@ References
 | [2] G. Fugallo, M. Lazzeri, L. Paulatto, & F. Mauri. "Ab initio variational approach for evaluating lattice thermal conductivity." (2013). `Physical Review B 88(4), 045430. <https://doi.org/10.1103/PhysRevB.88.045430>`_  
 | [3] A. Cepellotti and N. Marzari. "Thermal transport in crystals as a kinetic theory of relaxons." (2016). `Physical Review X_ 6.4, 041013 <https://doi.org/10.1103/PhysRevX.6.041013>`_  
 | [4] M. Simoncelli, N. Marzari, A. Cepellotti. "Generalization of Fourier’s Law into Viscous Heat Equations." (2020). `Physical Review X 10, 011019 <https://doi.org/10.1103/PhysRevX.10.011019>`_  
-| [5] J. Coulter, B. Rajkov, M. Simoncelli. "Generalization of Fourier’s Law into Viscous Heat Equations." (2025). `arXiv:2503.07560 <https://arxiv.org/abs/2503.07560>`_ 
+| [5] J. Coulter, B. Rajkov, M. Simoncelli. "Electron-phonon hydrodynamics and Viscous Thermoelectric Equations." (2025). `arXiv:2503.07560 <https://arxiv.org/abs/2503.07560>`_ 

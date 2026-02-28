@@ -104,14 +104,6 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   std::vector<BaseBandStructure*> bs = {&bandStructure}; 
   outputRelaxonsToHDF5(eigenvectors, eigenvalues, bs, theta0, theta_e, phi);
   
-  // drift eigenvector overlaps ----------
-  // for now, we don't save these drift eigenvector indices
-  {
-    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::all), "phi_x");
-    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::all), "phi_y");
-    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
-  }
-
   // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
   if(mpi->mpiHead()) std::cout << "Checking scalar products of scattering matrix eigenvectors with special eigenvectors: -------------" << std::endl;
@@ -119,6 +111,14 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   if(particle.isElectron()) alpha_e = relaxonEigenvectorOverlap(eigenvectors, theta_e, "theta_e");
   if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
 
+    // drift eigenvector overlaps ----------
+  // for now, we don't save these drift eigenvector indices
+  {
+    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::all), "phi_x");
+    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::all), "phi_y");
+    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
+  }
+  
   // calculate the V components
   // ----------------------------------------------------------- 
   Eigen::MatrixXd Ve(numRelaxons, 3), V0(numRelaxons, 3);

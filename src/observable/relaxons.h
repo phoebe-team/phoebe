@@ -67,11 +67,17 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
    * @param A: specific momentum
    */
    void genericOutputRealSpaceToJSON(Context& context, ScatteringMatrix& scatteringMatrix,
-                                BaseBandStructure& bandStructure,
-                                StatisticsSweep& statisticsSweep,
-                                Eigen::VectorXd& theta0,
-                                Eigen::VectorXd& theta_e,
-                                Eigen::MatrixXd& phi,
-                                double C, Eigen::Vector3d& A);
-
+                                  BaseBandStructure& bandStructure,
+                                  StatisticsSweep& statisticsSweep,
+                                  Eigen::VectorXd& theta0,
+                                  Eigen::VectorXd& theta_e,
+                                  Eigen::MatrixXd& phi,
+                                  double C, Eigen::Vector3d& A);
+                                
+  void outputRelaxonContributionsToHDF5(const Eigen::VectorXd& eigenvalues,
+                                      const Eigen::MatrixXd& V0,
+                                      const Eigen::MatrixXd& Ve,
+                                      const Eigen::Tensor<double, 3>& Vphi, 
+                                      const Particle& particle, 
+                                      const int numRelaxons) ;
 #endif 

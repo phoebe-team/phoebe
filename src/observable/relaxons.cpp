@@ -1,6 +1,6 @@
 #include "relaxons.h"
 #include <nlohmann/json.hpp>
-
+#include "constants.h"
 
 // returns the index of largest overlap with a special eigenvector
 int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
@@ -409,7 +409,6 @@ void genericOutputRealSpaceToJSON(Context& context, ScatteringMatrix& scattering
 
   if(mpi->mpiHead()) {
     // output to json
-    // output to json
     std::string outFileName = "relaxons_el_real_space_coefficients.json";
     if(isPhonon) outFileName = "relaxons_ph_real_space_coefficients.json";
     nlohmann::json output;
@@ -432,6 +431,52 @@ void genericOutputRealSpaceToJSON(Context& context, ScatteringMatrix& scattering
     std::ofstream o(outFileName);
     o << std::setw(3) << output << std::endl;
     o.close();
+  }
+}
+
+
+// TODO use requires on the bandstructures to be el first and ph second, do this more elegantly
+void outputRelaxonContributionsToHDF5(const Eigen::VectorXd& eigenvalues,
+                                      const Eigen::MatrixXd& V0,
+                                      const Eigen::MatrixXd& Ve,
+                                      const Eigen::Tensor<double, 3>& Vphi, 
+                                      const Particle& particle, 
+                                      const int numRelaxons) {
+                                  
+  double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 : energyRyToFs;
+
+  Eigen::VectorXd tau = energyToTime * eigenvalues.array().inverse();                           
+  Eigen::MatrixXd Vphi_x(numRelaxons, 3);  Vphi_x.setZero();
+  Eigen::MatrixXd Vphi_y(numRelaxons, 3);  Vphi_y.setZero();
+  Eigen::MatrixXd Vphi_z(numRelaxons, 3);  Vphi_z.setZero();
+  Eigen::MatrixXd V0_out = V0; // copy because we will add a unit conversion  
+  Eigen::MatrixXd Ve_out = Ve; 
+  // Seems there is not a clear way to slice this, so I will loop to copy it 
+  for(int alpha = 0; alpha < numRelaxons; alpha++) {
+    for(auto i : {0,1,2}) {
+      Vphi_x(alpha, i) = Vphi(alpha, 0, i); 
+      Vphi_y(alpha, i) = Vphi(alpha, 1, i); 
+      Vphi_z(alpha, i) = Vphi(alpha, 2, i); 
+    }
+  }
+  
+  for(auto V : {&Vphi_x, &Vphi_y, &Vphi_z, &V0_out, &Ve_out}) {
+    *V *= velocityRyToSi;
+  }
+  
+  // for now, the head process writes to file --------------------------
+  if(mpi->mpiHead()) {
+
+    std::string filename = particle.isPhonon() ? "relaxons_ph_velocities.hdf5" : "relaxons_el_velocities.hdf5";
+    H5Easy::File file(filename, H5Easy::File::Overwrite);
+    if(particle.isElectron()) H5Easy::dump(file, "/relaxonRelaxationTimes_in_fs", tau);
+    if(particle.isPhonon()) H5Easy::dump(file, "/relaxonRelaxationTimes_in_ps", tau);
+    H5Easy::dump(file, "/V0", V0_out);
+    if(particle.isElectron()) H5Easy::dump(file, "/Ve", Ve_out);
+    H5Easy::dump(file, "/Vphi_x", Vphi_x);
+    H5Easy::dump(file, "/Vphi_y", Vphi_y);
+    H5Easy::dump(file, "/Vphi_z", Vphi_z);
+    H5Easy::dump(file, "/numRelaxons", numRelaxons);
   }
 }
 

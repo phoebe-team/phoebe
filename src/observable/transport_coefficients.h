@@ -35,7 +35,7 @@ public:
   void outputRelaxonContributionsToJSON(StatisticsSweep& statisticsSweep, const Particle &particle, 
       int dimensionality, const Eigen::Tensor<double, 3> sigmaContrib, const Eigen::Tensor<double, 3> kappaContrib, 
       const Eigen::Tensor<double, 3> sigmaSContrib, std::vector<double> iiiiContrib);
-
+      
 protected:
 
   // basic characteristics 
@@ -49,7 +49,9 @@ protected:
 
   // matrix had to be in memory for this calculation.
   // therefore, we can only ever have one numCalc
-  int numCalculations;
+  int numCalculations; 
+  // the number of relaxon eigenvalues used in the diagonalization 
+  int numRelaxons; 
 
   int alpha0 = -1; // the index of the energy eigenvector, to skip it
   int alpha_e = -1; // the index of the charge eigenvector, to skip it

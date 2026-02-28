@@ -95,7 +95,7 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   }
   
   //int numStates = bandStructure.getNumStates();
-  int numRelaxons = eigenvalues.size();
+  numRelaxons = (context.getNumRelaxonsEigenvalues() > 0) ? context.getNumRelaxonsEigenvalues() : eigenvectors.rows();
   Particle particle = bandStructure.getParticle();
   int iCalc = 0; // zero index, because we only run one for relaxons
   auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
@@ -111,7 +111,7 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   if(particle.isElectron()) alpha_e = relaxonEigenvectorOverlap(eigenvectors, theta_e, "theta_e");
   if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
 
-    // drift eigenvector overlaps ----------
+  // drift eigenvector overlaps ----------
   // for now, we don't save these drift eigenvector indices
   {
     relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::all), "phi_x");
@@ -166,7 +166,6 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   mpi->allReduceSum(&Vphi);
   
   // TODO Output velocities to file -------------------------------------------------
-  
 
   // local copies for linear algebra ops with eigen
   Eigen::Matrix3d sigmaLocal, sigmaS;
@@ -227,10 +226,12 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
     }
   }
 
-  // TODO output contributions to JSON -------------------------------------------
-  outputRelaxonContributionsToJSON(statisticsSweep, particle, dimensionality,sigmaContrib, kappaContrib, 
+  // output contributions to JSON -------------------------------------------
+  outputRelaxonContributionsToJSON(statisticsSweep, particle, dimensionality, sigmaContrib, kappaContrib, 
                                   sigmaSContrib, iiiiContrib);
-  
+                                  
+  outputRelaxonContributionsToHDF5(eigenvalues, V0, Ve, Vphi, particle, numRelaxons);
+                                  
   // copy S and sigma into final tensors to be printed,  convert sigma -> mobility
   if(particle.isElectron()) {
 
@@ -327,4 +328,3 @@ void TransportCoefficients::outputRelaxonContributionsToJSON(StatisticsSweep& st
   o.close();
 
 }
-  

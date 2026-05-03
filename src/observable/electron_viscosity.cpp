@@ -89,8 +89,8 @@ void ElectronViscosity::calcFromRelaxons([[maybe_unused]] Eigen::VectorXd &eigen
     Warning("Viscosity calculated without the enforcing detailed balance condition of the scattering matrix"
       "\ncan have major issues -- if the charge and energy eigenvectors are not well found (better than 75% overlap),"
       " they may make a large, spurious contribution to viscosity!");
-  }       
-  
+  }
+
   Kokkos::Profiling::pushRegion("calcViscosityFromRelaxons");
 
   if (numCalculations > 1) {
@@ -120,22 +120,22 @@ void ElectronViscosity::calcFromRelaxons([[maybe_unused]] Eigen::VectorXd &eigen
   //auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
   //double kBT = calcStat.temperature;
   //double chemPot = calcStat.chemicalPotential;
-  
+
   // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
   alpha0 = relaxonEigenvectorOverlap(eigenvectors, theta0, "theta0");
   alpha_e = relaxonEigenvectorOverlap(eigenvectors, theta_e, "theta_e");
-  
+
   // drift eigenvector overlaps ----------
   // for now, we don't save these drift eigenvector indices
   {
-    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::all), "phi_x");
-    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::all), "phi_y");
-    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
+    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::placeholders::all), "phi_x");
+    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::placeholders::all), "phi_y");
+    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::placeholders::all), "phi_z");
   }
   if(mpi->mpiHead()) std::cout << std::endl;
-  
-  std::vector<BaseBandStructure*> bs = {&bandStructure}; 
+
+  std::vector<BaseBandStructure*> bs = {&bandStructure};
   outputRelaxonsToHDF5(eigenvectors, eigenvalues, bs, theta0, theta_e, phi);
 
   //size_t states = eigenvectors.size();

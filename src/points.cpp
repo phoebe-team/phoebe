@@ -246,7 +246,6 @@ Eigen::Vector3d Points::getPointCoordinates(const int &index,
     int idx_ = index - (ikz * mesh(0) * mesh(1));
     int iky = idx_ / mesh(0);
     int ikx = mod(idx_, int(mesh(0)));
-    Eigen::Vector3d p;
     pointCrystal(0) = double(ikx) / (double)mesh(0) + offset(0);
     pointCrystal(1) = double(iky) / (double)mesh(1) + offset(1);
     pointCrystal(2) = double(ikz) / (double)mesh(2) + offset(2);

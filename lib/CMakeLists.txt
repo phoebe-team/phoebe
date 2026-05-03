@@ -13,7 +13,7 @@ FetchContent_Declare(googletest
 FetchContent_MakeAvailable(googletest)
 
 # json library by nlohmann
-FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
+FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.12.0/json.tar.xz)
 FetchContent_MakeAvailable(json)
 
 FetchContent_Declare(
@@ -33,13 +33,12 @@ ExternalProject_Add(pugixml_dep
     UPDATE_COMMAND ""
     CMAKE_ARGS
         -DCMAKE_BUILD_TYPE=Release
-	-DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
 )
 
 ExternalProject_Add(eigen_dep
     SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/eigen_src
     GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-    GIT_TAG 3.4.0
+    GIT_TAG 5.0.1
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ""
     INSTALL_COMMAND ""
@@ -57,7 +56,7 @@ if(HDF5_AVAIL)
   ExternalProject_Add(highfive_dep
       SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/highfive_src
       GIT_REPOSITORY https://github.com/highfive-devs/highfive.git
-      GIT_TAG v3.0.0-beta2
+      GIT_TAG v3.3.0
       UPDATE_COMMAND ""
       CMAKE_ARGS
           -DCMAKE_BUILD_TYPE=Release

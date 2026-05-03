@@ -43,7 +43,7 @@ class InteractionElPhWan {
   DoubleView1D wsR2VectorsDegeneracies_k;
   DoubleView2D wsR1Vectors_k;
   DoubleView1D wsR1VectorsDegeneracies_k;
-  std::vector<ComplexView4D::HostMirror> elPhCached_hs;
+  std::vector<ComplexView4D::host_mirror_type> elPhCached_hs;
 
   // TODO TEMPORARY, for old interpolation method
   Eigen::MatrixXd wsR1Vectors;
@@ -62,13 +62,13 @@ public:
 
   // phase convention options -- TODO switch to ENUM
   // Giustino uses Re, Rp for R vectors
-  // JDFTx uses Re, Re' R vectors 
-  static const int GiustinoPhaseConvention = 0; 
-  static const int JdftxPhaseConvention = 1; 
-  
+  // JDFTx uses Re, Re' R vectors
+  static const int GiustinoPhaseConvention = 0;
+  static const int JdftxPhaseConvention = 1;
+
   // spin types -- TODO switch to ENUM
-  static const int spinNonPolarized = 1; 
-  static const int spinPolarizedOrSOC = 2; 
+  static const int spinNonPolarized = 1;
+  static const int spinPolarizedOrSOC = 2;
 
   /** Main constructor
    * @param crystal_: object describing the crystal unit cell.

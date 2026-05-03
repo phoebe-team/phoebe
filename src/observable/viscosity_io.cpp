@@ -2,16 +2,16 @@
 #include <fstream>
 #include <iomanip>
 #include <nlohmann/json.hpp>
- 
+
 // returns the index of largest overlap with a special eigenvector
 int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
-                              const Eigen::VectorXd& specialEigenvector, 
+                              const Eigen::VectorXd& specialEigenvector,
                               std::string eigenvectorName) {
 
   // calculate the overlaps with special eigenvectors
-  int numRelaxons = specialEigenvector.size(); 
+  int numRelaxons = specialEigenvector.size();
   Eigen::VectorXd overlaps(numRelaxons); overlaps.setZero();
-                                
+
   // TODO need to update this for useUpperTriangle and case of less numRelaxons
   for (auto tup : eigenvectors.getAllLocalStates()) {
     auto is = std::get<0>(tup);
@@ -28,9 +28,9 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
   if(mpi->mpiHead()) {
 
     // avoid a segfault in an edge case of few states
-    int maxPrint = 10; 
-    if(numRelaxons < 10) { maxPrint = numRelaxons; } 
-    
+    int maxPrint = 10;
+    if(numRelaxons < 10) { maxPrint = numRelaxons; }
+
     std::cout << std::fixed;
     std::cout << std::setprecision(4);
     std::cout << "\nMaximum scalar product " << eigenvectorName << ".theta_alpha = " << maxOverlap << " at alpha = " << idxMaxOverlap << "." << std::endl;
@@ -39,11 +39,11 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
     std::cout << std::endl;
   }
 
-  // If the best overlap isn't very good, we return -1 so nothing is skipped 
+  // If the best overlap isn't very good, we return -1 so nothing is skipped
   if(maxOverlap >= 0.75) return idxMaxOverlap;
   else { return -1; }
 }
- 
+
 // calculate special eigenvectors
 void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
                                     StatisticsSweep& statisticsSweep,
@@ -66,8 +66,8 @@ void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStr
                       // don't use the stat sweep one which may have
                       // finite values if phel scattering is used
   //double Npts = bandStructure.getPoints().getNumPoints();
-  double Npts; 
-  if(particle.isPhonon()) Npts = context.getQMesh().prod(); 
+  double Npts;
+  if(particle.isPhonon()) Npts = context.getQMesh().prod();
   else { Npts = context.getKMesh().prod(); }
 
   // set particle specific quantities
@@ -453,26 +453,26 @@ void genericOutputRealSpaceToJSON(ScatteringMatrix& scatteringMatrix,
 
 
 // TODO use requires on the bandstructures to be el first and ph second, do this more elegantly
-void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors, 
-                          const Eigen::VectorXd& eigenvalues, 
-                          std::vector<BaseBandStructure*>& bandStructures, 
+void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
+                          const Eigen::VectorXd& eigenvalues,
+                          std::vector<BaseBandStructure*>& bandStructures,
                           const Eigen::VectorXd& theta0,
                           const Eigen::VectorXd& theta_e,
                           const Eigen::MatrixXd& phi) {
 
-  int numRelaxonsToOutput = 40; 
+  int numRelaxonsToOutput = 40;
 
   // TODO improve this this
 
- // make a lambda to handle indexing if it's coupled -- return phonon state index 
-  std::function<int(int)> shiftedStateIdx; 
+ // make a lambda to handle indexing if it's coupled -- return phonon state index
+  std::function<int(int)> shiftedStateIdx;
 
-  //if(bandStructures.size() == 2) { 
+  //if(bandStructures.size() == 2) {
   //  if(!(bandStructures[0]->getParticle().isElectron() && bandStructures[1]->getParticle().isPhonon()))
   //    DeveloperError("First bandstructure must be electron, second must be phonon, when outputing relaxons to HDF5.");
     int numElStates = int(bandStructures[0]->irrStateIterator().size());
-    shiftedStateIdx = [numElStates](int stateIndex) {  
-      if(stateIndex < numElStates) { return stateIndex; } 
+    shiftedStateIdx = [numElStates](int stateIndex) {
+      if(stateIndex < numElStates) { return stateIndex; }
       else { return stateIndex-numElStates; }
     };
  // } else {
@@ -484,7 +484,7 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     size_t numPoints = bandStructure->getPoints().getNumPoints();
     int numBands = bandStructure->getFullNumBands();
     Particle particle = bandStructure->getParticle();
-    // convertion for time units 
+    // convertion for time units
     double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 : energyRyToFs;
 
     // cannot use vector<vector> as this is not contiguous
@@ -495,21 +495,21 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
       // get the band state associated with this state
       BteIndex BTEidx(shiftedStateIdx(iBte));
       auto is = bandStructure->bteToState(BTEidx);
-      auto [ik,ib] = bandStructure->getIndex(is); 
+      auto [ik,ib] = bandStructure->getIndex(is);
 
-      if(iRelaxon >= numRelaxonsToOutput) continue; 
-      relaxon(ik.get(),ib.get(), iRelaxon) = eigenvectors(iBte,iRelaxon); 
+      if(iRelaxon >= numRelaxonsToOutput) continue;
+      relaxon(ik.get(),ib.get(), iRelaxon) = eigenvectors(iBte,iRelaxon);
     }
     mpi->allReduceSum(&relaxon);
 
     // write the analytical special eigenvectors ---------------------------
     Eigen::MatrixXd theta_e_kn(numPoints, numBands), theta0_kn(numPoints, numBands);
     Eigen::MatrixXd phi_kn1(numPoints, numBands), phi_kn2(numPoints, numBands), phi_kn3(numPoints, numBands);
-    theta_e_kn.setZero();  theta0_kn.setZero();  
+    theta_e_kn.setZero();  theta0_kn.setZero();
     phi_kn1.setZero(); phi_kn2.setZero(); phi_kn3.setZero();
 
     for (int is : bandStructure->parallelStateIterator()) {
-      auto [ik,ib] = bandStructure->getIndex(is); 
+      auto [ik,ib] = bandStructure->getIndex(is);
       theta_e_kn(ik.get(), ib.get()) = theta_e(is);
       theta0_kn(ik.get(), ib.get()) = theta0(is);
       phi_kn1(ik.get(), ib.get()) = phi(0,is);
@@ -519,24 +519,24 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     mpi->allReduceSum(&theta_e_kn); mpi->allReduceSum(&theta0_kn);
     mpi->allReduceSum(&phi_kn1); mpi->allReduceSum(&phi_kn2); mpi->allReduceSum(&phi_kn3);
 
-    // output crystal coords mesh 
+    // output crystal coords mesh
     Eigen::MatrixXd wavevectors(numPoints,3); wavevectors.setZero();
     for (int ik : bandStructure->parallelIrrPointsIterator()) {
       WavevectorIndex ikIdx(ik);
       Eigen::Vector3d k = bandStructure->getWavevector(ikIdx);
-      wavevectors(ik,Eigen::all) = bandStructure->getPoints().cartesianToCrystal(k);
+      wavevectors(ik,Eigen::placeholders::all) = bandStructure->getPoints().cartesianToCrystal(k);
     }
     mpi->allReduceSum(&wavevectors);
 
     // head process writes to file --------------------------
-    if(mpi->mpiHead()) { 
+    if(mpi->mpiHead()) {
 
-      // let's try a simple write to hdf5  
+      // let's try a simple write to hdf5
       std::string filename = particle.isPhonon() ? "relaxons_ph_eigenvectors.hdf5" : "relaxons_el_eigenvectors.hdf5";
       H5Easy::File file(filename, H5Easy::File::Overwrite);
 
-      std::vector<double> tau; 
-      for(int alpha = 0; alpha < numRelaxonsToOutput; alpha++) { 
+      std::vector<double> tau;
+      for(int alpha = 0; alpha < numRelaxonsToOutput; alpha++) {
         tau.push_back(1./eigenvalues(alpha) * energyToTime);
         // write to an eigen matrix so I can save to hdf5
         Eigen::MatrixXd relaxonCopy(numPoints,numBands);

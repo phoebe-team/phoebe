@@ -80,7 +80,7 @@ void PhononViscosity::calcRTA(VectorBTE &tau) {
   mpi->allReduceSum(&tensordxdxdxd);
 
   // TODO for ALEX: call a function from viscosity_io.h here, to output
-  // the ballistic viscosity. 
+  // the ballistic viscosity.
 
 }
 
@@ -91,8 +91,8 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
     Warning("Viscosity calculated without the enforcing detailed balance condition of the scattering matrix"
       "\ncan have major issues -- if the energy eigenvector is not well found (better than 75% overlap),"
       " it may make a large, spurious contribution to viscosity!");
-  }                                   
-                                        
+  }
+
   // to simplify, here I do everything considering there is a single
   // temperature (due to memory constraints)
   if (numCalculations > 1) {
@@ -106,18 +106,18 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
   // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
   alpha0 = relaxonEigenvectorOverlap(eigenvectors, theta0, "theta0");
-  
-  std::vector<BaseBandStructure*> bs = {&bandStructure}; 
+
+  std::vector<BaseBandStructure*> bs = {&bandStructure};
   outputRelaxonsToHDF5(eigenvectors, eigenvalues, bs, theta0, theta_e, phi);
-  
+
   // drift eigenvector overlaps ----------
   // for now, we don't save these drift eigenvector indices
   {
-    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::all), "phi_x");
-    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::all), "phi_y");
-    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
+    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::placeholders::all), "phi_x");
+    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::placeholders::all), "phi_y");
+    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::placeholders::all), "phi_z");
   }
-  
+
   // Code by Andrea, annotation by Jenny
   // Here we are calculating Eq. 9 from the PRX Simoncelli 2020
   //    mu_ijkl = (eta_ijkl + eta_ilkj)/2

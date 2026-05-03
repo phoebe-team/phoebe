@@ -7,21 +7,21 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
                           const Eigen::VectorXd& theta0,
                           const Eigen::VectorXd& theta_e,
                           const Eigen::MatrixXd& phi,
-                          int numRelaxonsToOutput, 
+                          int numRelaxonsToOutput,
                           bool isCoupled) {
 
-  if(bandStructures.size() == 0) 
+  if(bandStructures.size() == 0)
     DeveloperError("Cannot output relaxons with no specified bandstructure.");
 
   if(isCoupled) {
-    if(bandStructures.size() != 2) { 
+    if(bandStructures.size() != 2) {
       DeveloperError("Need both bandstructures to output coupled relaxons.");
     }
     else if(!(bandStructures[0]->getParticle().isElectron() && bandStructures[1]->getParticle().isPhonon())) {
-      DeveloperError("First bandstructure must be electron, second must be phonon, when outputing relaxons to HDF5."); 
-    }             
+      DeveloperError("First bandstructure must be electron, second must be phonon, when outputing relaxons to HDF5.");
+    }
   }
-  
+
   // make a lambda to handle indexing if it's coupled -- return phonon state index
   std::function<int(int)> shiftedStateIdx;
   if(isCoupled) {
@@ -71,7 +71,7 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
       phi_kn2(ik.get(), ib.get()) = phi(1,is);
       phi_kn3(ik.get(), ib.get()) = phi(2,is);
     }
-    mpi->allReduceSum(&theta_e_kn); 
+    mpi->allReduceSum(&theta_e_kn);
     mpi->allReduceSum(&theta0_kn);
     mpi->allReduceSum(&phi_kn1); mpi->allReduceSum(&phi_kn2); mpi->allReduceSum(&phi_kn3);
 
@@ -80,8 +80,8 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     for (int ik : bandStructure->parallelIrrPointsIterator()) {
       WavevectorIndex ikIdx(ik);
       Eigen::Vector3d k = bandStructure->getWavevector(ikIdx);
-      // // bandStructure->getPoints().cartesianToCrystal(k); 
-      wavevectors(ik,Eigen::all) = bandStructure->getPoints().bzToWs(k, Points::cartesianCoordinates) / distanceBohrToAng; 
+      // // bandStructure->getPoints().cartesianToCrystal(k);
+      wavevectors(ik,Eigen::placeholders::all) = bandStructure->getPoints().bzToWs(k, Points::cartesianCoordinates) / distanceBohrToAng;
     }
     mpi->allReduceSum(&wavevectors);
 

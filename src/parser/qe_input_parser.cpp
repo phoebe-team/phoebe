@@ -628,7 +628,6 @@ QEParser::parseElHarmonicFourier(Context &context) {
 
   // we read the unit cell
   Eigen::Matrix3d directUnitCell;
-  Eigen::Vector3d thisValues;
   pugi::xml_node cell = atomicStructure.child("cell");
   lineSplit = split(cell.child_value("a1"), ' ');
   directUnitCell(0, 0) = std::stod(lineSplit[0]);
@@ -1053,7 +1052,7 @@ QEParser::parseElHarmonicWannier(Context &context, Crystal *inCrystal) {
     // Initialize the crystal class
     Crystal crystal(context, directUnitCell, atomicPositions, atomicSpecies,
                     speciesNames, speciesMasses, bornCharges, dielectricMatrix);
-                    
+
     crystal.print();
     Kokkos::Profiling::popRegion();
     return std::make_tuple(crystal, electronH0);

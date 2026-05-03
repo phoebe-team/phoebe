@@ -283,8 +283,7 @@ void ElPhQeToPhoebeApp::testPhononTransform(
     }
 
     // diagonalize it, using the matrices from phononH0
-    auto dq = u.adjoint() * hWK * u;
-    //(void) dq;
+    Eigen::MatrixXcd dq = u.adjoint() * hWK * u;
     // check I found again the same eigenvalues
     for (int ib = 0; ib < numPhBands; ib++) {
       assert(abs(std::sqrt(dq(ib, ib).real()) - phEnergies(ib, iq)) < 1.0e-6);
@@ -406,9 +405,9 @@ void writeHeaderHDF5(
       HighFive::DataSet dnSpin = file.createDataSet<int>(
           "/numSpin", HighFive::DataSpace::From(numSpin));
       // if we write this with QE, it's the Giustino phase convention, which we deem phaseConv = 0
-      int phaseConvention = 0; 
+      int phaseConvention = 0;
       HighFive::DataSet dphaseConvention = file.createDataSet<int>(
-          "/phaseConvention", HighFive::DataSpace::From(phaseConvention)); 
+          "/phaseConvention", HighFive::DataSpace::From(phaseConvention));
       dnElectrons.write(numFilledWannier);// # of occupied wannier functions
       dnSpin.write(numSpin);
       dphaseConvention.write(phaseConvention);

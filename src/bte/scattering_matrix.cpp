@@ -501,11 +501,13 @@ VectorBTE ScatteringMatrix::getSingleModeTimes(const VectorBTE& anyInternalDiago
 
   // just using the shape of internalDiagonal, will be overwritten
   VectorBTE times(statisticsSweep, outerBandStructure, 1);
-  times = anyInternalDiagonal.reciprocal();
 
   if (constantRTA) {
     times.setConst(context.getConstantRelaxationTime() / twoPi);
   } else {
+
+    times = anyInternalDiagonal.reciprocal();
+
     if (!isMatrixOmega) { // A_nu,nu = N(1+-N) / tau  -- for phonon case
       auto particle = outerBandStructure.getParticle();
       #pragma omp parallel for
@@ -1082,10 +1084,10 @@ void ScatteringMatrix::addRateToMatrix(const Context &context, double linewidthR
   auto [iBte1Shift, iBte2Shift] = shiftToCoupledIndices(iBte1, iBte2, p1, p2);
 
   if (matrixCase == fullMatrix) { // case of matrix construction
-    if (context.getUseSymmetries()) { // indices are never shifted in the sym case, currently 
+    if (context.getUseSymmetries()) { // indices are never shifted in the sym case, currently
       BteIndex iBte1Idx(iBte1);
       BteIndex iBte2Idx(iBte2);
-      
+
       linewidth->operator()(iCalc, 0, iBte1) += linewidthRate;
 
       for (int i : {0, 1, 2}) {
@@ -1455,7 +1457,7 @@ void ScatteringMatrix::enforceDetailedBalance() {
   newLinewidths.setZero();
 
   double Nk = 1;
-  double Nq = 1; 
+  double Nq = 1;
   if(isCoupled) {
     Nk = double(context.getKMesh().prod());
     Nq = double(context.getQMesh().prod());
@@ -1471,7 +1473,7 @@ void ScatteringMatrix::enforceDetailedBalance() {
   // NOTE: if later we want to use symmetries here,
   // these would actually be iBTE instead of iState, and we would convert
   // sum over the v' states owned by this process
-  // TODO may want to add OMP here as well as MPI 
+  // TODO may want to add OMP here as well as MPI
   for (auto [ibte1, ibte2] : getAllLocalStates()) {
 
     loopPrint.update();
@@ -1524,7 +1526,7 @@ void ScatteringMatrix::enforceDetailedBalance() {
     if((initialParticle.isPhonon() && initialEn < 1e-9)) continue;
     if((finalParticle.isPhonon() && finalEn < 1e-9)) continue;
 
-    // if this is a matrix which is not symmetrized, we don't need these. 
+    // if this is a matrix which is not symmetrized, we don't need these.
     // calculate f(1-f) or n(n+1)
     // do not shift E by mu because we use this below in the getPop function which assumes it's unshifted
     double initialFFm1 = (!isMatrixOmega) ? 1 : initialParticle.getPopPopPm1(initialEn, kBT, initialChemicalPotential);
@@ -1605,7 +1607,7 @@ void ScatteringMatrix::enforceDetailedBalance() {
       }
     }
   }
-/* 
+/*
   if(mpi->mpiHead()) {
 
     std::cout << "compare first 50 el states, new vs. old " << std::setw(2) << std::scientific << std::setprecision(2) << std::endl;

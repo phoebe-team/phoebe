@@ -134,7 +134,7 @@ void IO::goodbye(Context &context) {
   // wigner transport
   if(context.getAppName() == "phononTransport"
         || context.getAppName() == "electronWannierTransport") {
-          
+
     std::cout << "  For the Wigner transport equations:" << std::endl;
     std::cout << "\tM. Simoncelli, N. Marzari, and F. Mauri.\n" <<
     //    "\tUnified theory of thermal transport in crystals and glasses.\n" <<
@@ -143,7 +143,7 @@ void IO::goodbye(Context &context) {
     //    "\tInterband tunneling effects on materials transport properties using the first principles Wigner distribution.\n" <<
         "\tMaterials Today Physics 19, 100412 (2021).\n" << std::endl;
   }
-  // EPA 
+  // EPA
   // TODO add the fourier interpolation -- Boltztrap??
   if(context.getElPhInterpolation() == "epa" || context.getAppName() == "transportEpa") {
     std::cout << "  For the use of the EPA method:" << std::endl;
@@ -156,7 +156,7 @@ void IO::goodbye(Context &context) {
   if(context.getAppName() == "electronWannierBands" ||
         context.getAppName() == "electronWannierDos" ||
         context.getAppName() == "electronLifetimes" ||
-        context.getAppName() == "electronWannierTransport" || 
+        context.getAppName() == "electronWannierTransport" ||
         context.getAppName() == "coupledTransport") {
     std::cout << "  For the use of Wannier functions and interpolation:" << std::endl;
     std::cout << "\tN. Marzari, A.A. Mostofi, J.R. Yates, I. Souza, and D. Vanderbilt.\n" <<
@@ -185,8 +185,8 @@ void IO::goodbye(Context &context) {
              "\tPhysical Review Letters 106, 045901 (2011)\n" << std::endl;
   }
   // scattering matrix/bte symmetries
-  if (context.getScatteringMatrixInMemory() && context.getUseSymmetries() && 
-       (context.getAppName() == "electronWannierTransport" || 
+  if (context.getScatteringMatrixInMemory() && context.getUseSymmetries() &&
+       (context.getAppName() == "electronWannierTransport" ||
         context.getAppName() == "phononTransport")) {
 
     std::cout << "  For the use of symmetries in the scattering matrix:" << std::endl;
@@ -206,7 +206,7 @@ LoopPrint::LoopPrint(const std::string &task_, const std::string &step_,
   step = step_;
   numSteps = numSteps_;
 
-  int numRep = 10; // number of intermediate reports
+  size_t numRep = 10; // number of intermediate reports
   if (numSteps < numRep) {
     reportEvery = 1;
   } else {

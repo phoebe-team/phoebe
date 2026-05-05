@@ -87,10 +87,6 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
       // calculate wigner correction
       for (int ib1 = 0; ib1 < numBands; ib1++) {
         for (int ib2 = 0; ib2 < numBands; ib2++) {
-          if (ib1 == ib2) {
-            continue;
-          }
-
           int is1 = bandStructure.getIndex(iqIdx, BandIndex(ib1));
           int is2 = bandStructure.getIndex(iqIdx, BandIndex(ib2));
           auto is1Idx = StateIndex(is1);
@@ -109,6 +105,9 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
                 double num =
                     energies(ib1) * bose(iCalc, ib1) * (bose(iCalc, ib1) + 1.) +
                     energies(ib2) * bose(iCalc, ib2) * (bose(iCalc, ib2) + 1.);
+
+                if ( (bose(iCalc, ib1) <= 0.) || (bose(iCalc, ib2) <=0.0) ) continue; //this avoids numerical problems for the acoustic phonons
+
                 double vel =
                     (velRot(ib1, ib2, ic1) * velRot(ib2, ib1, ic2)).real();
                     
@@ -132,6 +131,9 @@ WignerPhononThermalConductivity::WignerPhononThermalConductivity(
 
 void WignerPhononThermalConductivity::calcFromPopulation(VectorBTE &n) {
   PhononThermalConductivity::calcFromPopulation(n);
+  // TO DO: here we use setZero because we include the diagonal elements when computing the Wigner conductivity
+  // in other words, the Wigner conductivity includes both populations and coherences contributions
+  tensordxd.setZero();
   tensordxd += wignerCorrection;
 }
 
@@ -139,6 +141,7 @@ void WignerPhononThermalConductivity::calcVariational(VectorBTE &af,
                                                       VectorBTE &f,
                                                       VectorBTE &scalingCG) {
   PhononThermalConductivity::calcVariational(af, f, scalingCG);
+  Error("Developer error: Wigner conductivity is currently limited to RTA approximation, implementation with iterative will be done in the future");
   tensordxd += wignerCorrection;
 }
 
@@ -149,6 +152,7 @@ void WignerPhononThermalConductivity::calcFromRelaxons(
   PhononThermalConductivity::calcFromRelaxons(context, statisticsSweep,
                                               eigenvectors,
                                               scatteringMatrix, eigenvalues);
+  Error("Developer error: Wigner conductivity is currently limited to RTA approximation, implementation with iterative will be done in the future");         
   tensordxd += wignerCorrection;
 }
 

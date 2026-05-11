@@ -49,7 +49,7 @@ PhononH0::PhononH0(Crystal &crystal,
   mat2R = forceConstants_;
 
   alat = sqrt(directUnitCell(0,0)*directUnitCell(0,0) + directUnitCell(1,0)*directUnitCell(1,0) + directUnitCell(2,0)*directUnitCell(2,0));
-  alpha = (twoPi/alat * twoPi/alat); 
+  alpha = (twoPi/alat * twoPi/alat);
   double inv4Alpha = 1./(alpha * 4.);
   double fourAlphaGMax = 4. * alpha * gMax;
 
@@ -146,7 +146,7 @@ PhononH0::PhononH0(Crystal &crystal,
         for (int na = 0; na < numAtoms; na++) {
           for (int i : {0, 1, 2}) {
             for (int nb = 0; nb < numAtoms; nb++) {
-              double arg = (atomicPositions.row(na) - atomicPositions.row(nb)).dot(g); 
+              double arg = (atomicPositions.row(na) - atomicPositions.row(nb)).dot(g);
               fnAt(na, i) += gZ(i, nb) * cos(arg);
             }
           }
@@ -261,7 +261,7 @@ PhononH0::PhononH0(const PhononH0 &that)
       directUnitCell(that.directUnitCell),
       dimensionality(that.dimensionality),
       fcRangeType(that.fcRangeType),
-      alpha(that.alpha), alat(that.alat), 
+      alpha(that.alpha), alat(that.alat),
       numBravaisVectors(that.numBravaisVectors),
       bravaisVectors(that.bravaisVectors), weights(that.weights),
       mat2R(that.mat2R), gVectors(that.gVectors),
@@ -447,7 +447,7 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                                 const Eigen::VectorXd &q) {
 
   double inv4Alpha = 1./(alpha * 4.);
-  double fourAlphaGMax = 4. * alpha * gMax; 
+  double fourAlphaGMax = 4. * alpha * gMax;
 
   // this subroutine is the analogous of rgd_blk in QE
   // compute the rigid-ion (long-range) term for q
@@ -475,7 +475,7 @@ void PhononH0::addLongRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
       }
     }
   }
-  
+
   double norm;
   Eigen::Matrix3d reff;
   if(dimensionality == 2 && longRange2d) {
@@ -553,11 +553,11 @@ void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
     phases[iR] = exp(-complexI * arg); // {cos(arg), -sin(arg)};
   }
 
-  // this is only for medium range force constants 
+  // this is only for medium range force constants
   Eigen::Tensor<double, 4> fq(3,3,numAtoms,numAtoms);
   fq.setZero();
   if(hasDielectric && fcRangeType == mediumRange) {
-    correctMediumRangeIFCs(fq,q); 
+    correctMediumRangeIFCs(fq,q);
   }
 
   for (int iR = 0; iR < numBravaisVectors; iR++) {
@@ -654,12 +654,27 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
   auto energies = std::get<0>(tup);
   auto eigenvectors = std::get<1>(tup);
 
+  Eigen::MatrixXcd eigenvectors_bar(numBands, numBands);
+  Eigen::MatrixXcd eigenvectors_bar_minus(numBands, numBands);
+  Eigen::MatrixXcd eigenvectors_bar_plus(numBands, numBands);
+  eigenvectors_bar.setZero();
+  eigenvectors_bar_minus.setZero();
+  eigenvectors_bar_plus.setZero();
+
+  Eigen::VectorXcd matrix_U(numBands);
+  Eigen::VectorXcd matrix_U_plus(numBands);
+  Eigen::VectorXcd matrix_U_minus(numBands);
+  matrix_U.setZero();
+  matrix_U_plus.setZero();
+  matrix_U_minus.setZero();
+
   // now we compute the velocity operator, diagonalizing the expectation
   // value of the derivative of the dynamical matrix.
   // This works better than doing finite differences on the frequencies.
   double deltaQ = 1.0e-8;
   for (int i : {0, 1, 2}) {
     // define q+ and q- from finite differences.
+    Eigen::Vector3d qcenter = coordinates;
     Eigen::Vector3d qPlus = coordinates;
     Eigen::Vector3d qMinus = coordinates;
     qPlus(i) += deltaQ;
@@ -673,6 +688,27 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
     auto enMinus = std::get<0>(tup1);
     auto eigMinus = std::get<1>(tup1);
 
+    // apply the Wallace phase
+    for (int iat = 0; iat < numAtoms; iat++){
+      for (int i : {0, 1, 2}) {
+        auto ip = i + iat * 3;
+        double arg = qcenter.dot(atomicPositions.row(iat));
+        matrix_U(ip) = exp(-complexI*arg);
+        arg = qPlus.dot(atomicPositions.row(iat));
+        matrix_U_plus(ip) = exp(-complexI*arg);
+        arg = qMinus.dot(atomicPositions.row(iat));
+        matrix_U_minus(ip) = exp(-complexI*arg);
+      }
+    }
+
+    for(int i = 0; i < numBands; i++){
+      for(int j = 0; j < numBands; j++){
+        eigenvectors_bar(i,j) = matrix_U(i) * eigenvectors(i,j);
+        eigenvectors_bar_plus(i,j) = matrix_U_plus(i) * eigPlus(i,j);
+        eigenvectors_bar_minus(i,j) = matrix_U_minus(i) * eigMinus(i,j);
+      }
+    }
+
     // build diagonal matrices with frequencies
     Eigen::MatrixXd enPlusMat(numBands, numBands);
     Eigen::MatrixXd enMinusMat(numBands, numBands);
@@ -684,19 +720,18 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
     // build the dynamical matrix at the two wavevectors
     // since we diagonalized it before, A = M.U.M*
     Eigen::MatrixXcd sqrtDPlus(numBands, numBands);
-    sqrtDPlus = eigPlus * enPlusMat * eigPlus.adjoint();
+    sqrtDPlus = eigenvectors_bar_plus * enPlusMat * eigenvectors_bar_plus.adjoint();
     Eigen::MatrixXcd sqrtDMinus(numBands, numBands);
-    sqrtDMinus = eigMinus * enMinusMat * eigMinus.adjoint();
+    sqrtDMinus = eigenvectors_bar_minus * enMinusMat * eigenvectors_bar_minus.adjoint();
 
     // now we can build the velocity operator
     Eigen::MatrixXcd der(numBands, numBands);
     der = (sqrtDPlus - sqrtDMinus) / (2. * deltaQ);
 
-    // and to be safe, we reimpose hermiticity
-    der = 0.5 * (der + der.adjoint());
-
-    // now we rotate in the basis of the eigenvectors at q.
-    der = eigenvectors.adjoint() * der * eigenvectors;
+    // option below can probably be decommented, this will enforce hermiticity numerically,
+    // results should be equivalent within numerical noise
+    //der = 0.5 * (der + der.adjoint());
+    der = eigenvectors_bar.adjoint() * der * eigenvectors_bar;
 
     // copy to output
     for (int ib2 = 0; ib2 < numBands; ib2++) {
@@ -704,65 +739,6 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
         velocity(ib1, ib2, i) = der(ib1, ib2);
       }
     }
-  }
-
-  // turns out that the above algorithm has problems with degenerate bands
-  // so, we diagonalize the velocity operator in the degenerate subspace,
-
-  for (int ib = 0; ib < numBands; ib++) {
-    // first, we check if the band is degenerate, and the size of the
-    // degenerate subspace
-    int sizeSubspace = 1;
-    for (int ib2 = ib + 1; ib2 < numBands; ib2++) {
-      // I consider bands degenerate if their frequencies are the same
-      // within 0.0001 cm^-1
-      if (abs(energies(ib) - energies(ib2)) > 0.0001 / ryToCmm1) {
-        break;
-      }
-      sizeSubspace += 1;
-    }
-
-    if (sizeSubspace > 1) {
-      Eigen::MatrixXcd subMat(sizeSubspace, sizeSubspace);
-      // we have to repeat for every direction
-      for (int iCart : {0, 1, 2}) {
-        // take the velocity matrix of the degenerate subspace
-        for (int j = 0; j < sizeSubspace; j++) {
-          for (int i = 0; i < sizeSubspace; i++) {
-            subMat(i, j) = velocity(ib + i, ib + j, iCart);
-          }
-        }
-
-        // reinforce hermiticity
-        subMat = 0.5 * (subMat + subMat.adjoint());
-
-        // diagonalize the subMatrix
-        Eigen::SelfAdjointEigenSolver<Eigen::MatrixXcd> eigenSolver(subMat);
-        Eigen::MatrixXcd newEigenVectors = eigenSolver.eigenvectors();
-        //newEigenVectors = 3*subMat; // TODO: undo
-
-        // rotate the original matrix in the new basis
-        // that diagonalizes the subspace.
-        subMat = newEigenVectors.adjoint() * subMat * newEigenVectors;
-
-        // reinforce hermiticity
-        subMat = 0.5 * (subMat + subMat.adjoint());
-
-        // substitute back
-        for (int j = 0; j < sizeSubspace; j++) {
-          for (int i = 0; i < sizeSubspace; i++) {
-            velocity(ib + i, ib + j, iCart) = subMat(i, j);
-          }
-        }
-      }
-    }
-
-    // we skip the bands in the subspace, since we corrected them already
-    ib += sizeSubspace - 1;
-  }
-  // if we are working at gamma, we set all velocities to zero.
-  if (coordinates.norm() < 1.0e-6) {
-    velocity.setZero();
   }
   Kokkos::Profiling::popRegion(); // diagonalizeVelocityFromCoordinates
   return velocity;
@@ -860,14 +836,14 @@ void PhononH0::printDynToHDF5(Eigen::Vector3d& qCrys) {
 void PhononH0::correctMediumRangeIFCs(Eigen::Tensor<double, 4> &fq, const Eigen::VectorXd &q) {
 
   // this is a contribution that needs to be added to the IFCS for each qpt
-  // we don't want to modify the stored IFCs, so we are simply going to 
-  // return the contribution. 
-  // TODO is is more efficient to do this for a batch of q?   
+  // we don't want to modify the stored IFCs, so we are simply going to
+  // return the contribution.
+  // TODO is is more efficient to do this for a batch of q?
 
   Kokkos::Profiling::pushRegion("phononH0 medium range IFCs");
 
-  // do not run this on the gamma point 
-  if( abs(q.norm()) < 1e-14 ) { return; } 
+  // do not run this on the gamma point
+  if( abs(q.norm()) < 1e-14 ) { return; }
 
   double qeq = (q.transpose() * dielectricMatrix * q).value();
   double norm = 0.25 * fourPi / (qeq) / volumeUnitCell / (qCoarseGrid(0) * qCoarseGrid(1) * qCoarseGrid(2));
@@ -879,7 +855,7 @@ void PhononH0::correctMediumRangeIFCs(Eigen::Tensor<double, 4> &fq, const Eigen:
     }
   }
 
-  // TODO can we OMP this? is it worth it? 
+  // TODO can we OMP this? is it worth it?
   for (int na = 0; na < numAtoms; ++na) {
     for (int nb = 0; nb < numAtoms; ++nb) {
       for (auto i : {0,1,2}) {
@@ -887,7 +863,7 @@ void PhononH0::correctMediumRangeIFCs(Eigen::Tensor<double, 4> &fq, const Eigen:
           fq(i,j,na,nb) = qZ(i,na) * qZ(j,nb) * norm;
         }
       }
-    } 
+    }
   }
   Kokkos::Profiling::popRegion(); // end ph h0 constrcutor
 }
@@ -895,13 +871,13 @@ void PhononH0::correctMediumRangeIFCs(Eigen::Tensor<double, 4> &fq, const Eigen:
 void PhononH0::addMediumRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
                                                       const Eigen::VectorXd &q) {
 
-  // do not run this on the gamma point 
-  if( abs(q.norm()) < 1e-14 ) { return; } 
+  // do not run this on the gamma point
+  if( abs(q.norm()) < 1e-14 ) { return; }
 
   //std::cout << "q crys " << crystal.cartesianToCrystal(q).transpose() << std::endl;
 
   double qeq = (q.transpose() * dielectricMatrix * q).value();
-  // TODO maybe a factor of 4 here? 
+  // TODO maybe a factor of 4 here?
   double norm = 0.25 * fourPi / (qeq) / volumeUnitCell;
 
   Eigen::MatrixXd qZ(3, numAtoms); // in QE rgd_blk, this is called zag and zbg
@@ -912,7 +888,7 @@ void PhononH0::addMediumRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
   }
   std::cout << "qZ " << qZ  << " norm " << norm << " qeq " << qeq << " " << volumeUnitCell << std::endl;
 
-  // TODO can we OMP this? is it worth it? 
+  // TODO can we OMP this? is it worth it?
   for (int na = 0; na < numAtoms; ++na) {
     for (int nb = 0; nb < numAtoms; ++nb) {
       for (auto i : {0,1,2}) {
@@ -920,6 +896,6 @@ void PhononH0::addMediumRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
           dyn(i, j, na, nb) += qZ(i,na) * qZ(j,nb) * norm;
         }
       }
-    } 
+    }
   }
 }

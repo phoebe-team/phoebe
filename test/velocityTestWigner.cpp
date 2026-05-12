@@ -7,6 +7,8 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
+using json = nlohmann::json;
+
 // check that the CPU velocity operator matches reference Si data
 TEST (WTE, CPUVelocityOperator) {
   // read the JSON reference file
@@ -18,10 +20,6 @@ TEST (WTE, CPUVelocityOperator) {
   std::vector<std::vector<double>> sqmod_vop_y_json = data["|v_y|^2"];
   std::vector<std::vector<double>> sqmod_vop_z_json = data["|v_z|^2"];
 
-  ASSERT_STREQ(data["qPointUnit"], "crystal") << "`qPoint` must be in crystal units and `qPointUnit` must be specified";
-  ASSERT_STREQ(data["energiesUnit"], "meV") << "`energies` must be in meV and `energiesUnit` must be specified";
-  ASSERT_STREQ(data["velocitySqModUnit"], "(m/s)^2") << "`|v_i|^2` must be in (m/s)^2 and `velocitySqModUnit` must be specified";
-
   Context context;
   context.setPhFC2FileName("./data/phono3py/fc2.hdf5");
   context.setPhonopyDispFileName("./data/phono3py/phono3py_disp.yaml");
@@ -29,12 +27,13 @@ TEST (WTE, CPUVelocityOperator) {
   auto [crystal,phononH0] = PhonopyParser::parsePhHarmonic(context);
 
   // check the velocity operator at given point
-  Eigen::Vector3d qPoint(qPointJson);
+  Eigen::Vector3d qPoint({qPointJson[0], qPointJson[1], qPointJson[2]});
   // std::cout << "qPoint [crystal coords]: " << qPoint.transpose() << std::endl;
   qPoint = crystal.crystalToCartesian(qPoint);
   
   auto [energies, eigenvecs] = phononH0.diagonalizeFromCoordinates(qPoint);
   auto v = phononH0.diagonalizeVelocityFromCoordinates(qPoint);
+  energies = energies * energyRyToEv * 1000; // convert to meV
 
   // take out the velocity operator, both on- and off-diagonal els
   // only checking magnitude and not phase of complex entries
@@ -51,17 +50,18 @@ TEST (WTE, CPUVelocityOperator) {
   }
 
 // check energies are equal
-for (int unsigned ib = 0; ib < numBands; ib++) {
+for (int ib = 0; ib < numBands; ib++) {
   // std::cout << "Energies [meV]: ";
-  // std::cout << std::scientific << std::setprecision(4) << energies[i] << "\n" <<std::endl;
+  // std::cout << std::scientific << std::setprecision(4) << energies[ib] << "\n" <<std::endl;
+  // std::cout << std::scientific << std::setprecision(4) << energiesJson[ib] << "\n" <<std::endl;
   EXPECT_NEAR(abs((energies[ib]-energiesJson[ib])/energiesJson[ib]), 0, 0.001);
 }
 
 // check velocities are equal
-for (int unsigned ib = 0; ib < numBands; ib++) {
+for (int ib = 0; ib < numBands; ib++) {
   // std::cout << "Velocity square modulus [(m/s)^2]: ";
   // std::cout << std::scientific << std::setprecision(4) << sqmod_vop[i] << "\n" <<std::endl;
-  for (int unsigned ib2 = 0; ib2 < numBands; ib++) {
+  for (int ib2 = 0; ib2 < numBands; ib2++) {
     EXPECT_NEAR(abs((sqmod_vop[0](ib,ib2) - sqmod_vop_x_json[ib][ib2])/sqmod_vop_x_json[ib][ib2]), 0, 0.001);
     EXPECT_NEAR(abs((sqmod_vop[1](ib,ib2) - sqmod_vop_y_json[ib][ib2])/sqmod_vop_y_json[ib][ib2]), 0, 0.001);
     EXPECT_NEAR(abs((sqmod_vop[2](ib,ib2) - sqmod_vop_z_json[ib][ib2])/sqmod_vop_z_json[ib][ib2]), 0, 0.001);
@@ -81,10 +81,6 @@ TEST (WTE, KokkosVelocityOperator) {
   std::vector<std::vector<double>> sqmod_vop_y_json = data["|v_y|^2"];
   std::vector<std::vector<double>> sqmod_vop_z_json = data["|v_z|^2"];
 
-  ASSERT_STREQ(data["qPointUnit"], "crystal") << "`qPoint` must be in crystal units and `qPointUnit` must be specified";
-  ASSERT_STREQ(data["energiesUnit"], "meV") << "`energies` must be in meV and `energiesUnit` must be specified";
-  ASSERT_STREQ(data["velocitySqModUnit"], "(m/s)^2") << "`|v_i|^2` must be in (m/s)^2 and `velocitySqModUnit` must be specified";
-
   Context context;
   context.setPhFC2FileName("./data/phono3py/fc2.hdf5");
   context.setPhonopyDispFileName("./data/phono3py/phono3py_disp.yaml");
@@ -92,10 +88,11 @@ TEST (WTE, KokkosVelocityOperator) {
   auto [crystal, phononH0] = PhonopyParser::parsePhHarmonic(context);
 
   // check the velocity operator at given point
-  Eigen::Vector3d qPoint(qPointJson);
+  Eigen::Vector3d qPoint({qPointJson[0], qPointJson[1], qPointJson[2]});
   // std::cout << "qPoint [crystal coords]: " << qPoint.transpose() << std::endl;
   qPoint = crystal.crystalToCartesian(qPoint);
-  
+ 
+  int numBands = phononH0.getNumBands(); 
   Eigen::VectorXd energies(numBands);
   Eigen::Tensor<std::complex<double>, 3> velocity(numBands, numBands, 3);
   Eigen::MatrixXcd eigenvectors(numBands, numBands);
@@ -145,17 +142,18 @@ TEST (WTE, KokkosVelocityOperator) {
       }
     }
   }
+energies = energies * energyRyToEv * 1000; // convert to meV
 
 // check energies are equal
-for (int unsigned ib = 0; ib < numBands; ib++) {
+for (int ib = 0; ib < numBands; ib++) {
   // std::cout << "Energies [meV]: ";
   // std::cout << std::scientific << std::setprecision(4) << energies[i] << "\n" <<std::endl;
   EXPECT_NEAR(abs((energies(ib)-energiesJson[ib])/energiesJson[ib]), 0, 0.001);
 }
 
 // check velocities are equal
-for (int unsigned ib = 0; ib < numBands; ib++) {
-  for (int unsigned ib2 = 0; ib2 < numBands; ib++) {
+for (int ib = 0; ib < numBands; ib++) {
+  for (int ib2 = 0; ib2 < numBands; ib2++) {
     EXPECT_NEAR(abs((velocity(ib, ib2, 0) - sqmod_vop_x_json[ib][ib2])/sqmod_vop_x_json[ib][ib2]), 0, 0.001);
     EXPECT_NEAR(abs((velocity(ib, ib2, 1) - sqmod_vop_y_json[ib][ib2])/sqmod_vop_y_json[ib][ib2]), 0, 0.001);
     EXPECT_NEAR(abs((velocity(ib, ib2, 2) - sqmod_vop_z_json[ib][ib2])/sqmod_vop_z_json[ib][ib2]), 0, 0.001);

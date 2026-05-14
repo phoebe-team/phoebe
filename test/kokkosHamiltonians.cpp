@@ -222,6 +222,9 @@ TEST(Kokkos, Wannier2) {
   auto evres2 = mat_vec_mat_adj(eigenvectors2, ens2, numBands);
   EXPECT_NEAR((evres1 - evres2).norm()/evres2.norm(), 0, 1e-14);
 
+  // TODO in WTE, both diagonals and off-diagonals matter
+  // should norm run over all elements, not just diagonal?
+  // see PhononH0 test for example
   double norm = 0., norm1=0.;
   for (int ib1 = 0; ib1 < numBands; ++ib1) {
     for (int ib2 = 0; ib2 < numBands; ++ib2) {
@@ -330,6 +333,9 @@ TEST(Kokkos, Wannier3) {
   auto evres2 = mat_vec_mat_adj(eigenvectors2, ens2, numBands);
   EXPECT_NEAR((evres1 - evres2).norm()/evres2.norm(), 0, 1e-14);
 
+  // TODO in WTE, both diagonals and off-diagonals matter
+  // should norm run over all elements, not just diagonal?
+  // see PhononH0 test for example
   {
     double norm = 0.;
     for (int ib1 = 0; ib1 < numBands; ++ib1) {
@@ -342,16 +348,6 @@ TEST(Kokkos, Wannier3) {
     ASSERT_NEAR(norm, 0., 0.00001);
   }
 }
-
-
-
-
-
-
-
-
-
-
 
 TEST(Kokkos, PhononH0) {
   Context context;
@@ -438,14 +434,25 @@ TEST(Kokkos, PhononH0) {
   auto evres2 = mat_vec_mat_adj(eigenvectors2, ens2, numBands);
   EXPECT_NEAR((evres1 - evres2).norm()/evres2.norm(), 0, 1e-14);
 
-  double norm = 0., norm1=0;
+  /**
+   * Check that CPU and Kokkos velocities match
+   * Note that I'm summing norms of differences of complex numbers
+   * So even a phase mismatch between velocities will make the test fail
+   * I am not sure if the phase here is physically significant,
+   * but currently the test passes as written
+   */
+  double norm = 0.;
   for (int ib1 = 0; ib1 < numBands; ++ib1) {
     for (int ib2 = 0; ib2 < numBands; ++ib2) {
       for (int i = 0; i < 3; ++i) {
-        norm += abs(velocity1(ib1, ib1, i).real() - velocity2(ib1, ib1, i).real());
-        norm1 += abs(velocity1(ib1, ib1, i).real());
+        // std::cout << abs(velocity1(ib1, ib2, i)) << " " << abs(velocity2(ib1, ib2, i)) << std::endl;
+        norm += abs(velocity1(ib1, ib2, i) - velocity2(ib1, ib2, i));
+        // norm += abs(abs(velocity1(ib1, ib2, i)) - abs(velocity2(ib1, ib2, i)));
       }
+      // std::cout << std::endl;
     }
+    // std::cout << std::endl;
   }
-  EXPECT_NEAR(norm, 0.0, 1e-7);
+  // std::cout << norm << std::endl;
+  EXPECT_NEAR(norm, 0.0, 1e-9);
 }

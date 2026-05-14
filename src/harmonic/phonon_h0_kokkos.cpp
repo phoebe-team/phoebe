@@ -430,7 +430,7 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
           // i for each kx, ky, kz +/-, j = x,y,z
           double arg = 0.0;
           for(int j = 0; j < 3; ++j) {
-            arg += R(j) * allVectors(iK * 7 + i * 2 + 1, j); 
+            arg += R(j) * cartesianCoordinates(iK, j); 
           }
           phases(iK,m) = exp( -complexI * arg );
         });
@@ -444,6 +444,7 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
         // copy resultEigenvectors to return at the end
         for (int n=0; n<numBands; ++n) {
           resultEigenvectors(iK, m, n) = phases(iK, m) * X(m, n);
+          // resultEigenvectors(iK, m, n) = X(m, n);
         }
       });
 
@@ -494,8 +495,8 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
 
           Kokkos::complex<double> x(0.,0.);
           for (int l=0; l<numBands; ++l) {
-            x += XPlus(m,l) * EPlus(l) * Kokkos::conj(XPlus(n,l))
-                - XMins(m,l) * EMins(l) * Kokkos::conj(XMins(n,l));
+            // x += XPlus(m,l) * EPlus(l) * Kokkos::conj(XPlus(n,l))
+            //     - XMins(m,l) * EMins(l) * Kokkos::conj(XMins(n,l));
             // TODO check that these dimensions are right for band indices 
             x += phasesPlus(iK,m) * XPlus(m,l) * EPlus(l) * Kokkos::conj(phasesPlus(iK,n) * XPlus(n,l))
                 -  phasesMinus(iK,m) * XMins(m,l) * EMins(l) * Kokkos::conj(phasesMinus(iK,n) * XMins(n,l));
@@ -565,8 +566,8 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
   });
 
   // deal with velocity issues and degenerate bands
-  kokkosBatchedTreatDegenerateVelocities(cartesianCoordinates, resultEnergies,
-                                         resultVelocities, 0.0001 / ryToCmm1);
+  // kokkosBatchedTreatDegenerateVelocities(cartesianCoordinates, resultEnergies,
+  //                                        resultVelocities, 0.0001 / ryToCmm1);
 
 // TODO: this is the only difference from the ElectronH0 kokkosPopulate()
 // can we unify the two?

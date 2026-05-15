@@ -15,6 +15,7 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
   auto weights_d = this->weights_d;
   auto mat2R_d = this->mat2R_d;
   auto numAtoms = this->numAtoms;
+  auto atomicPositions = this->atomicPositions;
 
   ComplexView3D dynamicalMatrices("dynMat", numK, numBands, numBands);
 
@@ -29,6 +30,18 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
         }
         phases_d(iK, iR) = exp(-complexI * arg) * weights_d(iR);
       });
+
+  // Compute smooth phase (Wallace convention, needed for WTE)
+  ComplexView2D wallacePhases_d("phWallacePhases_d", numK, numBands);
+  Kokkos::parallel_for(
+      "ph_wallace_phases", Range3D({0, 0, 0}, {numK, numAtoms, 3}),
+      KOKKOS_LAMBDA(int iK, int iAt, int i) {
+        double arg = 0.0;
+        for (int j = 0; j < 3; j++) {
+          arg += cartesianCoordinates(iK, j) * atomicPositions(iAt, j);
+        }
+        wallacePhases_d(iK, iAt*3+i) = exp(-complexI * arg);
+      });
   Kokkos::fence();
 
   // multiply matrix by phase
@@ -37,11 +50,13 @@ StridedComplexView3D PhononH0::kokkosBatchedBuildBlochHamiltonian(
       KOKKOS_LAMBDA(int iK, int m, int n) {
         Kokkos::complex<double> tmp(0.0);
         for (int iR = 0; iR < numBravaisVectors; iR++) {
-          tmp += phases_d(iK, iR) * mat2R_d(m, n, iR);
+          tmp += phases_d(iK, iR) * mat2R_d(m, n, iR)
+            * Kokkos::conj(wallacePhases_d(iK, n)) * wallacePhases_d(iK, m);
         }
         dynamicalMatrices(iK, m, n) = tmp;
       });
   Kokkos::realloc(phases_d, 0, 0);
+  Kokkos::realloc(wallacePhases_d, 0, 0);
 
   if (hasDielectric) {
     auto longRangeCorrection1_d = this->longRangeCorrection1_d;
@@ -443,8 +458,8 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
 
         // copy resultEigenvectors to return at the end
         for (int n=0; n<numBands; ++n) {
-          resultEigenvectors(iK, m, n) = phases(iK, m) * X(m, n);
-          // resultEigenvectors(iK, m, n) = X(m, n);
+          // resultEigenvectors(iK, m, n) = phases(iK, m) * X(m, n);
+          resultEigenvectors(iK, m, n) = X(m, n);
         }
       });
 
@@ -495,11 +510,11 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
 
           Kokkos::complex<double> x(0.,0.);
           for (int l=0; l<numBands; ++l) {
-            // x += XPlus(m,l) * EPlus(l) * Kokkos::conj(XPlus(n,l))
-            //     - XMins(m,l) * EMins(l) * Kokkos::conj(XMins(n,l));
+            x += XPlus(m,l) * EPlus(l) * Kokkos::conj(XPlus(n,l))
+                - XMins(m,l) * EMins(l) * Kokkos::conj(XMins(n,l));
             // TODO check that these dimensions are right for band indices 
-            x += phasesPlus(iK,m) * XPlus(m,l) * EPlus(l) * Kokkos::conj(phasesPlus(iK,n) * XPlus(n,l))
-                -  phasesMinus(iK,m) * XMins(m,l) * EMins(l) * Kokkos::conj(phasesMinus(iK,n) * XMins(n,l));
+            // x += phasesPlus(iK,m) * XPlus(m,l) * EPlus(l) * Kokkos::conj(phasesPlus(iK,n) * XPlus(n,l))
+            //     -  phasesMinus(iK,m) * XMins(m,l) * EMins(l) * Kokkos::conj(phasesMinus(iK,n) * XMins(n,l));
           }
           der(iK, m, n) = x/(2*delta);
         });

@@ -92,11 +92,11 @@ TEST(ABS, Symmetries) {
   for (int ik : abs.irrPointsIterator()) {
     auto ikIdx = WavevectorIndex(ik);
     auto ens = abs.getEnergies(ikIdx);
-//    if (ik == 0) {
-//      EXPECT_EQ(ens.size(), 4);
-//    } else if (ik == 2) {
-//      EXPECT_EQ(ens.size(), 6);
-//    }
+  //  if (ik == 0) {
+  //    EXPECT_EQ(ens.size(), 4);
+  //  } else if (ik == 2) {
+  //    EXPECT_EQ(ens.size(), 6);
+  //  }
 
     auto qIrr = abs.getWavevector(ikIdx);
 

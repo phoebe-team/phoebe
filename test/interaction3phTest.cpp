@@ -274,7 +274,7 @@ TEST(Interaction3Ph, Coupling3Ph210) {
   }
 
   double relativeErrorP = abs((x1 - x3) / x1);
-  double relativeErrorM = abs((x1 - x3) / x1);
+  double relativeErrorM = abs((x2 - x3) / x2);
 
   ASSERT_NEAR(relativeErrorP, 0., 1.0e-3);
   ASSERT_NEAR(relativeErrorM, 0., 1.0e-3);

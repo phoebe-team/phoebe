@@ -553,6 +553,13 @@ void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
     phases[iR] = exp(-complexI * arg); // {cos(arg), -sin(arg)};
   }
 
+  std::vector<std::complex<double>> wallacePhases(numAtoms);
+  for (int iAt = 0; iAt < numAtoms; iAt++) {
+    Eigen::Vector3d r = atomicPositions.row(iAt);
+    double arg = q.dot(r);
+    wallacePhases[iAt] = exp(-complexI * arg); // {cos(arg), -sin(arg)};
+  }
+
   // this is only for medium range force constants
   Eigen::Tensor<double, 4> fq(3,3,numAtoms,numAtoms);
   fq.setZero();
@@ -566,7 +573,8 @@ void PhononH0::shortRangeTerm(Eigen::Tensor<std::complex<double>, 4> &dyn,
         for (int j : {0, 1, 2}) {
           for (int i : {0, 1, 2}) {
             dyn(i, j, na, nb) +=
-                (mat2R(i, j, na, nb, iR) + fq(i,j,na,nb)) * phases[iR] * weights(iR);
+                (mat2R(i, j, na, nb, iR) + fq(i,j,na,nb)) * phases[iR] * weights(iR)
+                  * std::conj(wallacePhases[nb]) * wallacePhases[na];
           }
         }
       }
@@ -707,9 +715,12 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
 
     for(int i = 0; i < numBands; i++){
       for(int j = 0; j < numBands; j++){
-        eigenvectors_bar(i,j) = matrix_U(i) * eigenvectors(i,j);
-        eigenvectors_bar_plus(i,j) = matrix_U_plus(i) * eigPlus(i,j);
-        eigenvectors_bar_minus(i,j) = matrix_U_minus(i) * eigMinus(i,j);
+        // eigenvectors_bar(i,j) = matrix_U(i) * eigenvectors(i,j);
+        // eigenvectors_bar_plus(i,j) = matrix_U_plus(i) * eigPlus(i,j);
+        // eigenvectors_bar_minus(i,j) = matrix_U_minus(i) * eigMinus(i,j);
+        eigenvectors_bar(i,j) = eigenvectors(i,j);
+        eigenvectors_bar_plus(i,j) = eigPlus(i,j);
+        eigenvectors_bar_minus(i,j) = eigMinus(i,j);
       }
     }
 
@@ -735,7 +746,8 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
     // option below can probably be decommented, this will enforce hermiticity numerically,
     // results should be equivalent within numerical noise
     //der = 0.5 * (der + der.adjoint());
-    der = eigenvectors_bar.adjoint() * der * eigenvectors_bar;
+    // der = eigenvectors_bar.adjoint() * der * eigenvectors_bar;
+    der = eigenvectors.adjoint() * der * eigenvectors;
 
     // copy to output
     for (int ib2 = 0; ib2 < numBands; ib2++) {

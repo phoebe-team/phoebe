@@ -409,8 +409,8 @@ FullBandStructure PhononH0::populate(Points &points,
                                      const bool &withVelocities,
                                      const bool &withEigenvectors,
                                      const bool isDistributed) {
-  return cpuPopulate(points, withVelocities, withEigenvectors, isDistributed);
-  //return kokkosPopulate(points, withVelocities, withEigenvectors, isDistributed);
+  //return cpuPopulate(points, withVelocities, withEigenvectors, isDistributed);
+  return kokkosPopulate(points, withVelocities, withEigenvectors, isDistributed);
 }
 
 FullBandStructure PhononH0::cpuPopulate(Points &points, const bool &withVelocities,

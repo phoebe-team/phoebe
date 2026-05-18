@@ -744,6 +744,7 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
       }
     }
   }
+
   Kokkos::Profiling::popRegion(); // diagonalizeVelocityFromCoordinates
   return velocity;
 }

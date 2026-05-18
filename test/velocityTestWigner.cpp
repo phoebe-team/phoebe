@@ -17,7 +17,7 @@ using json = nlohmann::json;
  */
 TEST (PhononH0, VelocityOperator) {
   // read the JSON reference file
-  std::ifstream f("./data/silicon_velocity_operator_reference.json");
+  std::ifstream f("../test/data/silicon_velocity_operator_reference.json");
   json data = json::parse(f);
   std::vector<double> qPointJson = data["qPoint"];
   std::vector<double> energiesJson = data["energies"];
@@ -26,8 +26,8 @@ TEST (PhononH0, VelocityOperator) {
   std::vector<std::vector<double>> sqmod_vop_z_json = data["|v_z|^2"];
 
   Context context;
-  context.setPhFC2FileName("./data/phono3py/fc2.hdf5");
-  context.setPhonopyDispFileName("./data/phono3py/phono3py_disp.yaml");
+  context.setPhFC2FileName("../test/data/phono3py/fc2.hdf5");
+  context.setPhonopyDispFileName("../test/data/phono3py/phono3py_disp.yaml");
 
   auto [crystal,phononH0] = PhonopyParser::parsePhHarmonic(context);
 

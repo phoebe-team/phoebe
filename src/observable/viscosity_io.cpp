@@ -524,7 +524,7 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     for (int ik : bandStructure->parallelIrrPointsIterator()) {
       WavevectorIndex ikIdx(ik);
       Eigen::Vector3d k = bandStructure->getWavevector(ikIdx);
-      wavevectors(ik,Eigen::placeholders::all) = bandStructure->getPoints().cartesianToCrystal(k);
+      wavevectors(ik,Eigen::indexing::all) = bandStructure->getPoints().cartesianToCrystal(k);
     }
     mpi->allReduceSum(&wavevectors);
 

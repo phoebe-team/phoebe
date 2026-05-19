@@ -113,9 +113,9 @@ void PhononViscosity::calcFromRelaxons(Eigen::VectorXd &eigenvalues,
   // drift eigenvector overlaps ----------
   // for now, we don't save these drift eigenvector indices
   {
-    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::placeholders::all), "phi_x");
-    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::placeholders::all), "phi_y");
-    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::placeholders::all), "phi_z");
+    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::indexing::all), "phi_x");
+    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::indexing::all), "phi_y");
+    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::indexing::all), "phi_z");
   }
 
   // Code by Andrea, annotation by Jenny

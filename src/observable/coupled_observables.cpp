@@ -93,25 +93,25 @@ void CoupledCoefficients::calcFromRelaxons(
   // drift eigenvector overlaps ----------
   // for now, we don't save these drift eigenvector indices
   {
-    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::placeholders::all), "phi_x");
-    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::placeholders::all), "phi_y");
-    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::placeholders::all), "phi_z");
+    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::indexing::all), "phi_x");
+    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::indexing::all), "phi_y");
+    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::indexing::all), "phi_z");
     if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
 
     // phonon only phi overlap
     Eigen::MatrixXd phi_ph_only(dimensionality, numRelaxons); phi_ph_only.setZero();
-    phi_ph_only(Eigen::placeholders::all, Eigen::seq(numElStates, Eigen::placeholders::last)) = phi(Eigen::placeholders::all, Eigen::seq(numElStates, Eigen::placeholders::last));
-    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(0, Eigen::placeholders::all), "phi_x_ph");
-    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(1, Eigen::placeholders::all), "phi_y_ph");
-    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(2, Eigen::placeholders::all), "phi_z_ph");
+    phi_ph_only(Eigen::indexing::all, Eigen::seq(numElStates, Eigen::indexing::last)) = phi(Eigen::indexing::all, Eigen::seq(numElStates, Eigen::indexing::last));
+    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(0, Eigen::indexing::all), "phi_x_ph");
+    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(1, Eigen::indexing::all), "phi_y_ph");
+    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(2, Eigen::indexing::all), "phi_z_ph");
     if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
 
     // electron only phi overlap
     Eigen::MatrixXd phi_el_only(dimensionality, numRelaxons); phi_el_only.setZero();
-    phi_el_only(Eigen::placeholders::all, Eigen::seq(0, numElStates-1)) = phi(Eigen::placeholders::all, Eigen::seq(0, numElStates-1));
-    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(0, Eigen::placeholders::all), "phi_x_el");
-    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(1, Eigen::placeholders::all), "phi_y_el");
-    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(2, Eigen::placeholders::all), "phi_z_el");
+    phi_el_only(Eigen::indexing::all, Eigen::seq(0, numElStates-1)) = phi(Eigen::indexing::all, Eigen::seq(0, numElStates-1));
+    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(0, Eigen::indexing::all), "phi_x_el");
+    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(1, Eigen::indexing::all), "phi_y_el");
+    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(2, Eigen::indexing::all), "phi_z_el");
     if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
   }
   // calculate the V components

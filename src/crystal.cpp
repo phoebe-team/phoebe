@@ -120,7 +120,7 @@ Crystal::Crystal(Context &context, Eigen::Matrix3d &directUnitCell_,
   }
   // call the function to set up crystal symmetries
   generateSymmetryInformation(context);
-  if (mpi->mpiHead()) {  // we only really want to print this on construction 
+  if (mpi->mpiHead()) {  // we only really want to print this on construction
     std::cout << "Found " << numSymmetries << " symmetries\n";
   }
 }
@@ -242,8 +242,8 @@ Crystal::Crystal(const Crystal &obj) {
   speciesMasses = obj.speciesMasses;
   symmetryOperations = obj.symmetryOperations;
   numSymmetries = obj.numSymmetries;
-  bornCharges = obj.bornCharges; 
-  dielectricMatrix = obj.dielectricMatrix; 
+  bornCharges = obj.bornCharges;
+  dielectricMatrix = obj.dielectricMatrix;
 }
 
 // assignment operator
@@ -265,8 +265,8 @@ Crystal &Crystal::operator=(const Crystal &obj) {
     speciesMasses = obj.speciesMasses;
     symmetryOperations = obj.symmetryOperations;
     numSymmetries = obj.numSymmetries;
-    bornCharges = obj.bornCharges; 
-    dielectricMatrix = obj.dielectricMatrix; 
+    bornCharges = obj.bornCharges;
+    dielectricMatrix = obj.dielectricMatrix;
   }
   return *this;
 }
@@ -431,9 +431,12 @@ Crystal::buildWignerSeitzVectors(const Eigen::Vector3i &grid,
   Eigen::MatrixXd positionVectors(3, numPositionVectors);
   int originIndex = -1; // to look for R=0 vector
   for (int iR = 0; iR < numPositionVectors; iR++) {
-    auto thisVec = tmpVectors[iR];
+    Eigen::Vector3d thisVec = tmpVectors[iR];
     // we convert from crystal to cartesian coordinates
-    positionVectors.col(iR) = directUnitCell * thisVec;
+    auto pv = directUnitCell * thisVec;
+    for (auto i: {0,1,2}) {
+      positionVectors(i,iR) = pv(i);
+    }
     positionDegeneracies(iR) = tmpDegeneracies[iR];
     //
     if (thisVec.norm() < 1.0e-6) {
@@ -448,10 +451,13 @@ Crystal::buildWignerSeitzVectors(const Eigen::Vector3i &grid,
   double tmp2 = positionDegeneracies(0);
   positionDegeneracies(0) = tmp1;
   positionDegeneracies(originIndex) = tmp2;
-  Eigen::Vector3d tmpV1 = positionVectors.col(originIndex);
-  Eigen::Vector3d tmpV2 = positionVectors.col(0);
-  positionVectors.col(0) = tmpV1;
-  positionVectors.col(originIndex) = tmpV2;
+
+  //Eigen::Vector3d tmpV1 = positionVectors.col(originIndex);
+  //Eigen::Vector3d tmpV2 = positionVectors.col(0);
+  //positionVectors.col(0) = tmpV1;
+  //positionVectors.col(originIndex) = tmpV2;
+
+  positionVectors.col(0).swap(positionVectors.col(originIndex));
 
   return std::make_tuple(positionVectors, positionDegeneracies);
 }
@@ -614,9 +620,10 @@ Crystal::buildWignerSeitzVectorsWithShift(const Eigen::Vector3i &grid,
   // convert to cartesian coordinates
   Eigen::MatrixXd bravaisVectors(3, numVectors);
   for (int iR = 0; iR < numVectors; iR++) {
-    auto thisVec = tmpVectors[iR];
+    auto bv = directUnitCell * tmpVectors[iR];
     // we convert from crystal to cartesian coordinates
-    bravaisVectors.col(iR) = directUnitCell * thisVec;
+    for (auto i : {0,1,2})
+      bravaisVectors(i,iR) = bv(i);
   }
 
   // check that we found all vectors

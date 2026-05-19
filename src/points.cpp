@@ -33,7 +33,9 @@ void Points::setupGVectors() {
         if ((i1 <= 0) || (i2 <= 0) || (i3 <= 0)) {
           Eigen::Vector3d vec;
           vec << i1, i2, i3;
-          gVectors.col(nGVectors) = reciprocalUnitCell * vec;
+          vec = reciprocalUnitCell * vec;
+          for(auto i : {0,1,2})
+            gVectors(i,nGVectors) = vec(i);
           ++nGVectors;
         }
       }
@@ -157,7 +159,8 @@ void Points::setActiveLayer(const Eigen::VectorXi &filter) {
   for (int ikNew = 0; ikNew < numPoints; ikNew++) {
     int ik = filteredToFullIndices(ikNew);
     Eigen::Vector3d x = getPointCoordinates(ik, Points::crystalCoordinates);
-    pointsList.col(ikNew) = x;
+    for(auto i : {0,1,2})
+      pointsList(i,ikNew) = x(i);
 
     if (ik > maxIndex)
       ik = maxIndex;

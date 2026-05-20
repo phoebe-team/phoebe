@@ -8,12 +8,9 @@ TEST (PhononH0, Velocity) {
   context.setPhFC2FileName("../test/data/444_silicon.fc");
   context.setSumRuleFC2("simple");
 
-  auto tup = QEParser::parsePhHarmonic(context);
-  auto crystal = std::get<0>(tup);
-  auto phononH0 = std::get<1>(tup);
+  auto [crystal, phononH0] = QEParser::parsePhHarmonic(context);
 
   // now, let's create a fine mesh
-
   Eigen::Vector3i qMesh;
   qMesh << 40, 40, 40;
   Points points(crystal, qMesh);
@@ -21,8 +18,7 @@ TEST (PhononH0, Velocity) {
   // pick a point close to gamma and get energies/velocities
   int iq = 1;
   auto qPoint = points.getPoint(iq);
-  auto tup1 = phononH0.diagonalize(qPoint);
-  auto energies = std::get<0>(tup1);
+  auto [energies,tmp_] = phononH0.diagonalize(qPoint);
   auto v = phononH0.diagonalizeVelocity(qPoint);
 
   // take out the group velocity
@@ -38,9 +34,6 @@ TEST (PhononH0, Velocity) {
   auto v0 = groupV.col(0);
   auto v1 = groupV.col(1);
   auto v2 = groupV.col(2);
-  // std::cout << v0.transpose() * velocityRyToSi << std::endl;
-  // std::cout << v1.transpose() * velocityRyToSi << std::endl;
-  // std::cout << v2.transpose() * velocityRyToSi << std::endl;
   auto qCoordinates = qPoint.getCoordinates(Points::cartesianCoordinates);
 
   // for these three acoustic modes, check velocity is parallel to wavevector
@@ -62,7 +55,6 @@ TEST (PhononH0, Velocity) {
   // the velocity is approximately (energies/q)
 
   // third "acoustic" band goes to 3 meV instead of 0, so this test fails
-  // TODO investigate
   double err0 = abs(energies(0) - v0.dot(qCoordinates)) / energies(0);
   double err1 = abs(energies(1) - v1.dot(qCoordinates)) / energies(1);
   // double err2 = abs(energies(2) - v2.dot(qCoordinates)) / energies(2);
@@ -82,18 +74,14 @@ TEST (WannierH0, Velocity) {
   atomicPositions.row(0) << 0., 0., 0.;
   atomicPositions.row(1) << 1.34940, 1.34940, 1.34940;
   Eigen::VectorXi atomicSpecies(2);
-  atomicSpecies(0) = 0;
-  atomicSpecies(1) = 0;
-  std::vector<std::string> speciesNames;
-  speciesNames.emplace_back("Si");
+  atomicSpecies.setZero();
+  std::vector<std::string> speciesNames{"Si"};
   context.setInputAtomicPositions(atomicPositions);
   context.setInputAtomicSpecies(atomicSpecies);
   context.setInputSpeciesNames(speciesNames);
 
   // read electron hamiltonian
-  auto tup = QEParser::parseElHarmonicWannier(context);
-  auto crystal = std::get<0>(tup);
-  auto electronH0 = std::get<1>(tup);
+  auto [crystal, electronH0] = QEParser::parseElHarmonicWannier(context);
 
   // gamma point
   Eigen::Vector3d k1;
@@ -105,10 +93,8 @@ TEST (WannierH0, Velocity) {
   k2 << deltaK, 0., 0.;
   auto v2 = electronH0.diagonalizeVelocityFromCoordinates(k2);
 
-  auto tup1 = electronH0.diagonalizeFromCoordinates(k1);
-  auto ens1 = std::get<0>(tup1);
-  auto tup2 = electronH0.diagonalizeFromCoordinates(k2);
-  auto ens2 = std::get<0>(tup2);
+  auto [ens1,tmp1_] = electronH0.diagonalizeFromCoordinates(k1);
+  auto [ens2,tmp2_] = electronH0.diagonalizeFromCoordinates(k2);
 
   // we hard code the index of the top of the valence band
   int ib = 3;
@@ -137,19 +123,14 @@ TEST (WannierH0, Velocity2) {
   Eigen::MatrixXd atomicPositions(2,3);
   atomicPositions.row(0) << 0., 0., 0.;
   atomicPositions.row(1) << 1.34940, 1.34940, 1.34940;
-  Eigen::VectorXi atomicSpecies(2);
-  atomicSpecies(0) = 0;
-  atomicSpecies(1) = 0;
-  std::vector<std::string> speciesNames;
-  speciesNames.emplace_back("Si");
+  Eigen::VectorXi atomicSpecies = Eigen::VectorXi::Zero(2);
+  std::vector<std::string> speciesNames{"Si"};
   context.setInputAtomicPositions(atomicPositions);
   context.setInputAtomicSpecies(atomicSpecies);
   context.setInputSpeciesNames(speciesNames);
 
   // read electron hamiltonian
-  auto tup = QEParser::parseElHarmonicWannier(context);
-  auto crystal = std::get<0>(tup);
-  auto electronH0 = std::get<1>(tup);
+  auto [crystal, electronH0] = QEParser::parseElHarmonicWannier(context);
 
   // pick a k-point
   Eigen::Vector3d k1;
@@ -166,16 +147,13 @@ TEST (WannierH0, Velocity2) {
     k1PlusDelta = k1;
     k1PlusDelta(iCart) += deltaK;
 
-    auto tup1 = electronH0.diagonalizeFromCoordinates(k1);
-    auto ens1 = std::get<0>(tup1);
-    auto tup2 = electronH0.diagonalizeFromCoordinates(k1PlusDelta);
-    auto ens2 = std::get<0>(tup2);
+    auto [ens1,tmp1_] = electronH0.diagonalizeFromCoordinates(k1);
+    auto [ens2,tmp2_] = electronH0.diagonalizeFromCoordinates(k1PlusDelta);
 
     // we hard code the index of the top of the valence band
     int ib = 0;
 
     double x = (ens2(ib) - ens1(ib)) / deltaK;
-
     double error = ( x - v1(ib, ib, iCart).real() ) / v1(ib, ib, iCart).real();
 
     ASSERT_NEAR(error, 0., 0.001);

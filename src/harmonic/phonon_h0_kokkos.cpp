@@ -355,10 +355,8 @@ FullBandStructure PhononH0::kokkosPopulate(Points &fullPoints,
       Kokkos::realloc(allVelocities_d, 0, 0, 0, 0);
     }
   }
-
   return fullBandStructure;
 }
-
 
 /**
  * Create and diagonalize Hamiltonians for a batch of k-points, with velocities
@@ -376,8 +374,9 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
   // here, we need to compute the derivative of sqrt(DynamicalMatrix)
   // while for electrons we derive the BlochHamiltonian directly
 
-  int numK = cartesianCoordinates.extent(0);
+  auto atomicPositions_d = this->atomicPositions_d;
 
+  int numK = cartesianCoordinates.extent(0);
   double delta = 1.0e-8;
   Kokkos::complex<double> complexI(0.0, 1.0);
 
@@ -405,10 +404,7 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
       });
 
   // compute the electronic properties at all wavevectors
-  auto t = kokkosBatchedDiagonalizeFromCoordinates(allVectors, false);
-  DoubleView2D allEnergies = std::get<0>(t);
-  StridedComplexView3D allEigenvectors = std::get<1>(t);
-
+  auto [allEnergies, allEigenvectors] = kokkosBatchedDiagonalizeFromCoordinates(allVectors, false);
   int numBands = allEnergies.extent(1);
 
   Kokkos::LayoutStride eigenvectorLayout(
@@ -420,22 +416,22 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
   ComplexView4D resultVelocities("velocities", numK, numBands, numBands, 3);
   ComplexView2D phases("wallacePhases", numK, numBands);
 
-  // copy slice of eigenvectors, energies into views 
+  // copy slice of eigenvectors, energies into views
   Kokkos::parallel_for(
       "phase", Range3D({0, 0, 0}, {numK, numAtoms, 3}), KOKKOS_LAMBDA(int iK, int iat, int i) {
-        // prepare the Wallace phase 
-          int m = i + iat * 3;  // generate the band index 
-          auto R = atomicPositions.row(iat); // TODO need atomic positions as a view... 
+        // prepare the Wallace phase
+          int m = i + iat * 3;  // generate the band index
 
           // i for each kx, ky, kz +/-, j = x,y,z
           double arg = 0.0;
           for(int j = 0; j < 3; ++j) {
-            arg += R(j) * cartesianCoordinates(iK, j); 
+            arg += atomicPositions_d(iat,j) * cartesianCoordinates(iK, j);
           }
           phases(iK,m) = exp( -complexI * arg );
         });
-  // apply phases -- here we use the results eigenvectors container 
-  // to hold phase * U(k), to be replaced with standard ones before return 
+
+  // apply phases -- here we use the results eigenvectors container
+  // to hold phase * U(k), to be replaced with standard ones before return
   Kokkos::parallel_for(
       "der", Range2D({0, 0}, {numK, numBands}), KOKKOS_LAMBDA(int iK, int m) {
 
@@ -444,7 +440,6 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
         // copy resultEigenvectors to return at the end
         for (int n=0; n<numBands; ++n) {
           resultEigenvectors(iK, m, n) = phases(iK, m) * X(m, n);
-          // resultEigenvectors(iK, m, n) = X(m, n);
         }
       });
 
@@ -454,27 +449,26 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
   ComplexView3D der("der", numK, numBands, numBands);
   ComplexView3D tmpV("tmpV", numK, numBands, numBands);
 
-  // kx, ky, kz directions 
+  // kx, ky, kz directions
   for (int i = 0; i < 3; ++i) {
 
-    // TODO will these go out of scope? 
+    // TODO will these go out of scope?
     ComplexView2D phasesPlus("wallacePhasesPlus", numK, numBands);
     ComplexView2D phasesMinus("wallacePhasesMinus", numK, numBands);
 
-    // precalc +/- phases 
+    // precalc +/- phases
     Kokkos::parallel_for(
         "phasePlusMinus", Range3D({0, 0, 0}, {numK, numAtoms, 3}), KOKKOS_LAMBDA(int iK, int iat, int i) {
-          // prepare the Wallace phase 
+          // prepare the Wallace phase
 
-          int m = i + iat * 3;  // generate the band index 
-          auto R = atomicPositions.row(iat); // TODO need atomic positions as a view... 
+          int m = i + iat * 3;  // generate the band index
 
           // i for each kx, ky, kz +/-, j = x,y,z
           double argPlus = 0.0;
           double argMinus = 0.0;
           for(int j = 0; j < 3; ++j) {
-            argPlus += R(j) * allVectors(iK * 7 + i * 2 + 1, j); 
-            argMinus += R(j) * allVectors(iK * 7 + i * 2 + 2, j); 
+            argPlus += atomicPositions_d(iat,j) * allVectors(iK * 7 + i * 2 + 1, j);
+            argMinus += atomicPositions_d(iat,j) * allVectors(iK * 7 + i * 2 + 2, j);
           }
           phasesPlus(iK,m) = exp( -complexI * argPlus );
           phasesMinus(iK,m) = exp( -complexI * argMinus );
@@ -497,7 +491,7 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
           for (int l=0; l<numBands; ++l) {
             // x += XPlus(m,l) * EPlus(l) * Kokkos::conj(XPlus(n,l))
             //     - XMins(m,l) * EMins(l) * Kokkos::conj(XMins(n,l));
-            // TODO check that these dimensions are right for band indices 
+            // TODO check that these dimensions are right for band indices
             x += phasesPlus(iK,m) * XPlus(m,l) * EPlus(l) * Kokkos::conj(phasesPlus(iK,n) * XPlus(n,l))
                 -  phasesMinus(iK,m) * XMins(m,l) * EMins(l) * Kokkos::conj(phasesMinus(iK,n) * XMins(n,l));
           }
@@ -520,7 +514,7 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
           auto tempV = Kokkos::subview(tmpV, iK, Kokkos::ALL, Kokkos::ALL);
           Kokkos::complex<double> tmp(0.,0.);
           for (int l = 0; l < numBands; ++l) {
-            // average (der^* + der / 2) to enforce Hermiticity 
+            // average (der^* + der / 2) to enforce Hermiticity
             //tmp += Kokkos::conj(L(l,m)) * 0.5 * (R(l, n) + Kokkos::conj(R(n, l)));
             tmp += Kokkos::conj(U(l,m)) * dER(l, n);
           }
@@ -551,7 +545,7 @@ PhononH0::kokkosBatchedDiagonalizeWithVelocities(
   Kokkos::resize(der, 0, 0, 0);
   Kokkos::resize(tmpV, 0, 0, 0);
 
-   // copy resultEigenvectors and energies to return 
+   // copy resultEigenvectors and energies to return
   DoubleView2D resultEnergies("energies", numK, numBands);
   Kokkos::parallel_for(
       "copyEigenvectors", Range2D({0, 0}, {numK, numBands}), KOKKOS_LAMBDA(int iK, int m) {

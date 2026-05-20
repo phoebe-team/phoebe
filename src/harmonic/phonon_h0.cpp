@@ -169,11 +169,13 @@ PhononH0::PhononH0(Crystal &crystal,
     Kokkos::resize(bravaisVectors_d, numBravaisVectors, 3);
     Kokkos::resize(weights_d, numBravaisVectors);
     Kokkos::resize(mat2R_d, numBands, numBands, numBravaisVectors);
+    Kokkos::resize(atomicPositions_d, numAtoms, 3);
 
     auto atomicMasses_h = create_mirror_view(atomicMasses_d);
     auto bravaisVectors_h = create_mirror_view(bravaisVectors_d);
     auto weights_h = create_mirror_view(weights_d);
     auto mat2R_h = create_mirror_view(mat2R_d);
+    auto atomicPositions_h = create_mirror_view(atomicPositions_d);
 
     for (int iR = 0; iR < numBravaisVectors; iR++) {
       for (int i = 0; i < 3; i++) {
@@ -198,23 +200,27 @@ PhononH0::PhononH0(Crystal &crystal,
         bravaisVectors_h(iR, i) = bravaisVectors(i, iR);
       }
     }
+    for (int iAt=0; iAt<numAtoms; ++iAt) {
+      for (int i = 0; i < 3; i++) {
+        atomicPositions_h(iAt, i) = atomicPositions(iAt, i);
+      }
+    }
 
     Kokkos::deep_copy(atomicMasses_d, atomicMasses_h);
     Kokkos::deep_copy(bravaisVectors_d, bravaisVectors_h);
     Kokkos::deep_copy(weights_d, weights_h);
     Kokkos::deep_copy(mat2R_d, mat2R_h);
+    Kokkos::deep_copy(atomicPositions_d, atomicPositions_h);
 
     if (hasDielectric) {
       Kokkos::resize(longRangeCorrection1_d, 3, 3, numAtoms);
       Kokkos::resize(gVectors_d, numG, 3);
       Kokkos::resize(dielectricMatrix_d, 3, 3);
       Kokkos::resize(bornCharges_d, 3, 3, numAtoms);
-      Kokkos::resize(atomicPositions_d, numAtoms, 3);
       auto longRangeCorrection1_h = create_mirror_view(longRangeCorrection1_d);
       auto gVectors_h = create_mirror_view(gVectors_d);
       auto dielectricMatrix_h = create_mirror_view(dielectricMatrix_d);
       auto bornCharges_h = create_mirror_view(bornCharges_d);
-      auto atomicPositions_h = create_mirror_view(atomicPositions_d);
       for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
           dielectricMatrix_h(i, j) = dielectricMatrix(i, j);
@@ -233,16 +239,10 @@ PhononH0::PhononH0(Crystal &crystal,
           gVectors_h(iG,i) = gVectors(i,iG);
         }
       }
-      for (int iAt=0; iAt<numAtoms; ++iAt) {
-        for (int i = 0; i < 3; i++) {
-          atomicPositions_h(iAt, i) = atomicPositions(iAt, i);
-        }
-      }
       Kokkos::deep_copy(longRangeCorrection1_d, longRangeCorrection1_h);
       Kokkos::deep_copy(gVectors_d, gVectors_h);
       Kokkos::deep_copy(dielectricMatrix_d, dielectricMatrix_h);
       Kokkos::deep_copy(bornCharges_d, bornCharges_h);
-      Kokkos::deep_copy(atomicPositions_d, atomicPositions_h);
     }
     double mem = getDeviceMemoryUsage();
     kokkosDeviceMemory->addDeviceMemoryUsage(mem);
@@ -639,7 +639,7 @@ PhononH0::diagonalizeVelocity(Point &point) {
   return diagonalizeVelocityFromCoordinates(coordinates);
 }
 
-// TODO I think it would be easier to 
+// TODO I think it would be easier to
 // apply these phases to the dynmat during the transform
 Eigen::Tensor<std::complex<double>, 3>
 PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
@@ -674,7 +674,7 @@ PhononH0::diagonalizeVelocityFromCoordinates(Eigen::Vector3d &coordinates) {
   // value of the derivative of the dynamical matrix.
   // This works better than doing finite differences on the frequencies.
   double deltaQ = 1.0e-8;
-  // kx, ky, kz directions 
+  // kx, ky, kz directions
   for (int i : {0, 1, 2}) {
 
     // define q+ and q- from finite differences.

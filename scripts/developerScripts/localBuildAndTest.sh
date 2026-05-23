@@ -2,7 +2,8 @@
 # phoebe directory
 
 # change the items below this line ===============
-
+export OMP_PROC_BIND=spread
+export OMP_PLACES=threads
 export OMP_ON="ON"
 export MPI_ON="ON"
 
@@ -69,16 +70,16 @@ fi
 if ${RUN}
 then
 
-  cd phoebe
+  cd ${PHOEBE_DIR}
 
   echo "Run epa example"
   cd example/Silicon-epa
   rm elpaTest.out
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in qeToPhoebeEPA.in >> elpaTest.out
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in epaTransport.in >> elpaTest.out
-i  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierBands.in >> elpaTest.out
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierBands.in >> elpaTest.out
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierDos.in >> elpaTest.out
-  python3 reference/run_check.py
+  python reference/run_check.py
   cd ../../
 
   echo "Run el example"
@@ -94,7 +95,7 @@ i  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierBands.in >> elpaTe
   cd sym_transport
   ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in electronWannierTransport.in >> elTest.out
   cd ../
-  python3 reference/run_check.py
+  python reference/run_check.py
 
   # if we have mpi also check these with pools
   if [ "$MPI_ON" == "ON" ]
@@ -103,7 +104,7 @@ i  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierBands.in >> elpaTe
     cd path_lifetimes
     ${mpiCommand} ../../../${BUILD_DIR}/phoebe -ps 2 -in electronLifetimes.in >> elTest.out
     cd ../
-    python3 reference/run_check.py
+    python reference/run_check.py
   fi
   cd ../../
 
@@ -119,13 +120,13 @@ i  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierBands.in >> elpaTe
   cd sym_transport
   ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in phononTransport.in >> phTest.out
   cd ../
-  python3 reference/run_check.py
+  python reference/run_check.py
   cd ../../
 
   # run rta kappa with phph and phel ------------------
   cd example/Silicon-ph/kappa_phph-phel/
   ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in phononTransport.in >> phTest.out
-  python3 reference/run_check.py
+  python reference/run_check.py
   cd ../../../
 
   echo "Run el example"
@@ -141,7 +142,7 @@ i  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierBands.in >> elpaTe
   cd sym_transport
   ${mpiCommand} ../../../${BUILD_DIR}/phoebe -in electronWannierTransport.in >> elTest.out
   cd ../
-  python3 reference/run_check.py
+  python reference/run_check.py
 
   # if we have mpi also check these with pools
   if [ "$MPI_ON" == "ON" ]
@@ -150,14 +151,14 @@ i  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierBands.in >> elpaTe
     cd path_lifetimes
     ${mpiCommand} ../../../${BUILD_DIR}/phoebe -ps 2 -in electronLifetimes.in >> elTest.out
     cd ../
-    python3 reference/run_check.py
+    python reference/run_check.py
   fi
   cd ../../
 
   echo "Run coupled BTE example"
   cd example/Silicon-coupled
   ${mpiCommand} ../../${BUILD_DIR}/phoebe -in coupledTransport.in >> coupledTest.out
-  python3 reference/run_check.py
+  python reference/run_check.py
   cd ../../
 
   echo "Run an example with JDFTx"
@@ -165,8 +166,8 @@ i  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronFourierBands.in >> elpaTe
   # create the Phoebe hdf5 file from jdftx inputs
   python ../../../scripts/developerScripts/jdftx2Phoebe.py
   cd ../
-  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierTransport.in #>> jdftxTest.out
-  python3 reference/run_check.py
+  ${mpiCommand} ../../${BUILD_DIR}/phoebe -in electronWannierTransport.in >> jdftxTest.out
+  python reference/run_check.py
   cd ../../
 
   cd ../

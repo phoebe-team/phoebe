@@ -1,4 +1,4 @@
-./**/reference/**/*.json linguist-generated=true
-./**/*.hdf5 linguist-generated=true
-./**/*.dat linguist-generated=true
-./**/*.yaml linguist-generated=true
+example/**/reference/*.json linguist-generated=true
+**/*.hdf5 linguist-generated=true
+**/*.dat linguist-generated=true
+**/*.yaml linguist-generated=true

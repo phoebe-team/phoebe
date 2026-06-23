@@ -4,23 +4,23 @@
 #include "relaxons.h"
 #include <nlohmann/json.hpp>
 
-TransportCoefficients::TransportCoefficients(Context &context, StatisticsSweep &statisticsSweep, Crystal& crystal, BaseBandStructure &bandStructure) 
+TransportCoefficients::TransportCoefficients(Context &context, StatisticsSweep &statisticsSweep, Crystal& crystal, BaseBandStructure &bandStructure)
     : context(context), statisticsSweep(statisticsSweep), crystal(crystal), bandStructure(bandStructure), particle(bandStructure.getParticle()) {
 
   // TODO : change this to use the context getSpinDegeneracyFactor
-  if (context.getHasSpinOrbit() || particle.isPhonon()) { 
+  if (context.getHasSpinOrbit() || particle.isPhonon()) {
     spinFactor = 1.;
-  } else {  
-    spinFactor = 2.; 
+  } else {
+    spinFactor = 2.;
   }
 
   // matrix had to be in memory for this calculation.
   // therefore, we can only ever have one numCalc
   numCalculations = statisticsSweep.getNumCalculations();
   dimensionality = crystal.getDimensionality();
-  
-  specificHeat.resize(numCalculations); 
-  
+
+  specificHeat.resize(numCalculations);
+
   // set up and zero all the containers for transport coefficients
   for (auto coeff : {&sigma, &seebeck, &kappa, &mobility}) {
     coeff->resize(numCalculations, dimensionality, dimensionality);
@@ -34,7 +34,7 @@ TransportCoefficients::TransportCoefficients(Context &context, StatisticsSweep &
 
 // standard print
 void TransportCoefficients::print() {
-  
+
   // print viscosities
   std::string viscosityName = (particle.isPhonon()) ? "Phonon" : "Electron" ;
   printViscosity(viscosityName, viscosity, statisticsSweep, dimensionality);
@@ -46,33 +46,33 @@ void TransportCoefficients::print() {
 void TransportCoefficients::outputToJSON() {
 
   if (!mpi->mpiHead()) return;
-  
-  // output the viscosity 
+
+  // output the viscosity
   bool append = false; // it's a new file to write to
   std::string viscosityName = (particle.isPhonon()) ? "phononViscosity" : "electronViscosity" ;
   std::string outFileName = (particle.isPhonon()) ? "relaxons_ph_viscosity.json" : "relaxons_el_viscosity.json";
   outputViscosityToJSON(outFileName, viscosityName, viscosity, append, statisticsSweep, dimensionality);
 
-  // output the conductivities 
+  // output the conductivities
   if(particle.isPhonon()) {
     outputPhononThermalCondToJSON("relaxons_phonon_thermal_cond.json", statisticsSweep, dimensionality, kappa);
-  } else { 
+  } else {
     outputElectronicCoeffsToJSON("relaxons_onsager_coefficients.json", statisticsSweep, dimensionality, kappa, sigma, mobility, seebeck);
   }
-                
+
 }
 
 // calculate special eigenvectors, output real space quantities
 void TransportCoefficients::prepareRelaxons(ScatteringMatrix& scatteringMatrix) {
-  
+
   if(statisticsSweep.getNumCalculations() != 1) DeveloperError("prepareRelaxons must be called with 1 calc.");
-  
+
   // we need a dummy variable for theta_e, as it doesn't matter for phonons
   //Eigen::VectorXd theta_e(bandStructure.getNumStates());
   genericCalcSpecialEigenvectors(context, bandStructure, statisticsSweep,
                           spinFactor, theta0, theta_e, phi, specificHeat(0), U, A);
-                          
-  // output the real space information 
+
+  // output the real space information
   genericOutputRealSpaceToJSON(context, scatteringMatrix, bandStructure, statisticsSweep,
                                 theta0, theta_e, phi, specificHeat(0), A);
 }
@@ -84,26 +84,26 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   // needed before this function to calculate phi, and then to use phi with D
 
   // TODO add OMP and MPI parallelism here
-  
+
   if(!context.getEnforceDetailedBalance()) {
     Warning("Viscosity calculated without the enforcing detailed balance condition of the scattering matrix"
       "\ncan have major issues -- if the charge and energy eigenvectors are not well found (better than 75% overlap),"
       " they may make a large, spurious contribution to viscosity!");
-  }        
+  }
   if (numCalculations > 1) {
     DeveloperError("Relaxons electron viscosity cannot be calculated for more than one T or mu value.");
   }
-  
+
   //int numStates = bandStructure.getNumStates();
   numRelaxons = (context.getNumRelaxonsEigenvalues() > 0) ? context.getNumRelaxonsEigenvalues() : eigenvectors.rows();
   Particle particle = bandStructure.getParticle();
   int iCalc = 0; // zero index, because we only run one for relaxons
   auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
   double T = calcStat.temperature / kBoltzmannRy;
-  
-  std::vector<BaseBandStructure*> bs = {&bandStructure}; 
+
+  std::vector<BaseBandStructure*> bs = {&bandStructure};
   outputRelaxonsToHDF5(eigenvectors, eigenvalues, bs, theta0, theta_e, phi);
-  
+
   // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
   if(mpi->mpiHead()) std::cout << "Checking scalar products of scattering matrix eigenvectors with special eigenvectors: -------------" << std::endl;
@@ -114,13 +114,13 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   // drift eigenvector overlaps ----------
   // for now, we don't save these drift eigenvector indices
   {
-    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::all), "phi_x");
-    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::all), "phi_y");
-    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
+    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::placeholders::all), "phi_x");
+    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::placeholders::all), "phi_y");
+    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::placeholders::all), "phi_z");
   }
-  
+
   // calculate the V components
-  // ----------------------------------------------------------- 
+  // -----------------------------------------------------------
   Eigen::MatrixXd Ve(numRelaxons, 3), V0(numRelaxons, 3);
   V0.setZero();
   Ve.setZero();
@@ -132,17 +132,17 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
 
     if (gamma >= numRelaxons)
       continue; // this relaxon wasn't calculated
-    
+
     // negative eigenvalues are spurious, zero ones are not summed here
     // if(eigenvalues(gamma) <= 0) continue; // count them here but not later
-    
+
     StateIndex isIdx = StateIndex(is);
     Eigen::Vector3d v = bandStructure.getGroupVelocity(isIdx);
     // don't sum over acoustic phonons
     if (particle.isPhonon() && bandStructure.getEnergy(isIdx) < phEnergyCutoff) {
       continue;
     }
-    
+
     // set tau, avoiding div by zero issues
     //double tau = abs(1. / eigenvalues(gamma));
     if (eigenvalues(gamma) < 1e-10) continue;
@@ -164,14 +164,14 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   mpi->allReduceSum(&V0);
   mpi->allReduceSum(&Ve);
   mpi->allReduceSum(&Vphi);
-  
+
   // TODO Output velocities to file -------------------------------------------------
 
   // local copies for linear algebra ops with eigen
   Eigen::Matrix3d sigmaLocal, sigmaS;
-  sigmaLocal.setZero(); 
+  sigmaLocal.setZero();
   sigmaS.setZero();
-  
+
   // containers to calculate the specific contributions to the transport tensors
   Eigen::Tensor<double, 3> kappaContrib(numRelaxons, 3, 3), sigmaContrib(numRelaxons, 3, 3), sigmaSContrib(numRelaxons, 3, 3);
   std::vector<double> iiiiContrib(numRelaxons);
@@ -207,10 +207,10 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
             viscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * tau;
           }
         }
-        
+
         // do the electrical conductivity specific quantities --------------------------
         if(particle.isElectron()) {
-          
+
           // sigma
           sigmaLocal(i, j) += U * Ve(gamma, i) * Ve(gamma, j) * tau;
           sigmaContrib(gamma, i, j) += U * Ve(gamma, i) * Ve(gamma, j) * tau;
@@ -227,17 +227,17 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   }
 
   // output contributions to JSON -------------------------------------------
-  outputRelaxonContributionsToJSON(statisticsSweep, particle, dimensionality, sigmaContrib, kappaContrib, 
+  outputRelaxonContributionsToJSON(statisticsSweep, particle, dimensionality, sigmaContrib, kappaContrib,
                                   sigmaSContrib, iiiiContrib);
-                                  
+
   outputRelaxonContributionsToHDF5(eigenvalues, V0, Ve, Vphi, particle, numRelaxons);
-                                  
+
   // copy S and sigma into final tensors to be printed,  convert sigma -> mobility
   if(particle.isElectron()) {
 
     // seebeck = matmul(L_EE_inv, L_ET)
     Eigen::Matrix3d seebeckLocal = sigmaLocal.inverse() * sigmaS;
-    
+
     double doping = abs(statisticsSweep.getCalcStatistics(iCalc).doping);
     doping *= pow(distanceBohrToCm, dimensionality); // from cm^-3 to bohr^-3
     for (int i = 0; i < dimensionality; i++) {
@@ -246,7 +246,7 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
         seebeck(0, i, j) = seebeckLocal(i, j);
         sigma(0, i, j) = sigmaLocal(i, j);
         mobility(0, i, j) = sigma(0, i, j);
-        
+
         if (doping > 0.) {
           mobility(0, i, j) /= doping;
         }
@@ -255,8 +255,8 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   }
 }
 
-void TransportCoefficients::outputRelaxonContributionsToJSON(StatisticsSweep& statisticsSweep, const Particle &particle, 
-    int dimensionality, const Eigen::Tensor<double, 3> sigmaContrib, const Eigen::Tensor<double, 3> kappaContrib, 
+void TransportCoefficients::outputRelaxonContributionsToJSON(StatisticsSweep& statisticsSweep, const Particle &particle,
+    int dimensionality, const Eigen::Tensor<double, 3> sigmaContrib, const Eigen::Tensor<double, 3> kappaContrib,
     const Eigen::Tensor<double, 3> sigmaSContrib, std::vector<double> iiiiContrib) {
 
   // output the transport coefficients
@@ -278,9 +278,9 @@ void TransportCoefficients::outputRelaxonContributionsToJSON(StatisticsSweep& st
     dopings.push_back(doping); // output in (cm^-3)
     double chemPot = calcStat.chemicalPotential;
     chemPots.push_back(chemPot * energyRyToEv); // output in eV
-    
-  } 
-    
+
+  }
+
   // now output the separated contributions
   std::vector<std::vector<std::vector<double>>> sigmaContribOut, kappaContribOut, sigmaSContribOut;
   double convSigmaS = convSeebeck * convSigma;
@@ -300,7 +300,7 @@ void TransportCoefficients::outputRelaxonContributionsToJSON(StatisticsSweep& st
     appendTransportTensorForOutput(sigmaSContrib, dimensionality, convSigmaS,
                                    gamma, sigmaSContribOut);
   }
-  
+
   // output to json
   nlohmann::json output;
   output["temperatures"] = temps;

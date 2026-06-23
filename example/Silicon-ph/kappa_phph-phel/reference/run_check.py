@@ -69,7 +69,9 @@ if __name__ == "__main__":
 
         if "thermal_cond" in filename:
             for key in data1:
-                checkCoefficient(key, data1, data2, tol)
+                temp_tol = 5e-4 # small difference in iterative solver possible
+                                # when qmesh is so little
+                checkCoefficient(key, data1, data2, temp_tol)
 
         if "specific" in filename:
             for key in data1:

@@ -51,8 +51,8 @@ void CoupledCoefficients::calcFromRelaxons(
     Warning("Viscosity calculated without the enforcing detailed balance condition of the scattering matrix"
       "\ncan have major issues -- if the charge and energy eigenvectors are not well found (better than 75% overlap),"
       " they may make a large, spurious contribution to viscosity!");
-  }      
-  
+  }
+
   BaseBandStructure *phBandStructure = scatteringMatrix.getPhBandStructure();
   BaseBandStructure *elBandStructure = scatteringMatrix.getElBandStructure();
   std::vector<BaseBandStructure*> bands = {elBandStructure, phBandStructure};
@@ -90,25 +90,25 @@ void CoupledCoefficients::calcFromRelaxons(
   // drift eigenvector overlaps ----------
   // for now, we don't save these drift eigenvector indices
   {
-    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::all), "phi_x");
-    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::all), "phi_y");
-    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::all), "phi_z");
+    relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::placeholders::all), "phi_x");
+    relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::placeholders::all), "phi_y");
+    relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::placeholders::all), "phi_z");
     if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
 
     // phonon only phi overlap
     Eigen::MatrixXd phi_ph_only(dimensionality, numRelaxons); phi_ph_only.setZero();
-    phi_ph_only(Eigen::all, Eigen::seq(numElStates, Eigen::last)) = phi(Eigen::all, Eigen::seq(numElStates, Eigen::last));
-    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(0, Eigen::all), "phi_x_ph");
-    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(1, Eigen::all), "phi_y_ph");
-    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(2, Eigen::all), "phi_z_ph");
+    phi_ph_only(Eigen::placeholders::all, Eigen::seq(numElStates, Eigen::placeholders::last)) = phi(Eigen::placeholders::all, Eigen::seq(numElStates, Eigen::placeholders::last));
+    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(0, Eigen::placeholders::all), "phi_x_ph");
+    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(1, Eigen::placeholders::all), "phi_y_ph");
+    relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(2, Eigen::placeholders::all), "phi_z_ph");
     if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
 
     // electron only phi overlap
     Eigen::MatrixXd phi_el_only(dimensionality, numRelaxons); phi_el_only.setZero();
-    phi_el_only(Eigen::all, Eigen::seq(0, numElStates-1)) = phi(Eigen::all, Eigen::seq(0, numElStates-1));
-    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(0, Eigen::all), "phi_x_el");
-    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(1, Eigen::all), "phi_y_el");
-    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(2, Eigen::all), "phi_z_el");
+    phi_el_only(Eigen::placeholders::all, Eigen::seq(0, numElStates-1)) = phi(Eigen::placeholders::all, Eigen::seq(0, numElStates-1));
+    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(0, Eigen::placeholders::all), "phi_x_el");
+    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(1, Eigen::placeholders::all), "phi_y_el");
+    relaxonEigenvectorOverlap(eigenvectors, phi_el_only(2, Eigen::placeholders::all), "phi_z_el");
     if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
   }
   // calculate the V components
@@ -386,7 +386,7 @@ void CoupledCoefficients::print() {
 void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
 
   if (!mpi->mpiHead())
-    return; 
+    return;
 
   // output the viscosities using the helper function in viscosity_io.h
   bool append = false;
@@ -470,7 +470,7 @@ void CoupledCoefficients::outputToJSON(const std::string &outFileName) {
     output["selfElSeebeckCoefficient"] = seebeckSelfOut;
     output["totalSeebeckCoefficient"] = seebeckTotalOut;
     output["seebeckCoefficientUnit"] = unitsSeebeck;
-    
+
     std::ofstream o(outFileName);
     o << std::setw(3) << output << std::endl;
     o.close();
@@ -902,21 +902,21 @@ void CoupledCoefficients::outputDuToJSON(
     dopings.push_back(doping); // output in (cm^-3)
     double chemPot = calcStat.chemicalPotential;
     chemPots.push_back(chemPot * energyRyToEv); // output in eV
-    
+
     // convert momentum contributions
     appendTransportTensorForOutput(sigmaMom, dimensionality, convSigma, iCalc, sigmaMomOut);
     appendTransportTensorForOutput(kappaElMom, dimensionality, convKappa, iCalc, kappaElMomOut);
     appendTransportTensorForOutput(kappaPhMom, dimensionality, convKappa, iCalc, kappaPhMomOut);
     appendTransportTensorForOutput(seebeckMom, dimensionality, convSeebeck, iCalc, seebeckMomOut);
-    
+
   }
-    
+
   // NOTE we cannot use nested vectors from the start, as
   // vector<vector> is not necessarily contiguous and MPI
   // cannot all reduce on it
   std::vector<std::vector<double>> vecDu, vecDuEl, vecDuPh, vecDuDragPh, vecDuDragEl;
   std::vector<std::vector<double>> vecWji0, vecWji0_el, vecWji0_ph, vecWjie;
-  
+
   for (auto i : {0, 1, 2}) {
     std::vector<double> t1, t2, t3, t4, t5, t6, t7, t8, t9;
     for (auto j : {0, 1, 2}) {
@@ -1003,7 +1003,7 @@ void CoupledCoefficients::outputDuToJSON(
     output["GiUnit"] = AiUnits;
     output["Ai"] = Atemp;
     output["AiUnit"] = AiUnits;
-    
+
     // momentum contribution to transport coefficients
     output["temperatures"] = temps;
     output["temperatureUnit"] = "K";
@@ -1011,17 +1011,17 @@ void CoupledCoefficients::outputDuToJSON(
     output["dopingConcentrationUnit"] = "cm$^{-" + std::to_string(dimensionality) + "}$";
     output["chemicalPotentials"] = chemPots;
     output["chemicalPotentialUnit"] = "eV";
-    
+
     output["electricalConductivityUnit"] = unitsSigma;
     output["mobilityUnit"] = unitsMobility;
     output["seebeckCoefficientUnit"] = unitsSeebeck;
     output["thermalConductivityUnit"] = unitsKappa;
-    
+
     output["momentumElectricalConductivity"] = sigmaMomOut;
     output["momentumSeebeck"] = seebeckMomOut;
     output["momentumElectronThermalConductivity"] = kappaElMomOut;
     output["momentumPhononThermalConductivity"] = kappaPhMomOut;
-    
+
     std::ofstream o(outFileName);
     o << std::setw(3) << output << std::endl;
     o.close();

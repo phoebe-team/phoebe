@@ -4,13 +4,13 @@
 
 // returns the index of largest overlap with a special eigenvector
 int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
-                              const Eigen::VectorXd& specialEigenvector, 
+                              const Eigen::VectorXd& specialEigenvector,
                               std::string eigenvectorName) {
 
   // calculate the overlaps with special eigenvectors
-  int numRelaxons = specialEigenvector.size(); 
+  int numRelaxons = specialEigenvector.size();
   Eigen::VectorXd overlaps(numRelaxons); overlaps.setZero();
-                                
+
   // TODO need to update this for useUpperTriangle and case of less numRelaxons
   for (auto tup : eigenvectors.getAllLocalStates()) {
     auto is = std::get<0>(tup);
@@ -27,9 +27,9 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
   if(mpi->mpiHead()) {
 
     // avoid a segfault in an edge case of few states
-    int maxPrint = 10; 
-    if(numRelaxons < 10) { maxPrint = numRelaxons; } 
-    
+    int maxPrint = 10;
+    if(numRelaxons < 10) { maxPrint = numRelaxons; }
+
     std::cout << std::fixed;
     std::cout << std::setprecision(4);
     std::cout << "\nMaximum scalar product " << eigenvectorName << ".theta_alpha = " << maxOverlap << " at alpha = " << idxMaxOverlap << "." << std::endl;
@@ -38,12 +38,12 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
     std::cout << std::endl;
   }
 
-  // If the best overlap isn't very good, we return -1 so nothing is skipped 
+  // If the best overlap isn't very good, we return -1 so nothing is skipped
   if(maxOverlap >= 0.75) return idxMaxOverlap;
   else { return -1; }
 }
- 
-// TODO change this maybe so it directly takes the transportCoeffs object? 
+
+// TODO change this maybe so it directly takes the transportCoeffs object?
 // calculate special eigenvectors
 void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStructure,
                             StatisticsSweep& statisticsSweep,
@@ -66,8 +66,8 @@ void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStr
                       // don't use the stat sweep one which may have
                       // finite values if phel scattering is used
   //double Npts = bandStructure.getPoints().getNumPoints();
-  double Npts; 
-  if(particle.isPhonon()) Npts = context.getQMesh().prod(); 
+  double Npts;
+  if(particle.isPhonon()) Npts = context.getQMesh().prod();
   else { Npts = context.getKMesh().prod(); }
 
   // set particle specific quantities
@@ -95,7 +95,7 @@ void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStr
   Eigen::VectorXd ds = Eigen::VectorXd::Zero(numStates);
 
   // zero normalization for theta_e, specific heat
-  U = 0; 
+  U = 0;
   C = 0;
 
   // calculate the special eigenvectors ----------------
@@ -181,21 +181,21 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
                           const Eigen::VectorXd& theta0,
                           const Eigen::VectorXd& theta_e,
                           const Eigen::MatrixXd& phi,
-                          int numRelaxonsToOutput, 
+                          int numRelaxonsToOutput,
                           bool isCoupled) {
 
-  if(bandStructures.size() == 0) 
+  if(bandStructures.size() == 0)
     DeveloperError("Cannot output relaxons with no specified bandstructure.");
 
   if(isCoupled) {
-    if(bandStructures.size() != 2) { 
+    if(bandStructures.size() != 2) {
       DeveloperError("Need both bandstructures to output coupled relaxons.");
     }
     else if(!(bandStructures[0]->getParticle().isElectron() && bandStructures[1]->getParticle().isPhonon())) {
-      DeveloperError("First bandstructure must be electron, second must be phonon, when outputing relaxons to HDF5."); 
-    }             
+      DeveloperError("First bandstructure must be electron, second must be phonon, when outputing relaxons to HDF5.");
+    }
   }
-  
+
   // make a lambda to handle indexing if it's coupled -- return phonon state index
   std::function<int(int)> shiftedStateIdx;
   if(isCoupled) {
@@ -245,7 +245,7 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
       phi_kn2(ik.get(), ib.get()) = phi(1,is);
       phi_kn3(ik.get(), ib.get()) = phi(2,is);
     }
-    mpi->allReduceSum(&theta_e_kn); 
+    mpi->allReduceSum(&theta_e_kn);
     mpi->allReduceSum(&theta0_kn);
     mpi->allReduceSum(&phi_kn1); mpi->allReduceSum(&phi_kn2); mpi->allReduceSum(&phi_kn3);
 
@@ -254,8 +254,8 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     for (int ik : bandStructure->parallelIrrPointsIterator()) {
       WavevectorIndex ikIdx(ik);
       Eigen::Vector3d k = bandStructure->getWavevector(ikIdx);
-      // // bandStructure->getPoints().cartesianToCrystal(k); 
-      wavevectors(ik,Eigen::all) = bandStructure->getPoints().bzToWs(k, Points::cartesianCoordinates) / distanceBohrToAng; 
+      // // bandStructure->getPoints().cartesianToCrystal(k);
+      wavevectors(ik,Eigen::placeholders::all) = bandStructure->getPoints().bzToWs(k, Points::cartesianCoordinates) / distanceBohrToAng;
     }
     mpi->allReduceSum(&wavevectors);
 
@@ -439,31 +439,31 @@ void genericOutputRealSpaceToJSON(Context& context, ScatteringMatrix& scattering
 void outputRelaxonContributionsToHDF5(const Eigen::VectorXd& eigenvalues,
                                       const Eigen::MatrixXd& V0,
                                       const Eigen::MatrixXd& Ve,
-                                      const Eigen::Tensor<double, 3>& Vphi, 
-                                      const Particle& particle, 
+                                      const Eigen::Tensor<double, 3>& Vphi,
+                                      const Particle& particle,
                                       const int numRelaxons) {
-                                  
+
   double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 : energyRyToFs;
 
-  Eigen::VectorXd tau = energyToTime * eigenvalues.array().inverse();                           
+  Eigen::VectorXd tau = energyToTime * eigenvalues.array().inverse();
   Eigen::MatrixXd Vphi_x(numRelaxons, 3);  Vphi_x.setZero();
   Eigen::MatrixXd Vphi_y(numRelaxons, 3);  Vphi_y.setZero();
   Eigen::MatrixXd Vphi_z(numRelaxons, 3);  Vphi_z.setZero();
-  Eigen::MatrixXd V0_out = V0; // copy because we will add a unit conversion  
-  Eigen::MatrixXd Ve_out = Ve; 
-  // Seems there is not a clear way to slice this, so I will loop to copy it 
+  Eigen::MatrixXd V0_out = V0; // copy because we will add a unit conversion
+  Eigen::MatrixXd Ve_out = Ve;
+  // Seems there is not a clear way to slice this, so I will loop to copy it
   for(int alpha = 0; alpha < numRelaxons; alpha++) {
     for(auto i : {0,1,2}) {
-      Vphi_x(alpha, i) = Vphi(alpha, 0, i); 
-      Vphi_y(alpha, i) = Vphi(alpha, 1, i); 
-      Vphi_z(alpha, i) = Vphi(alpha, 2, i); 
+      Vphi_x(alpha, i) = Vphi(alpha, 0, i);
+      Vphi_y(alpha, i) = Vphi(alpha, 1, i);
+      Vphi_z(alpha, i) = Vphi(alpha, 2, i);
     }
   }
-  
+
   for(auto V : {&Vphi_x, &Vphi_y, &Vphi_z, &V0_out, &Ve_out}) {
     *V *= velocityRyToSi;
   }
-  
+
   // for now, the head process writes to file --------------------------
   if(mpi->mpiHead()) {
 

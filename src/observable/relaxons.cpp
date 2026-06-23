@@ -214,7 +214,7 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     int numBands = bandStructure->getFullNumBands();
     Particle particle = bandStructure->getParticle();
     // convertion for time units
-    double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 : energyRyToFs;
+    double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 / twoPi : energyRyToFs;
 
     // cannot use vector<vector> as this is not contiguous
     Eigen::Tensor<double,3> relaxon(numPoints, numBands, numRelaxonsToOutput);
@@ -443,7 +443,7 @@ void outputRelaxonContributionsToHDF5(const Eigen::VectorXd& eigenvalues,
                                       const Particle& particle,
                                       const int numRelaxons) {
 
-  double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 : energyRyToFs;
+  double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 / twoPi : energyRyToFs;
 
   Eigen::VectorXd tau = energyToTime * eigenvalues.array().inverse();
   Eigen::MatrixXd Vphi_x(numRelaxons, 3);  Vphi_x.setZero();

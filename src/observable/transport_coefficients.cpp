@@ -190,6 +190,11 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
     // NOTE: remove energy and charge eigenvectors
     if (gamma == alpha0 || gamma == alpha_e)  continue;
 
+    // viscosity iiii contribution  --------------------------
+    double xxxx = sqrt(A(0) * A(0)) * Vphi(gamma, 0, 0) * Vphi(gamma, 0, 0) * tau;
+    double yyyy =  sqrt(A(1) * A(1)) * Vphi(gamma, 1, 1) * Vphi(gamma, 1, 1) * tau;
+    iiiiContrib[gamma] += (xxxx + yyyy) / 2.;
+
     for (int i = 0; i < dimensionality; i++) {
       for (int j = 0; j < dimensionality; j++) {
 
@@ -198,10 +203,6 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
         kappaContrib(gamma,i,j) += specificHeat(0) / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * tau;
 
         // viscosities ----------------------------------------------------
-        double xxxx = sqrt(A(0) * A(0)) * Vphi(gamma, 0, 0) * Vphi(gamma, 0, 0) * tau;
-        double yyyy =  sqrt(A(1) * A(1)) * Vphi(gamma, 1, 1) * Vphi(gamma, 1, 1) * tau;
-        iiiiContrib[gamma] += (xxxx + yyyy) / 2.;
-
         for(auto k : {0, 1, 2}) {
           for(auto l : {0, 1, 2}) {
             viscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * tau;

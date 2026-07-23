@@ -7,9 +7,9 @@
 #include "interaction_elph.h"
 #include "scattering_matrix.h"
 #include <map>
-/* 
+/*
 enum DragType {
-  elph, 
+  elph,
   phel
 };
  */
@@ -34,9 +34,9 @@ CoupledScatteringMatrix::CoupledScatteringMatrix(Context &context_,
   numPhStates = int(innerBandStructure.getNumStates());
   numElStates = int(outerBandStructure.getNumStates());
   isCoupled = true;
-  
-  matrixCase = fullMatrix; 
-  
+
+  matrixCase = fullMatrix;
+
   // TODO this is only actually true after we call phononOnlyA2Omega at the bottom of the scattering
   // process addition section.
   // Otherwise, because ph scattering not symmetrized and el scattering is symmetrized,
@@ -132,17 +132,17 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
   std::vector<std::tuple<std::vector<int>, int>> qkPairIterator = allPairIterators[2];
   std::vector<std::tuple<std::vector<int>, int>> qPairIterator = allPairIterators[3];
 
-  // set up lambda function which shifts indices into appropriate quadrants 
-  size_t nElStates = numElStates; // very stupid workaround -- numElStates should only live in CBTE object, anyway. 
-  shiftToCoupledIndices 
-      = [nElStates](long iBte1, long iBte2, const Particle &p1, const Particle &p2){ 
+  // set up lambda function which shifts indices into appropriate quadrants
+  size_t nElStates = numElStates; // very stupid workaround -- numElStates should only live in CBTE object, anyway.
+  shiftToCoupledIndices
+      = [nElStates](long iBte1, long iBte2, const Particle &p1, const Particle &p2){
     // we shift the iBte indices into the relevant quadrant before savign things to the
     // scattering matrix in the coupled case --  ibte1 = row, ibte2 = col
     if(p1.isPhonon()) iBte1 += nElStates;
     if(p2.isPhonon()) iBte2 += nElStates;
     return std::make_tuple(iBte1, iBte2);
   };
-      
+
   // TODO we should let this go out of scope
   // read in elph coupling
   InteractionElPhWan couplingElPh =
@@ -171,7 +171,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
                                     qPairIterator,
                                     boseOccupations, boseOccupations,
                                     innerBandStructure, innerBandStructure,
-                                    *phononH0, coupling3Ph, linewidth); 
+                                    *phononH0, coupling3Ph, linewidth);
   }
 
   // Isotope scattering ------------------------------------------------
@@ -184,7 +184,7 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
 
   // TODO check boundary scattering addition
   // Add boundary scattering ----------------------
-  
+
   // Call this twice for each section of the diagonal,
   // in one case handing it the phonon bands, in the other the electron bands.
   if (!std::isnan(context.getBoundaryLength())) {
@@ -227,13 +227,13 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
     // it calculates internally a third, denser el bandstructure
     // It also internally generates it's k-q pair iterator, as it's only a
     // linewidth calculation and therefore can be parallelized differently.
-    
-    // Below note changed -- it now does update the SMatrix. 
+
+    // Below note changed -- it now does update the SMatrix.
     // NOTE: this does not update the Smatrix diagonal, only linewidth object. Therefore,
     // requires the replacing of the linewidths object into the SMatrix diagonal at the
     // end of this function
 
-    addPhElScattering(*this, context, inPopulations, outPopulations, 
+    addPhElScattering(*this, context, inPopulations, outPopulations,
                       innerBandStructure, outerBandStructure,
                       statisticsSweep,
                       couplingElPh, postSymLinewidths);
@@ -339,10 +339,10 @@ void CoupledScatteringMatrix::builder(std::shared_ptr<VectorBTE> linewidth,
    if(context.getUseDragTerms()) {
 
     // use drag ASR to correct the drag terms and recompute the phel linewidths
-    phononElectronAcousticSumRule(*this, context, 
+    phononElectronAcousticSumRule(*this, context,
                                   outerBandStructure,   // electron bands
                                   innerBandStructure);  // phonon bands
-  }  
+  }
 
   // use the off diagonals to calculate the linewidths,
   // to ensure the special eigenvectors can be found/preserve conservation of momentum
@@ -483,7 +483,7 @@ void addWavevectorToMap(std::unordered_map<int,std::vector<int>>& pairMap, int& 
   }
 }
 
-// TODO this should probably be generic 
+// TODO this should probably be generic
 // helper function to add some dummy indices to each
 // MPI procs iterator of indices to make sure they have the same number
 // If this isn't the case, a pooled calculation will hang

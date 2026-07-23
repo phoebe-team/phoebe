@@ -1,5 +1,7 @@
 #include "relaxons.h"
 #include <nlohmann/json.hpp>
+#include <string>
+#include <sys/types.h>
 #include "constants.h"
 
 // returns the index of largest overlap with a special eigenvector
@@ -9,13 +11,11 @@ int relaxonEigenvectorOverlap(ParallelMatrix<double>& eigenvectors,
 
   // calculate the overlaps with special eigenvectors
   int numRelaxons = specialEigenvector.size();
-  Eigen::VectorXd overlaps(numRelaxons); overlaps.setZero();
+  Eigen::VectorXd overlaps = Eigen::VectorXd::Zero(numRelaxons);
 
   // TODO need to update this for useUpperTriangle and case of less numRelaxons
-  for (auto tup : eigenvectors.getAllLocalStates()) {
-    auto is = std::get<0>(tup);
-    auto gamma = std::get<1>(tup);
-    overlaps(gamma) += eigenvectors(is,gamma) * specialEigenvector(is);
+  for (auto [is, alpha] : eigenvectors.getAllLocalStates()) {
+    overlaps(alpha) += eigenvectors(is,alpha) * specialEigenvector(is);
   }
   mpi->allReduceSum(&overlaps);
 
@@ -174,6 +174,110 @@ void genericCalcSpecialEigenvectors(Context& context, BaseBandStructure& bandStr
   }
 }
 
+/** Helper to output crystal coordinate mesh for writing to file */
+Eigen::MatrixXd prepareWavevectorList(BaseBandStructure& bandStructure) {
+
+  Eigen::MatrixXd wavevectors = Eigen::MatrixXd::Zero(bandStructure.getPoints().getNumPoints(), 3);
+  for (int ik : bandStructure.parallelIrrPointsIterator()) {
+    WavevectorIndex ikIdx(ik);
+    Eigen::Vector3d k = bandStructure.getWavevector(ikIdx);
+    wavevectors(ik,Eigen::placeholders::all) = bandStructure.getPoints().bzToWs(k, Points::cartesianCoordinates) / distanceBohrToAng;
+  }
+  mpi->allReduceSum(&wavevectors);
+  return wavevectors;
+}
+
+// transform from the relaxon population basis to the electron population ------------
+void outputRelaxonDeltaPopToHDF5(ParallelMatrix<double>& eigenvectors,
+                        const Eigen::VectorXd& eigenvalues,
+                        BaseBandStructure& bandStructure,
+                        const Eigen::MatrixXd& V,
+                        double coeff,
+                        size_t stateOffset,
+                        const std::string& keyname, bool append,
+                        // TODO These ones should all be separated somehow so we aren't passing them constantly
+                        int dimensionality, double kBT, double mu, int numRelaxons,
+                        int alpha0, int alpha_e) {
+
+  // NOTE: atttempting to pass one bandstructure and a state offset, plus sliced V0 and Ve to el or phonon part.
+  // ph only = 0 offset
+  // el only = 0 offset
+  // coupled = el states offset for phonons, ph states offset for electrons
+
+  size_t numPoints = bandStructure.getPoints().getNumPoints();
+  int numBands = bandStructure.getFullNumBands();
+  Particle particle = bandStructure.getParticle();
+  int numStates = int(bandStructure.irrStateIterator().size());
+  double volume = bandStructure.getPoints().getCrystal().getVolumeUnitCell(dimensionality);
+  int spinFac = particle.isElectron() ? 2 : 1;
+
+  // TODO should this have total state number?
+  LoopPrint loopPrint("transforming relaxon populations","relaxons", eigenvectors.getAllLocalStates().size());
+
+  // final population to output, one for each direction of applied field
+  std::vector<Eigen::MatrixXd> deltaPop(dimensionality);
+  for (int i = 0; i < dimensionality; i++) {
+      deltaPop[i] = Eigen::MatrixXd::Zero(numPoints, numBands);
+  }
+
+  for (auto [iBte, alpha] : eigenvectors.getAllLocalStates()) {
+
+    loopPrint.update();
+
+    if (eigenvalues(alpha) <= 0. || alpha >= numRelaxons) { continue; }
+    if (alpha == alpha0 || alpha == alpha_e) continue; // skip the special eigenvectorss
+
+    // need to shift index to work with coupled BTE
+    long iBteShift = iBte - stateOffset;
+
+    // shift for the coupled case, in which electron or phonon states should be
+    // discarded in sums for the opposite particle type
+    if(iBteShift < 0 || iBteShift >= numStates) continue;
+
+    BteIndex BTEidx(iBteShift);
+    auto is = bandStructure.bteToState(BTEidx);
+    auto [ik,ib] = bandStructure.getIndex(is);
+
+    // NOTE: Could be more efficient to do this in a separate loop over band states
+    // rather than repeatedly for each relaxon
+    StateIndex isIdx(is);
+    double en = bandStructure.getEnergy(isIdx);
+    if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
+    double sqrtPop = sqrt(particle.getPopPopPm1(en, kBT, mu));
+
+    //if(particle.isPhonon()) std::cout << " iBte " << iBte << " " << numStates << " " << stateOffset << " terms | " << coeff << " " << sqrtPop << " " << V(alpha,0) << " " << V(alpha,1) << " " << V(alpha,2) << " " << eigenvectors(iBte, alpha) << " " << eigenvalues(alpha) << std::endl;
+
+    for (int i = 0; i < dimensionality; i++) {
+      deltaPop[i](ik.get(), ib.get()) += coeff * sqrtPop * V(alpha, i) * eigenvectors(iBte, alpha) / eigenvalues(alpha);
+    }
+  }
+  loopPrint.close();
+
+  for (int i = 0; i < dimensionality; i++) {
+    mpi->allReduceSum(&deltaPop[i]);
+    deltaPop[i] *= sqrt(volume * numStates /spinFac);
+  }
+
+  // call helper to collect wavevectors in output friendly format
+  Eigen::MatrixXd wavevectors = prepareWavevectorList(bandStructure);
+
+  // for now, the head process writes to file --------------------------
+  if(mpi->mpiHead()) {
+
+    std::string filename = particle.isPhonon() ? "relaxons_ph_delta_n.hdf5" : "relaxons_el_delta_f.hdf5";
+    H5Easy::File file = H5Easy::File(filename, append ? H5Easy::File::ReadWrite : H5Easy::File::Truncate);
+
+    std::string prefix = particle.isPhonon() ? "delta_n" : "delta_f";
+    std::vector<std::string> xyz = {"_x","_y","_z"};
+    for (int i = 0; i < dimensionality; i++) {
+      H5Easy::dump(file, prefix+keyname+xyz[i], deltaPop[i]);
+    }
+    H5Easy::dump(file, "/wavevectorCoordinatesCartesianWS", wavevectors, append ? H5Easy::DumpMode::Overwrite : H5Easy::DumpMode::Create);
+    H5Easy::dump(file, "/numPoints", numPoints, append ? H5Easy::DumpMode::Overwrite : H5Easy::DumpMode::Create);
+    H5Easy::dump(file, "/numBands", numBands, append ? H5Easy::DumpMode::Overwrite : H5Easy::DumpMode::Create);
+  }
+}
+
 // TODO use requires on the bandstructures to be el first and ph second, do this more elegantly
 void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
                           const Eigen::VectorXd& eigenvalues,
@@ -196,18 +300,27 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     }
   }
 
-  // make a lambda to handle indexing if it's coupled -- return phonon state index
-  std::function<int(int)> shiftedStateIdx;
+  // make a lambda to handle indexing if it's coupled.
+  // REFACTOR this could all be simplified by a coupledBandStructure
+  std::function<int(int, Particle&)> shiftedStateIdx;
   if(isCoupled) {
     int numElStates = int(bandStructures[0]->irrStateIterator().size());
-    shiftedStateIdx = [numElStates](int stateIndex) {
-      if(stateIndex < numElStates) { return stateIndex; }
+    shiftedStateIdx = [numElStates](int stateIndex, Particle& particle) {
+      // if it's an electron state of the scattering matrix, and we are looping on el bandstructure = good
+      if(stateIndex < numElStates && particle.isElectron()) { return stateIndex; }
+      // if it's an electron state of the scattering matrix, and we are looping on ph bandstructure = bad
+      else if(stateIndex < numElStates && particle.isPhonon()) { return -1; }
+      // if it's a phonon state of the scattering matrix, and we are looping on el bandstructure = bad
+      else if(stateIndex > numElStates && particle.isElectron()) { return -1;}
+      // if it's a phonon state of the scattering matrix, and we are looping on ph bandstructure = shift index
       else { return stateIndex-numElStates; }
     };
   } else {
-    shiftedStateIdx = [](int stateIndex) {  return stateIndex; };
+    shiftedStateIdx = [](int stateIndex, [[maybe_unused]] Particle& particle) {  return stateIndex; };
   }
 
+  // for the standard case, we want to output el or ph bands with relaxon info.
+  // for the coupled case, we need to do each separately.
   for (auto bandStructure : bandStructures) {
 
     size_t numPoints = bandStructure->getPoints().getNumPoints();
@@ -216,20 +329,31 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     // convertion for time units
     double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 : energyRyToFs;
 
-    // cannot use vector<vector> as this is not contiguous
-    Eigen::Tensor<double,3> relaxon(numPoints, numBands, numRelaxonsToOutput);
-    relaxon.setZero();
-    for (auto [iBte,iRelaxon] : eigenvectors.getAllLocalStates()) {
+    // oftset in n states for indexing if we hac the coupled calculation, phonon bands
+    size_t stateOffset = 0;
+    if(isCoupled)
+      stateOffset = particle.isElectron() ? 0 : int(bandStructures[0]->irrStateIterator().size());;
 
-      // get the band state associated with this state
-      BteIndex BTEidx(shiftedStateIdx(iBte));
+    // cannot use vector<vector> as this is not contiguous
+    Eigen::Tensor<double,3> relaxons(numPoints, numBands, numRelaxonsToOutput);
+    relaxons.setZero();
+
+    for (auto [iBte,alpha] : eigenvectors.getAllLocalStates()) {
+
+      // only output top N relaxons
+      if(alpha >= numRelaxonsToOutput) continue;
+
+      // need to shift index to work with coupled BTE
+      auto iBteShift = shiftedStateIdx(iBte, particle);
+      if(iBteShift < 0) continue;
+
+      BteIndex BTEidx(iBteShift);
       auto is = bandStructure->bteToState(BTEidx);
       auto [ik,ib] = bandStructure->getIndex(is);
 
-      if(iRelaxon >= numRelaxonsToOutput) continue;
-      relaxon(ik.get(),ib.get(), iRelaxon) = eigenvectors(iBte,iRelaxon);
+      relaxons(ik.get(),ib.get(), alpha) = eigenvectors(iBte, alpha);
     }
-    mpi->allReduceSum(&relaxon);
+    mpi->allReduceSum(&relaxons);
 
     // write the analytical special eigenvectors ---------------------------
     Eigen::MatrixXd theta_e_kn(numPoints, numBands), theta0_kn(numPoints, numBands);
@@ -239,25 +363,18 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
 
     for (int is : bandStructure->parallelStateIterator()) {
       auto [ik,ib] = bandStructure->getIndex(is);
-      theta_e_kn(ik.get(), ib.get()) = theta_e(is);
-      theta0_kn(ik.get(), ib.get()) = theta0(is);
-      phi_kn1(ik.get(), ib.get()) = phi(0,is);
-      phi_kn2(ik.get(), ib.get()) = phi(1,is);
-      phi_kn3(ik.get(), ib.get()) = phi(2,is);
+      theta_e_kn(ik.get(), ib.get()) = theta_e(stateOffset+is);
+      theta0_kn(ik.get(), ib.get()) = theta0(stateOffset+is);
+      phi_kn1(ik.get(), ib.get()) = phi(0,stateOffset+is);
+      phi_kn2(ik.get(), ib.get()) = phi(1,stateOffset+is);
+      phi_kn3(ik.get(), ib.get()) = phi(2,stateOffset+is);
     }
     mpi->allReduceSum(&theta_e_kn);
     mpi->allReduceSum(&theta0_kn);
     mpi->allReduceSum(&phi_kn1); mpi->allReduceSum(&phi_kn2); mpi->allReduceSum(&phi_kn3);
 
-    // output crystal coords mesh
-    Eigen::MatrixXd wavevectors(numPoints,3); wavevectors.setZero();
-    for (int ik : bandStructure->parallelIrrPointsIterator()) {
-      WavevectorIndex ikIdx(ik);
-      Eigen::Vector3d k = bandStructure->getWavevector(ikIdx);
-      // // bandStructure->getPoints().cartesianToCrystal(k);
-      wavevectors(ik,Eigen::placeholders::all) = bandStructure->getPoints().bzToWs(k, Points::cartesianCoordinates) / distanceBohrToAng;
-    }
-    mpi->allReduceSum(&wavevectors);
+    // call helper to collect wavevectors in output friendly format
+    Eigen::MatrixXd wavevectors = prepareWavevectorList(*bandStructure);
 
     // for now, the head process writes to file --------------------------
     if(mpi->mpiHead()) {
@@ -273,7 +390,7 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
         for (size_t ik = 0; ik < numPoints; ik++) {
           std::vector<double> tmp;
           for ( int ib = 0; ib < numBands; ib++) {
-            relaxonCopy(ik,ib) = relaxon(ik,ib,alpha);
+            relaxonCopy(ik,ib) = relaxons(ik,ib,alpha);
           }
         }
         H5Easy::dump(file, "/relaxonEigenvectors_"+std::to_string(alpha), relaxonCopy);
@@ -292,7 +409,6 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     }
   }
 }
-
 
 // TODO we need to fix the dimensionality to work for
 // low dim materials in all the coefficients!
@@ -321,10 +437,8 @@ void genericOutputRealSpaceToJSON(Context& context, ScatteringMatrix& scattering
   Eigen::MatrixXd Wjie(dimensionality,dimensionality); Wjie.setZero();
 
   // sum over the alpha and v states that this process owns
-  for (auto tup : scatteringMatrix.getAllLocalStates()) {
+  for (auto [is1, is2] : scatteringMatrix.getAllLocalStates()) {
 
-    auto is1 = std::get<0>(tup);
-    auto is2 = std::get<1>(tup);
     for (int i = 0; i < dimensionality; i++) {
       for (int j = 0; j < dimensionality; j++) {
         if(context.getUseUpperTriangle()) {
@@ -362,11 +476,9 @@ void genericOutputRealSpaceToJSON(Context& context, ScatteringMatrix& scattering
   // NOTE we cannot use nested vectors from the start, as
   // vector<vector> is not necessarily contiguous and MPI
   // cannot all reduce on it
-  std::vector<std::vector<double>> vecDu;
-  std::vector<std::vector<double>> vecWji0;
-  std::vector<std::vector<double>> vecWjie;
+  std::vector<std::vector<double>> vecDu, vecWji0, vecWjie;
   for (int i = 0; i < dimensionality; i++) {
-    std::vector<double> temp1,temp2,temp3;
+    std::vector<double> temp1, temp2, temp3;
     for (int j = 0; j < dimensionality; j++) {
       temp1.push_back(Du(i,j) / (energyRyToFs / twoPi));
       temp2.push_back(Wji0(i,j) * velocityRyToSi);
@@ -389,8 +501,7 @@ void genericOutputRealSpaceToJSON(Context& context, ScatteringMatrix& scattering
                        // 1./std::pow(bohrRadiusSi, dimensionality) * // convert 1/V
                        // 1e-3; //convert from kg->pg, 1/m^3 -> 1/mum^3; // converting to pico and mu
 
-  std::string specificHeatUnits;
-  std::string AiUnits;
+  std::string specificHeatUnits, AiUnits;
   if (dimensionality == 1) {
     specificHeatUnits = "J / K / m";
     AiUnits = "pg/(mum)";
@@ -434,21 +545,20 @@ void genericOutputRealSpaceToJSON(Context& context, ScatteringMatrix& scattering
   }
 }
 
-
 // TODO use requires on the bandstructures to be el first and ph second, do this more elegantly
-void outputRelaxonContributionsToHDF5(const Eigen::VectorXd& eigenvalues,
+void outputRelaxonVelocitiesToHDF5(const Eigen::VectorXd& eigenvalues,
                                       const Eigen::MatrixXd& V0,
                                       const Eigen::MatrixXd& Ve,
                                       const Eigen::Tensor<double, 3>& Vphi,
                                       const Particle& particle,
-                                      const int numRelaxons) {
+                                      int numRelaxons) {
 
   double energyToTime = particle.isPhonon() ? energyRyToFs * 1e-3 : energyRyToFs;
 
   Eigen::VectorXd tau = energyToTime * eigenvalues.array().inverse();
-  Eigen::MatrixXd Vphi_x(numRelaxons, 3);  Vphi_x.setZero();
-  Eigen::MatrixXd Vphi_y(numRelaxons, 3);  Vphi_y.setZero();
-  Eigen::MatrixXd Vphi_z(numRelaxons, 3);  Vphi_z.setZero();
+  Eigen::MatrixXd Vphi_x = Eigen::MatrixXd::Zero(numRelaxons, 3);
+  Eigen::MatrixXd Vphi_y = Eigen::MatrixXd::Zero(numRelaxons, 3);
+  Eigen::MatrixXd Vphi_z = Eigen::MatrixXd::Zero(numRelaxons, 3);
   Eigen::MatrixXd V0_out = V0; // copy because we will add a unit conversion
   Eigen::MatrixXd Ve_out = Ve;
   // Seems there is not a clear way to slice this, so I will loop to copy it

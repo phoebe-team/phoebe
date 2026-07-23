@@ -33,7 +33,6 @@ CoupledCoefficients::CoupledCoefficients(StatisticsSweep &statisticsSweep_,
     visc->resize(numCalculations, dimensionality, dimensionality, dimensionality, dimensionality);
     visc->setZero();
   }
-
 }
 
 /* Calc coupled relaxons transport coefficients */
@@ -57,9 +56,8 @@ void CoupledCoefficients::calcFromRelaxons(
   BaseBandStructure *elBandStructure = scatteringMatrix.getElBandStructure();
   std::vector<BaseBandStructure*> bands = {elBandStructure, phBandStructure};
 
-  // output the 10 biggest to HDF5
-  // outputRelaxonsToHDF5(eigenvectors, eigenvalues, bands, theta0, theta_e,
-  // phi);
+  // output the biggest to HDF5. Final argument is isCoupled = True
+  outputRelaxonsToHDF5(eigenvectors, eigenvalues, bands, theta0, theta_e, phi, 50, true);
 
   // coupled transport only allowed with matrix in memory
   if (numCalculations > 1) {
@@ -67,7 +65,6 @@ void CoupledCoefficients::calcFromRelaxons(
   }
 
   int numElStates = int(elBandStructure->irrStateIterator().size());
-  //int numPhStates = int(phBandStructure->irrStateIterator().size());
   int numRelaxons = eigenvalues.size();
 
   int iCalc = 0;
@@ -84,19 +81,29 @@ void CoupledCoefficients::calcFromRelaxons(
   // and save the indices that need to be skipped
   if(mpi->mpiHead()) std::cout << "Checking scalar products of scattering matrix eigenvectors with special eigenvectors: -------------" << std::endl;
   alpha0 = relaxonEigenvectorOverlap(eigenvectors, theta0, "theta0");
+
   alpha_e = relaxonEigenvectorOverlap(eigenvectors, theta_e, "theta_e");
   if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
 
-  // drift eigenvector overlaps ----------
-  // for now, we don't save these drift eigenvector indices
+  // for now, we don't save these eigenvector indices
   {
+    // theta eigenvector overlaps for el and ph separately ----------
+    Eigen::VectorXd theta0_ph_only = Eigen::VectorXd::Zero(numRelaxons);
+    theta0_ph_only(Eigen::seq(numElStates, Eigen::placeholders::last)) = theta0(Eigen::seq(numElStates, Eigen::placeholders::last));
+    relaxonEigenvectorOverlap(eigenvectors, theta0_ph_only, "theta0_ph");
+    Eigen::VectorXd theta0_el_only = Eigen::VectorXd::Zero(numRelaxons);
+    theta0_el_only(Eigen::seq(0, numElStates-1)) = theta0(Eigen::seq(0, numElStates-1));
+    relaxonEigenvectorOverlap(eigenvectors, theta0_el_only, "theta0_el");
+    if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
+
+    // drift eigenvector overlaps ----------
     relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::placeholders::all), "phi_x");
     relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::placeholders::all), "phi_y");
     relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::placeholders::all), "phi_z");
     if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
 
     // phonon only phi overlap
-    Eigen::MatrixXd phi_ph_only(dimensionality, numRelaxons); phi_ph_only.setZero();
+    Eigen::MatrixXd phi_ph_only = Eigen::MatrixXd::Zero(dimensionality, numRelaxons);
     phi_ph_only(Eigen::placeholders::all, Eigen::seq(numElStates, Eigen::placeholders::last)) = phi(Eigen::placeholders::all, Eigen::seq(numElStates, Eigen::placeholders::last));
     relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(0, Eigen::placeholders::all), "phi_x_ph");
     relaxonEigenvectorOverlap(eigenvectors, phi_ph_only(1, Eigen::placeholders::all), "phi_y_ph");
@@ -104,7 +111,7 @@ void CoupledCoefficients::calcFromRelaxons(
     if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
 
     // electron only phi overlap
-    Eigen::MatrixXd phi_el_only(dimensionality, numRelaxons); phi_el_only.setZero();
+    Eigen::MatrixXd phi_el_only = Eigen::MatrixXd::Zero(dimensionality, numRelaxons);
     phi_el_only(Eigen::placeholders::all, Eigen::seq(0, numElStates-1)) = phi(Eigen::placeholders::all, Eigen::seq(0, numElStates-1));
     relaxonEigenvectorOverlap(eigenvectors, phi_el_only(0, Eigen::placeholders::all), "phi_x_el");
     relaxonEigenvectorOverlap(eigenvectors, phi_el_only(1, Eigen::placeholders::all), "phi_y_el");
@@ -116,22 +123,15 @@ void CoupledCoefficients::calcFromRelaxons(
   // "ph" and "el" components, which are summed only over either ph or el states
   // and are then used to calculate ph and el specific components to the
   // transport coefficients
-  Eigen::MatrixXd elV0(numRelaxons, 3); // V_a0^j = < 0 | v^j | alpha >
-  Eigen::MatrixXd elVe(numRelaxons, 3); // V_ae^j = < e | v^j | alpha >
-  Eigen::MatrixXd phV0(numRelaxons, 3);
-  Eigen::MatrixXd phVe(numRelaxons, 3);
-  Eigen::MatrixXd Ve(numRelaxons, 3);
-  Eigen::MatrixXd V0(numRelaxons, 3);
-  elV0.setZero();
-  elVe.setZero();
-  phV0.setZero();
-  phVe.setZero();
-  V0.setZero();
-  Ve.setZero();
+  Eigen::MatrixXd elV0 = Eigen::MatrixXd::Zero(numRelaxons, 3); // V_a0^j = < 0 | v^j | alpha >
+  Eigen::MatrixXd elVe = Eigen::MatrixXd::Zero(numRelaxons, 3); // V_ae^j = < e | v^j | alpha >
+  Eigen::MatrixXd phV0 = Eigen::MatrixXd::Zero(numRelaxons, 3);
+  Eigen::MatrixXd phVe = Eigen::MatrixXd::Zero(numRelaxons, 3);
+  Eigen::MatrixXd Ve = Eigen::MatrixXd::Zero(numRelaxons, 3);
+  Eigen::MatrixXd V0 = Eigen::MatrixXd::Zero(numRelaxons, 3);
 
   // phi related overlaps
-  Eigen::Tensor<double, 3> elVphi(numRelaxons, 3,
-                                  3); // V_a(phi)^j = < theta | v^j | phi >
+  Eigen::Tensor<double, 3> elVphi(numRelaxons, 3, 3); // V_a(phi)^j = < theta | v^j | phi >
   Eigen::Tensor<double, 3> phVphi(numRelaxons, 3, 3);
   Eigen::Tensor<double, 3> dragVphi(numRelaxons, 3, 3);
   Eigen::Tensor<double, 3> Vphi(numRelaxons, 3, 3);
@@ -215,6 +215,40 @@ void CoupledCoefficients::calcFromRelaxons(
   mpi->allReduceSum(&phVphi);
   mpi->allReduceSum(&elVphi);
 
+  // output out of eq distributions ----------------------------
+  // NOTE: specific heat units need this extract kBoltzmann factor, which should be later removed when this is fixed
+
+  // delta pop for grad T
+  {
+    //auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
+    double T = statisticsSweep.getCalcStatistics(iCalc).temperature / kBoltzmannRy;
+    double kBT = kBoltzmannRy * T;
+    double mu = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
+
+    //Eigen::VectorXd theta0_ph_only = Eigen::VectorXd::Zero(numRelaxons);
+    //theta0_ph_only(Eigen::seq(numElStates, Eigen::placeholders::last)) = theta0(Eigen::seq(numElStates, Eigen::placeholders::last));
+    outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, *phBandStructure, V0, sqrt( Ctot / ( kBT * T )), numElStates, "_gradT", false, dimensionality, kBT, 0, numRelaxons, alpha0, alpha_e);
+    outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, *elBandStructure, V0, sqrt( Ctot / ( kBT * T )), 0, "_gradT", false, dimensionality, kBT, mu, numRelaxons, alpha0, alpha_e);
+
+    // delta pop for delta V
+    outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, *phBandStructure, Ve, sqrt( U / ( kBT )), numElStates, "_E", true, dimensionality, kBT, 0, numRelaxons, alpha0, alpha_e);
+    outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, *elBandStructure, Ve, sqrt( U / ( kBT )), 0, "_E", true, dimensionality, kBT, mu, numRelaxons, alpha0, alpha_e);
+
+    // delta pop for u_xyz
+    std::vector<std::string> xyz = {"_x","_y","_z"};
+    for (int j = 0; j < dimensionality; j++) {
+      // This is awful, but we have to convert the eigen:::tensor slice to matrix. the slicing methods cause problems,
+      // and also require copies anyway, so here we are explicitly copying.
+      Eigen::MatrixXd Vphi_j(numRelaxons, 3);
+      for (int alpha = 0; alpha < numRelaxons; alpha++) {
+        for (int i = 0; i < dimensionality; i++) {
+          Vphi_j(alpha, i) = Vphi(alpha, i, j);
+        }
+      }
+      outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, *phBandStructure, Vphi_j, sqrt( A(j) / ( kBT * T )), numElStates, "_u"+xyz[j], true, dimensionality, kBT, 0, numRelaxons, alpha0, alpha_e);
+      outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, *elBandStructure, Vphi_j, sqrt( G(j) / ( kBT * T )), 0, "_u"+xyz[j], true, dimensionality, kBT, mu, numRelaxons, alpha0, alpha_e);
+    }
+  }
   // Calculate the transport coefficients -------------------------------------------------
 
   // local copies for linear algebra ops with eigen
@@ -735,10 +769,7 @@ void CoupledCoefficients::outputDuToJSON(
   Wjie.setZero(); Wji0.setZero(); elWji0.setZero(); phWji0.setZero();
 
   // sum over the alpha and v states that this process owns
-  for (auto tup : coupledScatteringMatrix.getAllLocalStates()) {
-
-    auto is1 = std::get<0>(tup);
-    auto is2 = std::get<1>(tup);
+  for (auto [is1, is2] : coupledScatteringMatrix.getAllLocalStates()) {
 
     // if only the uppper half is filled,
     // we count the diagonal of the scattering matrix once, and the off

@@ -5,7 +5,7 @@ from scipy.interpolate import griddata
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
 
-f = h5py.File('el_relaxons_eigenvectors.hdf5', 'r')
+f = h5py.File('relaxons_el_eigenvectors.hdf5', 'r')
 # theta0 special eigenvector
 #eigenvector = f['theta0'][:,0]
 # third relaxon in order of relaxation time, first band

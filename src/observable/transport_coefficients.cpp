@@ -91,25 +91,24 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
       " they may make a large, spurious contribution to viscosity!");
   }
   if (numCalculations > 1) {
-    DeveloperError("Relaxons electron viscosity cannot be calculated for more than one T or mu value.");
+    DeveloperError("Relaxons viscosity cannot be calculated for more than one T or mu value.");
   }
 
-  //int numStates = bandStructure.getNumStates();
   numRelaxons = (context.getNumRelaxonsEigenvalues() > 0) ? context.getNumRelaxonsEigenvalues() : eigenvectors.rows();
   Particle particle = bandStructure.getParticle();
   int iCalc = 0; // zero index, because we only run one for relaxons
   auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
   double T = calcStat.temperature / kBoltzmannRy;
-
-  std::vector<BaseBandStructure*> bs = {&bandStructure};
-  outputRelaxonsToHDF5(eigenvectors, eigenvalues, bs, theta0, theta_e, phi);
+  double kBT = kBoltzmannRy * T;
+  double mu = calcStat.chemicalPotential;
 
   // print info about the special eigenvectors ------------------------------
   // and save the indices that need to be skipped
   if(mpi->mpiHead()) std::cout << "Checking scalar products of scattering matrix eigenvectors with special eigenvectors: -------------" << std::endl;
   alpha0 = relaxonEigenvectorOverlap(eigenvectors, theta0, "theta0");
-  if(particle.isElectron()) alpha_e = relaxonEigenvectorOverlap(eigenvectors, theta_e, "theta_e");
-  if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
+  if(particle.isElectron()) {
+    alpha_e = relaxonEigenvectorOverlap(eigenvectors, theta_e, "theta_e");
+  }
 
   // drift eigenvector overlaps ----------
   // for now, we don't save these drift eigenvector indices
@@ -117,13 +116,13 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
     relaxonEigenvectorOverlap(eigenvectors, phi(0, Eigen::placeholders::all), "phi_x");
     relaxonEigenvectorOverlap(eigenvectors, phi(1, Eigen::placeholders::all), "phi_y");
     relaxonEigenvectorOverlap(eigenvectors, phi(2, Eigen::placeholders::all), "phi_z");
+    if(mpi->mpiHead()) std::cout << std::endl; // just a new line for better print out
   }
 
   // calculate the V components
   // -----------------------------------------------------------
-  Eigen::MatrixXd Ve(numRelaxons, 3), V0(numRelaxons, 3);
-  V0.setZero();
-  Ve.setZero();
+  Eigen::MatrixXd Ve = Eigen::MatrixXd::Zero(numRelaxons, 3);
+  Eigen::MatrixXd V0 = Eigen::MatrixXd::Zero(numRelaxons, 3);
   Eigen::Tensor<double, 3> Vphi(numRelaxons, 3, 3);
   Vphi.setZero();
 
@@ -168,9 +167,8 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   // TODO Output velocities to file -------------------------------------------------
 
   // local copies for linear algebra ops with eigen
-  Eigen::Matrix3d sigmaLocal, sigmaS;
-  sigmaLocal.setZero();
-  sigmaS.setZero();
+  Eigen::Matrix3d sigmaLocal = Eigen::Matrix3d::Zero();
+  Eigen::Matrix3d sigmaS = Eigen::Matrix3d::Zero();
 
   // containers to calculate the specific contributions to the transport tensors
   Eigen::Tensor<double, 3> kappaContrib(numRelaxons, 3, 3), sigmaContrib(numRelaxons, 3, 3), sigmaSContrib(numRelaxons, 3, 3);
@@ -180,31 +178,31 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   sigmaSContrib.setZero();
 
   // TODO could parallelize this
-  for (int gamma = 0; gamma < numRelaxons; gamma++) {
+  for (int alpha = 0; alpha < numRelaxons; alpha++) {
 
-    if (eigenvalues(gamma) <= 0) {
+    if (eigenvalues(alpha) <= 0) {
       continue;
     }
-    double tau = abs(1. / eigenvalues(gamma));
+    double tau = abs(1. / eigenvalues(alpha));
 
     // NOTE: remove energy and charge eigenvectors
-    if (gamma == alpha0 || gamma == alpha_e)  continue;
+    if (alpha == alpha0 || alpha == alpha_e)  continue;
 
     for (int i = 0; i < dimensionality; i++) {
       for (int j = 0; j < dimensionality; j++) {
 
         // thermal conductivity --------------------------
-        kappa(0,i,j) += specificHeat(0) / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * tau;
-        kappaContrib(gamma,i,j) += specificHeat(0) / kBoltzmannRy * V0(gamma,i) * V0(gamma,j) * tau;
+        kappa(0,i,j) += specificHeat(0) / kBoltzmannRy * V0(alpha,i) * V0(alpha,j) * tau;
+        kappaContrib(alpha,i,j) += specificHeat(0) / kBoltzmannRy * V0(alpha,i) * V0(alpha,j) * tau;
 
         // viscosities ----------------------------------------------------
-        double xxxx = sqrt(A(0) * A(0)) * Vphi(gamma, 0, 0) * Vphi(gamma, 0, 0) * tau;
-        double yyyy =  sqrt(A(1) * A(1)) * Vphi(gamma, 1, 1) * Vphi(gamma, 1, 1) * tau;
-        iiiiContrib[gamma] += (xxxx + yyyy) / 2.;
+        double xxxx = sqrt(A(0) * A(0)) * Vphi(alpha, 0, 0) * Vphi(alpha, 0, 0) * tau;
+        double yyyy =  sqrt(A(1) * A(1)) * Vphi(alpha, 1, 1) * Vphi(alpha, 1, 1) * tau;
+        iiiiContrib[alpha] += (xxxx + yyyy) / 2.;
 
         for(auto k : {0, 1, 2}) {
           for(auto l : {0, 1, 2}) {
-            viscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * Vphi(gamma,i,j) * Vphi(gamma,l,k) * tau;
+            viscosity(0,i,j,k,l) += sqrt(A(i) * A(k)) * Vphi(alpha,i,j) * Vphi(alpha,l,k) * tau;
           }
         }
 
@@ -212,12 +210,12 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
         if(particle.isElectron()) {
 
           // sigma
-          sigmaLocal(i, j) += U * Ve(gamma, i) * Ve(gamma, j) * tau;
-          sigmaContrib(gamma, i, j) += U * Ve(gamma, i) * Ve(gamma, j) * tau;
+          sigmaLocal(i, j) += U * Ve(alpha, i) * Ve(alpha, j) * tau;
+          sigmaContrib(alpha, i, j) += U * Ve(alpha, i) * Ve(alpha, j) * tau;
 
           // sigmaS
-          sigmaS(i,j) -= 1. / kBoltzmannRy * sqrt(specificHeat(0) * U / T) * Ve(gamma,i) * V0(gamma,j) * tau;
-          sigmaSContrib(gamma,i,j) -= 1. / kBoltzmannRy * sqrt(specificHeat(0) * U / T) * Ve(gamma,i) * V0(gamma,j) * tau;
+          sigmaS(i,j) -= 1. / kBoltzmannRy * sqrt(specificHeat(0) * U / T) * Ve(alpha,i) * V0(alpha,j) * tau;
+          sigmaSContrib(alpha,i,j) -= 1. / kBoltzmannRy * sqrt(specificHeat(0) * U / T) * Ve(alpha,i) * V0(alpha,j) * tau;
 
           // alpha
           //alpha(0,i,j) += sqrt(Ctot * U * T) * V0(gamma,i) * Ve(gamma,j) * tau; // check before unlocking
@@ -226,11 +224,44 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
     }
   }
 
-  // output contributions to JSON -------------------------------------------
-  outputRelaxonContributionsToJSON(statisticsSweep, particle, dimensionality, sigmaContrib, kappaContrib,
-                                  sigmaSContrib, iiiiContrib);
+  // output relaxons information: contribution breakdown, relaxons eigenvectors, out of eq distribution to file
+  // ----------------------------------------------------------------------------------------------------------
 
-  outputRelaxonContributionsToHDF5(eigenvalues, V0, Ve, Vphi, particle, numRelaxons);
+  // TODO : these should be simplified as there's just too much passing happing here.
+  // Maybe a structure of relaxon basics... or a reference to a transport coeffs object?
+
+  // output relaxons eigenvectors ------------------------------
+  std::vector<BaseBandStructure*> bs = {&bandStructure};
+  outputRelaxonsToHDF5(eigenvectors, eigenvalues, bs, theta0, theta_e, phi);
+
+  outputRelaxonContributionsToJSON(statisticsSweep, particle, dimensionality,
+                                    sigmaContrib, kappaContrib,
+                                    sigmaSContrib, iiiiContrib);
+
+  // output out of eq distributions ----------------------------
+  // NOTE: specific heat units need this extract kBoltzmann factor, which should be later removed when this is fixed
+
+  // delta pop for grad T
+  outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, bandStructure, V0, sqrt( (specificHeat(0)/ kBoltzmannRy) / ( kBT * T )), 0, "_gradT", false, dimensionality, kBT, mu, numRelaxons, alpha0, alpha_e);
+
+  if(particle.isElectron()) // delta pop for delta V
+    outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, bandStructure, Ve, sqrt( U / ( kBT )), 0, "_E", true, dimensionality, kBT, mu, numRelaxons, alpha0, alpha_e);
+
+  // delta pop for u_xyz
+  std::vector<std::string> xyz = {"_x","_y","_z"};
+  for (int j = 0; j < dimensionality; j++) {
+    // This is awful, but we have to convert the eigen:::tensor slice to matrix. the slicing methods cause problems,
+    // and also require copies anyway, so here we are explicitly copying.
+    Eigen::MatrixXd Vphi_slice(numRelaxons, 3);
+    for (int alpha = 0; alpha < numRelaxons; alpha++) {
+      for (int i = 0; i < dimensionality; i++)
+        Vphi_slice(alpha, i) = Vphi(alpha, i, j);
+    }
+    outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, bandStructure, Vphi_slice, sqrt( A(j) / ( kBT * T )), 0, "_u"+xyz[j], true, dimensionality, kBT, mu, numRelaxons, alpha0, alpha_e);
+  }
+
+  // output relaxon velocities -----------------------------
+  outputRelaxonVelocitiesToHDF5(eigenvalues, V0, Ve, Vphi, particle, numRelaxons);
 
   // copy S and sigma into final tensors to be printed,  convert sigma -> mobility
   if(particle.isElectron()) {

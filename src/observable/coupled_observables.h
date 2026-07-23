@@ -9,7 +9,7 @@
 class CoupledCoefficients {
 public:
 
-  /** Constructor 
+  /** Constructor
    */
   CoupledCoefficients(StatisticsSweep &statisticsSweep_,
                       Crystal &crystal_, Context &context_);

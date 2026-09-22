@@ -124,15 +124,15 @@ void CoupledCoefficients::calcFromRelaxons(
   // and are then used to calculate ph and el specific components to the
   // transport coefficients
   // V_a0^j = < 0 | v^j | alpha > and  V_ae^j = < e | v^j | alpha >
-  Eigen::MatrixXd elV0, elVe, phV0, phVe, Ve, V0;
+  Eigen::MatrixXd elV0, elVe, phV0, phVe, Ve, V0; 
   for(auto V : {&elV0, &phV0, &elVe, &phVe, &V0, &Ve})
     *V = Eigen::MatrixXd::Zero(numRelaxons, 3);
 
   // phi related overlaps --  V_a(phi)^j = < theta | v^j | phi >
-  Eigen::Tensor<double, 3> elVphi, phVphi, Vphi;
+  Eigen::Tensor<double, 3> elVphi, phVphi, Vphi; 
   for(auto V : {&elVphi, &phVphi, &Vphi}) {
     V->resize(numRelaxons, 3, 3);
-    V->setZero();
+    V->setZero();  
   }
 
   // sum over the alpha and v states that this process owns
@@ -242,12 +242,13 @@ void CoupledCoefficients::calcFromRelaxons(
   // local copies for linear algebra ops with eigen
   Eigen::Matrix3d sigmaLocal, totalSigmaLocal, selfSigmaS, dragSigmaS, totalSigmaS;
   for (auto m : {&sigmaLocal, &totalSigmaLocal, &selfSigmaS, &dragSigmaS, &totalSigmaS}) 
-    m.setZero(); 
+    m->setZero(); 
   
   // containers to calculate the specific contributions to the transport tensors
-  for (auto contribTensor : {&kappaContrib, &sigmaContrib, &sigmaSContrib})
-    contribTensor.resize(numRelaxons, 3, 3);
-    contribTensor.setZero();
+  for (auto contribTensor : {&kappaContrib, &sigmaContrib, &sigmaSContrib}) {
+    contribTensor->resize(numRelaxons, 3, 3);
+    contribTensor->setZero();
+  }
   for ([[maybe_unused]] int i : {0, 1, 2}) {
     std::vector<double> temp(numRelaxons);
     iiiiContrib.push_back(temp);

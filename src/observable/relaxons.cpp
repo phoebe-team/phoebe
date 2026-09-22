@@ -356,10 +356,10 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
     mpi->allReduceSum(&relaxons);
 
     // write the analytical special eigenvectors ---------------------------
-    Eigen::MatrixXd theta_e_kn(numPoints, numBands), theta0_kn(numPoints, numBands);
-    Eigen::MatrixXd phi_kn1(numPoints, numBands), phi_kn2(numPoints, numBands), phi_kn3(numPoints, numBands);
-    theta_e_kn.setZero();  theta0_kn.setZero();
-    phi_kn1.setZero(); phi_kn2.setZero(); phi_kn3.setZero();
+    // make containers to output them to hdf5 
+    Eigen::MatrixXd theta_e_kn, theta0_kn, phi_kn1, phi_kn2, phi_kn3; 
+    for(auto vec_kn : {&theta_e_kn, &theta0_kn, &phi_kn1, &phi_kn2, &phi_kn3})
+      *vec_kn = Eigen::MatrixXd::Zero(numPoints, numBands); 
 
     for (int is : bandStructure->parallelStateIterator()) {
       auto [ik,ib] = bandStructure->getIndex(is);
@@ -369,9 +369,9 @@ void outputRelaxonsToHDF5(ParallelMatrix<double>& eigenvectors,
       phi_kn2(ik.get(), ib.get()) = phi(1,stateOffset+is);
       phi_kn3(ik.get(), ib.get()) = phi(2,stateOffset+is);
     }
-    mpi->allReduceSum(&theta_e_kn);
-    mpi->allReduceSum(&theta0_kn);
-    mpi->allReduceSum(&phi_kn1); mpi->allReduceSum(&phi_kn2); mpi->allReduceSum(&phi_kn3);
+    for(auto vec_kn : {&theta_e_kn, &theta0_kn, &phi_kn1, &phi_kn2, &phi_kn3})
+      mpi->allReduceSum(vec_kn);
+
 
     // call helper to collect wavevectors in output friendly format
     Eigen::MatrixXd wavevectors = prepareWavevectorList(*bandStructure);
@@ -431,10 +431,10 @@ void genericOutputRealSpaceToJSON(Context& context, ScatteringMatrix& scattering
   auto calcStat = statisticsSweep.getCalcStatistics(0); // only one calc for relaxons
   double kBT = calcStat.temperature;
 
-  Eigen::MatrixXd Du(dimensionality,dimensionality); Du.setZero();
-  Eigen::MatrixXd Wji0(dimensionality,dimensionality); Wji0.setZero();
-  // below used only for electrons
-  Eigen::MatrixXd Wjie(dimensionality,dimensionality); Wjie.setZero();
+  // Wjie used only for electron case 
+  Eigen::MatrixXd Du, Wji0, Wjie; 
+  for(auto coeff : {&Du, &Wji0, &Wjie})
+    *coeff = Eigen::MatrixXd::Zero(dimensionality,dimensionality); 
 
   // sum over the alpha and v states that this process owns
   for (auto [is1, is2] : scatteringMatrix.getAllLocalStates()) {

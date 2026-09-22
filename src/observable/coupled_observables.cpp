@@ -123,22 +123,17 @@ void CoupledCoefficients::calcFromRelaxons(
   // "ph" and "el" components, which are summed only over either ph or el states
   // and are then used to calculate ph and el specific components to the
   // transport coefficients
-  Eigen::MatrixXd elV0 = Eigen::MatrixXd::Zero(numRelaxons, 3); // V_a0^j = < 0 | v^j | alpha >
-  Eigen::MatrixXd elVe = Eigen::MatrixXd::Zero(numRelaxons, 3); // V_ae^j = < e | v^j | alpha >
-  Eigen::MatrixXd phV0 = Eigen::MatrixXd::Zero(numRelaxons, 3);
-  Eigen::MatrixXd phVe = Eigen::MatrixXd::Zero(numRelaxons, 3);
-  Eigen::MatrixXd Ve = Eigen::MatrixXd::Zero(numRelaxons, 3);
-  Eigen::MatrixXd V0 = Eigen::MatrixXd::Zero(numRelaxons, 3);
+  // V_a0^j = < 0 | v^j | alpha > and  V_ae^j = < e | v^j | alpha >
+  Eigen::MatrixXd elV0, elVe, phV0, phVe, Ve, V0;
+  for(auto V : {&elV0, &phV0, &elVe, &phVe, &V0, &Ve})
+    *V = Eigen::MatrixXd::Zero(numRelaxons, 3);
 
-  // phi related overlaps
-  Eigen::Tensor<double, 3> elVphi(numRelaxons, 3, 3); // V_a(phi)^j = < theta | v^j | phi >
-  Eigen::Tensor<double, 3> phVphi(numRelaxons, 3, 3);
-  Eigen::Tensor<double, 3> dragVphi(numRelaxons, 3, 3);
-  Eigen::Tensor<double, 3> Vphi(numRelaxons, 3, 3);
-  dragVphi.setZero();
-  elVphi.setZero();
-  phVphi.setZero();
-  Vphi.setZero();
+  // phi related overlaps --  V_a(phi)^j = < theta | v^j | phi >
+  Eigen::Tensor<double, 3> elVphi, phVphi, Vphi;
+  for(auto V : {&elVphi, &phVphi, &Vphi}) {
+    V->resize(numRelaxons, 3, 3);
+    V->setZero();
+  }
 
   // sum over the alpha and v states that this process owns
   for (auto [is, gamma] : eigenvectors.getAllLocalStates()) {
@@ -204,16 +199,11 @@ void CoupledCoefficients::calcFromRelaxons(
     }
   }
   // reduce contributions from different processes transport velocities
-  mpi->allReduceSum(&elV0);
-  mpi->allReduceSum(&phV0);
-  mpi->allReduceSum(&elVe);
-  mpi->allReduceSum(&phVe);
-  mpi->allReduceSum(&V0);
-  mpi->allReduceSum(&Ve);
-  // viscosity ingredients
-  mpi->allReduceSum(&Vphi);
-  mpi->allReduceSum(&phVphi);
-  mpi->allReduceSum(&elVphi);
+  for(auto V : {&elV0, &phV0, &elVe, &phVe, &V0, &Ve})
+    mpi->allReduceSum(V);
+  for(auto V : { &Vphi, &phVphi, &elVphi})
+    mpi->allReduceSum(V);
+
 
   // output out of eq distributions ----------------------------
   // NOTE: specific heat units need this extract kBoltzmann factor, which should be later removed when this is fixed
@@ -253,15 +243,13 @@ void CoupledCoefficients::calcFromRelaxons(
 
   // local copies for linear algebra ops with eigen
   Eigen::Matrix3d sigmaLocal, totalSigmaLocal, selfSigmaS, dragSigmaS, totalSigmaS;
-  sigmaLocal.setZero(); totalSigmaLocal.setZero(), selfSigmaS.setZero(); dragSigmaS.setZero(); totalSigmaS.setZero();
-
+  for (auto m : {&sigmaLocal, &totalSigmaLocal, &selfSigmaS, &dragSigmaS, &totalSigmaS}) 
+    m.setZero(); 
+  
   // containers to calculate the specific contributions to the transport tensors
-  kappaContrib.resize(numRelaxons, 3, 3);
-  kappaContrib.setZero();
-  sigmaContrib.resize(numRelaxons, 3, 3);
-  sigmaContrib.setZero();
-  sigmaSContrib.resize(numRelaxons, 3, 3);
-  sigmaSContrib.setZero();
+  for (auto contribTensor : {&kappaContrib, &sigmaContrib, &sigmaSContrib})
+    contribTensor.resize(numRelaxons, 3, 3);
+    contribTensor.setZero();
   for ([[maybe_unused]] int i : {0, 1, 2}) {
     std::vector<double> temp(numRelaxons);
     iiiiContrib.push_back(temp);

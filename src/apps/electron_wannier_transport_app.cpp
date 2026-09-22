@@ -40,7 +40,7 @@ void ElectronWannierTransportApp::run(Context &context) {
         " the fermiLevel or numOccupiedStates variable in the input file.");
   } else if(useElPhInteraction && std::isnan(context.getNumOccupiedStates())) {
     #ifdef HDF5_AVAIL
-    // this function sets num occupied states in context 
+    // this function sets num occupied states in context
     H5Easy::File file(context.getElphFileName(), H5Easy::File::ReadOnly);
     context.setNumOccupiedStates(H5Easy::load<int>(file, "/numElectrons"));
     #else
@@ -216,13 +216,13 @@ void ElectronWannierTransportApp::run(Context &context) {
     // Currently the matrix is already calculated as "omega" for electrons
 
     TransportCoefficients relaxonsCoeffs(context, statisticsSweep, crystal, bandStructure);
-    
+
     // Calculate Du(i,j) before we diagonalize the matrix and ruin it
     // to calculate D we need the phi vectors, so we here calculate ahead of time
     // here -- they are saved internally to the class
     // also, create the real space solver transport coefficients
     relaxonsCoeffs.prepareRelaxons(scatteringMatrix);
-    
+
     //diagonalize and get eigenvalues and eigenvectors
     // EV such that Omega = V D V^-1
     auto [eigenvalues, eigenvectors] = scatteringMatrix.diagonalize(context.getNumRelaxonsEigenvalues());
@@ -230,7 +230,7 @@ void ElectronWannierTransportApp::run(Context &context) {
     relaxonsCoeffs.calcFromRelaxons(eigenvalues, eigenvectors);
     relaxonsCoeffs.print();
     relaxonsCoeffs.outputToJSON();
-    scatteringMatrix.relaxonsToJSON("el_relaxons_relaxation_times.json", eigenvalues);
+    scatteringMatrix.relaxonsToJSON("relaxons_el_relaxation_times.json", eigenvalues);
 
     if (mpi->mpiHead()) {
       std::cout << "Finished relaxons BTE solver\n\n";

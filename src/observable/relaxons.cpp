@@ -211,18 +211,15 @@ void outputRelaxonDeltaPopToHDF5(ParallelMatrix<double>& eigenvectors,
   double volume = bandStructure.getPoints().getCrystal().getVolumeUnitCell(dimensionality);
   int spinFac = particle.isElectron() ? 2 : 1;
 
-  // TODO should this have total state number?
-  LoopPrint loopPrint("transforming relaxon populations","relaxons", eigenvectors.getAllLocalStates().size());
-
   // final population to output, one for each direction of applied field
   std::vector<Eigen::MatrixXd> deltaPop(dimensionality);
   for (int i = 0; i < dimensionality; i++) {
       deltaPop[i] = Eigen::MatrixXd::Zero(numPoints, numBands);
   }
 
-  for (auto [iBte, alpha] : eigenvectors.getAllLocalStates()) {
+  if(mpi->mpiHead()) std::cout << "Writing \u03B4" << (particle.isElectron() ? "f" : "n") << keyname << " to file." << std::endl;
 
-    loopPrint.update();
+  for (auto [iBte, alpha] : eigenvectors.getAllLocalStates()) {
 
     if (eigenvalues(alpha) <= 0. || alpha >= numRelaxons) { continue; }
     if (alpha == alpha0 || alpha == alpha_e) continue; // skip the special eigenvectorss
@@ -245,17 +242,15 @@ void outputRelaxonDeltaPopToHDF5(ParallelMatrix<double>& eigenvectors,
     if(particle.isPhonon() && en < phEnergyCutoff) { continue; }
     double sqrtPop = sqrt(particle.getPopPopPm1(en, kBT, mu));
 
-    //if(particle.isPhonon()) std::cout << " iBte " << iBte << " " << numStates << " " << stateOffset << " terms | " << coeff << " " << sqrtPop << " " << V(alpha,0) << " " << V(alpha,1) << " " << V(alpha,2) << " " << eigenvectors(iBte, alpha) << " " << eigenvalues(alpha) << std::endl;
-
     for (int i = 0; i < dimensionality; i++) {
       deltaPop[i](ik.get(), ib.get()) += coeff * sqrtPop * V(alpha, i) * eigenvectors(iBte, alpha) / eigenvalues(alpha);
     }
   }
-  loopPrint.close();
 
+  // normalize
   for (int i = 0; i < dimensionality; i++) {
     mpi->allReduceSum(&deltaPop[i]);
-    deltaPop[i] *= sqrt(volume * numStates /spinFac);
+    deltaPop[i] *= sqrt(volume /spinFac);
   }
 
   // call helper to collect wavevectors in output friendly format

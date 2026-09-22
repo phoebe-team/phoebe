@@ -242,7 +242,7 @@ void TransportCoefficients::calcFromRelaxons(const Eigen::VectorXd &eigenvalues,
   // NOTE: specific heat units need this extract kBoltzmann factor, which should be later removed when this is fixed
 
   // delta pop for grad T
-  outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, bandStructure, V0, sqrt( (specificHeat(0)/ kBoltzmannRy) / ( kBT * T )), 0, "_gradT", false, dimensionality, kBT, mu, numRelaxons, alpha0, alpha_e);
+  outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, bandStructure, V0, sqrt( (specificHeat(0)) / ( kBT * T )), 0, "_gradT", false, dimensionality, kBT, mu, numRelaxons, alpha0, alpha_e);
 
   if(particle.isElectron()) // delta pop for delta V
     outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, bandStructure, Ve, sqrt( U / ( kBT )), 0, "_E", true, dimensionality, kBT, mu, numRelaxons, alpha0, alpha_e);

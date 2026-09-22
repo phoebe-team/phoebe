@@ -203,20 +203,18 @@ void CoupledCoefficients::calcFromRelaxons(
     mpi->allReduceSum(V);
   for(auto V : { &Vphi, &phVphi, &elVphi})
     mpi->allReduceSum(V);
-
+ 
 
   // output out of eq distributions ----------------------------
   // NOTE: specific heat units need this extract kBoltzmann factor, which should be later removed when this is fixed
 
   // delta pop for grad T
   {
-    //auto calcStat = statisticsSweep.getCalcStatistics(iCalc);
     double T = statisticsSweep.getCalcStatistics(iCalc).temperature / kBoltzmannRy;
     double kBT = kBoltzmannRy * T;
     double mu = statisticsSweep.getCalcStatistics(iCalc).chemicalPotential;
 
-    //Eigen::VectorXd theta0_ph_only = Eigen::VectorXd::Zero(numRelaxons);
-    //theta0_ph_only(Eigen::seq(numElStates, Eigen::placeholders::last)) = theta0(Eigen::seq(numElStates, Eigen::placeholders::last));
+    // delta pop for grad T 
     outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, *phBandStructure, V0, sqrt( Ctot / ( kBT * T )), numElStates, "_gradT", false, dimensionality, kBT, 0, numRelaxons, alpha0, alpha_e);
     outputRelaxonDeltaPopToHDF5(eigenvectors, eigenvalues, *elBandStructure, V0, sqrt( Ctot / ( kBT * T )), 0, "_gradT", false, dimensionality, kBT, mu, numRelaxons, alpha0, alpha_e);
 
